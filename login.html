@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>KOGU CFDI Multiempresa · Login</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <div class="login-shell">
+    <section class="login-hero">
+      <div>
+        <div class="brand-kicker">KOGU</div>
+        <div class="brand-title">CFDI Multiempresa</div>
+        <p class="brand-text" style="max-width:620px; margin-top:16px;">
+          La fiscalización empieza en los CFDI.
+        </p>
+        <p class="brand-text" style="max-width:620px; margin-top:12px;">
+          Centraliza la consulta, descarga y análisis de CFDI de múltiples empresas en una sola plataforma,
+          con visibilidad operativa, control documental y seguimiento fiscal.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="login-stat">
+          <div class="label-text" style="color:#a5f3fc;">Control fiscal unificado</div>
+          <div style="font-size:24px; font-weight:700;">Un solo entorno para tus empresas</div>
+          <div class="brand-text" style="margin-top:10px;">
+            Consulta la información fiscal de tus empresas desde un solo entorno.
+          </div>
+        </div>
+
+        <div class="login-stat">
+          <div class="label-text" style="color:#a5f3fc;">Trazabilidad y seguimiento</div>
+          <div style="font-size:24px; font-weight:700;">Contexto para cada CFDI</div>
+          <div class="brand-text" style="margin-top:10px;">
+            Da contexto a cada CFDI y fortalece el control sobre la operación.
+          </div>
+        </div>
+
+        <div class="login-stat">
+          <div class="label-text" style="color:#a5f3fc;">Información para decidir</div>
+          <div style="font-size:24px; font-weight:700;">Visibilidad ejecutiva y acción</div>
+          <div class="brand-text" style="margin-top:10px;">
+            Convierte datos fiscales en visibilidad ejecutiva y acción oportuna.
+          </div>
+        </div>
+
+        <div class="login-stat">
+          <div class="label-text" style="color:#a5f3fc;">Plataforma centralizada</div>
+          <div style="font-size:24px; font-weight:700;">Consulta, descarga y análisis</div>
+          <div class="brand-text" style="margin-top:10px;">
+            Integra operación fiscal, seguimiento documental y lectura de negocio en una sola vista.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-box">
+        <div class="eyebrow">Acceso seguro</div>
+        <h1 style="font-size:30px; margin:8px 0 10px;">Iniciar sesión</h1>
+        <p style="color:#64748b; margin-top:0;">
+          Accede con tu usuario para consultar tus empresas, operar CFDI y trabajar sobre servicios reales del backend.
+        </p>
+
+        <form id="loginForm" class="form-grid" style="margin-top:20px;">
+          <div>
+            <div class="label-text">Ambiente</div>
+            <select class="select" id="envSelect"></select>
+          </div>
+
+          <div>
+            <div class="label-text">Correo</div>
+            <input class="input" id="email" type="email" placeholder="Captura tu correo" autocomplete="username" />
+          </div>
+
+          <div>
+            <div class="label-text">Contraseña</div>
+            <input class="input" id="password" type="password" value="" placeholder="Captura tu contraseña" />
+          </div>
+
+          <div class="hero-note">
+            Después del login, el sistema resolverá tu contexto, permisos y empresa activa para mostrarte únicamente lo que te corresponde operar.
+          </div>
+
+          <div class="btns">
+            <button class="btn primary" type="submit">Entrar a KOGU</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/auth.js"></script>
+  <script src="pages/login.js"></script>
+</body>
+</html>

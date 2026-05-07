@@ -1,0 +1,386 @@
+:root{
+  --pdf-bg:#f4f6f8;
+  --pdf-paper:#ffffff;
+  --pdf-ink:#0f172a;
+  --pdf-muted:#64748b;
+  --pdf-line:#d9e1ea;
+  --pdf-soft:#f8fafc;
+  --pdf-accent:#0f172a;
+  --pdf-ok:#166534;
+  --pdf-ok-bg:#dcfce7;
+  --pdf-warn:#92400e;
+  --pdf-warn-bg:#fef3c7;
+  --pdf-bad:#991b1b;
+  --pdf-bad-bg:#fee2e2;
+}
+
+*{box-sizing:border-box}
+
+html,body{
+  margin:0;
+  padding:0;
+  background:var(--pdf-bg);
+  color:var(--pdf-ink);
+  font-family:Arial, Helvetica, sans-serif;
+}
+
+.cfdi-pdf-body{
+  min-height:100vh;
+}
+
+.cfdi-pdf-app{
+  max-width:980px;
+  margin:0 auto;
+  padding:24px;
+}
+
+.cfdi-pdf-loading{
+  background:var(--pdf-paper);
+  border:1px solid var(--pdf-line);
+  border-radius:16px;
+  padding:32px;
+  text-align:center;
+  color:var(--pdf-muted);
+}
+
+.cfdi-pdf-sheet{
+  background:var(--pdf-paper);
+  border:1px solid var(--pdf-line);
+  border-radius:18px;
+  box-shadow:0 10px 30px rgba(15,23,42,.06);
+  padding:28px;
+}
+
+.cfdi-pdf-toolbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.cfdi-pdf-toolbar .btn{
+  min-width:130px;
+}
+
+.cfdi-pdf-paper{
+  background:var(--pdf-paper);
+  border:1px solid var(--pdf-line);
+  border-radius:18px;
+  padding:28px;
+}
+
+.cfdi-pdf-head{
+  display:grid;
+  grid-template-columns:1.3fr .7fr;
+  gap:18px;
+  align-items:start;
+  padding-bottom:18px;
+  border-bottom:2px solid var(--pdf-line);
+}
+
+.cfdi-pdf-brand h1{
+  margin:0;
+  font-size:28px;
+  line-height:1.05;
+  letter-spacing:-.02em;
+}
+
+.cfdi-pdf-brand p{
+  margin:6px 0 0;
+  color:var(--pdf-muted);
+  font-size:13px;
+}
+
+.cfdi-pdf-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-end;
+}
+
+.cfdi-pdf-tag{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:7px 12px;
+  font-size:12px;
+  font-weight:700;
+  border:1px solid var(--pdf-line);
+  background:#fff;
+  color:var(--pdf-ink);
+}
+
+.cfdi-pdf-tag.ok{background:var(--pdf-ok-bg); color:var(--pdf-ok)}
+.cfdi-pdf-tag.warn{background:var(--pdf-warn-bg); color:var(--pdf-warn)}
+.cfdi-pdf-tag.bad{background:var(--pdf-bad-bg); color:var(--pdf-bad)}
+
+.cfdi-pdf-block{
+  margin-top:18px;
+}
+
+.cfdi-pdf-grid-2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+
+.cfdi-pdf-grid-3{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:16px;
+}
+
+.cfdi-pdf-box{
+  border:1px solid var(--pdf-line);
+  border-radius:14px;
+  padding:14px 16px;
+  background:#fff;
+}
+
+.cfdi-pdf-box.soft{
+  background:var(--pdf-soft);
+}
+
+.cfdi-pdf-section-title{
+  margin:0 0 10px;
+  font-size:11px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--pdf-muted);
+  font-weight:700;
+}
+
+.cfdi-pdf-box h2{
+  margin:0 0 8px;
+  font-size:18px;
+  line-height:1.1;
+}
+
+.cfdi-pdf-kv{
+  display:grid;
+  grid-template-columns:160px 1fr;
+  gap:6px 12px;
+  font-size:13px;
+  line-height:1.35;
+}
+
+.cfdi-pdf-kv .k{
+  color:var(--pdf-muted);
+  font-weight:700;
+}
+
+.cfdi-pdf-kv .v{
+  color:var(--pdf-ink);
+  word-break:break-word;
+}
+
+.cfdi-pdf-mini-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+
+.cfdi-pdf-mini{
+  border:1px solid var(--pdf-line);
+  border-radius:12px;
+  padding:12px 14px;
+  background:#fff;
+}
+
+.cfdi-pdf-mini .k{
+  display:block;
+  font-size:11px;
+  color:var(--pdf-muted);
+  margin-bottom:6px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.cfdi-pdf-mini .v{
+  display:block;
+  font-size:15px;
+  font-weight:700;
+  line-height:1.25;
+}
+
+.cfdi-pdf-table-wrap{
+  border:1px solid var(--pdf-line);
+  border-radius:14px;
+  overflow:hidden;
+  background:#fff;
+}
+
+.cfdi-pdf-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+}
+
+.cfdi-pdf-table thead th{
+  background:var(--pdf-soft);
+  color:#334155;
+  font-size:11px;
+  font-weight:700;
+  text-align:left;
+  padding:10px 10px;
+  border-bottom:1px solid var(--pdf-line);
+}
+
+.cfdi-pdf-table tbody td{
+  font-size:12px;
+  padding:10px 10px;
+  border-bottom:1px solid var(--pdf-line);
+  vertical-align:top;
+  word-break:break-word;
+}
+
+.cfdi-pdf-table tbody tr:last-child td{
+  border-bottom:none;
+}
+
+.cfdi-pdf-right{
+  text-align:right;
+}
+
+.cfdi-pdf-totals{
+  margin-top:18px;
+  display:grid;
+  grid-template-columns:1.15fr .85fr;
+  gap:16px;
+}
+
+.cfdi-pdf-note{
+  border:1px solid var(--pdf-line);
+  border-radius:14px;
+  background:var(--pdf-soft);
+  padding:14px 16px;
+  font-size:13px;
+  line-height:1.45;
+}
+
+.cfdi-pdf-total-box{
+  border:1px solid var(--pdf-line);
+  border-radius:14px;
+  background:#fff;
+  padding:14px 16px;
+}
+
+.cfdi-pdf-total-row{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:6px 0;
+  border-bottom:1px dashed var(--pdf-line);
+  font-size:13px;
+}
+
+.cfdi-pdf-total-row:last-child{
+  border-bottom:none;
+}
+
+.cfdi-pdf-total-row.grand{
+  font-size:18px;
+  font-weight:700;
+  padding-top:10px;
+}
+
+.cfdi-pdf-foot{
+  margin-top:18px;
+  border-top:2px solid var(--pdf-line);
+  padding-top:16px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+
+.cfdi-pdf-foot .mono{
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:11px;
+  word-break:break-word;
+}
+
+.cfdi-pdf-empty{
+  color:var(--pdf-muted);
+  font-style:italic;
+}
+
+@media (max-width:900px){
+  .cfdi-pdf-app{padding:12px}
+  .cfdi-pdf-head,
+  .cfdi-pdf-grid-2,
+  .cfdi-pdf-grid-3,
+  .cfdi-pdf-mini-grid,
+  .cfdi-pdf-totals,
+  .cfdi-pdf-foot{
+    grid-template-columns:1fr;
+  }
+  .cfdi-pdf-kv{
+    grid-template-columns:1fr;
+    gap:2px;
+  }
+}
+
+@media print{
+  @page{
+    size:auto;
+    margin:10mm;
+  }
+
+  html,body{
+    background:#fff !important;
+  }
+
+  .cfdi-pdf-app{
+    max-width:none;
+    padding:0;
+  }
+
+  .cfdi-pdf-sheet{
+    border:none;
+    box-shadow:none;
+    padding:0;
+  }
+
+  .cfdi-pdf-toolbar{
+    display:none !important;
+  }
+
+  .cfdi-pdf-paper{
+    border:none;
+    border-radius:0;
+    padding:0;
+  }
+
+  .cfdi-pdf-box,
+  .cfdi-pdf-table-wrap,
+  .cfdi-pdf-total-box,
+  .cfdi-pdf-note{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .cfdi-pdf-brand h1{
+    font-size:22px;
+  }
+
+  .cfdi-pdf-table thead th{
+    font-size:10px;
+    padding:8px;
+  }
+
+  .cfdi-pdf-table tbody td{
+    font-size:11px;
+    padding:8px;
+  }
+
+  .cfdi-pdf-mini .v{
+    font-size:14px;
+  }
+
+  .cfdi-pdf-total-row.grand{
+    font-size:16px;
+  }
+}
