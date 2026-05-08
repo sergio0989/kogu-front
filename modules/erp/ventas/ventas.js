@@ -32,10 +32,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       .res-card.total { background:rgba(14,116,144,.06); border:1px solid rgba(14,116,144,.25) }
       .res-card .eyebrow { margin-bottom:8px }
       .res-card.total .eyebrow { color:#0e7490 }
-      .res-card table { font-size:11px; width:100%; border-collapse:collapse }
-      .res-card th, .res-card td { white-space:nowrap; padding:4px 6px }
+      .res-card .table-wrap { overflow-x:auto }
+      .res-card table { font-size:11px; min-width:100%; border-collapse:collapse }
+      .res-card th, .res-card td { white-space:nowrap; padding:4px 8px }
       .res-card th { font-weight:600; color:var(--muted); border-bottom:1px solid var(--line) }
-      .res-card td.num { text-align:right; font-variant-numeric:tabular-nums }
+      .res-card td.num, .res-card th[style*="right"] { text-align:right; font-variant-numeric:tabular-nums }
       .res-card tfoot tr { background:var(--panel); font-weight:700; border-top:2px solid var(--line) }
     </style>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:14px">
