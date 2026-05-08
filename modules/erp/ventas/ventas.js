@@ -27,49 +27,60 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div style="font-size:12px;color:var(--muted)">Cantidad = unidades vendidas · Subtotal excluye notas de crédito</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px">
+    <style>
+      .res-card { background:var(--panel2); border-radius:12px; padding:12px; min-width:0 }
+      .res-card.total { background:rgba(14,116,144,.06); border:1px solid rgba(14,116,144,.25) }
+      .res-card .eyebrow { margin-bottom:8px }
+      .res-card.total .eyebrow { color:#0e7490 }
+      .res-card table { font-size:11px; width:100%; border-collapse:collapse }
+      .res-card th, .res-card td { white-space:nowrap; padding:4px 6px }
+      .res-card th { font-weight:600; color:var(--muted); border-bottom:1px solid var(--line) }
+      .res-card td.num { text-align:right; font-variant-numeric:tabular-nums }
+      .res-card tfoot tr { background:var(--panel); font-weight:700; border-top:2px solid var(--line) }
+    </style>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:14px">
       <!-- VENTAS MXN -->
-      <div style="background:var(--panel2);border-radius:12px;padding:14px">
-        <div class="eyebrow" style="margin-bottom:8px">VENTAS MXN</div>
-        <div class="table-wrap"><table style="font-size:12px;width:100%">
+      <div class="res-card">
+        <div class="eyebrow">VENTAS MXN</div>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th style="text-align:left">Mes</th>
             <th style="text-align:right">Cantidad</th>
             <th style="text-align:right">Subtotal</th>
-            <th style="text-align:right">NC #</th>
+            <th style="text-align:right">NC</th>
             <th style="text-align:right">Imp. NC</th>
           </tr></thead>
-          <tbody id="resMxn"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tbody id="resMxn"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:10px">—</td></tr></tbody>
           <tfoot id="resMxnFoot"></tfoot>
         </table></div>
       </div>
       <!-- VENTAS USD -->
-      <div style="background:var(--panel2);border-radius:12px;padding:14px">
-        <div class="eyebrow" style="margin-bottom:8px">VENTAS USD</div>
-        <div class="table-wrap"><table style="font-size:12px;width:100%">
+      <div class="res-card">
+        <div class="eyebrow">VENTAS USD</div>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th style="text-align:left">Mes</th>
             <th style="text-align:right">Cantidad</th>
             <th style="text-align:right">Subtotal</th>
-            <th style="text-align:right">NC #</th>
+            <th style="text-align:right">NC</th>
             <th style="text-align:right">Imp. NC</th>
           </tr></thead>
-          <tbody id="resUsd"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tbody id="resUsd"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:10px">—</td></tr></tbody>
           <tfoot id="resUsdFoot"></tfoot>
         </table></div>
       </div>
       <!-- TOTAL CONSOLIDADO -->
-      <div style="background:rgba(14,116,144,.06);border-radius:12px;padding:14px;border:1px solid rgba(14,116,144,.25)">
-        <div class="eyebrow" style="margin-bottom:8px;color:#0e7490">TOTAL CONSOLIDADO</div>
-        <div class="table-wrap"><table style="font-size:12px;width:100%">
+      <div class="res-card total">
+        <div class="eyebrow">TOTAL CONSOLIDADO</div>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th style="text-align:left">Mes</th>
             <th style="text-align:right">Cantidad</th>
             <th style="text-align:right">Subtotal</th>
-            <th style="text-align:right">NC #</th>
+            <th style="text-align:right">NC</th>
             <th style="text-align:right">Imp. NC</th>
           </tr></thead>
-          <tbody id="resTotal"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tbody id="resTotal"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:10px">—</td></tr></tbody>
           <tfoot id="resTotalFoot"></tfoot>
         </table></div>
       </div>
@@ -211,10 +222,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const renderRow = (r, suf) => `<tr>
       <td>${MES_LBL[r.mes] || r.mes}</td>
-      <td style="text-align:right">${num(r['cantidad_'+suf])}</td>
-      <td style="text-align:right">${fmt(r['subtotal_'+suf])}</td>
-      <td style="text-align:right">${Number(r['nc_count_'+suf]||0)}</td>
-      <td style="text-align:right;${Number(r['importe_nc_'+suf]||0)<0?'color:#dc2626':''}">${fmt(r['importe_nc_'+suf])}</td>
+      <td class="num">${num(r['cantidad_'+suf])}</td>
+      <td class="num">${fmt(r['subtotal_'+suf])}</td>
+      <td class="num">${Number(r['nc_count_'+suf]||0)}</td>
+      <td class="num"${Number(r['importe_nc_'+suf]||0)<0?' style="color:#dc2626"':''}>${fmt(r['importe_nc_'+suf])}</td>
     </tr>`;
 
     const renderFoot = (suf) => {
@@ -224,12 +235,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         nc:       a.nc       + Number(r['nc_count_'+suf]||0),
         imp_nc:   a.imp_nc   + Number(r['importe_nc_'+suf]||0),
       }), {cantidad:0, subtotal:0, nc:0, imp_nc:0});
-      return `<tr style="background:var(--panel);font-weight:700;border-top:2px solid var(--line)">
+      return `<tr>
         <td>Total</td>
-        <td style="text-align:right">${num(t.cantidad)}</td>
-        <td style="text-align:right">${fmt(t.subtotal)}</td>
-        <td style="text-align:right">${t.nc.toLocaleString()}</td>
-        <td style="text-align:right;${t.imp_nc<0?'color:#dc2626':''}">${fmt(t.imp_nc)}</td>
+        <td class="num">${num(t.cantidad)}</td>
+        <td class="num">${fmt(t.subtotal)}</td>
+        <td class="num">${t.nc.toLocaleString()}</td>
+        <td class="num"${t.imp_nc<0?' style="color:#dc2626"':''}>${fmt(t.imp_nc)}</td>
       </tr>`;
     };
 

@@ -24,46 +24,57 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div style="font-size:12px;color:var(--muted)">Cobros = movimientos del mes · Subtotal = importe cobrado</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px">
+    <style>
+      .res-card { background:var(--panel2); border-radius:12px; padding:12px; min-width:0 }
+      .res-card.total { background:rgba(14,116,144,.06); border:1px solid rgba(14,116,144,.25) }
+      .res-card .eyebrow { margin-bottom:8px }
+      .res-card.total .eyebrow { color:#0e7490 }
+      .res-card table { font-size:11px; width:100%; border-collapse:collapse }
+      .res-card th, .res-card td { white-space:nowrap; padding:4px 6px }
+      .res-card th { font-weight:600; color:var(--muted); border-bottom:1px solid var(--line) }
+      .res-card td.num { text-align:right; font-variant-numeric:tabular-nums }
+      .res-card tfoot tr { background:var(--panel); font-weight:700; border-top:2px solid var(--line) }
+    </style>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px">
       <!-- COBRANZA MXN -->
-      <div style="background:var(--panel2);border-radius:12px;padding:14px">
-        <div class="eyebrow" style="margin-bottom:8px">COBRANZA MXN</div>
-        <div class="table-wrap"><table style="font-size:12px;width:100%">
+      <div class="res-card">
+        <div class="eyebrow">COBRANZA MXN</div>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th style="text-align:left">Mes</th>
             <th style="text-align:right">Cobros</th>
             <th style="text-align:right">Subtotal</th>
             <th style="text-align:right">IVA</th>
           </tr></thead>
-          <tbody id="resMxn"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tbody id="resMxn"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:10px">—</td></tr></tbody>
           <tfoot id="resMxnFoot"></tfoot>
         </table></div>
       </div>
       <!-- COBRANZA USD -->
-      <div style="background:var(--panel2);border-radius:12px;padding:14px">
-        <div class="eyebrow" style="margin-bottom:8px">COBRANZA USD</div>
-        <div class="table-wrap"><table style="font-size:12px;width:100%">
+      <div class="res-card">
+        <div class="eyebrow">COBRANZA USD</div>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th style="text-align:left">Mes</th>
             <th style="text-align:right">Cobros</th>
             <th style="text-align:right">Subtotal</th>
             <th style="text-align:right">IVA</th>
           </tr></thead>
-          <tbody id="resUsd"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tbody id="resUsd"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:10px">—</td></tr></tbody>
           <tfoot id="resUsdFoot"></tfoot>
         </table></div>
       </div>
       <!-- TOTAL CONSOLIDADO -->
-      <div style="background:rgba(14,116,144,.06);border-radius:12px;padding:14px;border:1px solid rgba(14,116,144,.25)">
-        <div class="eyebrow" style="margin-bottom:8px;color:#0e7490">TOTAL CONSOLIDADO</div>
-        <div class="table-wrap"><table style="font-size:12px;width:100%">
+      <div class="res-card total">
+        <div class="eyebrow">TOTAL CONSOLIDADO</div>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th style="text-align:left">Mes</th>
             <th style="text-align:right">Cobros</th>
             <th style="text-align:right">Subtotal</th>
             <th style="text-align:right">IVA</th>
           </tr></thead>
-          <tbody id="resTotal"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tbody id="resTotal"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:10px">—</td></tr></tbody>
           <tfoot id="resTotalFoot"></tfoot>
         </table></div>
       </div>
@@ -184,9 +195,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const renderRow = (r, suf) => `<tr>
       <td>${MES_LBL[r.mes] || r.mes}</td>
-      <td style="text-align:right">${Number(r['cobros_'+suf]||0).toLocaleString()}</td>
-      <td style="text-align:right">${fmt(r['subtot_'+suf])}</td>
-      <td style="text-align:right">${fmt(r['iva_'+suf])}</td>
+      <td class="num">${Number(r['cobros_'+suf]||0).toLocaleString()}</td>
+      <td class="num">${fmt(r['subtot_'+suf])}</td>
+      <td class="num">${fmt(r['iva_'+suf])}</td>
     </tr>`;
 
     const renderFoot = (suf) => {
@@ -195,11 +206,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         subtot: a.subtot + Number(r['subtot_'+suf]||0),
         iva:    a.iva    + Number(r['iva_'+suf]||0),
       }), {cobros:0, subtot:0, iva:0});
-      return `<tr style="background:var(--panel);font-weight:700;border-top:2px solid var(--line)">
+      return `<tr>
         <td>Total</td>
-        <td style="text-align:right">${t.cobros.toLocaleString()}</td>
-        <td style="text-align:right">${fmt(t.subtot)}</td>
-        <td style="text-align:right">${fmt(t.iva)}</td>
+        <td class="num">${t.cobros.toLocaleString()}</td>
+        <td class="num">${fmt(t.subtot)}</td>
+        <td class="num">${fmt(t.iva)}</td>
       </tr>`;
     };
 
