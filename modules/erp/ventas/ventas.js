@@ -18,12 +18,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('pageContent').innerHTML = `
 <div class="stack" style="gap:20px">
 
-  <!-- KPIs -->
-  <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-    <div class="kpi"><div class="label">Documentos</div><div class="value" id="kpiTotal">—</div><div class="hint">del período</div></div>
-    <div class="kpi"><div class="label">Subtotal MXN</div><div class="value" id="kpiSubMXN">—</div><div class="hint">subt. líneas MN</div></div>
-    <div class="kpi"><div class="label">Subtotal USD</div><div class="value" id="kpiSubUSD">—</div><div class="hint">subt. líneas ME</div></div>
-    <div class="kpi"><div class="label">Notas crédito</div><div class="value" id="kpiNC" style="color:#dc2626">—</div><div class="hint">importes negativos</div></div>
+  <!-- Resumen ejecutivo mensual -->
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="eyebrow">RESUMEN EJECUTIVO</div>
+        <h2 style="margin:0">Ventas por mes — <span id="resAño">${defAño}</span></h2>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Cantidad = unidades vendidas · Subtotal excluye notas de crédito</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px">
+      <!-- VENTAS MXN -->
+      <div style="background:var(--panel2);border-radius:12px;padding:14px">
+        <div class="eyebrow" style="margin-bottom:8px">VENTAS MXN</div>
+        <div class="table-wrap"><table style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="text-align:left">Mes</th>
+            <th style="text-align:right">Cantidad</th>
+            <th style="text-align:right">Subtotal</th>
+            <th style="text-align:right">NC #</th>
+            <th style="text-align:right">Imp. NC</th>
+          </tr></thead>
+          <tbody id="resMxn"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tfoot id="resMxnFoot"></tfoot>
+        </table></div>
+      </div>
+      <!-- VENTAS USD -->
+      <div style="background:var(--panel2);border-radius:12px;padding:14px">
+        <div class="eyebrow" style="margin-bottom:8px">VENTAS USD</div>
+        <div class="table-wrap"><table style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="text-align:left">Mes</th>
+            <th style="text-align:right">Cantidad</th>
+            <th style="text-align:right">Subtotal</th>
+            <th style="text-align:right">NC #</th>
+            <th style="text-align:right">Imp. NC</th>
+          </tr></thead>
+          <tbody id="resUsd"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tfoot id="resUsdFoot"></tfoot>
+        </table></div>
+      </div>
+      <!-- TOTAL CONSOLIDADO -->
+      <div style="background:rgba(14,116,144,.06);border-radius:12px;padding:14px;border:1px solid rgba(14,116,144,.25)">
+        <div class="eyebrow" style="margin-bottom:8px;color:#0e7490">TOTAL CONSOLIDADO</div>
+        <div class="table-wrap"><table style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="text-align:left">Mes</th>
+            <th style="text-align:right">Cantidad</th>
+            <th style="text-align:right">Subtotal</th>
+            <th style="text-align:right">NC #</th>
+            <th style="text-align:right">Imp. NC</th>
+          </tr></thead>
+          <tbody id="resTotal"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tfoot id="resTotalFoot"></tfoot>
+        </table></div>
+      </div>
+    </div>
   </div>
 
   <!-- Filtros + tabla -->
@@ -106,6 +156,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const n = Number(v || 0);
     return (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+  const num = v => Number(v || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const MES_LBL = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   // Construye los query params de filtro (sin limit/offset) — compartido entre
   // la llamada paginada y la llamada de totales del período completo.
@@ -126,16 +178,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     qs.set('offset', (page - 1) * LIMIT);
 
     try {
-      // Llamadas en paralelo: paginación + totales del período completo
-      const [res, resTot] = await Promise.all([
+      // Llamadas en paralelo: paginación + totales del período completo + resumen anual
+      const añoSel = document.getElementById('añoFil').value.trim() || defAño;
+      const resumenQs = new URLSearchParams({ año: añoSel });
+      const qSearch = document.getElementById('q').value.trim();
+      if (qSearch) resumenQs.set('q', qSearch);
+
+      const [res, resTot, resResumen] = await Promise.all([
         KoguApi.apiFetch(`${BASE}/ventas?${qs}`),
         KoguApi.apiFetch(`${BASE}/ventas/totales?${filters}`),
+        KoguApi.apiFetch(`${BASE}/ventas/resumen?${resumenQs}`),
       ]);
       const rows  = KoguApi.unwrapRows(res);
       const total = rows.length ? Number(rows[0].total_count ?? rows.length) : 0;
       const tots  = resTot?.data ?? resTot ?? {};
+      const resumenRows = KoguApi.unwrapRows(resResumen);
 
-      renderKpis(rows, total, tots);
+      renderResumen(resumenRows, añoSel);
       renderTotales(total, tots);
       renderRows(rows, total);
     } catch(err) {
@@ -145,15 +204,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // KPIs — todos desde el endpoint /ventas/totales (período completo, no la página).
-  function renderKpis(rows, totalDocs, tots) {
-    const mxn = Number(tots.subtotal_mxn   || 0);
-    const usd = Number(tots.subtotal_usd   || 0);
-    const nc  = Number(tots.nc_count       || 0);
-    document.getElementById('kpiTotal').textContent  = Number(tots.folios ?? totalDocs ?? 0).toLocaleString();
-    document.getElementById('kpiSubMXN').textContent = fmt(mxn);
-    document.getElementById('kpiSubUSD').textContent = `$${Math.abs(usd).toLocaleString('es-MX',{minimumFractionDigits:2})}`;
-    document.getElementById('kpiNC').textContent     = nc.toLocaleString();
+  // Resumen ejecutivo mensual — 3 cards (MXN / USD / TOTAL CONSOLIDADO).
+  // Pinta una fila por mes que tenga datos en el año filtrado.
+  function renderResumen(rows, añoSel) {
+    document.getElementById('resAño').textContent = añoSel;
+
+    const renderRow = (r, suf) => `<tr>
+      <td>${MES_LBL[r.mes] || r.mes}</td>
+      <td style="text-align:right">${num(r['cantidad_'+suf])}</td>
+      <td style="text-align:right">${fmt(r['subtotal_'+suf])}</td>
+      <td style="text-align:right">${Number(r['nc_count_'+suf]||0)}</td>
+      <td style="text-align:right;${Number(r['importe_nc_'+suf]||0)<0?'color:#dc2626':''}">${fmt(r['importe_nc_'+suf])}</td>
+    </tr>`;
+
+    const renderFoot = (suf) => {
+      const t = rows.reduce((a,r) => ({
+        cantidad: a.cantidad + Number(r['cantidad_'+suf]||0),
+        subtotal: a.subtotal + Number(r['subtotal_'+suf]||0),
+        nc:       a.nc       + Number(r['nc_count_'+suf]||0),
+        imp_nc:   a.imp_nc   + Number(r['importe_nc_'+suf]||0),
+      }), {cantidad:0, subtotal:0, nc:0, imp_nc:0});
+      return `<tr style="background:var(--panel);font-weight:700;border-top:2px solid var(--line)">
+        <td>Total</td>
+        <td style="text-align:right">${num(t.cantidad)}</td>
+        <td style="text-align:right">${fmt(t.subtotal)}</td>
+        <td style="text-align:right">${t.nc.toLocaleString()}</td>
+        <td style="text-align:right;${t.imp_nc<0?'color:#dc2626':''}">${fmt(t.imp_nc)}</td>
+      </tr>`;
+    };
+
+    const empty = `<tr><td colspan="5" class="empty" style="text-align:center;color:var(--muted);padding:12px">Sin datos para el año ${añoSel}.</td></tr>`;
+
+    if (!rows.length) {
+      document.getElementById('resMxn').innerHTML   = empty;
+      document.getElementById('resUsd').innerHTML   = empty;
+      document.getElementById('resTotal').innerHTML = empty;
+      document.getElementById('resMxnFoot').innerHTML   = '';
+      document.getElementById('resUsdFoot').innerHTML   = '';
+      document.getElementById('resTotalFoot').innerHTML = '';
+      return;
+    }
+
+    document.getElementById('resMxn').innerHTML       = rows.map(r => renderRow(r,'mxn')).join('');
+    document.getElementById('resUsd').innerHTML       = rows.map(r => renderRow(r,'usd')).join('');
+    document.getElementById('resTotal').innerHTML     = rows.map(r => renderRow(r,'total')).join('');
+    document.getElementById('resMxnFoot').innerHTML   = renderFoot('mxn');
+    document.getElementById('resUsdFoot').innerHTML   = renderFoot('usd');
+    document.getElementById('resTotalFoot').innerHTML = renderFoot('total');
   }
 
   // "Período filtrado" — usa los totales del endpoint /ventas/totales (período completo).

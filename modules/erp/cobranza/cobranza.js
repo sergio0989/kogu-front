@@ -15,12 +15,59 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('pageContent').innerHTML = `
 <div class="stack" style="gap:20px">
 
-  <!-- KPIs -->
-  <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-    <div class="kpi"><div class="label">Total cobros</div><div class="value" id="kpiTotal">—</div><div class="hint">del período</div></div>
-    <div class="kpi"><div class="label">Cobrado MXN</div><div class="value" id="kpiMXN">—</div><div class="hint">importe MN</div></div>
-    <div class="kpi"><div class="label">Cobrado USD</div><div class="value" id="kpiUSD">—</div><div class="hint">importe ME</div></div>
-    <div class="kpi"><div class="label">IVA Total</div><div class="value" id="kpiIVA">—</div><div class="hint">impuesto período</div></div>
+  <!-- Resumen ejecutivo mensual -->
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="eyebrow">RESUMEN EJECUTIVO</div>
+        <h2 style="margin:0">Cobranza por mes — <span id="resAño">${defAño}</span></h2>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Cobros = movimientos del mes · Subtotal = importe cobrado</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px">
+      <!-- COBRANZA MXN -->
+      <div style="background:var(--panel2);border-radius:12px;padding:14px">
+        <div class="eyebrow" style="margin-bottom:8px">COBRANZA MXN</div>
+        <div class="table-wrap"><table style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="text-align:left">Mes</th>
+            <th style="text-align:right">Cobros</th>
+            <th style="text-align:right">Subtotal</th>
+            <th style="text-align:right">IVA</th>
+          </tr></thead>
+          <tbody id="resMxn"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tfoot id="resMxnFoot"></tfoot>
+        </table></div>
+      </div>
+      <!-- COBRANZA USD -->
+      <div style="background:var(--panel2);border-radius:12px;padding:14px">
+        <div class="eyebrow" style="margin-bottom:8px">COBRANZA USD</div>
+        <div class="table-wrap"><table style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="text-align:left">Mes</th>
+            <th style="text-align:right">Cobros</th>
+            <th style="text-align:right">Subtotal</th>
+            <th style="text-align:right">IVA</th>
+          </tr></thead>
+          <tbody id="resUsd"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tfoot id="resUsdFoot"></tfoot>
+        </table></div>
+      </div>
+      <!-- TOTAL CONSOLIDADO -->
+      <div style="background:rgba(14,116,144,.06);border-radius:12px;padding:14px;border:1px solid rgba(14,116,144,.25)">
+        <div class="eyebrow" style="margin-bottom:8px;color:#0e7490">TOTAL CONSOLIDADO</div>
+        <div class="table-wrap"><table style="font-size:12px;width:100%">
+          <thead><tr>
+            <th style="text-align:left">Mes</th>
+            <th style="text-align:right">Cobros</th>
+            <th style="text-align:right">Subtotal</th>
+            <th style="text-align:right">IVA</th>
+          </tr></thead>
+          <tbody id="resTotal"><tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">—</td></tr></tbody>
+          <tfoot id="resTotalFoot"></tfoot>
+        </table></div>
+      </div>
+    </div>
   </div>
 
   <!-- Filtros + tabla -->
@@ -85,6 +132,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const n = Number(v || 0);
     return (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+  const num = v => Number(v || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const MES_LBL = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   // Construye los query params de filtro (sin limit/offset) — compartido entre
   // la llamada paginada y la llamada de totales del período completo.
@@ -103,16 +152,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     qs.set('offset', (page - 1) * LIMIT);
 
     try {
-      // Llamadas en paralelo: paginación + totales del período completo
-      const [res, resTot] = await Promise.all([
+      // Llamadas en paralelo: paginación + totales del período completo + resumen anual
+      const añoSel = document.getElementById('añoFil').value.trim() || defAño;
+      const resumenQs = new URLSearchParams({ año: añoSel });
+      const qSearch = document.getElementById('q').value.trim();
+      if (qSearch) resumenQs.set('q', qSearch);
+
+      const [res, resTot, resResumen] = await Promise.all([
         KoguApi.apiFetch(`${BASE}/cobranza?${qs}`),
         KoguApi.apiFetch(`${BASE}/cobranza/totales?${filters}`),
+        KoguApi.apiFetch(`${BASE}/cobranza/resumen?${resumenQs}`),
       ]);
       const rows  = KoguApi.unwrapRows(res);
       const total = rows.length ? Number(rows[0].total_count ?? rows.length) : 0;
       const tots  = resTot?.data ?? resTot ?? {};
+      const resumenRows = KoguApi.unwrapRows(resResumen);
 
-      renderKpis(tots);
+      renderResumen(resumenRows, añoSel);
       renderTotales(total, tots);
       renderRows(rows, total);
     } catch(err) {
@@ -122,12 +178,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // KPIs — todos desde el endpoint /cobranza/totales (período completo, no la página).
-  function renderKpis(tots) {
-    document.getElementById('kpiTotal').textContent = Number(tots.cobros   || 0).toLocaleString();
-    document.getElementById('kpiMXN').textContent   = fmt(tots.subtot_mxn);
-    document.getElementById('kpiUSD').textContent   = fmt(tots.subtot_usd);
-    document.getElementById('kpiIVA').textContent   = fmt(tots.iva_total);
+  // Resumen ejecutivo mensual — 3 cards (MXN / USD / TOTAL CONSOLIDADO).
+  function renderResumen(rows, añoSel) {
+    document.getElementById('resAño').textContent = añoSel;
+
+    const renderRow = (r, suf) => `<tr>
+      <td>${MES_LBL[r.mes] || r.mes}</td>
+      <td style="text-align:right">${Number(r['cobros_'+suf]||0).toLocaleString()}</td>
+      <td style="text-align:right">${fmt(r['subtot_'+suf])}</td>
+      <td style="text-align:right">${fmt(r['iva_'+suf])}</td>
+    </tr>`;
+
+    const renderFoot = (suf) => {
+      const t = rows.reduce((a,r) => ({
+        cobros: a.cobros + Number(r['cobros_'+suf]||0),
+        subtot: a.subtot + Number(r['subtot_'+suf]||0),
+        iva:    a.iva    + Number(r['iva_'+suf]||0),
+      }), {cobros:0, subtot:0, iva:0});
+      return `<tr style="background:var(--panel);font-weight:700;border-top:2px solid var(--line)">
+        <td>Total</td>
+        <td style="text-align:right">${t.cobros.toLocaleString()}</td>
+        <td style="text-align:right">${fmt(t.subtot)}</td>
+        <td style="text-align:right">${fmt(t.iva)}</td>
+      </tr>`;
+    };
+
+    const empty = `<tr><td colspan="4" class="empty" style="text-align:center;color:var(--muted);padding:12px">Sin datos para el año ${añoSel}.</td></tr>`;
+
+    if (!rows.length) {
+      document.getElementById('resMxn').innerHTML       = empty;
+      document.getElementById('resUsd').innerHTML       = empty;
+      document.getElementById('resTotal').innerHTML     = empty;
+      document.getElementById('resMxnFoot').innerHTML   = '';
+      document.getElementById('resUsdFoot').innerHTML   = '';
+      document.getElementById('resTotalFoot').innerHTML = '';
+      return;
+    }
+
+    document.getElementById('resMxn').innerHTML       = rows.map(r => renderRow(r,'mxn')).join('');
+    document.getElementById('resUsd').innerHTML       = rows.map(r => renderRow(r,'usd')).join('');
+    document.getElementById('resTotal').innerHTML     = rows.map(r => renderRow(r,'total')).join('');
+    document.getElementById('resMxnFoot').innerHTML   = renderFoot('mxn');
+    document.getElementById('resUsdFoot').innerHTML   = renderFoot('usd');
+    document.getElementById('resTotalFoot').innerHTML = renderFoot('total');
   }
 
   // "Período filtrado" — usa los totales del endpoint /cobranza/totales.
