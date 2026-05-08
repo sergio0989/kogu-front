@@ -95,7 +95,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div>
         <div class="label-text" style="font-size:11px;margin-bottom:4px">Año</div>
-        <input class="input" id="añoFil" value="${defAño}" maxlength="4" style="width:90px"/>
+        <select class="select" id="añoFil" style="min-width:100px">
+          <option value="${defAño}">${defAño}</option>
+        </select>
       </div>
       <div>
         <div class="label-text" style="font-size:11px;margin-bottom:4px">Mes</div>
@@ -152,9 +154,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   function buildFilters() {
     const qs = new URLSearchParams();
     const qv = document.getElementById('q').value.trim();      if (qv) qs.set('q', qv);
-    const af = document.getElementById('añoFil').value.trim(); if (af) qs.set('año', af);
+    const af = document.getElementById('añoFil').value;        if (af) qs.set('año', af);
     const ef = document.getElementById('mesFil').value;        if (ef) qs.set('mes', ef);
     return qs;
+  }
+
+  // Pobla el dropdown de Año con los años con datos disponibles para la
+  // empresa activa. Idempotente — se vuelve a llamar al cambiar de empresa.
+  async function loadAnios() {
+    const sel = document.getElementById('añoFil');
+    try {
+      const res   = await KoguApi.apiFetch(`${BASE}/cobranza/anios-disponibles`);
+      const anios = (res?.data ?? res ?? []).map(Number).filter(Boolean);
+      if (!anios.length) {
+        sel.innerHTML = `<option value="${defAño}">${defAño}</option>`;
+        return;
+      }
+      sel.innerHTML = anios.map(a => `<option value="${a}">${a}</option>`).join('');
+      sel.value = String(anios[0]); // más reciente
+    } catch (err) {
+      console.error('[cobranza] loadAnios error:', err);
+      sel.innerHTML = `<option value="${defAño}">${defAño}</option>`;
+    }
   }
 
   async function load() {
@@ -165,7 +186,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       // Llamadas en paralelo: paginación + totales del período completo + resumen anual
-      const añoSel = document.getElementById('añoFil').value.trim() || defAño;
+      const añoSel = document.getElementById('añoFil').value || defAño;
       const resumenQs = new URLSearchParams({ año: añoSel });
       const qSearch = document.getElementById('q').value.trim();
       if (qSearch) resumenQs.set('q', qSearch);
@@ -285,6 +306,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   );
   document.getElementById('q').addEventListener('input', ()=>{ page=1; load(); });
   document.getElementById('refreshBtn').onclick = ()=>{ page=1; load(); };
-  KoguShell.subscribeEmpresaActivaChange(async ()=>{ page=1; await load(); });
+  KoguShell.subscribeEmpresaActivaChange(async ()=>{
+    page = 1;
+    await loadAnios();
+    await load();
+  });
+  await loadAnios();
   await load();
 });
