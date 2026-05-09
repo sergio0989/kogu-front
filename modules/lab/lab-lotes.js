@@ -288,7 +288,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tbody = $('rowsLotes');
     if (!lotes.length) {
       tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--muted)">Sin lotes para los filtros aplicados.</td></tr>`;
-      $('pgBarLotes').textContent = '0 lotes';
+      // El texto de "0 lotes" ahora lo maneja renderPaginacion() via #pgInfo,
+      // así NO destruimos los hijos (selector + botones) de #pgBarLotes.
       return;
     }
 
@@ -316,7 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr>`;
     }).join('');
 
-    $('pgBarLotes').textContent = `${lotes.length} lote${lotes.length === 1 ? '' : 's'}`;
+    // El total y "Mostrando X–Y de Z" lo dibuja renderPaginacion() via #pgInfo.
 
     tbody.querySelectorAll('button[data-lote-id]').forEach(btn => {
       btn.addEventListener('click', () => {
