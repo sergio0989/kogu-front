@@ -349,16 +349,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         + ` / ${l.oficiales_total || 0}`;
       const dias = l.dias_en_bandeja != null ? `${l.dias_en_bandeja} d` : '—';
 
-      const liberable = ['listo_revision', 'con_excepcion'].includes(l.estado_calidad);
-      const yaTerminal = ['liberado', 'rechazado'].includes(l.estado_calidad);
+      // Un lote puede tener MÚLTIPLES liberaciones (una por cliente).
+      // 'liberado' también es liberable: permite agregar otros clientes.
+      const liberable  = ['listo_revision', 'liberado', 'con_excepcion'].includes(l.estado_calidad);
+      const yaTerminal = ['rechazado'].includes(l.estado_calidad);
+      const labelLiberar = l.estado_calidad === 'liberado' ? 'Liberar a otro cliente' : 'Liberar';
 
       const acciones = yaTerminal
         ? `<button class="btn ghost" data-detalle="${l.lote_id}">Ver detalle</button>`
         : `
           <button class="btn ghost"            data-detalle="${l.lote_id}">Detalle</button>
-          ${liberable ? `<button class="btn primary"  data-liberar="${l.lote_id}">Liberar</button>` : ''}
-          <button class="btn ghost danger"      data-rechazar="${l.lote_id}">Rechazar</button>
-          <button class="btn ghost"             data-excepcion="${l.lote_id}">Excepción</button>
+          ${liberable ? `<button class="btn primary"  data-liberar="${l.lote_id}">${labelLiberar}</button>` : ''}
+          ${l.estado_calidad !== 'liberado' ? `<button class="btn ghost danger"      data-rechazar="${l.lote_id}">Rechazar</button>` : ''}
+          ${l.estado_calidad !== 'liberado' ? `<button class="btn ghost"             data-excepcion="${l.lote_id}">Excepción</button>` : ''}
         `;
 
       return `
