@@ -80,7 +80,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th></th>
       </tr></thead><tbody id="rowsParam"></tbody></table>
     </div>
-    <div id="pgBarParam" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
+
+    <!-- Barra de paginación (mismo patrón que lab-lotes) -->
+    <div id="pgBarParam" style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:10px;font-size:13px;color:var(--muted)">
+      <div id="pgInfoParam">—</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span>Por página:</span>
+        <select class="select" id="pgSizeParam" style="width:80px">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <button class="btn ghost" id="pgFirstParam" title="Primera">«</button>
+        <button class="btn ghost" id="pgPrevParam"  title="Anterior">‹</button>
+        <span id="pgNumerosParam" style="display:flex;gap:4px"></span>
+        <button class="btn ghost" id="pgNextParam"  title="Siguiente">›</button>
+        <button class="btn ghost" id="pgLastParam"  title="Última">»</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Formulario ── -->
@@ -182,6 +200,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   let editing    = null;   // parámetro actual cargado en el formulario
   let dirtyI18n  = {};     // { idioma: { nombre, descripcion, action: 'upsert'|'delete' } }
 
+  // Paginación servidor (patrón estándar Lab)
+  let currentPage = 1;
+  let pageSize    = 25;
+  let totalPages  = 1;
+  let totalParams = 0;
+
   // ── Selectores ────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
 
@@ -199,30 +223,99 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function loadParametros(showToast = false) {
+  async function loadParametros(showToast = false, { resetPage = false } = {}) {
+    if (resetPage) currentPage = 1;
     const idiomaVis = $('idiomaVis').value || 'es';
     const params = new URLSearchParams();
     if ($('q').value.trim())        params.set('q', $('q').value.trim());
     if ($('tipoFil').value)         params.set('tipo', $('tipoFil').value);
     if ($('statusFil').value)       params.set('status', $('statusFil').value);
     if ($('criticoFil').value)      params.set('es_critico', $('criticoFil').value);
+    params.set('page',     String(currentPage));
+    params.set('pageSize', String(pageSize));
 
-    const url = BASE + (params.toString() ? '?' + params.toString() : '');
+    const url = BASE + '?' + params.toString();
     try {
       const res = await KoguApi.apiFetch(url);
       parametros = KoguApi.unwrapData(res) || [];
+
+      // Lectura de meta (patrón estándar Lab)
+      const meta = res?.meta || {};
+      totalParams = parseInt(meta.total ?? parametros.length, 10) || 0;
+      pageSize    = parseInt(meta.pageSize ?? pageSize, 10) || pageSize;
+      currentPage = parseInt(meta.page ?? currentPage, 10) || 1;
+      totalPages  = parseInt(meta.totalPages ?? 1, 10) || 1;
+
       renderTabla(idiomaVis);
+      renderPaginacion();
       if (showToast) KoguApi.toast('Parámetros actualizados', 'success');
     } catch (err) {
       KoguApi.toast(err.message, 'error');
     }
   }
 
+  // ── Render de la barra de paginación (patrón estándar Lab) ──
+  function renderPaginacion() {
+    const inicio = totalParams === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const fin    = Math.min(currentPage * pageSize, totalParams);
+    $('pgInfoParam').textContent = totalParams
+      ? `Mostrando ${inicio}–${fin} de ${totalParams} parámetro${totalParams === 1 ? '' : 's'}`
+      : 'Sin resultados';
+
+    $('pgFirstParam').disabled = currentPage <= 1;
+    $('pgPrevParam').disabled  = currentPage <= 1;
+    $('pgNextParam').disabled  = currentPage >= totalPages;
+    $('pgLastParam').disabled  = currentPage >= totalPages;
+
+    const ventana = 2;
+    let from = Math.max(1, currentPage - ventana);
+    let to   = Math.min(totalPages, currentPage + ventana);
+    if (currentPage <= 3) to = Math.min(totalPages, 5);
+    if (currentPage >= totalPages - 2) from = Math.max(1, totalPages - 4);
+
+    const nums = $('pgNumerosParam');
+    nums.innerHTML = '';
+    if (from > 1) {
+      nums.appendChild(makePgBtn(1));
+      if (from > 2) {
+        const dots = document.createElement('span');
+        dots.textContent = '…'; dots.style.padding = '0 6px';
+        nums.appendChild(dots);
+      }
+    }
+    for (let i = from; i <= to; i++) nums.appendChild(makePgBtn(i));
+    if (to < totalPages) {
+      if (to < totalPages - 1) {
+        const dots = document.createElement('span');
+        dots.textContent = '…'; dots.style.padding = '0 6px';
+        nums.appendChild(dots);
+      }
+      nums.appendChild(makePgBtn(totalPages));
+    }
+  }
+
+  function makePgBtn(num) {
+    const b = document.createElement('button');
+    b.className = 'btn ghost';
+    b.textContent = String(num);
+    if (num === currentPage) {
+      b.classList.add('primary');
+      b.classList.remove('ghost');
+    }
+    b.addEventListener('click', () => {
+      if (num !== currentPage) {
+        currentPage = num;
+        loadParametros();
+      }
+    });
+    return b;
+  }
+
   function renderTabla(idiomaVis) {
     const tbody = $('rowsParam');
     if (!parametros.length) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin parámetros para los filtros aplicados.</td></tr>`;
-      $('pgBarParam').textContent = '0 registros';
+      // El texto "Sin resultados" se maneja en renderPaginacion vía pgInfoParam.
       return;
     }
 
@@ -255,7 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr>`;
     }).join('');
 
-    $('pgBarParam').textContent = `${parametros.length} parámetro${parametros.length === 1 ? '' : 's'}`;
+    // El total y "Mostrando X–Y de Z" lo dibuja renderPaginacion vía pgInfoParam.
 
     // Bind acción Editar
     tbody.querySelectorAll('button[data-action="edit"]').forEach(btn => {
@@ -489,10 +582,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Bindings ──────────────────────────────────────────────────
   $('refreshBtn').addEventListener('click', () => loadParametros(true));
-  $('q').addEventListener('input', debounce(() => loadParametros(), 300));
-  $('tipoFil').addEventListener('change', () => loadParametros());
-  $('statusFil').addEventListener('change', () => loadParametros());
-  $('criticoFil').addEventListener('change', () => loadParametros());
+  // Filtros → reset a página 1
+  $('q').addEventListener('input', debounce(() => loadParametros(false, { resetPage: true }), 300));
+  $('tipoFil').addEventListener('change',     () => loadParametros(false, { resetPage: true }));
+  $('statusFil').addEventListener('change',   () => loadParametros(false, { resetPage: true }));
+  $('criticoFil').addEventListener('change',  () => loadParametros(false, { resetPage: true }));
+
+  // Paginación
+  $('pgSizeParam').addEventListener('change', (e) => {
+    pageSize = parseInt(e.target.value, 10) || 25;
+    loadParametros(false, { resetPage: true });
+  });
+  $('pgFirstParam').addEventListener('click', () => { if (currentPage > 1)         { currentPage = 1;          loadParametros(); } });
+  $('pgPrevParam').addEventListener('click',  () => { if (currentPage > 1)         { currentPage--;            loadParametros(); } });
+  $('pgNextParam').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage++;           loadParametros(); } });
+  $('pgLastParam').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage = totalPages; loadParametros(); } });
   $('idiomaVis').addEventListener('change', (e) => refreshNombresVisualizacion(e.target.value));
   $('cancelBtn').addEventListener('click', resetForm);
   $('saveBtn').addEventListener('click', save);
