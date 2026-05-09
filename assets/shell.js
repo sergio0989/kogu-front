@@ -41,6 +41,7 @@
     ]},
     {section:'Lab QA',items:[
       {href:'/modules/lab/lab-maestros.html',label:'Maestros analíticos',perm:'screen.lab.maestros'},
+      {href:'/modules/lab/lab-lotes.html',   label:'Lotes',              perm:'screen.lab.lotes'},
     ]}
   ];
 
