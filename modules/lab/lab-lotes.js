@@ -75,7 +75,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th></th>
     </tr></thead><tbody id="rowsLotes"></tbody></table>
   </div>
-  <div id="pgBarLotes" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
+
+  <!-- Barra de paginación -->
+  <div id="pgBarLotes" style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:10px;font-size:13px;color:var(--muted)">
+    <div id="pgInfo">—</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span>Por página:</span>
+      <select class="select" id="pgSize" style="width:80px">
+        <option value="10">10</option>
+        <option value="25" selected>25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <button class="btn ghost" id="pgFirst" title="Primera">«</button>
+      <button class="btn ghost" id="pgPrev"  title="Anterior">‹</button>
+      <span id="pgNumeros" style="display:flex;gap:4px"></span>
+      <button class="btn ghost" id="pgNext"  title="Siguiente">›</button>
+      <button class="btn ghost" id="pgLast"  title="Última">»</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal-card de alta de lote (oculto por default) -->
@@ -132,10 +150,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   `;
 
   // ── Estado en memoria ─────────────────────────────────────
-  let lotes      = [];
-  let productos  = [];
-  let unidades   = [];
+  let lotes       = [];
+  let productos   = [];
+  let unidades    = [];
   let proveedores = [];
+
+  // Paginación servidor
+  let currentPage = 1;
+  let pageSize    = 25;
+  let totalPages  = 1;
+  let totalLotes  = 0;
 
   const $ = (id) => document.getElementById(id);
 
@@ -166,24 +190,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_) { /* silencioso */ }
   }
 
-  // ── Carga de lotes con filtros ────────────────────────────
-  async function loadLotes(showToast = false) {
+  // ── Carga de lotes con filtros + paginación ───────────────
+  async function loadLotes(showToast = false, { resetPage = false } = {}) {
+    if (resetPage) currentPage = 1;
+
     const params = new URLSearchParams();
     if ($('q').value.trim())     params.set('q', $('q').value.trim());
     if ($('estadoFil').value)    params.set('estado_calidad', $('estadoFil').value);
     if ($('origenFil').value)    params.set('origen', $('origenFil').value);
     if ($('desde').value)        params.set('desde', $('desde').value);
     if ($('hasta').value)        params.set('hasta', $('hasta').value);
+    params.set('page',     String(currentPage));
+    params.set('pageSize', String(pageSize));
 
-    const url = BASE + (params.toString() ? '?' + params.toString() : '');
+    const url = BASE + '?' + params.toString();
     try {
       const res = await KoguApi.apiFetch(url);
       lotes = KoguApi.unwrapData(res) || [];
+
+      // Lectura de meta de paginación
+      const meta = res?.meta || {};
+      totalLotes  = parseInt(meta.total ?? lotes.length, 10) || 0;
+      pageSize    = parseInt(meta.pageSize ?? pageSize, 10) || pageSize;
+      currentPage = parseInt(meta.page ?? currentPage, 10) || 1;
+      totalPages  = parseInt(meta.totalPages ?? 1, 10) || 1;
+
       renderTabla();
+      renderPaginacion();
       if (showToast) KoguApi.toast('Lotes actualizados', 'success');
     } catch (err) {
       KoguApi.toast(err.message, 'error');
     }
+  }
+
+  // ── Render de la barra de paginación ─────────────────────
+  function renderPaginacion() {
+    const inicio = totalLotes === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const fin    = Math.min(currentPage * pageSize, totalLotes);
+    $('pgInfo').textContent = totalLotes
+      ? `Mostrando ${inicio}–${fin} de ${totalLotes} lote${totalLotes === 1 ? '' : 's'}`
+      : 'Sin resultados';
+
+    // Botones « ‹ › »
+    $('pgFirst').disabled = currentPage <= 1;
+    $('pgPrev').disabled  = currentPage <= 1;
+    $('pgNext').disabled  = currentPage >= totalPages;
+    $('pgLast').disabled  = currentPage >= totalPages;
+
+    // Números: ventana de hasta 5 alrededor de currentPage
+    const ventana = 2;
+    let from = Math.max(1, currentPage - ventana);
+    let to   = Math.min(totalPages, currentPage + ventana);
+    if (currentPage <= 3) to = Math.min(totalPages, 5);
+    if (currentPage >= totalPages - 2) from = Math.max(1, totalPages - 4);
+
+    const nums = $('pgNumeros');
+    nums.innerHTML = '';
+    if (from > 1) {
+      nums.appendChild(makePgBtn(1));
+      if (from > 2) {
+        const dots = document.createElement('span');
+        dots.textContent = '…';
+        dots.style.padding = '0 6px';
+        nums.appendChild(dots);
+      }
+    }
+    for (let i = from; i <= to; i++) nums.appendChild(makePgBtn(i));
+    if (to < totalPages) {
+      if (to < totalPages - 1) {
+        const dots = document.createElement('span');
+        dots.textContent = '…';
+        dots.style.padding = '0 6px';
+        nums.appendChild(dots);
+      }
+      nums.appendChild(makePgBtn(totalPages));
+    }
+  }
+
+  function makePgBtn(num) {
+    const b = document.createElement('button');
+    b.className = 'btn ghost';
+    b.textContent = String(num);
+    if (num === currentPage) {
+      b.classList.add('primary');
+      b.classList.remove('ghost');
+    }
+    b.addEventListener('click', () => {
+      if (num !== currentPage) {
+        currentPage = num;
+        loadLotes();
+      }
+    });
+    return b;
   }
 
   function renderTabla() {
@@ -277,15 +375,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Bindings ──────────────────────────────────────────────
   $('refreshBtn').addEventListener('click', () => loadLotes(true));
-  $('q').addEventListener('input', debounce(() => loadLotes(), 300));
-  $('estadoFil').addEventListener('change', () => loadLotes());
-  $('origenFil').addEventListener('change', () => loadLotes());
-  $('desde').addEventListener('change', () => loadLotes());
-  $('hasta').addEventListener('change', () => loadLotes());
+  // Filtros → reset a página 1
+  $('q').addEventListener('input', debounce(() => loadLotes(false, { resetPage: true }), 300));
+  $('estadoFil').addEventListener('change', () => loadLotes(false, { resetPage: true }));
+  $('origenFil').addEventListener('change', () => loadLotes(false, { resetPage: true }));
+  $('desde').addEventListener('change',     () => loadLotes(false, { resetPage: true }));
+  $('hasta').addEventListener('change',     () => loadLotes(false, { resetPage: true }));
   $('newBtn').addEventListener('click', openNewLote);
   $('closeNewBtn').addEventListener('click', closeNewLote);
   $('cancelNewBtn').addEventListener('click', closeNewLote);
   $('saveNewBtn').addEventListener('click', saveNewLote);
+
+  // Paginación
+  $('pgSize').addEventListener('change', (e) => {
+    pageSize = parseInt(e.target.value, 10) || 25;
+    loadLotes(false, { resetPage: true });
+  });
+  $('pgFirst').addEventListener('click', () => { if (currentPage > 1) { currentPage = 1; loadLotes(); } });
+  $('pgPrev').addEventListener('click',  () => { if (currentPage > 1) { currentPage--;    loadLotes(); } });
+  $('pgNext').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage++;    loadLotes(); } });
+  $('pgLast').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage = totalPages; loadLotes(); } });
 
   KoguShell.subscribeEmpresaActivaChange(async () => {
     closeNewLote();
