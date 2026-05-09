@@ -70,7 +70,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card" style="margin-top:16px">
   <div class="row">
     <div><div class="eyebrow">Muestreo</div><h2>Muestras y resultados</h2></div>
-    <button class="btn primary" id="addMuestraBtn">Nueva muestra</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn ghost"   id="toggleAllBtn">Expandir todas</button>
+      <button class="btn primary" id="addMuestraBtn">Nueva muestra</button>
+    </div>
   </div>
   <div id="muestrasList" style="margin-top:16px;display:flex;flex-direction:column;gap:12px"></div>
 </div>
@@ -192,6 +195,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       const estado = ESTADOS_MUESTRA.find(s => s.code === m.estado) || { label: m.estado, color: '#64748b' };
       const resultadosDeMuestra = (lote.resultados || []).filter(r => r.muestra_id === m.muestra_id);
       const fechaMuestreo = m.fecha_muestreo ? new Date(m.fecha_muestreo).toLocaleString() : '—';
+
+      // Resumen para la cabecera (visible incluso colapsada)
+      const cumplen   = resultadosDeMuestra.filter(r => r.evaluacion === 'cumple').length;
+      const noCumplen = resultadosDeMuestra.filter(r => r.evaluacion === 'no_cumple').length;
+      const pendientes = resultadosDeMuestra.filter(r => r.evaluacion === 'pendiente_eval').length;
+      const totalRes = resultadosDeMuestra.length;
+      const resumen = totalRes
+        ? `${totalRes} resultado${totalRes === 1 ? '' : 's'}`
+            + (cumplen ? ` · <span style="color:#16a34a">${cumplen} cumplen</span>` : '')
+            + (noCumplen ? ` · <span style="color:#dc2626">${noCumplen} no cumplen</span>` : '')
+            + (pendientes ? ` · <span style="color:#475569">${pendientes} pendientes</span>` : '')
+        : '<span class="muted">Sin resultados aún</span>';
+
       const filasResultados = resultadosDeMuestra.length
         ? resultadosDeMuestra.map(r => {
             const ev = EVALS[r.evaluacion] || EVALS.pendiente_eval;
@@ -212,78 +228,142 @@ document.addEventListener('DOMContentLoaded', async () => {
           }).join('')
         : `<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--muted);font-size:13px">Sin resultados aún</td></tr>`;
 
+      // Default expandido si la muestra está en trabajo activo;
+      // colapsado si está completada o anulada.
+      const colapsoDefault = (m.estado === 'completada' || m.estado === 'anulada');
+      // Recordar preferencia del usuario en sessionStorage por (lote, muestra)
+      const storeKey = `lab.muestra.collapsed.${loteId}.${m.muestra_id}`;
+      const userPref = sessionStorage.getItem(storeKey);
+      const colapsada = userPref !== null ? userPref === '1' : colapsoDefault;
+
       return `
-        <div style="border:1px solid var(--line);border-radius:8px;padding:14px;background:#fafbfc">
-          <div class="row">
-            <div>
-              <strong>Muestra #${m.numero_muestra}</strong>
-              <span class="chip" style="background:${estado.color}22;color:${estado.color};margin-left:8px">${estado.label}</span>
-              ${m.identificador_envase ? `<span class="muted" style="margin-left:8px">${escapeHtml(m.identificador_envase)}</span>` : ''}
+        <div class="muestra-card" data-muestra-id="${m.muestra_id}" data-collapsed="${colapsada}"
+             style="border:1px solid var(--line);border-radius:8px;padding:14px;background:#fafbfc">
+          <!-- Cabecera clickeable -->
+          <div class="muestra-header" data-toggle="${m.muestra_id}"
+               style="cursor:pointer;user-select:none">
+            <div class="row">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="muestra-chevron" style="font-size:14px;color:var(--muted);transition:transform .2s;display:inline-block;width:14px">
+                  ${colapsada ? '▶' : '▼'}
+                </span>
+                <strong>Muestra #${m.numero_muestra}</strong>
+                <span class="chip" style="background:${estado.color}22;color:${estado.color}">${estado.label}</span>
+                ${m.identificador_envase ? `<span class="muted">${escapeHtml(m.identificador_envase)}</span>` : ''}
+              </div>
+              <div style="display:flex;gap:6px" data-stop-toggle>
+                ${m.estado !== 'anulada' ? `
+                  <button class="btn primary ghost" data-add-resultado="${m.muestra_id}">+ Resultado</button>
+                  <button class="btn ghost danger" data-anular-muestra="${m.muestra_id}">Anular</button>
+                ` : ''}
+              </div>
             </div>
-            <div style="display:flex;gap:6px">
-              ${m.estado !== 'anulada' ? `
-                <button class="btn primary ghost" data-add-resultado="${m.muestra_id}">+ Resultado</button>
-                <button class="btn ghost danger" data-anular-muestra="${m.muestra_id}">Anular</button>
-              ` : ''}
+            <div style="margin-top:6px;font-size:13px;color:var(--muted)">
+              ${escapeHtml(m.lugar_muestreo || '')} · ${fechaMuestreo}
+              ${m.persona_muestreo_nombre ? `· por ${escapeHtml(m.persona_muestreo_nombre)}` : ''}
+              · ${resumen}
             </div>
+            ${m.motivo_anulacion ? `<div style="margin-top:6px;font-size:13px;color:var(--danger)"><strong>Anulación:</strong> ${escapeHtml(m.motivo_anulacion)}</div>` : ''}
           </div>
-          <div style="margin-top:6px;font-size:13px;color:var(--muted)">
-            ${escapeHtml(m.lugar_muestreo || '')} · ${fechaMuestreo}
-            ${m.persona_muestreo_nombre ? `· por ${escapeHtml(m.persona_muestreo_nombre)}` : ''}
-          </div>
-          ${m.motivo_anulacion ? `<div style="margin-top:6px;font-size:13px;color:var(--danger)"><strong>Anulación:</strong> ${escapeHtml(m.motivo_anulacion)}</div>` : ''}
 
-          <div class="table-wrap" style="margin-top:12px">
-            <table style="font-size:13px"><thead><tr>
-              <th>Parámetro</th><th>Método</th><th>Equipo</th><th>Valor</th><th>Evaluación</th><th></th>
-            </tr></thead><tbody>${filasResultados}</tbody></table>
-          </div>
-
-          <!-- Form inline de captura (oculto por default) -->
-          <div id="formResultado-${m.muestra_id}" style="display:none;margin-top:12px;padding:12px;background:white;border:1px solid var(--line);border-radius:6px">
-            <div class="grid-2" style="gap:10px">
-              <div>
-                <div class="label-text">Parámetro</div>
-                <select class="select" data-fr-parametro="${m.muestra_id}">
-                  <option value="">— Seleccionar —</option>
-                  ${parametros.map(p => `<option value="${p.parametro_id}" data-tipo="${p.tipo_parametro}">${p.clave} — ${escapeHtml(p.nombre)}</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <div class="label-text">Valor</div>
-                <input class="input" data-fr-valor="${m.muestra_id}" placeholder="Valor numérico o texto"/>
-              </div>
-              <div style="grid-column:1 / -1">
-                <div class="label-text">Observaciones (opcional)</div>
-                <input class="input" data-fr-obs="${m.muestra_id}" maxlength="500"/>
-              </div>
+          <!-- Cuerpo colapsable -->
+          <div class="muestra-body" style="display:${colapsada ? 'none' : 'block'}">
+            <div class="table-wrap" style="margin-top:12px">
+              <table style="font-size:13px"><thead><tr>
+                <th>Parámetro</th><th>Método</th><th>Equipo</th><th>Valor</th><th>Evaluación</th><th></th>
+              </tr></thead><tbody>${filasResultados}</tbody></table>
             </div>
-            <div class="row" style="margin-top:10px;gap:6px;justify-content:flex-end">
-              <button class="btn ghost"   data-cancel-resultado="${m.muestra_id}">Cancelar</button>
-              <button class="btn primary" data-save-resultado="${m.muestra_id}">Guardar</button>
+
+            <!-- Form inline de captura (oculto por default) -->
+            <div id="formResultado-${m.muestra_id}" style="display:none;margin-top:12px;padding:12px;background:white;border:1px solid var(--line);border-radius:6px">
+              <div class="grid-2" style="gap:10px">
+                <div>
+                  <div class="label-text">Parámetro</div>
+                  <select class="select" data-fr-parametro="${m.muestra_id}">
+                    <option value="">— Seleccionar —</option>
+                    ${parametros.map(p => `<option value="${p.parametro_id}" data-tipo="${p.tipo_parametro}">${p.clave} — ${escapeHtml(p.nombre)}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <div class="label-text">Valor</div>
+                  <input class="input" data-fr-valor="${m.muestra_id}" placeholder="Valor numérico o texto"/>
+                </div>
+                <div style="grid-column:1 / -1">
+                  <div class="label-text">Observaciones (opcional)</div>
+                  <input class="input" data-fr-obs="${m.muestra_id}" maxlength="500"/>
+                </div>
+              </div>
+              <div class="row" style="margin-top:10px;gap:6px;justify-content:flex-end">
+                <button class="btn ghost"   data-cancel-resultado="${m.muestra_id}">Cancelar</button>
+                <button class="btn primary" data-save-resultado="${m.muestra_id}">Guardar</button>
+              </div>
             </div>
           </div>
         </div>`;
     }).join('');
 
     bindMuestrasActions();
+    actualizarLabelToggleAll();
+  }
+
+  function actualizarLabelToggleAll() {
+    const btn = $('toggleAllBtn');
+    if (!btn) return;
+    const cards = document.querySelectorAll('.muestra-card');
+    if (!cards.length) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = '';
+    const todasColapsadas = Array.from(cards).every(c => c.dataset.collapsed === 'true');
+    btn.textContent = todasColapsadas ? 'Expandir todas' : 'Colapsar todas';
+  }
+
+  function setMuestraCollapsed(muestraId, collapsed) {
+    const card = document.querySelector(`.muestra-card[data-muestra-id="${muestraId}"]`);
+    if (!card) return;
+    card.dataset.collapsed = collapsed ? 'true' : 'false';
+    const body = card.querySelector('.muestra-body');
+    const chev = card.querySelector('.muestra-chevron');
+    if (body) body.style.display = collapsed ? 'none' : 'block';
+    if (chev) chev.textContent = collapsed ? '▶' : '▼';
+    sessionStorage.setItem(`lab.muestra.collapsed.${loteId}.${muestraId}`, collapsed ? '1' : '0');
+    actualizarLabelToggleAll();
   }
 
   function bindMuestrasActions() {
+    // Toggle al click en la cabecera (excepto en botones de acción).
+    document.querySelectorAll('[data-toggle]').forEach(header => {
+      header.addEventListener('click', (e) => {
+        // Si el click viene de un botón de acción, no togglear
+        if (e.target.closest('[data-stop-toggle]')) return;
+        const muestraId = header.dataset.toggle;
+        const card = header.closest('.muestra-card');
+        const isCollapsed = card.dataset.collapsed === 'true';
+        setMuestraCollapsed(muestraId, !isCollapsed);
+      });
+    });
+
     document.querySelectorAll('[data-add-resultado]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const id = btn.dataset.addResultado;
+        // Si la muestra está colapsada, expandir antes de mostrar el form
+        setMuestraCollapsed(id, false);
         const form = document.getElementById(`formResultado-${id}`);
         form.style.display = form.style.display === 'none' ? '' : 'none';
+        if (form.style.display !== 'none') form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
     });
     document.querySelectorAll('[data-cancel-resultado]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         document.getElementById(`formResultado-${btn.dataset.cancelResultado}`).style.display = 'none';
       });
     });
     document.querySelectorAll('[data-save-resultado]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const muestraId = btn.dataset.saveResultado;
         const parametroId = document.querySelector(`[data-fr-parametro="${muestraId}"]`).value;
         const valorRaw    = document.querySelector(`[data-fr-valor="${muestraId}"]`).value.trim();
@@ -314,7 +394,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
     document.querySelectorAll('[data-del-resultado]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         if (!confirm('¿Eliminar este resultado?')) return;
         try {
           await KoguApi.apiFetch(`${BASE}/resultados/${btn.dataset.delResultado}`, { method: 'DELETE' });
@@ -326,7 +407,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
     document.querySelectorAll('[data-anular-muestra]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const motivo = prompt('Motivo de anulación (requerido):');
         if (!motivo) return;
         try {
@@ -399,6 +481,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Acciones globales ────────────────────────────────────
   $('backBtn').addEventListener('click', () => {
     window.location.href = '/modules/lab/lab-lotes.html';
+  });
+
+  $('toggleAllBtn').addEventListener('click', () => {
+    const cards = document.querySelectorAll('.muestra-card');
+    if (!cards.length) return;
+    // Si TODAS están colapsadas → expandir; si no → colapsar todas.
+    const todasColapsadas = Array.from(cards).every(c => c.dataset.collapsed === 'true');
+    cards.forEach(c => setMuestraCollapsed(c.dataset.muestraId, !todasColapsadas));
+    $('toggleAllBtn').textContent = todasColapsadas ? 'Colapsar todas' : 'Expandir todas';
   });
 
   $('addMuestraBtn').addEventListener('click', async () => {
