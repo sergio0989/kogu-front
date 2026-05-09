@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>Lab QA — Certificado COA</title>
+  <link rel="stylesheet" href="/assets/styles.css"/>
+  <style>
+    /* Layout específico del COA */
+    .coa-doc { background: white; max-width: 850px; margin: 0 auto; padding: 32px;
+               border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08); color: #0f172a; }
+    .coa-doc h1 { margin: 0 0 4px; font-size: 22px; }
+    .coa-doc h2 { margin: 24px 0 8px; font-size: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 4px; }
+    .coa-doc table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    .coa-doc th { text-align: left; padding: 8px; background: #f1f5f9; border-bottom: 2px solid #cbd5e1; font-weight: 600; }
+    .coa-doc td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .coa-doc .ok { color: #166534; font-weight: 600; }
+    .coa-doc .nok { color: #991b1b; font-weight: 600; }
+    .coa-doc .muted { color: #64748b; font-size: 12px; }
+    .coa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+    .coa-block strong { display: block; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: .5px; margin-bottom: 4px; }
+    .coa-leyenda { background: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b;
+                   padding: 12px 14px; margin-top: 16px; border-radius: 4px; font-size: 13px; }
+    .coa-anulado { background: #fee2e2; color: #991b1b; padding: 12px 14px; margin-top: 16px;
+                   border-radius: 4px; font-weight: 600; text-align: center; font-size: 14px; }
+    .coa-firma  { margin-top: 32px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 13px; }
+    .coa-verify { margin-top: 24px; padding: 12px; background: #f8fafc; border-radius: 6px;
+                  font-size: 11px; color: #64748b; word-break: break-all; }
+
+    /* Estilos para imprimir — oculta navegación, sidebar, headers */
+    @media print {
+      body * { visibility: hidden; }
+      #coaDoc, #coaDoc * { visibility: visible; }
+      #coaDoc { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; padding: 16px; }
+      .no-print { display: none !important; }
+      @page { size: letter; margin: 14mm; }
+    }
+  </style>
+</head><body>
+  <div id="app"></div>
+  <script src="/assets/config.js"></script>
+  <script src="/assets/api.js"></script>
+  <script src="/assets/ui.js"></script>
+  <script src="/assets/auth.js"></script>
+  <script src="/assets/shell.js"></script>
+  <script src="./lab-coa-detalle.js"></script>
+</body></html>

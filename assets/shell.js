@@ -43,6 +43,7 @@
       {href:'/modules/lab/lab-maestros.html',label:'Maestros analíticos',perm:'screen.lab.maestros'},
       {href:'/modules/lab/lab-lotes.html',   label:'Lotes',              perm:'screen.lab.lotes'},
       {href:'/modules/lab/lab-bandeja.html', label:'Bandeja de calidad', perm:'screen.lab.bandeja'},
+      {href:'/modules/lab/lab-coa.html',     label:'Certificados COA',   perm:'screen.lab.coa'},
     ]}
   ];
 

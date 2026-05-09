@@ -140,13 +140,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cantidad = lote.cantidad
       ? `${parseFloat(lote.cantidad).toLocaleString()} ${lote.unidad_simbolo || ''}`
       : '—';
+    const puedeEmitirCoa = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
     $('loteHeader').innerHTML = `
       <div class="row">
         <div>
           <div class="eyebrow">Lote #${escapeHtml(lote.numero_lote)}</div>
           <h2>${escapeHtml(lote.cve_prod || '')} — ${escapeHtml(lote.desc_prod || '')}</h2>
         </div>
-        <span class="chip" style="background:${estado.color}22;color:${estado.color};font-size:14px;padding:6px 12px">${estado.label}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="chip" style="background:${estado.color}22;color:${estado.color};font-size:14px;padding:6px 12px">${estado.label}</span>
+          ${puedeEmitirCoa ? `<button class="btn primary" id="emitirCoaBtn">Emitir COA</button>` : ''}
+        </div>
       </div>
       <div class="grid-2" style="margin-top:16px;gap:10px;font-size:14px">
         <div><strong>Origen:</strong> ${escapeHtml(lote.origen)}</div>
@@ -180,6 +184,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.target.value = lote.estado_calidad;
       }
     });
+
+    // Emitir COA — solo si el lote está liberado o con_excepcion
+    const emitirBtn = document.getElementById('emitirCoaBtn');
+    if (emitirBtn) {
+      emitirBtn.addEventListener('click', async () => {
+        const idiomaInput = prompt(
+          'Idioma del COA (es / en / pt / fr / de / it). ENTER = idioma del cliente:'
+        ) || '';
+        const idioma = idiomaInput.trim().toLowerCase();
+        if (idioma && !['es','en','pt','fr','de','it'].includes(idioma)) {
+          return KoguApi.toast('Idioma inválido. Usa es/en/pt/fr/de/it.', 'error');
+        }
+        if (!confirm('¿Emitir COA para este lote? Se generará un certificado inmutable.')) return;
+        try {
+          const payload = { lote_id: loteId };
+          if (idioma) payload.idioma = idioma;
+          const res = await KoguApi.apiFetch('/protected/lab/coa/emitir', {
+            method: 'POST', body: JSON.stringify(payload),
+          });
+          const coa = KoguApi.unwrapData(res);
+          KoguApi.toast(`COA ${coa.folio_coa} emitido`, 'success');
+          window.location.href = `/modules/lab/lab-coa-detalle.html?id=${coa.coa_id}`;
+        } catch (err) { KoguApi.toast(err.message, 'error'); }
+      });
+    }
   }
 
   // ── Muestras (acordeón) ──────────────────────────────────
