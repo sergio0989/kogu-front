@@ -113,7 +113,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="grid-2" style="margin-top:16px;gap:10px">
     <div>
       <div class="label-text">Cliente <span style="color:var(--danger)">*</span></div>
-      <select class="select" id="liberarCliente"><option value="">— Seleccionar —</option></select>
+      <div style="display:flex;gap:6px">
+        <input class="input" id="liberarClienteLabel" readonly placeholder="— Sin cliente —" style="flex:1;cursor:pointer;background:#f8fafc"/>
+        <button type="button" class="btn ghost" id="liberarClientePickBtn">Buscar…</button>
+      </div>
+      <input type="hidden" id="liberarCliente"/>
     </div>
     <div>
       <div class="label-text">Condición</div>
@@ -202,7 +206,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div>
       <div class="label-text">Cliente destino (si aplica)</div>
-      <select class="select" id="excepcionClienteDestino"><option value="">— N/A —</option></select>
+      <div style="display:flex;gap:6px">
+        <input class="input" id="excepcionClienteDestinoLabel" readonly placeholder="— N/A —" style="flex:1;cursor:pointer;background:#f8fafc"/>
+        <button type="button" class="btn ghost" id="excepcionClienteDestinoPickBtn">Buscar…</button>
+        <button type="button" class="btn ghost" id="excepcionClienteDestinoClearBtn" title="Limpiar">×</button>
+      </div>
+      <input type="hidden" id="excepcionClienteDestino"/>
     </div>
   </div>
   <div class="row" style="margin-top:16px;gap:8px;justify-content:flex-end">
@@ -226,19 +235,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const $ = (id) => document.getElementById(id);
 
-  // ── Carga auxiliar: clientes ──────────────────────────────
+  // ── Carga auxiliar: clientes (en memoria; el picker filtra cliente-side) ──
   async function loadClientes() {
     try {
       const res = await KoguApi.apiFetch('/protected/core/clientes');
       clientes = KoguApi.unwrapRows(res);
-      const opts = '<option value="">— Seleccionar —</option>'
-        + clientes.map(c => `<option value="${c.cliente_id}">${escapeHtml(c.nombre || '(sin nombre)')}${c.rfc ? ' ('+escapeHtml(c.rfc)+')' : ''}</option>`).join('');
-      $('liberarCliente').innerHTML = opts;
-      $('excepcionClienteDestino').innerHTML = '<option value="">— N/A —</option>'
-        + clientes.map(c => `<option value="${c.cliente_id}">${escapeHtml(c.nombre || '(sin nombre)')}</option>`).join('');
     } catch (err) {
       console.warn('No se pudieron cargar clientes:', err.message);
+      clientes = [];
     }
+  }
+
+  // ── Helpers de picker de cliente ─────────────────────────
+  function pickClienteFor({ titulo, hiddenInputId, labelInputId, onPicked }) {
+    KoguUi.openSearchPicker({
+      title: titulo,
+      items: clientes,
+      placeholder: 'Buscar por nombre, RFC o cve_cte…',
+      columns: [
+        { key: 'nombre',  label: 'Nombre',  primary: true },
+        { key: 'rfc',     label: 'RFC' },
+        { key: 'cve_cte', label: 'cve_cte' },
+        { key: 'email',   label: 'Email' },
+      ],
+      emptyText: clientes.length === 0
+        ? 'No hay clientes en esta empresa. Crea uno desde el módulo Clientes.'
+        : 'Sin coincidencias',
+      onSelect: (cli) => {
+        $(hiddenInputId).value = cli.cliente_id;
+        $(labelInputId).value  = cli.nombre + (cli.rfc ? ' — ' + cli.rfc : '');
+        if (onPicked) onPicked(cli);
+      },
+    });
   }
 
   // ── Carga de bandeja ──────────────────────────────────────
@@ -378,6 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     closeAllModals();
     $('liberarLoteId').value = loteId;
     $('liberarCliente').value = '';
+    $('liberarClienteLabel').value = '';
     $('liberarCondicion').value = 'normal';
     $('liberarFolioFactura').value = '';
     $('liberarObservaciones').value = '';
@@ -466,6 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('excepcionAcciones').value = '';
     $('excepcionVigencia').value = 'todo_lote';
     $('excepcionClienteDestino').value = '';
+    $('excepcionClienteDestinoLabel').value = '';
     const lote = lotes.find(l => l.lote_id === loteId);
     $('excepcionTitle').textContent = `Crear excepción para ${lote ? lote.numero_lote : ''}`;
     $('excepcionCard').style.display = '';
@@ -516,6 +546,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('pgPrevBandeja').addEventListener('click',  () => { if (currentPage > 1)         { currentPage--;            loadBandeja(); } });
   $('pgNextBandeja').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage++;           loadBandeja(); } });
   $('pgLastBandeja').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage = totalPages; loadBandeja(); } });
+
+  // Pickers de cliente (modal con búsqueda) — reemplaza el <select> nativo
+  $('liberarClientePickBtn').addEventListener('click', () => {
+    pickClienteFor({
+      titulo: 'Seleccionar cliente para liberación',
+      hiddenInputId: 'liberarCliente',
+      labelInputId:  'liberarClienteLabel',
+    });
+  });
+  $('liberarClienteLabel').addEventListener('click', () => $('liberarClientePickBtn').click());
+
+  $('excepcionClienteDestinoPickBtn').addEventListener('click', () => {
+    pickClienteFor({
+      titulo: 'Seleccionar cliente destino de la excepción',
+      hiddenInputId: 'excepcionClienteDestino',
+      labelInputId:  'excepcionClienteDestinoLabel',
+    });
+  });
+  $('excepcionClienteDestinoLabel').addEventListener('click', () => $('excepcionClienteDestinoPickBtn').click());
+  $('excepcionClienteDestinoClearBtn').addEventListener('click', () => {
+    $('excepcionClienteDestino').value = '';
+    $('excepcionClienteDestinoLabel').value = '';
+  });
 
   $('closeLiberarBtn').addEventListener('click',   closeAllModals);
   $('cancelLiberarBtn').addEventListener('click',  closeAllModals);
