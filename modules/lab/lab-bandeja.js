@@ -10,12 +10,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   const BASE = '/protected/lab';
   const PERM = 'screen.lab.bandeja';
 
-  const ESTADOS = [
+  // Estados que aparecen por DEFAULT en la bandeja (decisión humana).
+  const ESTADOS_BANDEJA = [
     { code: 'listo_revision', label: 'Listo revisión', color: '#f59e0b' },
     { code: 'liberado',       label: 'Liberado',       color: '#16a34a' },
     { code: 'con_excepcion',  label: 'Con excepción',  color: '#f97316' },
     { code: 'rechazado',      label: 'Rechazado',      color: '#dc2626' },
   ];
+  // Estados previos (típicamente viven en pantalla Lotes; aquí se exponen
+  // en el filtro para casos de búsqueda explícita o auditoría).
+  const ESTADOS_PREVIOS = [
+    { code: 'pendiente',   label: 'Pendiente',    color: '#94a3b8' },
+    { code: 'en_analisis', label: 'En análisis',  color: '#3b82f6' },
+    { code: 'analizado',   label: 'Analizado',    color: '#8b5cf6' },
+  ];
+  const ESTADOS = [...ESTADOS_BANDEJA, ...ESTADOS_PREVIOS];
   const SEMAFOROS = {
     verde:    { label: '✓ Cumple',     bg: '#dcfce7', color: '#166534' },
     amarillo: { label: '⚠ Pendiente',  bg: '#fef3c7', color: '#92400e' },
@@ -53,9 +62,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- Filtros -->
   <div class="grid-2" style="margin-top:16px;gap:10px">
     <input  class="input"  id="q"        placeholder="Buscar por número de lote, cve_prod o descripción"/>
-    <select class="select" id="estadoFil">
-      <option value="">Todos los estados de bandeja</option>
-      ${ESTADOS.map(s => `<option value="${s.code}">${s.label}</option>`).join('')}
+    <select class="select" id="estadoFil" title="Estado del lote">
+      <option value="">Bandeja (revisión / liberado / excepción / rechazado)</option>
+      <option value="__all__">Todos (incluye previos)</option>
+      <optgroup label="En decisión humana">
+        ${ESTADOS_BANDEJA.map(s => `<option value="${s.code}">${s.label}</option>`).join('')}
+      </optgroup>
+      <optgroup label="Previos al análisis">
+        ${ESTADOS_PREVIOS.map(s => `<option value="${s.code}">${s.label}</option>`).join('')}
+      </optgroup>
     </select>
     <select class="select" id="semaforoFil">
       <option value="">Todos los semáforos</option>
@@ -301,7 +316,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderTabla() {
     const tbody = $('rowsBandeja');
     if (!lotes.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin lotes en bandeja para los filtros aplicados.</td></tr>`;
+      // Mensaje contextual según el filtro de estado activo.
+      const estadoActual = $('estadoFil').value;
+      let mensaje;
+      if (!estadoActual) {
+        // Default: solo se ven los 4 estados de bandeja.
+        mensaje = `
+          <div style="padding:24px;text-align:center;color:var(--muted)">
+            <div style="font-size:14px;margin-bottom:6px"><strong>Sin lotes en bandeja para los filtros aplicados.</strong></div>
+            <div style="font-size:13px;line-height:1.5">
+              La bandeja muestra solo lotes en <em>Listo revisión</em>, <em>Liberado</em>, <em>Con excepción</em> o <em>Rechazado</em>.<br/>
+              Si tu lote está en estados previos (<em>Pendiente</em>, <em>En análisis</em>, <em>Analizado</em>),
+              cambia el filtro a <strong>"Todos (incluye previos)"</strong> o búscalo en la pantalla
+              <a href="/modules/lab/lab-lotes.html" style="color:#2563eb">Lotes</a>.
+            </div>
+          </div>`;
+      } else if (estadoActual === '__all__') {
+        mensaje = `<div style="padding:24px;text-align:center;color:var(--muted)">No hay lotes que coincidan con los filtros aplicados.</div>`;
+      } else {
+        mensaje = `<div style="padding:24px;text-align:center;color:var(--muted)">Sin lotes en estado <strong>${escapeHtml(estadoActual)}</strong> para los filtros aplicados.</div>`;
+      }
+      tbody.innerHTML = `<tr><td colspan="8">${mensaje}</td></tr>`;
       return;
     }
 
