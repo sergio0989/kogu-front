@@ -38,6 +38,9 @@
       {href:'/modules/erp/producciones/producciones.html',label:'Producciones / Lotes',perm:'screen.erp.producciones'},
       {href:'/modules/erp/cobranza/cobranza.html',label:'Cobranza',perm:'screen.erp.cobranza'},
       {href:'/modules/erp/pagos/pagos.html',label:'Pagos / Tesorería',perm:'screen.erp.pagos'},
+    ]},
+    {section:'Lab QA',items:[
+      {href:'/modules/lab/lab-maestros.html',label:'Maestros analíticos',perm:'screen.lab.maestros'},
     ]}
   ];
 
