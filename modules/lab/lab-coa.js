@@ -28,7 +28,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card">
   <div class="row">
     <div><div class="eyebrow">Lab QA</div><h2>Certificados COA</h2></div>
-    <button class="btn primary" id="refreshBtn">Actualizar</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost" id="refreshBtn">Actualizar</button>
+      <button class="btn primary" id="newCoaBtn">+ Nuevo COA por factura</button>
+    </div>
   </div>
 
   <div class="grid-2" style="margin-top:16px;gap:10px">
@@ -174,6 +177,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     return b;
   }
 
+  $('newCoaBtn').addEventListener('click', () => {
+    window.location.href = '/modules/lab/lab-coa-emitir.html';
+  });
   $('refreshBtn').addEventListener('click', () => loadCoas(true));
   $('q').addEventListener('input', debounce(() => loadCoas(false, { resetPage: true }), 300));
   $('estadoFil').addEventListener('change', () => loadCoas(false, { resetPage: true }));

@@ -151,14 +151,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const t = I18N[coa.idioma] || I18N.es;
     const fechaEmi = coa.fecha_emision ? new Date(coa.fecha_emision).toLocaleString() : '—';
 
-    const filas = (coa.parametros || []).map(p => {
+    // Helper para una fila de parámetro
+    const filaParam = (p) => {
       let evalLabel = t.obs, evalCls = '';
       if (p.evaluacion === 'cumple')    { evalLabel = t.ok;  evalCls = 'ok'; }
       else if (p.evaluacion === 'no_cumple') { evalLabel = t.nok; evalCls = 'nok'; }
       else if (p.evaluacion === 'observacion') { evalLabel = t.obs; }
       else                              { evalLabel = t.na; }
 
-      // Spec legible según el tipo de evaluación
       let specStr = '—';
       if (p.spec_tipo_evaluacion === 'rango' && p.spec_lim_min != null && p.spec_lim_max != null) {
         specStr = `${p.spec_lim_min} – ${p.spec_lim_max}`;
@@ -190,7 +190,55 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td><strong>${escapeHtml(valor)}</strong></td>
           <td><span class="${evalCls}">${escapeHtml(evalLabel)}</span></td>
         </tr>`;
-    }).join('');
+    };
+
+    // Detectar si es consolidado multi-lote (V032+) o single-lote (legacy)
+    const esMultiLote = Array.isArray(coa.lotes) && coa.lotes.length > 0;
+
+    let secParams = '';
+    if (esMultiLote) {
+      // Para cada coa_lote: encabezado del lote + tabla de parámetros del lote
+      secParams = coa.lotes.map(lote => {
+        const paramsLote = (coa.parametros || []).filter(p => p.coa_lote_id === lote.coa_lote_id);
+        const cant = lote.cantidad ? `${parseFloat(lote.cantidad).toLocaleString()} ${lote.unidad || ''}` : '';
+        return `
+          <h2>${escapeHtml(t.lote)}: ${escapeHtml(lote.numero_lote)}</h2>
+          <div class="coa-grid">
+            <div class="coa-block">
+              <strong>${escapeHtml(t.cve)}</strong>${escapeHtml(lote.cve_prod || '—')}
+            </div>
+            <div class="coa-block">
+              <strong>${escapeHtml(t.producto)}</strong>${escapeHtml(lote.desc_prod || '—')}
+            </div>
+            ${cant ? `<div class="coa-block"><strong>Cant.</strong>${escapeHtml(cant)}</div>` : ''}
+          </div>
+          <table style="margin-top:8px">
+            <thead><tr>
+              <th>${escapeHtml(t.param)}</th>
+              <th>${escapeHtml(t.metodo)}</th>
+              <th>${escapeHtml(t.spec)}</th>
+              <th>${escapeHtml(t.resultado)}</th>
+              <th>${escapeHtml(t.cumple)}</th>
+            </tr></thead>
+            <tbody>${paramsLote.map(filaParam).join('') || `<tr><td colspan="5" style="text-align:center;color:#64748b">—</td></tr>`}</tbody>
+          </table>`;
+      }).join('');
+    } else {
+      // Vista legacy (single-lote): tabla única de parámetros
+      const filas = (coa.parametros || []).map(filaParam).join('');
+      secParams = `
+        <h2>${escapeHtml(t.param)}</h2>
+        <table>
+          <thead><tr>
+            <th>${escapeHtml(t.param)}</th>
+            <th>${escapeHtml(t.metodo)}</th>
+            <th>${escapeHtml(t.spec)}</th>
+            <th>${escapeHtml(t.resultado)}</th>
+            <th>${escapeHtml(t.cumple)}</th>
+          </tr></thead>
+          <tbody>${filas || `<tr><td colspan="5" style="text-align:center;color:#64748b">—</td></tr>`}</tbody>
+        </table>`;
+    }
 
     const verifyUrl = buildVerifyUrl(coa.url_publica_token);
 
@@ -225,37 +273,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${coa.cliente_email ? `<div class="coa-block"><strong>${escapeHtml(t.email)}</strong>${escapeHtml(coa.cliente_email)}</div>` : ''}
       </div>
 
-      <h2>${escapeHtml(t.producto)}</h2>
-      <div class="coa-grid">
-        <div class="coa-block">
-          <strong>${escapeHtml(t.cve)}</strong>
-          ${escapeHtml(coa.cve_prod || '—')}
+      ${esMultiLote ? `
+        ${coa.folio_factura_externa ? `
+        <h2>Factura</h2>
+        <div class="coa-grid">
+          <div class="coa-block">
+            <strong>Folio</strong>${escapeHtml(coa.folio_factura_externa)}
+          </div>
+          ${coa.fecha_factura ? `<div class="coa-block"><strong>Fecha</strong>${escapeHtml(new Date(coa.fecha_factura).toLocaleDateString())}</div>` : ''}
+          <div class="coa-block">
+            <strong>Lotes</strong>${coa.lotes.length}
+          </div>
+        </div>` : ''}
+      ` : `
+        <h2>${escapeHtml(t.producto)}</h2>
+        <div class="coa-grid">
+          <div class="coa-block">
+            <strong>${escapeHtml(t.cve)}</strong>
+            ${escapeHtml(coa.cve_prod || '—')}
+          </div>
+          <div class="coa-block">
+            <strong>${escapeHtml(t.producto)}</strong>
+            ${escapeHtml(coa.desc_prod || '—')}
+          </div>
+          <div class="coa-block">
+            <strong>${escapeHtml(t.lote)}</strong>
+            ${escapeHtml(coa.numero_lote || '—')}
+          </div>
         </div>
-        <div class="coa-block">
-          <strong>${escapeHtml(t.producto)}</strong>
-          ${escapeHtml(coa.desc_prod || '—')}
-        </div>
-        <div class="coa-block">
-          <strong>${escapeHtml(t.lote)}</strong>
-          ${escapeHtml(coa.numero_lote || '—')}
-        </div>
-      </div>
+      `}
 
       ${coa.tiene_excepcion
         ? `<div class="coa-leyenda">${escapeHtml(coa.leyenda_excepcion || t.leyenda_excep)}${coa.excepcion_motivo ? ' · ' + escapeHtml(coa.excepcion_motivo) : ''}</div>`
         : ''}
 
-      <h2>${escapeHtml(t.param)}</h2>
-      <table>
-        <thead><tr>
-          <th>${escapeHtml(t.param)}</th>
-          <th>${escapeHtml(t.metodo)}</th>
-          <th>${escapeHtml(t.spec)}</th>
-          <th>${escapeHtml(t.resultado)}</th>
-          <th>${escapeHtml(t.cumple)}</th>
-        </tr></thead>
-        <tbody>${filas || `<tr><td colspan="5" style="text-align:center;color:#64748b">—</td></tr>`}</tbody>
-      </table>
+      ${secParams}
 
       <div class="coa-firma">
         <strong>${escapeHtml(t.firma)}:</strong> ${escapeHtml(coa.emisor_nombre || '—')}

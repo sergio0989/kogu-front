@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="chip" style="background:${estado.color}22;color:${estado.color};font-size:14px;padding:6px 12px">${estado.label}</span>
-          ${puedeEmitirCoa ? `<button class="btn primary" id="emitirCoaBtn">Emitir COA</button>` : ''}
+          ${puedeEmitirCoa ? `<button class="btn primary" id="emitirCoaBtn" title="Ir al asistente de emisión de COA por factura">Emitir COA por factura →</button>` : ''}
         </div>
       </div>
       <div class="grid-2" style="margin-top:16px;gap:10px;font-size:14px">
@@ -185,28 +185,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Emitir COA — solo si el lote está liberado o con_excepcion
+    // Emitir COA — flujo unificado: redirige al asistente "COA por factura"
+    // donde se elige cliente, factura y se incluyen uno o varios lotes
+    // (V032+ reemplazó el flujo de COA por lote único).
     const emitirBtn = document.getElementById('emitirCoaBtn');
     if (emitirBtn) {
-      emitirBtn.addEventListener('click', async () => {
-        const idiomaInput = prompt(
-          'Idioma del COA (es / en / pt / fr / de / it). ENTER = idioma del cliente:'
-        ) || '';
-        const idioma = idiomaInput.trim().toLowerCase();
-        if (idioma && !['es','en','pt','fr','de','it'].includes(idioma)) {
-          return KoguApi.toast('Idioma inválido. Usa es/en/pt/fr/de/it.', 'error');
-        }
-        if (!confirm('¿Emitir COA para este lote? Se generará un certificado inmutable.')) return;
-        try {
-          const payload = { lote_id: loteId };
-          if (idioma) payload.idioma = idioma;
-          const res = await KoguApi.apiFetch('/protected/lab/coa/emitir', {
-            method: 'POST', body: JSON.stringify(payload),
-          });
-          const coa = KoguApi.unwrapData(res);
-          KoguApi.toast(`COA ${coa.folio_coa} emitido`, 'success');
-          window.location.href = `/modules/lab/lab-coa-detalle.html?id=${coa.coa_id}`;
-        } catch (err) { KoguApi.toast(err.message, 'error'); }
+      emitirBtn.addEventListener('click', () => {
+        const url = `/modules/lab/lab-coa-emitir.html?lote_id=${encodeURIComponent(loteId)}`;
+        window.location.href = url;
       });
     }
   }
