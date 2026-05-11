@@ -38,6 +38,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
+<!-- Barra de navegación entre maestros (parámetros / métodos / equipos / reactivos) -->
+<div style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px">
+  <a href="/modules/lab/lab-maestros.html"
+     style="padding:10px 16px;font-size:14px;color:#0f172a;font-weight:600;border-bottom:3px solid #0f172a;text-decoration:none">
+    Parámetros
+  </a>
+  <a href="/modules/lab/lab-metodos.html"
+     style="padding:10px 16px;font-size:14px;color:#64748b;border-bottom:3px solid transparent;text-decoration:none">
+    Métodos
+  </a>
+  <span style="padding:10px 16px;font-size:14px;color:#cbd5e1;border-bottom:3px solid transparent" title="Próximamente">
+    Equipos
+  </span>
+  <span style="padding:10px 16px;font-size:14px;color:#cbd5e1;border-bottom:3px solid transparent" title="Próximamente">
+    Reactivos
+  </span>
+</div>
+
 <div class="split">
 
   <!-- ── Lista ── -->
