@@ -68,7 +68,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <h2>Liberaciones</h2>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn ghost" id="refreshBtn">Actualizar</button>
+      <button class="btn ghost"   id="refreshBtn">Actualizar</button>
+      <button class="btn primary" id="nuevaLibBtn">+ Nueva liberación</button>
     </div>
   </div>
 
@@ -522,6 +523,188 @@ document.addEventListener('DOMContentLoaded', async () => {
     return b;
   }
 
+  // ── Acción: modal "Nueva liberación" (desde botón header) ──
+  // Permite elegir lote (entre los liberables) + cliente + condición.
+  // A diferencia de "Liberar a cliente…" desde tab Pendientes, esto
+  // funciona para lotes ya liberados (multi-cliente).
+  async function abrirNuevaLiberacionModal() {
+    let lotesLiberables = [];
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/liberaciones/lotes-liberables?pageSize=200`);
+      lotesLiberables = KoguApi.unwrapData(res) || [];
+    } catch (err) {
+      return KoguApi.toast('No se pudieron cargar los lotes: ' + err.message, 'error');
+    }
+    if (!lotesLiberables.length) {
+      return KoguApi.toast('No hay lotes en estado liberable. Lleva un lote a "Listo revisión" desde su detalle.', 'info');
+    }
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:8px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div>
+            <div class="eyebrow">Lab QA</div>
+            <h2 style="margin:6px 0 0 0">Nueva liberación</h2>
+            <div class="muted" style="font-size:13px;margin-top:6px">
+              Elige el lote a liberar y el cliente al que se entregará.
+              Puedes liberar el mismo lote a múltiples clientes — cada liberación es independiente.
+            </div>
+          </div>
+          <button class="btn ghost" id="closeNuevaBtn">×</button>
+        </div>
+
+        <div style="margin-top:8px">
+          <div class="label-text">Lote *</div>
+          <div style="display:flex;gap:6px">
+            <input class="input" id="loteLabel" readonly placeholder="— Selecciona un lote —"
+                   style="flex:1;cursor:pointer;background:#f8fafc"/>
+            <button type="button" class="btn ghost" id="lotePickBtn">Buscar lote…</button>
+          </div>
+          <input type="hidden" id="loteIdSel"/>
+          <div class="muted" style="margin-top:4px;font-size:12px">
+            Solo se muestran lotes en estados <strong>Listo revisión</strong>, <strong>Liberado</strong> o <strong>Con excepción</strong>.
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div class="label-text">Cliente *</div>
+          <div style="display:flex;gap:6px">
+            <input class="input" id="cliLabel" readonly placeholder="— Selecciona un cliente —"
+                   style="flex:1;cursor:pointer;background:#f8fafc"/>
+            <button type="button" class="btn ghost" id="cliPickBtn">Buscar cliente…</button>
+          </div>
+          <input type="hidden" id="cliIdSel"/>
+        </div>
+
+        <div class="grid-2" style="gap:10px;margin-top:14px">
+          <div>
+            <div class="label-text">Condición</div>
+            <select class="select" id="condSel">
+              <option value="normal" selected>Normal</option>
+              <option value="cliente_especifico">Cliente específico</option>
+            </select>
+            <div class="muted" style="margin-top:4px;font-size:12px">
+              Para condición "Excepción", usa la bandeja clásica (crea la excepción primero).
+            </div>
+          </div>
+          <div>
+            <div class="label-text">Folio factura externa (opcional)</div>
+            <input class="input" id="folioFactSel" maxlength="60" placeholder="ej. FAC-2026-001234"/>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div class="label-text">Observaciones (opcional)</div>
+          <textarea class="input" id="obsSel" rows="2" maxlength="500"></textarea>
+        </div>
+
+        <div style="margin-top:24px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn ghost"   id="cancelNuevaBtn">Cancelar</button>
+          <button class="btn primary" id="crearNuevaBtn" disabled>Crear liberación</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const overlayQ = (s) => overlay.querySelector(s);
+    const close = () => overlay.remove();
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlayQ('#closeNuevaBtn').addEventListener('click', close);
+    overlayQ('#cancelNuevaBtn').addEventListener('click', close);
+
+    function actualizarCrearBtn() {
+      const ok = !!overlayQ('#loteIdSel').value && !!overlayQ('#cliIdSel').value;
+      overlayQ('#crearNuevaBtn').disabled = !ok;
+    }
+
+    function abrirPickerLote() {
+      KoguUi.openSearchPicker({
+        title: 'Selecciona el lote a liberar',
+        items: lotesLiberables.map(l => ({
+          ...l,
+          display_estado: l.estado_calidad === 'listo_revision' ? '✓ Listo revisión'
+                        : l.estado_calidad === 'con_excepcion'  ? '⚠ Con excepción'
+                        : '● Ya liberado',
+          display_clientes: l.liberaciones_activas > 0
+            ? `${l.liberaciones_activas} cliente${l.liberaciones_activas === 1 ? '' : 's'}`
+            : '—',
+        })),
+        placeholder: 'Buscar por número de lote, cve_prod o descripción…',
+        columns: [
+          { key: 'numero_lote',      label: 'Lote',     primary: true },
+          { key: 'cve_prod',         label: 'cve_prod' },
+          { key: 'desc_prod',        label: 'Producto' },
+          { key: 'display_estado',   label: 'Estado' },
+          { key: 'display_clientes', label: 'Ya liberado a' },
+        ],
+        emptyText: 'Sin coincidencias',
+        onSelect: (l) => {
+          overlayQ('#loteIdSel').value = l.lote_id;
+          overlayQ('#loteLabel').value = `${l.numero_lote} — ${l.cve_prod || ''} ${l.desc_prod || ''}`.trim();
+          actualizarCrearBtn();
+        },
+      });
+    }
+    function abrirPickerCli() {
+      KoguUi.openSearchPicker({
+        title: 'Selecciona el cliente al que liberar',
+        items: clientes,
+        placeholder: 'Buscar por nombre, RFC o cve_cte…',
+        columns: [
+          { key: 'nombre',  label: 'Nombre',  primary: true },
+          { key: 'rfc',     label: 'RFC' },
+          { key: 'cve_cte', label: 'cve_cte' },
+        ],
+        emptyText: clientes.length === 0
+          ? 'No hay clientes en esta empresa.'
+          : 'Sin coincidencias',
+        onSelect: (c) => {
+          overlayQ('#cliIdSel').value = c.cliente_id;
+          overlayQ('#cliLabel').value = c.nombre + (c.rfc ? ' — ' + c.rfc : '');
+          actualizarCrearBtn();
+        },
+      });
+    }
+    overlayQ('#lotePickBtn').addEventListener('click', abrirPickerLote);
+    overlayQ('#loteLabel').addEventListener('click', abrirPickerLote);
+    overlayQ('#cliPickBtn').addEventListener('click', abrirPickerCli);
+    overlayQ('#cliLabel').addEventListener('click', abrirPickerCli);
+
+    overlayQ('#crearNuevaBtn').addEventListener('click', async () => {
+      const loteId = overlayQ('#loteIdSel').value;
+      const cliId  = overlayQ('#cliIdSel').value;
+      if (!loteId || !cliId) return;
+
+      const payload = {
+        lote_id:               loteId,
+        cliente_id:            cliId,
+        condicion:             overlayQ('#condSel').value,
+        folio_factura_externa: overlayQ('#folioFactSel').value.trim() || null,
+        observaciones:         overlayQ('#obsSel').value.trim() || null,
+      };
+
+      try {
+        overlayQ('#crearNuevaBtn').disabled = true;
+        const res = await KoguApi.apiFetch(`${BASE}/liberaciones`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        const lib = KoguApi.unwrapData(res);
+        KoguApi.toast(`Liberación creada (${lib.cliente_nombre || ''})`, 'success');
+        close();
+        // Cambia al tab Activas y refresca
+        if (currentTab !== 'activas') setActiveTab('activas');
+        else                          await load();
+      } catch (err) {
+        overlayQ('#crearNuevaBtn').disabled = false;
+        KoguApi.toast(err.message, 'error');
+      }
+    });
+  }
+
   // ── Acción: liberar lote (modal mínimo) ─────────────────
   function abrirLiberarModal(loteId) {
     // Si tenemos pocos clientes los listamos; si hay muchos, picker.
@@ -668,6 +851,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
   });
   $('refreshBtn').addEventListener('click', () => load({ showToast: true }));
+  $('nuevaLibBtn').addEventListener('click', abrirNuevaLiberacionModal);
   $('selClearBtn').addEventListener('click', () => {
     selectedLib.clear();
     document.querySelectorAll('input[data-pick]').forEach(cb => cb.checked = false);
