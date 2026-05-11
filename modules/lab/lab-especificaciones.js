@@ -486,28 +486,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <legend style="padding:0 8px;font-size:12px;color:#64748b">Parámetros del pliego</legend>
           <div class="row" style="margin-bottom:10px">
             <div class="muted" style="font-size:12px">
-              Agrega los parámetros que este cliente exige para el producto. Tipo "Rango" requiere mín y máx; "Cualitativo" requiere valor esperado; etc.
+              Cada tarjeta es un parámetro. Click para expandir y capturar/editar. Tipo <strong>Rango</strong> requiere mín y máx; <strong>Cualitativo</strong> requiere valor esperado; etc.
             </div>
-            <button type="button" class="btn primary" id="addParamBtn">+ Agregar parámetro</button>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn ghost"   id="toggleAllParamsBtn">Expandir todas</button>
+              <button type="button" class="btn primary" id="addParamBtn">+ Agregar parámetro</button>
+            </div>
           </div>
-          <div class="table-wrap">
-            <table id="paramsTable" style="font-size:13px">
-              <thead><tr>
-                <th>Parámetro</th>
-                <th style="width:130px">Tipo</th>
-                <th style="width:90px">Mín</th>
-                <th style="width:90px">Máx</th>
-                <th style="width:90px">Obj. ± Tol.</th>
-                <th>Cualitativo</th>
-                <th style="width:110px">Método</th>
-                <th style="width:80px">Unidad</th>
-                <th style="width:100px">Redondeo</th>
-                <th style="width:60px">Dec.</th>
-                <th style="width:40px"></th>
-              </tr></thead>
-              <tbody id="paramsRows"></tbody>
-            </table>
-          </div>
+          <div id="paramsList" style="display:flex;flex-direction:column;gap:8px"></div>
         </fieldset>
 
         <!-- Acciones -->
@@ -587,125 +573,269 @@ document.addEventListener('DOMContentLoaded', async () => {
     }));
     oQ('#m_prodLabel').addEventListener('click', () => oQ('#m_prodPickBtn')?.click());
 
-    // Parámetros editables: estado en memoria + render
-    const paramsState = (e.parametros || []).map(p => normalizeParamRow(p));
-    function renderParamsRows() {
-      const body = oQ('#paramsRows');
+    // Parámetros editables: estado en memoria + render como cards expandibles
+    const paramsState   = (e.parametros || []).map(p => normalizeParamRow(p));
+    const paramsOpen    = new Set();   // índices de cards expandidas
+    // Las recién agregadas arrancan expandidas; las existentes colapsadas.
+
+    function resumenLimite(p) {
+      if (p.tipo_evaluacion === 'rango' && p.lim_min != null && p.lim_max != null) {
+        return `${p.lim_min}–${p.lim_max}`;
+      }
+      if (p.tipo_evaluacion === 'mayor_igual' && p.lim_min != null) return `≥ ${p.lim_min}`;
+      if (p.tipo_evaluacion === 'menor_igual' && p.lim_max != null) return `≤ ${p.lim_max}`;
+      if (p.tipo_evaluacion === 'igual' && p.objetivo != null) return `= ${p.objetivo}${p.tolerancia ? ' ± ' + p.tolerancia : ''}`;
+      if ((p.tipo_evaluacion === 'cualitativo' || p.tipo_evaluacion === 'presencia_ausencia')
+          && p.valor_cualitativo_esperado) return `"${p.valor_cualitativo_esperado}"`;
+      return '—';
+    }
+
+    function renderParamsList() {
+      const list = oQ('#paramsList');
       if (!paramsState.length) {
-        body.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:16px;color:#94a3b8">Sin parámetros — agrega al menos uno.</td></tr>';
+        list.innerHTML = '<div class="muted" style="text-align:center;padding:20px;border:1px dashed var(--line);border-radius:6px">Sin parámetros. Click en <strong>+ Agregar parámetro</strong> para empezar.</div>';
+        updateToggleAllLabel();
         return;
       }
-      body.innerHTML = paramsState.map((p, i) => `
-        <tr data-row="${i}">
-          <td>
-            <div style="display:flex;gap:4px;align-items:center">
-              <input class="input" data-f="parametro_label" readonly
-                     value="${escapeAttr(p.parametro_label || formatParametro(p.parametro_id))}"
-                     style="flex:1;cursor:pointer;background:#f8fafc"/>
-              <button type="button" class="btn ghost" data-pick="param">…</button>
-            </div>
-          </td>
-          <td>
-            <select class="select" data-f="tipo_evaluacion">
-              ${TIPOS.map(t => `<option value="${t.code}" ${p.tipo_evaluacion === t.code ? 'selected' : ''}>${t.label}</option>`).join('')}
-            </select>
-          </td>
-          <td><input class="input" type="number" step="any" data-f="lim_min" value="${escapeAttr(p.lim_min ?? '')}"/></td>
-          <td><input class="input" type="number" step="any" data-f="lim_max" value="${escapeAttr(p.lim_max ?? '')}"/></td>
-          <td>
-            <div style="display:flex;gap:2px">
-              <input class="input" type="number" step="any" data-f="objetivo" value="${escapeAttr(p.objetivo ?? '')}" placeholder="obj" style="width:50%"/>
-              <input class="input" type="number" step="any" data-f="tolerancia" value="${escapeAttr(p.tolerancia ?? 0)}" placeholder="±tol" style="width:50%"/>
-            </div>
-          </td>
-          <td><input class="input" data-f="valor_cualitativo_esperado" value="${escapeAttr(p.valor_cualitativo_esperado || '')}" placeholder="ausencia/25g…"/></td>
-          <td>
-            <div style="display:flex;gap:4px;align-items:center">
-              <input class="input" data-f="metodo_label" readonly
-                     value="${escapeAttr(p.metodo_label || formatMetodo(p.metodo_id))}"
-                     style="flex:1;cursor:pointer;background:#f8fafc"/>
-              <button type="button" class="btn ghost" data-pick="metodo">…</button>
-            </div>
-          </td>
-          <td>
-            <div style="display:flex;gap:4px;align-items:center">
-              <input class="input" data-f="unidad_label" readonly
-                     value="${escapeAttr(p.unidad_label || formatUnidad(p.unidad_id))}"
-                     style="flex:1;cursor:pointer;background:#f8fafc"/>
-              <button type="button" class="btn ghost" data-pick="unidad">…</button>
-            </div>
-          </td>
-          <td>
-            <select class="select" data-f="redondeo">
-              ${REDONDEO.map(r => `<option value="${r.code}" ${p.redondeo === r.code ? 'selected' : ''}>${r.label}</option>`).join('')}
-            </select>
-          </td>
-          <td><input class="input" type="number" min="0" max="6" data-f="decimales" value="${p.decimales ?? 2}"/></td>
-          <td style="text-align:center"><button type="button" class="btn ghost danger" data-remove="${i}">×</button></td>
-        </tr>
-      `).join('');
+      list.innerHTML = paramsState.map((p, i) => cardHtml(p, i)).join('');
+      wireCards();
+      updateToggleAllLabel();
+    }
 
-      body.querySelectorAll('input[data-f], select[data-f]').forEach(el => {
-        el.addEventListener('change', ev => {
-          const tr = ev.target.closest('tr');
-          const idx = parseInt(tr.dataset.row, 10);
-          const f = ev.target.dataset.f;
-          paramsState[idx][f] = ev.target.value === '' ? null : ev.target.value;
-        });
-        el.addEventListener('input', ev => {
-          const tr = ev.target.closest('tr');
-          const idx = parseInt(tr.dataset.row, 10);
-          const f = ev.target.dataset.f;
-          paramsState[idx][f] = ev.target.value === '' ? null : ev.target.value;
+    function cardHtml(p, i) {
+      const isOpen = paramsOpen.has(i);
+      const label  = p.parametro_label || formatParametro(p.parametro_id) || '(parámetro sin seleccionar)';
+      const tipoLabel = (TIPOS.find(t => t.code === p.tipo_evaluacion) || {}).label || p.tipo_evaluacion;
+      const unidadShort = (p.unidad_label || formatUnidad(p.unidad_id) || '').split(' — ')[0];
+      const resumen = resumenLimite(p);
+
+      return `
+        <div data-card="${i}" style="border:1px solid var(--line);border-radius:6px;background:white;overflow:hidden">
+          <!-- Header colapsable -->
+          <div data-toggle="${i}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;user-select:none;background:${isOpen ? '#f1f5f9' : 'white'}">
+            <span style="font-size:12px;color:#64748b;width:14px">${isOpen ? '▼' : '▶'}</span>
+            <div style="flex:1">
+              <div style="font-size:13px"><strong>${escapeHtml(label)}</strong></div>
+              <div class="muted" style="font-size:11px">
+                ${escapeHtml(tipoLabel)} · ${escapeHtml(resumen)}${unidadShort ? ' ' + escapeHtml(unidadShort) : ''}
+              </div>
+            </div>
+            <button type="button" class="btn ghost danger" data-remove="${i}" title="Quitar parámetro" style="padding:4px 8px">Quitar</button>
+          </div>
+
+          <!-- Cuerpo (solo si expandido) -->
+          ${isOpen ? `
+            <div style="padding:12px;border-top:1px solid var(--line);background:#fafafa">
+              <div class="grid-2" style="gap:10px">
+                <div style="grid-column:1/-1">
+                  <div class="label-text">Parámetro *</div>
+                  <div style="display:flex;gap:6px">
+                    <input class="input" data-f="parametro_label" data-row="${i}" readonly
+                           value="${escapeAttr(p.parametro_label || formatParametro(p.parametro_id))}"
+                           placeholder="— Selecciona un parámetro —"
+                           style="flex:1;cursor:pointer;background:#f8fafc"/>
+                    <button type="button" class="btn ghost" data-pick="param" data-row="${i}">Buscar parámetro…</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="label-text">Tipo de evaluación *</div>
+                  <select class="select" data-f="tipo_evaluacion" data-row="${i}">
+                    ${TIPOS.map(t => `<option value="${t.code}" ${p.tipo_evaluacion === t.code ? 'selected' : ''}>${t.label}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <div class="label-text">Unidad (opcional)</div>
+                  <div style="display:flex;gap:6px">
+                    <input class="input" data-f="unidad_label" data-row="${i}" readonly
+                           value="${escapeAttr(p.unidad_label || formatUnidad(p.unidad_id))}"
+                           placeholder="— Sin unidad —"
+                           style="flex:1;cursor:pointer;background:#f8fafc"/>
+                    <button type="button" class="btn ghost" data-pick="unidad" data-row="${i}">Buscar…</button>
+                  </div>
+                </div>
+
+                <!-- Bloque dinámico según tipo -->
+                <div style="grid-column:1/-1" data-tipo-block="${i}">
+                  ${camposPorTipo(p, i)}
+                </div>
+
+                <div>
+                  <div class="label-text">Método (opcional)</div>
+                  <div style="display:flex;gap:6px">
+                    <input class="input" data-f="metodo_label" data-row="${i}" readonly
+                           value="${escapeAttr(p.metodo_label || formatMetodo(p.metodo_id))}"
+                           placeholder="— Cualquier método —"
+                           style="flex:1;cursor:pointer;background:#f8fafc"/>
+                    <button type="button" class="btn ghost" data-pick="metodo" data-row="${i}">Buscar…</button>
+                  </div>
+                </div>
+                <div>
+                  <div class="label-text">Redondeo / Decimales</div>
+                  <div style="display:flex;gap:6px">
+                    <select class="select" data-f="redondeo" data-row="${i}" style="flex:1">
+                      ${REDONDEO.map(r => `<option value="${r.code}" ${p.redondeo === r.code ? 'selected' : ''}>${r.label}</option>`).join('')}
+                    </select>
+                    <input class="input" type="number" min="0" max="6" data-f="decimales" data-row="${i}"
+                           value="${p.decimales ?? 2}" title="Decimales" style="width:70px"/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function camposPorTipo(p, i) {
+      const t = p.tipo_evaluacion || 'rango';
+      const v = (x) => x == null ? '' : x;
+      if (t === 'rango') {
+        return `
+          <div class="grid-2" style="gap:10px">
+            <div><div class="label-text">Mínimo *</div>
+              <input class="input" type="number" step="any" data-f="lim_min" data-row="${i}" value="${escapeAttr(v(p.lim_min))}"/>
+            </div>
+            <div><div class="label-text">Máximo *</div>
+              <input class="input" type="number" step="any" data-f="lim_max" data-row="${i}" value="${escapeAttr(v(p.lim_max))}"/>
+            </div>
+          </div>`;
+      }
+      if (t === 'mayor_igual') {
+        return `<div><div class="label-text">Mínimo *</div>
+          <input class="input" type="number" step="any" data-f="lim_min" data-row="${i}" value="${escapeAttr(v(p.lim_min))}"/></div>`;
+      }
+      if (t === 'menor_igual') {
+        return `<div><div class="label-text">Máximo *</div>
+          <input class="input" type="number" step="any" data-f="lim_max" data-row="${i}" value="${escapeAttr(v(p.lim_max))}"/></div>`;
+      }
+      if (t === 'igual') {
+        return `
+          <div class="grid-2" style="gap:10px">
+            <div><div class="label-text">Objetivo *</div>
+              <input class="input" type="number" step="any" data-f="objetivo" data-row="${i}" value="${escapeAttr(v(p.objetivo))}"/>
+            </div>
+            <div><div class="label-text">Tolerancia ±</div>
+              <input class="input" type="number" step="any" data-f="tolerancia" data-row="${i}" value="${escapeAttr(p.tolerancia ?? 0)}"/>
+            </div>
+          </div>`;
+      }
+      if (t === 'cualitativo' || t === 'presencia_ausencia') {
+        const ph = t === 'presencia_ausencia' ? 'ausencia/25g, presencia, etc.' : 'claro, sin sedimento, etc.';
+        return `<div><div class="label-text">Valor esperado *</div>
+          <input class="input" data-f="valor_cualitativo_esperado" data-row="${i}"
+                 value="${escapeAttr(p.valor_cualitativo_esperado || '')}" placeholder="${ph}"/></div>`;
+      }
+      return '';
+    }
+
+    function wireCards() {
+      // Toggle expand/collapse (click en header)
+      oQ('#paramsList').querySelectorAll('[data-toggle]').forEach(el => {
+        el.addEventListener('click', ev => {
+          // No togglear si el click vino del botón "Quitar"
+          if (ev.target.closest('button[data-remove]')) return;
+          const i = parseInt(el.dataset.toggle, 10);
+          if (paramsOpen.has(i)) paramsOpen.delete(i);
+          else                    paramsOpen.add(i);
+          renderParamsList();
         });
       });
-      body.querySelectorAll('button[data-pick]').forEach(btn => {
-        btn.addEventListener('click', ev => {
-          const tr = ev.target.closest('tr');
-          const idx = parseInt(tr.dataset.row, 10);
+      // Inputs y selects
+      oQ('#paramsList').querySelectorAll('input[data-f], select[data-f]').forEach(el => {
+        const update = ev => {
+          const idx = parseInt(ev.target.dataset.row, 10);
+          const f   = ev.target.dataset.f;
+          paramsState[idx][f] = ev.target.value === '' ? null : ev.target.value;
+          // Si cambió tipo_evaluacion, re-render del bloque dinámico
+          if (f === 'tipo_evaluacion') {
+            const block = oQ('#paramsList').querySelector(`[data-tipo-block="${idx}"]`);
+            if (block) block.innerHTML = camposPorTipo(paramsState[idx], idx);
+            wireCards();   // re-wire los inputs nuevos
+          }
+        };
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
+      });
+      // Pickers
+      oQ('#paramsList').querySelectorAll('button[data-pick]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.row, 10);
           const what = btn.dataset.pick;
           if (what === 'param') {
             abrirPickerParametro({
               onSelect: (p) => {
-                paramsState[idx].parametro_id = p.parametro_id;
+                paramsState[idx].parametro_id    = p.parametro_id;
                 paramsState[idx].parametro_label = `${p.clave} — ${p.nombre}`;
-                renderParamsRows();
+                renderParamsList();
               },
             });
           } else if (what === 'metodo') {
             abrirPickerMetodo({
               onSelect: (m) => {
-                paramsState[idx].metodo_id = m.metodo_id;
+                paramsState[idx].metodo_id    = m.metodo_id;
                 paramsState[idx].metodo_label = `${m.clave} — ${m.nombre}`;
-                renderParamsRows();
+                renderParamsList();
               },
             });
           } else if (what === 'unidad') {
             abrirPickerUnidad({
               onSelect: (u) => {
-                paramsState[idx].unidad_id = u.unidad_id;
+                paramsState[idx].unidad_id    = u.unidad_id;
                 paramsState[idx].unidad_label = `${u.simbolo || ''} ${u.nombre ? '— ' + u.nombre : ''}`.trim();
-                renderParamsRows();
+                renderParamsList();
               },
             });
           }
         });
       });
-      body.querySelectorAll('input[data-f="parametro_label"], input[data-f="metodo_label"], input[data-f="unidad_label"]')
-        .forEach(el => el.addEventListener('click', () => {
-          el.parentElement.querySelector('button[data-pick]')?.click();
-        }));
-      body.querySelectorAll('button[data-remove]').forEach(btn => btn.addEventListener('click', ev => {
-        const idx = parseInt(btn.dataset.remove, 10);
-        paramsState.splice(idx, 1);
-        renderParamsRows();
-      }));
+      // Click en input readonly de label → abre el picker correspondiente
+      oQ('#paramsList').querySelectorAll('input[readonly][data-f]').forEach(el => {
+        el.addEventListener('click', () => {
+          const idx = el.dataset.row;
+          const map = { parametro_label: 'param', metodo_label: 'metodo', unidad_label: 'unidad' };
+          const what = map[el.dataset.f];
+          if (what) oQ('#paramsList').querySelector(`button[data-pick="${what}"][data-row="${idx}"]`)?.click();
+        });
+      });
+      // Quitar
+      oQ('#paramsList').querySelectorAll('button[data-remove]').forEach(btn => {
+        btn.addEventListener('click', ev => {
+          ev.stopPropagation();
+          const idx = parseInt(btn.dataset.remove, 10);
+          paramsState.splice(idx, 1);
+          // Recalcular paramsOpen tras splice (los índices > idx se corren -1)
+          const newOpen = new Set();
+          paramsOpen.forEach(o => {
+            if (o < idx) newOpen.add(o);
+            else if (o > idx) newOpen.add(o - 1);
+          });
+          paramsOpen.clear();
+          newOpen.forEach(v => paramsOpen.add(v));
+          renderParamsList();
+        });
+      });
     }
-    renderParamsRows();
+
+    function updateToggleAllLabel() {
+      const btn = oQ('#toggleAllParamsBtn');
+      if (!btn) return;
+      const allOpen = paramsState.length > 0 && paramsOpen.size === paramsState.length;
+      btn.textContent = allOpen ? 'Colapsar todas' : 'Expandir todas';
+    }
+
+    renderParamsList();
 
     oQ('#addParamBtn')?.addEventListener('click', () => {
       paramsState.push(normalizeParamRow({ tipo_evaluacion: 'rango', redondeo: 'round', decimales: 2 }));
-      renderParamsRows();
+      paramsOpen.add(paramsState.length - 1);  // recién agregado: expandido
+      renderParamsList();
+    });
+    oQ('#toggleAllParamsBtn')?.addEventListener('click', () => {
+      const allOpen = paramsState.length > 0 && paramsOpen.size === paramsState.length;
+      if (allOpen) paramsOpen.clear();
+      else paramsState.forEach((_, i) => paramsOpen.add(i));
+      renderParamsList();
     });
 
     // Archivo
