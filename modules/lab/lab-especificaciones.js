@@ -869,7 +869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await guardar(true);
     });
 
-    async function guardar(firmar) {
+    async function guardar(firmar, { reemplazaId = null } = {}) {
       const body = {
         folio_spec:     oQ('#f_folio').value.trim(),
         version:        oQ('#f_version').value.trim() || 'v1',
@@ -887,32 +887,76 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (firmar) {
         if (!body.parametros.length) return KoguApi.toast('Agrega al menos un parámetro antes de firmar.', 'error');
         body.status = 'vigente';
-        // El backend resuelve firmado_por y fecha_firma desde el contexto
-        // del request (user actual + NOW) si vienen vacíos. No necesitamos
-        // resolverlo en el cliente.
+      }
+      if (reemplazaId) body.cabecera_reemplaza_id = reemplazaId;
+
+      const btn = firmar ? oQ('#firmarBtn') : oQ('#saveBtn');
+      if (btn) btn.disabled = true;
+
+      // Usamos authFetchRaw para capturar 409 CAB_OVERLAP con código y poder
+      // ofrecer el flujo de "reemplazar pliego vigente actual".
+      const url    = cab?.cabecera_id ? `${BASE}/${cab.cabecera_id}` : BASE;
+      const method = cab?.cabecera_id ? 'PUT' : 'POST';
+      let response;
+      try {
+        response = await KoguApi.authFetchRaw(url, {
+          method,
+          body: JSON.stringify(body),
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (netErr) {
+        if (btn) btn.disabled = false;
+        return KoguApi.toast('Error de red: ' + netErr.message, 'error');
       }
 
-      try {
-        const btn = firmar ? oQ('#firmarBtn') : oQ('#saveBtn');
-        if (btn) btn.disabled = true;
-        let resultId;
-        if (cab?.cabecera_id) {
-          await KoguApi.apiFetch(`${BASE}/${cab.cabecera_id}`, { method: 'PUT', body: JSON.stringify(body) });
-          resultId = cab.cabecera_id;
-          KoguApi.toast(firmar ? 'Pliego firmado y vigente' : 'Pliego actualizado', 'success');
-        } else {
-          const res = await KoguApi.apiFetch(BASE, { method: 'POST', body: JSON.stringify(body) });
-          const created = KoguApi.unwrapData(res);
-          resultId = created.cabecera_id;
-          KoguApi.toast(firmar ? 'Pliego creado y vigente' : 'Pliego creado', 'success');
-        }
+      const bodyJson = await response.json().catch(() => null);
+      if (response.ok) {
+        KoguApi.toast(firmar ? 'Pliego firmado y vigente' : (cab?.cabecera_id ? 'Pliego actualizado' : 'Pliego creado'), 'success');
         close();
         await load();
-      } catch (err) {
-        const btn = firmar ? oQ('#firmarBtn') : oQ('#saveBtn');
-        if (btn) btn.disabled = false;
-        KoguApi.toast(err.message, 'error');
+        return;
       }
+
+      if (btn) btn.disabled = false;
+      const code = bodyJson?.error?.code || bodyJson?.code;
+      const msg  = bodyJson?.error?.message || bodyJson?.message || 'No fue posible guardar.';
+
+      // Caso especial: ya hay un pliego vigente para este cliente+producto.
+      // Ofrecer reemplazo automático.
+      if (response.status === 409 && code === 'CAB_OVERLAP' && firmar && !reemplazaId) {
+        try {
+          // Localizar el pliego vigente actual (puede no ser solo uno si
+          // hay variantes futuras; aquí pedimos solo vigentes hoy).
+          const qp = new URLSearchParams({
+            cliente_id:  body.cliente_id,
+            producto_id: body.producto_id,
+            status:      'vigente',
+            vigente_hoy: 'true',
+            pageSize:    '5',
+          });
+          const res = await KoguApi.apiFetch(`${BASE}?${qp.toString()}`);
+          const lista = KoguApi.unwrapData(res) || [];
+          // Excluir la cabecera que estamos editando (si aplica)
+          const candidatos = lista.filter(c => c.cabecera_id !== cab?.cabecera_id);
+          if (!candidatos.length) {
+            return KoguApi.toast(msg, 'error');
+          }
+          const target = candidatos[0];
+          const ok = confirm(
+            `Ya existe un pliego VIGENTE para este cliente+producto:\n\n` +
+            `  ${target.folio_spec} (${target.version || 'v?'})\n\n` +
+            `¿Reemplazarlo con este pliego?\n\n` +
+            `El anterior pasará automáticamente a estado "reemplazada" y este quedará como único vigente.`
+          );
+          if (!ok) return;
+          // Reintento incluyendo cabecera_reemplaza_id
+          return guardar(true, { reemplazaId: target.cabecera_id });
+        } catch (e) {
+          return KoguApi.toast(msg, 'error');
+        }
+      }
+
+      KoguApi.toast(msg, 'error');
     }
   }
 
