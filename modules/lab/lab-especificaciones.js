@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Estado ────────────────────────────────────────────
   let rows = [];
   let currentPage = 1, pageSize = 25, totalPages = 1, totalRows = 0;
+  let empresaActivaClave = null;  // se resuelve lazy al usar "Sugerir folio"
   const $ = (id) => document.getElementById(id);
 
   const c = document.getElementById('pageContent');
@@ -402,9 +403,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           <legend style="padding:0 8px;font-size:12px;color:#64748b">Identidad del pliego</legend>
           <div class="grid-2" style="gap:10px">
             <div><div class="label-text">Folio del pliego *</div>
-              <input class="input" id="f_folio" maxlength="80" value="${escapeAttr(e.folio_spec)}"
-                     placeholder="SPEC-EMPRESA-PRODUCTO-CLIENTE-v1" ${lockMetadata ? 'readonly' : ''}/>
-              <div class="muted" style="font-size:11px;margin-top:4px">Patrón sugerido: <code>SPEC-&lt;empresa&gt;-&lt;cve_prod&gt;-&lt;cliente&gt;-v&lt;n&gt;</code></div>
+              <div style="display:flex;gap:6px">
+                <input class="input" id="f_folio" maxlength="80" value="${escapeAttr(e.folio_spec)}"
+                       placeholder="SPEC-EMPRESA-PRODUCTO-CLIENTE-v1"
+                       style="flex:1" ${lockMetadata ? 'readonly' : ''}/>
+                ${!lockMetadata ? '<button type="button" class="btn ghost" id="genFolioBtn" title="Generar folio según el patrón sugerido a partir de cliente, producto y versión seleccionados">Sugerir</button>' : ''}
+              </div>
+              <div class="muted" style="font-size:11px;margin-top:4px">Patrón: <code>SPEC-&lt;empresa&gt;-&lt;cve_prod&gt;-&lt;cliente&gt;-v&lt;n&gt;</code></div>
             </div>
             <div><div class="label-text">Versión</div>
               <input class="input" id="f_version" maxlength="20" value="${escapeAttr(e.version)}"
@@ -521,6 +526,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     oQ('#cancelBtn').addEventListener('click', close);
 
     // Pickers
+    // Botón "Sugerir folio" — valida cliente + producto y arma el patrón.
+    oQ('#genFolioBtn')?.addEventListener('click', async () => {
+      const cliId  = oQ('#m_cliId').value;
+      const prodId = oQ('#m_prodId').value;
+      const version = (oQ('#f_version').value || '').trim() || 'v1';
+
+      if (!cliId) {
+        KoguApi.toast('Selecciona primero el cliente.', 'error');
+        return oQ('#m_cliPickBtn')?.click();
+      }
+      if (!prodId) {
+        KoguApi.toast('Selecciona primero el producto.', 'error');
+        return oQ('#m_prodPickBtn')?.click();
+      }
+
+      // Resolver clave de empresa activa
+      let claveEmp = empresaActivaClave;
+      if (!claveEmp) {
+        try {
+          const res = await KoguApi.apiFetch('/protected/core/context/empresa-activa');
+          const data = KoguApi.unwrapData(res);
+          claveEmp = data?.clave_empresa || data?.empresa?.clave_empresa || 'EMP';
+          empresaActivaClave = claveEmp;
+        } catch (_) {
+          claveEmp = 'EMP';
+        }
+      }
+
+      const cli  = clientes.find(x => x.cliente_id === cliId);
+      const prod = productos.find(x => x.producto_id === prodId);
+
+      // Clave del cliente: prefiere cve_cte, luego primeros 6 del RFC, luego 6 chars del id
+      const claveCli = (cli?.cve_cte && String(cli.cve_cte).trim())
+        || (cli?.rfc ? String(cli.rfc).slice(0, 6) : null)
+        || (cli?.cliente_id ? String(cli.cliente_id).slice(0, 6) : 'CLI');
+
+      const claveProd = (prod?.cve_prod && String(prod.cve_prod).trim()) || 'PROD';
+
+      // Normalizar versión: si trae solo número (ej. "2"), prefija "v"
+      const vNorm = /^\d+$/.test(version) ? `v${version}` : (version.startsWith('v') ? version : `v${version}`);
+
+      const folio = `SPEC-${slug(claveEmp)}-${slug(claveProd)}-${slug(claveCli)}-${vNorm}`;
+      oQ('#f_folio').value = folio.toUpperCase();
+      KoguApi.toast('Folio sugerido aplicado.', 'success');
+    });
+
     oQ('#m_cliPickBtn')?.addEventListener('click', () => abrirPickerCliente({
       onSelect: (cli) => {
         oQ('#m_cliId').value = cli.cliente_id;
@@ -831,6 +882,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
   }
   function truncar(s, n) { return s && s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function slug(s) {
+    return String(s ?? '')
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
   function escapeAttr(s) { return String(s ?? '').replace(/"/g, '&quot;'); }
   function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
