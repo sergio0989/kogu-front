@@ -625,14 +625,40 @@ document.addEventListener('DOMContentLoaded', async () => {
           }),
         });
         const exc = KoguApi.unwrapData(res);
-        KoguApi.toast(`Excepción creada (borrador). QA debe aprobarla antes de poder liberar.`, 'success');
+        KoguApi.toast('Excepción creada en borrador. QA debe aprobarla.', 'success');
         close();
-        // Mostrar resumen sencillo
-        alert(
-          `Excepción ${exc?.excepcion_id || ''} creada en estado "borrador".\n\n` +
-          `Notifica a gerencia de QA para que la apruebe. Una vez aprobada, ` +
-          `regresa a Liberar y selecciona condición = "excepción".`
-        );
+        // Modal de seguimiento con info clara del flujo Opción B
+        const followup = document.createElement('div');
+        followup.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+        followup.innerHTML = `
+          <div style="background:white;border-radius:8px;max-width:520px;width:100%;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <span style="font-size:24px">📋</span>
+              <h2 style="margin:0">Excepción creada</h2>
+            </div>
+            <div style="font-size:13px;line-height:1.6;color:#475569">
+              <p>Excepción <strong style="font-family:monospace;color:#0f172a">${escapeHtml((exc?.excepcion_id || '').slice(0, 8))}</strong> creada en estado <span class="chip" style="background:#fef3c7;color:#92400e">borrador</span>.</p>
+              <div style="margin:14px 0;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px">
+                <strong style="color:#1e3a8a">Próximos pasos:</strong>
+                <ol style="margin:8px 0 0 18px;padding:0">
+                  <li>Notifica a gerencia QA para que revise la excepción.</li>
+                  <li>QA aprueba o rechaza la excepción desde <strong>Excepciones</strong>.</li>
+                  <li>Al aprobar, <strong style="color:#16a34a">la liberación se crea automáticamente</strong> con condición "excepción" — no tienes que regresar aquí.</li>
+                </ol>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+              <button class="btn ghost"   id="fuCancelBtn">Cerrar</button>
+              <button class="btn primary" id="fuVerExc">Ir a Excepciones →</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(followup);
+        followup.addEventListener('click', ev => { if (ev.target === followup) followup.remove(); });
+        followup.querySelector('#fuCancelBtn').addEventListener('click', () => followup.remove());
+        followup.querySelector('#fuVerExc').addEventListener('click', () => {
+          window.location.href = '/modules/lab/lab-excepciones.html';
+        });
       } catch (err) {
         oQ('#opExcepcion').disabled = false;
         KoguApi.toast(err.message, 'error');
