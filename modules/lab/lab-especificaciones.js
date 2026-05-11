@@ -886,13 +886,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (firmar) {
         if (!body.parametros.length) return KoguApi.toast('Agrega al menos un parámetro antes de firmar.', 'error');
-        body.status      = 'vigente';
-        body.firmado_por = null;            // backend lo toma del user actual si está vacío
-        body.fecha_firma = new Date().toISOString();
-        // Mandamos firmado_por = user del request usando un truco: dejamos que el backend
-        // lo asuma. Si el backend no lo asume, agrégalo en el patch del service.
-        const userId = (await KoguApi.apiFetch('/protected/core/context/empresa-activa').catch(() => null))?.data?.user?.user_id;
-        if (userId) body.firmado_por = userId;
+        body.status = 'vigente';
+        // El backend resuelve firmado_por y fecha_firma desde el contexto
+        // del request (user actual + NOW) si vienen vacíos. No necesitamos
+        // resolverlo en el cliente.
       }
 
       try {
