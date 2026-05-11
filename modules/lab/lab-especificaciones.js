@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     tbody.innerHTML = rows.map(c => {
       const st = STATUS.find(s => s.code === c.status) || { label: c.status, color: '#64748b' };
-      const vigTxt = `${c.vigencia_desde}${c.vigencia_hasta ? ' → ' + c.vigencia_hasta : ' (indef.)'}`;
+      const vigTxt = `${fmtDate(c.vigencia_desde)}${c.vigencia_hasta ? ' → ' + fmtDate(c.vigencia_hasta) : ' (indef.)'}`;
       const archivo = c.archivo_path
         ? `<a href="#" data-download="${c.cabecera_id}" title="${escapeAttr(c.archivo_nombre_original || '')}" style="color:#2563eb">📄 ${escapeHtml(truncar(c.archivo_nombre_original || 'archivo', 24))}</a>`
         : '<span class="muted">—</span>';
@@ -436,10 +436,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               <input type="hidden" id="m_prodId" value="${escapeAttr(e.producto_id || '')}"/>
             </div>
             <div><div class="label-text">Vigente desde *</div>
-              <input class="input" type="date" id="f_desde" value="${escapeAttr(e.vigencia_desde || '')}" ${lockMetadata ? 'readonly' : ''}/>
+              <input class="input" type="date" id="f_desde" value="${escapeAttr(fmtDate(e.vigencia_desde))}" ${lockMetadata ? 'readonly' : ''}/>
             </div>
             <div><div class="label-text">Vigente hasta (opcional)</div>
-              <input class="input" type="date" id="f_hasta" value="${escapeAttr(e.vigencia_hasta || '')}" placeholder="Indefinido"/>
+              <input class="input" type="date" id="f_hasta" value="${escapeAttr(fmtDate(e.vigencia_hasta))}" placeholder="Indefinido"/>
             </div>
             <div style="grid-column:1/-1"><div class="label-text">Observaciones</div>
               <textarea class="input" id="f_obs" rows="2" maxlength="2000">${escapeHtml(e.observaciones || '')}</textarea>
@@ -1012,6 +1012,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
   }
   function truncar(s, n) { return s && s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  // YYYY-MM-DD para inputs type="date"; tolera Date, ISO con T, o ya formateado.
+  function fmtDate(v) {
+    if (!v) return '';
+    if (v instanceof Date) {
+      const y = v.getFullYear();
+      const m = String(v.getMonth() + 1).padStart(2, '0');
+      const d = String(v.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    const s = String(v);
+    // ya viene "YYYY-MM-DD" o "YYYY-MM-DD..."
+    const match = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : '';
+  }
   function slug(s) {
     return String(s ?? '')
       .normalize('NFKD').replace(/[̀-ͯ]/g, '')
