@@ -48,29 +48,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   let clientes   = [];
 
   async function loadCatalogos() {
+    // Productos: /protected/cat/productos devuelve { rows: [...] } sin paginación
     try {
-      const [resProd, resParam] = await Promise.all([
-        KoguApi.apiFetch('/protected/cat/productos?pageSize=500').catch(() => null),
-        KoguApi.apiFetch('/protected/lab/maestros/parametros?status=activo&pageSize=500'),
-      ]);
-      if (resProd) productos = KoguApi.unwrapData(resProd) || [];
-      parametros = KoguApi.unwrapData(resParam) || [];
-
-      // Métodos, unidades, clientes — opcionales (cargados si los endpoints existen)
-      try {
-        const resCli = await KoguApi.apiFetch('/protected/core/clientes');
-        clientes = KoguApi.unwrapRows(resCli);
-      } catch (_) { clientes = []; }
-      try {
-        const resUni = await KoguApi.apiFetch('/protected/cat/unidades?pageSize=500').catch(() => null);
-        if (resUni) unidades = KoguApi.unwrapData(resUni) || [];
-      } catch (_) { unidades = []; }
-      // Métodos: no hay endpoint CRUD aún. Lo dejamos vacío y el campo
-      // se captura como id manual o se queda en NULL (cualquier método).
-      metodos = [];
+      const resProd = await KoguApi.apiFetch('/protected/cat/productos');
+      productos = KoguApi.unwrapRows(resProd) || [];
     } catch (err) {
-      console.warn('Catálogos parciales:', err.message);
+      console.warn('No se pudieron cargar productos:', err.message);
+      productos = [];
     }
+    // Parámetros: tiene paginación servidor — pedimos pageSize alto.
+    try {
+      const resParam = await KoguApi.apiFetch('/protected/lab/maestros/parametros?status=activo&pageSize=500');
+      parametros = KoguApi.unwrapData(resParam) || [];
+    } catch (err) {
+      console.warn('No se pudieron cargar parámetros:', err.message);
+      parametros = [];
+    }
+    // Clientes
+    try {
+      const resCli = await KoguApi.apiFetch('/protected/core/clientes');
+      clientes = KoguApi.unwrapRows(resCli) || [];
+    } catch (_) { clientes = []; }
+    // Unidades
+    try {
+      const resUni = await KoguApi.apiFetch('/protected/cat/unidades');
+      unidades = KoguApi.unwrapRows(resUni) || [];
+    } catch (_) { unidades = []; }
+    // Métodos: aún sin endpoint CRUD (próximo hito).
+    metodos = [];
   }
 
   // ── Estado ────────────────────────────────────────────
