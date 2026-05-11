@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage: PAGE,
     title: 'Especificaciones',
-    description: 'Reglas cumple/no cumple por producto+parámetro. Define qué debe cumplir cada lote para liberarse.',
+    description: 'Cada cliente define qué debe cumplir el producto que le entregamos. Sin spec del cliente, no se puede liberar.',
     requiredPermission: PERM,
   });
   if (!b) return;
@@ -97,9 +97,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
-  <!-- Filtros -->
+  <!-- Filtros — cliente primero (modelo operativo: spec viene del cliente) -->
   <div class="grid-2" style="margin-top:14px;gap:10px">
-    <input class="input" id="qFil" placeholder="Buscar por producto, parámetro o referencia…"/>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input class="input" id="cliLabel" readonly placeholder="— Todos los clientes —"
+             style="flex:1;cursor:pointer;background:#f8fafc"/>
+      <button type="button" class="btn primary" id="cliPickBtn">Cliente…</button>
+      <button type="button" class="btn ghost" id="cliClearBtn" title="Limpiar">×</button>
+    </div>
+    <input type="hidden" id="cliIdFil"/>
     <div style="display:flex;gap:6px;align-items:center">
       <input class="input" id="prodLabel" readonly placeholder="— Cualquier producto —"
              style="flex:1;cursor:pointer;background:#f8fafc"/>
@@ -107,20 +113,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button type="button" class="btn ghost" id="prodClearBtn" title="Limpiar">×</button>
     </div>
     <input type="hidden" id="prodIdFil"/>
-    <select class="select" id="origenFil">
-      <option value="">Cualquier origen</option>
-      ${ORIGENES.map(o => `<option value="${o.code}">${o.label}</option>`).join('')}
-    </select>
+    <input class="input" id="qFil" placeholder="Buscar por parámetro, referencia o descripción…"/>
     <select class="select" id="statusFil">
+      <option value="activo" selected>Solo activas</option>
       <option value="">Cualquier estado</option>
-      <option value="activo">Activo</option>
-      <option value="inactivo">Inactivo</option>
-      <option value="obsoleto">Obsoleto</option>
+      <option value="inactivo">Inactivas</option>
+      <option value="obsoleto">Obsoletas</option>
     </select>
     <label style="display:flex;align-items:center;gap:6px;font-size:13px">
-      <input type="checkbox" id="vigenteFil"/>
+      <input type="checkbox" id="vigenteFil" checked/>
       Solo vigentes hoy
     </label>
+    <details style="font-size:12px;color:var(--muted)">
+      <summary style="cursor:pointer">Filtro avanzado: origen</summary>
+      <select class="select" id="origenFil" style="margin-top:6px">
+        <option value="cliente" selected>Cliente (operativas)</option>
+        <option value="">Cualquier origen</option>
+        <option value="interna">Interna (referencia)</option>
+        <option value="regulatoria">Regulatoria</option>
+      </select>
+    </details>
   </div>
 
   <!-- Tabla -->
@@ -226,12 +238,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams();
     params.set('page',     String(currentPage));
     params.set('pageSize', String(pageSize));
-    const q = $('qFil').value.trim();
-    const prodId = $('prodIdFil').value;
-    const origen = $('origenFil').value;
-    const status = $('statusFil').value;
+    const q       = $('qFil').value.trim();
+    const cliId   = $('cliIdFil').value;
+    const prodId  = $('prodIdFil').value;
+    const origen  = $('origenFil')?.value || '';
+    const status  = $('statusFil').value;
     const vigente = $('vigenteFil').checked;
     if (q)       params.set('q', q);
+    if (cliId)   params.set('cliente_id', cliId);
     if (prodId)  params.set('producto_id', prodId);
     if (origen)  params.set('origen', origen);
     if (status)  params.set('status', status);
@@ -368,15 +382,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderModalEditor() {
     const isEdit = !!editing;
+    // Default operativo: spec del cliente.
+    // Pre-llenar cliente si el filtro principal lo tiene seleccionado.
+    const cliFiltroId    = $('cliIdFil')?.value || '';
+    const cliFiltroLabel = $('cliLabel')?.value || '';
     const e = editing || {
-      producto_id: '', parametro_id: '', cliente_id: '', unidad_id: '',
-      tipo_evaluacion: 'rango', origen: 'interna',
+      producto_id: '', parametro_id: '',
+      cliente_id:  cliFiltroId, unidad_id: '',
+      tipo_evaluacion: 'rango', origen: 'cliente',
       lim_min: '', lim_max: '', objetivo: '', tolerancia: 0,
       valor_cualitativo_esperado: '',
       referencia: '', version: '1.0',
       vigente_desde: new Date().toISOString().slice(0, 10),
       vigente_hasta: '',
       status: 'activo', observaciones: '',
+      _cliente_label_prefill: cliFiltroLabel,
     };
 
     const overlay = document.createElement('div');
@@ -433,7 +453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="label-text">Cliente *</div>
             <div style="display:flex;gap:6px">
               <input class="input" id="m_cliLabel" readonly
-                     value="${escapeAttr(formatCliente(e.cliente_id))}"
+                     value="${escapeAttr(formatCliente(e.cliente_id) || e._cliente_label_prefill || '')}"
                      style="flex:1;cursor:pointer;background:#f8fafc"/>
               <button type="button" class="btn ghost" id="m_cliPickBtn">Buscar cliente…</button>
             </div>
@@ -677,6 +697,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Wiring de filtros y paginación ────────────────────
   $('qFil').addEventListener('input', debounce(() => load({ resetPage: true }), 300));
+
+  // Picker de cliente (filtro primario)
+  $('cliPickBtn').addEventListener('click', () => abrirPickerCliente({
+    onSelect: (c) => {
+      $('cliIdFil').value = c.cliente_id;
+      $('cliLabel').value = c.nombre + (c.rfc ? ' — ' + c.rfc : '');
+      load({ resetPage: true });
+    },
+  }));
+  $('cliLabel').addEventListener('click', () => $('cliPickBtn').click());
+  $('cliClearBtn').addEventListener('click', () => {
+    $('cliIdFil').value = '';
+    $('cliLabel').value = '';
+    load({ resetPage: true });
+  });
+
   $('prodPickBtn').addEventListener('click', () => abrirPickerProducto({
     titulo: 'Filtrar por producto',
     onSelect: (p) => {
@@ -714,5 +750,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
 
   await loadCatalogos();
+
+  // Pre-poblar filtros desde query (ej. cuando vienes del modal B3 de
+  // "Spec del cliente faltante"): /lab-especificaciones.html?cliente_id=X&producto_id=Y
+  const qsp = new URLSearchParams(window.location.search);
+  const qCli  = qsp.get('cliente_id');
+  const qProd = qsp.get('producto_id');
+  let abrirAltaAuto = false;
+  if (qCli) {
+    const c = clientes.find(x => x.cliente_id === qCli);
+    if (c) {
+      $('cliIdFil').value = c.cliente_id;
+      $('cliLabel').value = c.nombre + (c.rfc ? ' — ' + c.rfc : '');
+      abrirAltaAuto = true;
+    }
+  }
+  if (qProd) {
+    const p = productos.find(x => x.producto_id === qProd);
+    if (p) {
+      $('prodIdFil').value = p.producto_id;
+      $('prodLabel').value = `${p.cve_prod || ''} — ${p.desc_prod || ''}`.trim();
+    }
+  }
+
   await load();
+
+  // Si llegamos con cliente preseleccionado, abrir alta automáticamente
+  // (el usuario viene a capturar la spec del cliente que faltaba).
+  if (abrirAltaAuto) {
+    KoguApi.toast(
+      'Cliente preseleccionado desde Liberaciones. Captura la especificación faltante.',
+      'info',
+    );
+    setTimeout(() => abrirEditor(null), 300);
+  }
 });

@@ -523,6 +523,179 @@ document.addEventListener('DOMContentLoaded', async () => {
     return b;
   }
 
+  // ── Liberar con manejo de errores B3 ────────────────────
+  // Usa authFetchRaw para poder leer el body completo del 422
+  // (con codigo + details) y abrir modales explicativos.
+  async function liberarConManejoDeErrores(payload, { contextoUI = '' } = {}) {
+    let response;
+    try {
+      response = await KoguApi.authFetchRaw(`${BASE}/liberaciones`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (netErr) {
+      KoguApi.toast('Error de red: ' + netErr.message, 'error');
+      return { ok: false };
+    }
+
+    let bodyJson = null;
+    try { bodyJson = await response.json(); } catch (_) { /* sin body */ }
+
+    if (response.ok) {
+      return { ok: true, data: bodyJson?.data };
+    }
+
+    // Errores estructurados del nuevo modelo (V037+)
+    const code = bodyJson?.error?.code || bodyJson?.code;
+    const msg  = bodyJson?.error?.message || bodyJson?.message || 'No fue posible liberar.';
+    const det  = bodyJson?.error?.details || bodyJson?.details || null;
+
+    if (response.status === 422 && code === 'SPEC_CLIENTE_FALTANTE') {
+      abrirModalSpecFaltante({ payload, details: det, contextoUI });
+      return { ok: false, handled: true };
+    }
+    if (response.status === 422 && code === 'LOTE_NO_CUMPLE_SPEC_CLIENTE') {
+      abrirModalNoCumple({ payload, details: det });
+      return { ok: false, handled: true };
+    }
+
+    // Cualquier otro error: toast genérico
+    KoguApi.toast(msg, 'error');
+    return { ok: false };
+  }
+
+  // Modal B3 — spec del cliente faltante
+  function abrirModalSpecFaltante({ payload, details, contextoUI }) {
+    const params = details?.parametros_sin_spec || [];
+    const claves = params.map(p => p.parametro_clave).join(', ');
+    const cveProd = details?.cve_prod || '';
+    const descProd = details?.desc_prod || '';
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:8px;max-width:580px;width:100%;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:24px">⚠️</span>
+          <h2 style="margin:0">Spec del cliente faltante</h2>
+        </div>
+        <div style="font-size:13px;line-height:1.5;color:#475569">
+          <p>Este cliente no tiene especificación capturada para <strong>${escapeHtml(cveProd)}${descProd ? ' — ' + escapeHtml(descProd) : ''}</strong> en uno o más parámetros oficiales del lote:</p>
+          <div style="margin:10px 0;padding:10px;background:#fef3c7;border-radius:6px;font-family:monospace;font-size:13px;color:#78350f">
+            ${escapeHtml(claves)}
+          </div>
+          <p>Sin spec del cliente no se puede liberar. Elige una acción:</p>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:18px">
+          <button class="btn primary" id="opCapturar" style="text-align:left;padding:12px">
+            <strong>Capturar la especificación del cliente</strong><br>
+            <span style="font-weight:normal;font-size:12px;opacity:.9">Abre la pantalla de Especificaciones con cliente y producto pre-seleccionados.</span>
+          </button>
+          <button class="btn ghost" id="opExcepcion" style="text-align:left;padding:12px">
+            <strong>Crear excepción para que QA apruebe sin spec</strong><br>
+            <span style="font-weight:normal;font-size:12px;opacity:.8">Crea una excepción borrador. Hasta que gerencia la apruebe, no se libera.</span>
+          </button>
+          <button class="btn ghost" id="opCancelar" style="margin-top:6px">Cancelar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const oQ = (s) => overlay.querySelector(s);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    oQ('#opCancelar').addEventListener('click', close);
+
+    oQ('#opCapturar').addEventListener('click', () => {
+      const q = new URLSearchParams();
+      if (details?.cliente_id)  q.set('cliente_id',  details.cliente_id);
+      if (details?.producto_id) q.set('producto_id', details.producto_id);
+      window.location.href = `/modules/lab/lab-especificaciones.html?${q.toString()}`;
+    });
+
+    oQ('#opExcepcion').addEventListener('click', async () => {
+      oQ('#opExcepcion').disabled = true;
+      try {
+        const res = await KoguApi.apiFetch(`${BASE}/excepciones/auto-spec-faltante`, {
+          method: 'POST',
+          body: JSON.stringify({
+            lote_id:    payload.lote_id,
+            cliente_id: payload.cliente_id,
+          }),
+        });
+        const exc = KoguApi.unwrapData(res);
+        KoguApi.toast(`Excepción creada (borrador). QA debe aprobarla antes de poder liberar.`, 'success');
+        close();
+        // Mostrar resumen sencillo
+        alert(
+          `Excepción ${exc?.excepcion_id || ''} creada en estado "borrador".\n\n` +
+          `Notifica a gerencia de QA para que la apruebe. Una vez aprobada, ` +
+          `regresa a Liberar y selecciona condición = "excepción".`
+        );
+      } catch (err) {
+        oQ('#opExcepcion').disabled = false;
+        KoguApi.toast(err.message, 'error');
+      }
+    });
+  }
+
+  // Modal — lote no cumple spec del cliente
+  function abrirModalNoCumple({ payload, details }) {
+    const params = details?.parametros_no_cumplen || [];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:8px;max-width:620px;width:100%;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:24px">⛔</span>
+          <h2 style="margin:0">Lote no cumple la spec del cliente</h2>
+        </div>
+        <div style="font-size:13px;line-height:1.5;color:#475569">
+          <p>El lote tiene resultados que están fuera de los límites del cliente:</p>
+          <table style="width:100%;margin-top:8px;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#fee2e2;color:#991b1b">
+              <th style="text-align:left;padding:6px">Parámetro</th>
+              <th style="text-align:left;padding:6px">Valor oficial</th>
+              <th style="text-align:left;padding:6px">Spec del cliente</th>
+            </tr></thead>
+            <tbody>
+              ${params.map(p => {
+                const valor = p.valor_oficial != null
+                  ? `${parseFloat(p.valor_oficial).toLocaleString()}${p.unidad_simbolo ? ' ' + p.unidad_simbolo : ''}`
+                  : (p.valor_texto || '—');
+                let spec = '—';
+                if (p.tipo_evaluacion === 'rango') spec = `${p.lim_min}–${p.lim_max}`;
+                else if (p.tipo_evaluacion === 'mayor_igual') spec = `≥ ${p.lim_min}`;
+                else if (p.tipo_evaluacion === 'menor_igual') spec = `≤ ${p.lim_max}`;
+                else if (p.tipo_evaluacion === 'igual') spec = `= ${p.objetivo} ± ${p.tolerancia ?? 0}`;
+                else spec = `"${p.valor_cualitativo_esperado || ''}"`;
+                return `<tr style="border-top:1px solid #fecaca">
+                  <td style="padding:6px"><strong>${escapeHtml(p.parametro_clave)}</strong></td>
+                  <td style="padding:6px;color:#dc2626;font-weight:600">${escapeHtml(valor)}</td>
+                  <td style="padding:6px">${escapeHtml(spec)}${p.unidad_simbolo ? ' ' + escapeHtml(p.unidad_simbolo) : ''}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          <p style="margin-top:14px">Para entregar este lote a pesar de las desviaciones, debes crear una excepción aprobada por gerencia de QA.</p>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+          <button class="btn ghost"   id="opCancelar">Cancelar</button>
+          <button class="btn primary" id="opIrExcepcion">Crear excepción manualmente →</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('#opCancelar').addEventListener('click', close);
+    overlay.querySelector('#opIrExcepcion').addEventListener('click', () => {
+      // Redirige al wizard de excepción de la bandeja clásica (que sigue funcional)
+      window.location.href = `/modules/lab/lab-bandeja.html`;
+    });
+  }
+
   // ── Acción: modal "Nueva liberación" (desde botón header) ──
   // Permite elegir lote (entre los liberables) + cliente + condición.
   // A diferencia de "Liberar a cliente…" desde tab Pendientes, esto
@@ -688,16 +861,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       try {
         overlayQ('#crearNuevaBtn').disabled = true;
-        const res = await KoguApi.apiFetch(`${BASE}/liberaciones`, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        const lib = KoguApi.unwrapData(res);
-        KoguApi.toast(`Liberación creada (${lib.cliente_nombre || ''})`, 'success');
-        close();
-        // Cambia al tab Activas y refresca
-        if (currentTab !== 'activas') setActiveTab('activas');
-        else                          await load();
+        const result = await liberarConManejoDeErrores(payload, { contextoUI: 'nueva-liberacion' });
+        if (result.ok) {
+          KoguApi.toast(`Liberación creada (${result.data?.cliente_nombre || ''})`, 'success');
+          close();
+          if (currentTab !== 'activas') setActiveTab('activas');
+          else                          await load();
+        } else {
+          overlayQ('#crearNuevaBtn').disabled = false;
+          if (result.handled) close(); // modal explicativo ya abierto
+        }
       } catch (err) {
         overlayQ('#crearNuevaBtn').disabled = false;
         KoguApi.toast(err.message, 'error');
@@ -720,19 +893,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       emptyText: 'No hay clientes en esta empresa.',
       onSelect: async (cli) => {
         if (!confirm(`¿Liberar este lote al cliente "${cli.nombre}"?\n\nSe creará una liberación con condición "Normal". Si necesitas excepción, ve a la Bandeja de Calidad clásica.`)) return;
-        try {
-          const res = await KoguApi.apiFetch(`${BASE}/liberaciones`, {
-            method: 'POST',
-            body: JSON.stringify({
-              lote_id:    loteId,
-              cliente_id: cli.cliente_id,
-              condicion:  'normal',
-            }),
-          });
-          const lib = KoguApi.unwrapData(res);
-          KoguApi.toast(`Liberación creada (${lib.cliente_nombre || cli.nombre})`, 'success');
+        const payload = {
+          lote_id:    loteId,
+          cliente_id: cli.cliente_id,
+          condicion:  'normal',
+        };
+        const result = await liberarConManejoDeErrores(payload, { contextoUI: 'pendientes' });
+        if (result.ok) {
+          KoguApi.toast(`Liberación creada (${result.data?.cliente_nombre || cli.nombre})`, 'success');
           await load();
-        } catch (err) { KoguApi.toast(err.message, 'error'); }
+        }
+        // Si no ok: el helper ya mostró toast o modal según corresponda.
       },
     });
   }
