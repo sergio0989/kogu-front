@@ -20,11 +20,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'it', label: 'Italiano'   },
   ];
 
-  // Soporte de query param: cuando se entra desde el detalle de un lote
-  // ("Emitir COA por factura →"), preseleccionamos ese lote automáticamente
-  // cuando el usuario elija el cliente al que está liberado.
-  const urlParams = new URLSearchParams(window.location.search);
-  const preselectLoteId = urlParams.get('lote_id') || '';
+  // Soporte de query params al entrar a la pantalla:
+  //
+  // (a) ?lote_id=XYZ   — desde el detalle de un lote.
+  //     Preseleccionamos ese lote automáticamente cuando el usuario
+  //     elija el cliente al que está liberado.
+  //
+  // (b) ?liberacion_ids=a,b,c — desde el módulo Liberaciones tras
+  //     multi-selección. Resolvemos cliente común y precargamos los
+  //     lotes correspondientes. El usuario solo captura folio +
+  //     idioma y emite.
+  const urlParams           = new URLSearchParams(window.location.search);
+  const preselectLoteId     = urlParams.get('lote_id') || '';
+  const preselectLibIdsRaw  = urlParams.get('liberacion_ids') || '';
+  const preselectLibIds     = preselectLibIdsRaw
+    ? preselectLibIdsRaw.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
@@ -391,5 +402,75 @@ document.addEventListener('DOMContentLoaded', async () => {
       'Selecciona el cliente para incluir el lote preseleccionado en la factura.',
       'info',
     );
+  }
+
+  // ── Precarga desde ?liberacion_ids=a,b,c ────────────────
+  // Resolvemos cliente común y marcamos lotes en un solo paso.
+  if (preselectLibIds.length) {
+    try {
+      // Traemos detalle de cada liberación. Pueden ser N llamadas,
+      // pero en práctica multi-selección suele ser ≤ 10.
+      const detalles = await Promise.all(preselectLibIds.map(id =>
+        KoguApi.apiFetch(`${BASE.replace('/coa','')}/liberaciones/${id}`)
+          .then(r => KoguApi.unwrapData(r))
+          .catch(() => null)
+      ));
+
+      const validas = detalles.filter(d => d && d.status === 'activo');
+      if (validas.length === 0) {
+        KoguApi.toast(
+          'Ninguna de las liberaciones seleccionadas está activa.',
+          'error',
+        );
+      } else {
+        // Validar cliente único
+        const clienteIds = new Set(validas.map(v => v.cliente_id));
+        if (clienteIds.size > 1) {
+          KoguApi.toast(
+            'Las liberaciones seleccionadas son de clientes distintos. Vuelve a Liberaciones y selecciona uno solo.',
+            'error',
+          );
+        } else {
+          const cli = validas[0];
+          $('clienteId').value    = cli.cliente_id;
+          $('clienteLabel').value = (cli.cliente_nombre || '—')
+                                  + (cli.cliente_rfc ? ' — ' + cli.cliente_rfc : '');
+          $('facturaImpBtn').disabled = false;
+          $('facturaImpBtn').title    = 'Buscar facturas importadas';
+          await cargarLotesDisponibles();
+          await cargarFacturasImportadas();
+
+          // Marcar checkboxes de los lotes que vienen en las liberaciones
+          const loteIdsAIncluir = new Set(validas.map(v => v.lote_id));
+          lotesSeleccionados.clear();
+          lotesDisponibles
+            .filter(l => loteIdsAIncluir.has(l.lote_id))
+            .forEach(l => lotesSeleccionados.add(l.lote_id));
+          renderLotes();
+          // Marcar visualmente los checkboxes tras render
+          document.querySelectorAll('input[data-lote-pick]').forEach(cb => {
+            cb.checked = lotesSeleccionados.has(cb.value);
+          });
+          actualizarResumen();
+          actualizarBotonEmitir();
+
+          // Si algún lote no aparece en lotes-disponibles, avisar
+          const noEncontrados = validas.length - lotesSeleccionados.size;
+          if (noEncontrados > 0) {
+            KoguApi.toast(
+              `${noEncontrados} lote(s) de la selección no están disponibles para este cliente (puede que la liberación esté inactiva).`,
+              'warning',
+            );
+          } else {
+            KoguApi.toast(
+              `${validas.length} liberación(es) precargadas. Captura folio de factura y emite.`,
+              'success',
+            );
+          }
+        }
+      }
+    } catch (err) {
+      KoguApi.toast('No se pudieron precargar las liberaciones: ' + err.message, 'error');
+    }
   }
 });

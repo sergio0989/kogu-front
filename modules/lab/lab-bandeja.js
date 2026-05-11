@@ -53,9 +53,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
+<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <div style="flex:1;font-size:13px;color:#78350f">
+    <strong>Pantalla migrada.</strong> El flujo de liberación se mudó al nuevo módulo
+    <a href="/modules/lab/lab-liberaciones.html" style="color:#1e3a8a;font-weight:600">Liberaciones</a>,
+    donde puedes ver pendientes, liberaciones activas y emitir COA con multi-selección.
+    Esta pantalla se conserva temporalmente para excepciones y rechazos.
+  </div>
+  <a class="btn primary" href="/modules/lab/lab-liberaciones.html?tab=pendientes">Ir a Liberaciones →</a>
+</div>
+
 <div class="card">
   <div class="row">
-    <div><div class="eyebrow">Lab QA</div><h2>Bandeja de Calidad</h2></div>
+    <div><div class="eyebrow">Lab QA</div><h2>Bandeja de Calidad (clásica)</h2></div>
     <button class="btn primary" id="refreshBtn">Actualizar</button>
   </div>
 
