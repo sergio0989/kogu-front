@@ -101,6 +101,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     </tr></thead><tbody id="rowsOficiales"></tbody></table>
   </div>
 </div>
+
+<!-- Sección de historial (bitácora) — colapsable, carga lazy -->
+<div class="card" style="margin-top:16px">
+  <div class="row" id="bitacoraHeader" style="cursor:pointer;user-select:none">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="bitacoraChevron" style="font-size:12px;color:#64748b;width:16px">▶</span>
+      <div>
+        <div class="eyebrow">Auditoría</div>
+        <h2 style="margin:0">Historial de eventos</h2>
+      </div>
+    </div>
+    <div class="muted" style="font-size:12px" id="bitacoraResumen">Click para ver el historial</div>
+  </div>
+  <div id="bitacoraBody" style="display:none;margin-top:16px"></div>
+</div>
   `;
 
   // ── Estado en memoria ────────────────────────────────────
@@ -550,6 +565,134 @@ document.addEventListener('DOMContentLoaded', async () => {
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     })[m]);
   }
+
+  // ── Bitácora (historial de eventos) — lazy load ──────────
+  const ACCION_LABELS = {
+    cambiar_estado:         { label: 'Cambio de estado',       color: '#f59e0b' },
+    crear:                  { label: 'Creación',               color: '#16a34a' },
+    actualizar:             { label: 'Actualización',          color: '#3b82f6' },
+    liberar:                { label: 'Liberación a cliente',   color: '#16a34a' },
+    anular_liberacion:      { label: 'Anular liberación',      color: '#dc2626' },
+    reemplazar_liberacion:  { label: 'Reemplazar liberación',  color: '#9333ea' },
+    aprobar_excepcion:      { label: 'Aprobar excepción',      color: '#f97316' },
+    rechazar:               { label: 'Rechazo',                color: '#dc2626' },
+    emitir_coa:             { label: 'Emisión de COA',         color: '#0ea5e9' },
+    anular_coa:             { label: 'Anular COA',             color: '#dc2626' },
+    sustituir_coa:          { label: 'Sustituir COA',          color: '#9333ea' },
+    firmar:                 { label: 'Firma electrónica',      color: '#3b82f6' },
+    importar:               { label: 'Importación',            color: '#64748b' },
+    procesar:               { label: 'Procesamiento',          color: '#64748b' },
+    calibrar:               { label: 'Calibración',            color: '#64748b' },
+    ajustar_reactivo:       { label: 'Ajuste de reactivo',     color: '#64748b' },
+    otro:                   { label: 'Otro',                   color: '#64748b' },
+  };
+  let bitacoraCargada = false;
+
+  async function cargarBitacora() {
+    const body = $('bitacoraBody');
+    body.innerHTML = '<div class="muted" style="text-align:center;padding:20px">Cargando historial…</div>';
+    try {
+      // Filtramos por entidad=lote y entidad_id=lote actual.
+      // Adicionalmente, podemos traer eventos de las liberaciones de este lote,
+      // pero por ahora nos quedamos con lo directo del lote para mantenerlo simple.
+      const params = new URLSearchParams({
+        entidad:    'lote',
+        entidad_id: loteId,
+        pageSize:   '100',
+      });
+      const res = await KoguApi.apiFetch(`${BASE}/bitacora?${params.toString()}`);
+      const eventos = KoguApi.unwrapData(res) || [];
+      bitacoraCargada = true;
+
+      if (!eventos.length) {
+        body.innerHTML = `
+          <div class="muted" style="text-align:center;padding:24px;font-size:13px">
+            Sin eventos registrados para este lote todavía.<br/>
+            Los cambios de estado, liberaciones, anulaciones y emisiones de COA aparecerán aquí.
+          </div>`;
+        $('bitacoraResumen').textContent = '0 eventos';
+        return;
+      }
+
+      $('bitacoraResumen').textContent = `${eventos.length} evento${eventos.length === 1 ? '' : 's'}`;
+      body.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:160px">Cuándo</th>
+              <th>Acción</th>
+              <th>Usuario</th>
+              <th>Detalle</th>
+            </tr></thead>
+            <tbody>
+              ${eventos.map(filaBitacora).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      body.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626">Error: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function filaBitacora(ev) {
+    const acc = ACCION_LABELS[ev.accion] || { label: ev.accion, color: '#64748b' };
+    const fecha = ev.ts_utc ? new Date(ev.ts_utc).toLocaleString() : '—';
+    let detalleHtml = '<span class="muted">—</span>';
+    const antes = ev.datos_antes;
+    const despues = ev.datos_despues;
+    if (antes || despues) {
+      const pares = [];
+      if (antes && despues) {
+        // Diff: claves que existen en ambos
+        for (const k of Object.keys(despues)) {
+          const valA = antes[k];
+          const valD = despues[k];
+          if (valA !== undefined && JSON.stringify(valA) !== JSON.stringify(valD)) {
+            pares.push(`<strong>${escapeHtml(k)}:</strong> <span style="color:#dc2626;text-decoration:line-through">${escapeHtml(String(valA))}</span> → <span style="color:#16a34a">${escapeHtml(String(valD))}</span>`);
+          } else if (valA === undefined) {
+            pares.push(`<strong>${escapeHtml(k)}:</strong> ${escapeHtml(formatVal(valD))}`);
+          }
+        }
+      } else if (despues) {
+        for (const k of Object.keys(despues)) {
+          pares.push(`<strong>${escapeHtml(k)}:</strong> ${escapeHtml(formatVal(despues[k]))}`);
+        }
+      }
+      if (pares.length) detalleHtml = pares.join('<br>');
+    }
+    if (ev.comentario) {
+      detalleHtml += (detalleHtml === '<span class="muted">—</span>' ? '' : '<br>')
+                  + `<span class="muted" style="font-size:12px">${escapeHtml(ev.comentario)}</span>`;
+    }
+    return `
+      <tr>
+        <td style="font-size:12px;white-space:nowrap">${fecha}<br>
+          <span class="muted" style="font-size:11px">${escapeHtml(ev.modulo || '')}</span>
+        </td>
+        <td><span class="chip" style="background:${acc.color}22;color:${acc.color}">${acc.label}</span></td>
+        <td>${escapeHtml(ev.usuario_nombre || '—')}<br><span class="muted" style="font-size:11px">${escapeHtml(ev.usuario_email || '')}</span></td>
+        <td style="font-size:13px">${detalleHtml}</td>
+      </tr>`;
+  }
+  function formatVal(v) {
+    if (v == null) return '—';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  }
+
+  $('bitacoraHeader').addEventListener('click', async () => {
+    const body = $('bitacoraBody');
+    const chev = $('bitacoraChevron');
+    const expanded = body.style.display !== 'none';
+    if (expanded) {
+      body.style.display = 'none';
+      chev.textContent = '▶';
+    } else {
+      body.style.display = 'block';
+      chev.textContent = '▼';
+      if (!bitacoraCargada) await cargarBitacora();
+    }
+  });
 
   // ── Arranque ─────────────────────────────────────────────
   await loadParametros();
