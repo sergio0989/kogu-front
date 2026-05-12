@@ -235,6 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tbody.querySelectorAll('button[data-seleccionar]').forEach(btn => btn.addEventListener('click', () => seleccionarSingle(btn.dataset.seleccionar)));
     tbody.querySelectorAll('button[data-descartar]').forEach(btn => btn.addEventListener('click', () => descartarSingle(btn.dataset.descartar)));
     tbody.querySelectorAll('button[data-restaurar]').forEach(btn => btn.addEventListener('click', () => restaurarSingle(btn.dataset.restaurar)));
+    tbody.querySelectorAll('button[data-crear-reporte]').forEach(btn => btn.addEventListener('click', () => crearReporte(btn.dataset.crearReporte)));
 
     // Sel-all checkbox de la página
     const selAll = $('selAll');
@@ -277,12 +278,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn ghost danger" data-descartar="${c.imp_compra_id}">Descartar</button>`;
     } else if (c.seleccion_qa === 'seleccionada') {
       actions = `
+        <button class="btn primary" data-crear-reporte="${c.imp_compra_id}" style="background:#3b82f6">+ Reporte</button>
         <button class="btn ghost danger" data-descartar="${c.imp_compra_id}">Descartar</button>
         <button class="btn ghost"  data-restaurar="${c.imp_compra_id}">↺ Restaurar</button>`;
     } else if (c.seleccion_qa === 'descartada') {
       actions = `<button class="btn ghost"  data-restaurar="${c.imp_compra_id}">↺ Restaurar</button>`;
     } else if (c.seleccion_qa === 'procesada') {
-      actions = `<span class="muted" style="font-size:11px">terminal</span>`;
+      actions = c.lote_id
+        ? `<a class="btn ghost" href="/modules/lab/lab-lote-detalle.html?id=${c.lote_id}">Ver lote</a>`
+        : `<span class="muted" style="font-size:11px">procesada</span>`;
     }
 
     const checked = selected.has(c.imp_compra_id) ? 'checked' : '';
@@ -379,6 +383,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       KoguApi.toast('Compra restaurada', 'success');
       await load();
     } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  // Crea reporte de inspección desde una imp_compra seleccionada
+  // y redirige al detalle del reporte para captura de parámetros.
+  async function crearReporte(impCompraId) {
+    try {
+      const res = await KoguApi.apiFetch(
+        `${BASE}/imp-compras/${impCompraId}/reporte-inspeccion`,
+        { method: 'POST', body: JSON.stringify({}) },
+      );
+      const reporte = KoguApi.unwrapData(res);
+      KoguApi.toast(`Reporte ${reporte.folio_reporte} creado`, 'success');
+      window.location.href =
+        `/modules/lab/lab-reporte-inspeccion-detalle.html?id=${reporte.reporte_inspeccion_id}`;
+    } catch (err) {
+      KoguApi.toast(err.message, 'error');
+    }
   }
 
   // ── Detalle (modal con datos completos + raw_json) ──
