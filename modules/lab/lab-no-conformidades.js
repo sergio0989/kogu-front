@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const st = STATUS.find(s => s.code === n.status) || { label: n.status, color: '#64748b' };
       const orig = ORIGENES.find(o => o.code === n.origen)?.label || n.origen;
       const entidad = entidadAfectada(n);
-      const fecha = n.fecha_apertura ? new Date(n.fecha_apertura + 'T00:00:00').toLocaleDateString() : '—';
+      const fecha = n.fecha_apertura ? fmtDate(n.fecha_apertura) : '—';
       const capas = n.capas_count > 0
         ? `<span class="chip" style="background:#e0f2fe;color:#075985">${n.capas_eficaces}/${n.capas_count}</span>`
         : '<span class="muted">—</span>';
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="font-size:13px">${entidad}</td>
           <td style="font-size:13px">${escapeHtml(n.responsable_nombre || '—')}</td>
           <td style="font-size:12px">${fecha}
-            ${n.fecha_compromiso ? `<div class="muted" style="font-size:11px">compr. ${escapeHtml(n.fecha_compromiso)}</div>` : ''}
+            ${n.fecha_compromiso ? `<div class="muted" style="font-size:11px">compr. ${escapeHtml(fmtDate(n.fecha_compromiso))}</div>` : ''}
           </td>
           <td>${capas}</td>
           <td><span class="chip" style="background:${st.color}22;color:${st.color}">${st.label}</span></td>
@@ -459,6 +459,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
   function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
   function truncar(s, n) { return s && s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function fmtDate(v) {
+    if (!v) return '';
+    const s = String(v);
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : s;
+  }
 
   await loadCatalogos();
   await load();
