@@ -45,6 +45,7 @@
       {href:'/modules/lab/lab-lotes.html',            label:'Lotes',               perm:'screen.lab.lotes'},
       {href:'/modules/lab/lab-liberaciones.html',     label:'Liberaciones',        perm:'screen.lab.liberaciones'},
       {href:'/modules/lab/lab-excepciones.html',      label:'Excepciones',         perm:'screen.lab.bandeja'},
+      {href:'/modules/lab/lab-no-conformidades.html', label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
       {href:'/modules/lab/lab-coa.html',              label:'Certificados COA',    perm:'screen.lab.coa'},
     ]}
   ];
