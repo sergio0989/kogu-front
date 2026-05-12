@@ -5,7 +5,14 @@ window.__MODULE_DEF__ = {
   singular:    'proveedor',
   basePath:    '/protected/core/proveedores',
   idField:     'proveedor_id',
-  buildPayload: x => ({ nombre_proveedor: x.nombre, rfc: x.rfc, status: x.status, activo: x.activo })
+  buildPayload: x => ({
+    nombre:           x.nombre,
+    nombre_proveedor: x.nombre,                 // compat con backend viejo
+    rfc:              x.rfc,
+    cve_prov:         x.cve_prov || null,       // clave SAI / ALPHA ERP
+    status:           x.status,
+    activo:           x.activo,
+  })
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -30,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="refreshBtn">Actualizar</button>
     </div>
     <div class="grid-2" style="margin-top:16px">
-      <input  class="input"  id="q"           placeholder="Buscar por nombre o RFC" />
+      <input  class="input"  id="q"           placeholder="Buscar por nombre, RFC o clave SAI…" />
       <select class="select" id="activoFiltro">
         <option value="">Todos</option>
         <option value="true">Activos</option>
@@ -39,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th>Nombre</th><th>RFC</th><th>Status</th><th>Activo</th><th>Acciones</th>
+        <th>Nombre</th><th>RFC</th><th>Clave SAI</th><th>Status</th><th>Activo</th><th>Acciones</th>
       </tr></thead><tbody id="rows"></tbody></table>
     </div>
     <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
@@ -55,6 +62,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       <input type="hidden" id="id" />
       <div><div class="label-text">Nombre</div><input class="input" id="nombre" /></div>
       <div><div class="label-text">RFC</div><input class="input" id="rfc" /></div>
+      <div>
+        <div class="label-text">Clave SAI <span class="muted" style="font-size:11px">(clave del proveedor en ALPHA ERP, ej. 397)</span></div>
+        <input class="input" id="cve_prov" maxlength="50" placeholder="Ej. 397"/>
+      </div>
       <div>
         <div class="label-text">Status</div>
         <select class="select" id="status">
@@ -91,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Helpers formulario ────────────────────────────────────────────────────
   function reset() {
-    ['id', 'nombre', 'rfc'].forEach(id => document.getElementById(id).value = '');
+    ['id', 'nombre', 'rfc', 'cve_prov'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('status').value    = 'activo';
     document.getElementById('activo').value    = 'true';
     document.getElementById('formTitle').textContent = 'Alta de ' + MODULE.singular;
@@ -99,9 +110,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function fill(r) {
-    document.getElementById('id').value     = mapId(r);
-    document.getElementById('nombre').value = mapName(r);
-    document.getElementById('rfc').value    = mapRfc(r);
+    document.getElementById('id').value       = mapId(r);
+    document.getElementById('nombre').value   = mapName(r);
+    document.getElementById('rfc').value      = mapRfc(r);
+    document.getElementById('cve_prov').value = r.cve_prov || '';
     document.getElementById('status').value = r.status || 'activo';
     document.getElementById('activo').value = String(!!r.activo);
     document.getElementById('formTitle').textContent = 'Editar ' + MODULE.singular;
@@ -122,7 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const q  = val('q').toLowerCase();
     const af = document.getElementById('activoFiltro').value;
     return rows.filter(r => {
-      const text = `${mapName(r)} ${mapRfc(r)}`.toLowerCase();
+      const text = `${mapName(r)} ${mapRfc(r)} ${r.cve_prov || ''}`.toLowerCase();
       return (!q  || text.includes(q))
           && (af === '' || String(!!r.activo) === af);
     });
@@ -155,11 +167,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <tr>
             <td>${KoguUi.escapeHtml(mapName(r))}</td>
             <td>${KoguUi.escapeHtml(mapRfc(r))}</td>
+            <td>${r.cve_prov
+              ? `<strong style="font-family:monospace">${KoguUi.escapeHtml(r.cve_prov)}</strong>`
+              : '<span class="muted" style="font-size:11px">— sin clave —</span>'}</td>
             <td>${KoguUi.statusBadge(r.status || '-')}</td>
             <td>${KoguUi.statusBadge(r.activo ? 'activo' : 'inactivo')}</td>
             <td><button class="btn btn-edit" data-id="${mapId(r)}">Editar</button></td>
           </tr>`).join('')
-      : '<tr><td colspan="5" class="empty">Sin registros</td></tr>';
+      : '<tr><td colspan="6" class="empty">Sin registros</td></tr>';
 
     document.querySelectorAll('.btn-edit').forEach(x => x.onclick = () => {
       const row = rows.find(r => String(mapId(r)) === x.dataset.id);
@@ -173,10 +188,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('saveBtn').onclick = async () => {
     try {
       const payload = MODULE.buildPayload({
-        nombre: val('nombre'),
-        rfc:    val('rfc'),
-        status: document.getElementById('status').value,
-        activo: document.getElementById('activo').value === 'true'
+        nombre:   val('nombre'),
+        rfc:      val('rfc'),
+        cve_prov: val('cve_prov'),
+        status:   document.getElementById('status').value,
+        activo:   document.getElementById('activo').value === 'true'
       });
       if (!val('nombre')) throw new Error('Nombre es obligatorio.');
       const id = document.getElementById('id').value;
