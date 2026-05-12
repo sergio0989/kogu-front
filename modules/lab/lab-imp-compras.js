@@ -490,20 +490,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         const wb     = XLSX.read(buffer, { type: 'array', cellDates: true });
         const ws     = wb.Sheets[wb.SheetNames[0]];
         if (!ws) throw new Error('El archivo no contiene hojas.');
-        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
+        // raw:true preserva tipos nativos (Date objects, numbers).
+        // Con raw:false las fechas se convierten al formato Excel original
+        // (ej. "m/d/yy" → "2/5/26") y el backend no las puede parsear.
+        // Con raw:true, JSON.stringify convierte Date a ISO string,
+        // que el backend sí entiende.
+        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
         if (!rawRows.length) throw new Error('El archivo no contiene filas.');
 
         // Normalizar keys: trim + toLowerCase (mismo patrón que ERP).
         // ALPHA ERP puede exportar con espacios o capitalización inconsistente;
         // esto garantiza que `cve_prov`, `cve_prod`, `lote`, `fech_revi`, etc.
         // matcheen lo que espera el backend.
-        const rows = rawRows.map(row => {
+        const normalized = rawRows.map(row => {
           const r = {};
           for (const [k, v] of Object.entries(row)) {
             r[String(k).trim().toLowerCase()] = v;
           }
           return r;
         });
+
+        // Pre-filtrar en cliente: solo enviar filas con LOTE (físico inspeccionable).
+        // Servicios, fletes, anticipos y similares no tienen lote y no aplican
+        // al módulo Lab QA (Inspección de Compras). Esto reduce el JSON enviado
+        // y elimina ~80% del ruido típico del reporte ALPHA.
+        const filasOmitidasSinLote = normalized.length;
+        const rows = normalized.filter(r => {
+          const lote = r.lote;
+          if (lote == null || lote === '') return false;
+          const s = String(lote).trim();
+          return s.length > 0;
+        });
+        const omitidas = filasOmitidasSinLote - rows.length;
+        if (!rows.length) {
+          throw new Error(`Todas las ${filasOmitidasSinLote} filas son sin lote (servicios/fletes). Nada que inspeccionar.`);
+        }
+        if (omitidas > 0) {
+          oQ('#importProgress').textContent =
+            `⏳ ${omitidas.toLocaleString()} filas omitidas sin lote (servicios). Enviando ${rows.length.toLocaleString()}…`;
+        }
 
         // 2. SHA-256 del archivo (auditoría liviana sin guardar el binario)
         let sha256 = null;
