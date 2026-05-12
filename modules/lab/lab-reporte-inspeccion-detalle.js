@@ -80,26 +80,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div style="text-align:center;padding:20px;color:var(--muted)">Cargando reporte…</div>
 </div>
 
-<!-- CofA vinculado -->
-<div class="card" style="margin-top:16px" id="cofaCard">
+<!-- Documento que envía el proveedor (PDF/JPG/PNG) -->
+<div class="card" style="margin-top:16px">
   <div class="row">
-    <div><div class="eyebrow">Certificado del proveedor (CofA)</div><h2>Documento del proveedor</h2></div>
+    <div><div class="eyebrow">Documento</div><h2>Reporte del proveedor</h2></div>
+  </div>
+  <div class="muted" style="font-size:12px;margin-top:6px">
+    Sube el reporte de calidad / factura / remisión que envió el proveedor (PDF, JPG, PNG, WebP).
+    Sirve como soporte documental de los valores declarados.
+  </div>
+  <div id="archivoProveedorSection" style="margin-top:14px"></div>
+</div>
+
+<!-- CofA proveedor vinculado (opcional, módulo silencioso) -->
+<div class="card" style="margin-top:16px;display:none" id="cofaCard">
+  <div class="row">
+    <div><div class="eyebrow">CofA proveedor (opcional)</div><h2>Certificado adicional vinculado</h2></div>
     <button class="btn ghost" id="importarCofaBtn" style="display:none">⬇ Importar parámetros del CofA</button>
   </div>
   <div id="cofaInfo" style="margin-top:14px"></div>
 </div>
 
-<!-- Parámetros -->
+<!-- Parámetros declarados por el proveedor -->
 <div class="card" style="margin-top:16px">
   <div class="row">
-    <div><div class="eyebrow">Detalle</div><h2>Parámetros evaluados</h2></div>
+    <div><div class="eyebrow">Detalle</div><h2>Parámetros declarados por el proveedor</h2></div>
     <div style="display:flex;gap:8px">
       <button class="btn primary" id="addParamBtn">+ Nuevo parámetro</button>
     </div>
   </div>
   <div class="muted" style="font-size:12px;margin-top:6px">
-    Captura los parámetros que se evalúan internamente. Si hay CofA vinculado, puedes importar
-    sus parámetros como base (luego solo capturas el valor interno y la evaluación).
+    Registra los parámetros que <strong>el proveedor declara</strong> con su mercancía.
+    Los análisis internos del laboratorio se capturan en el flujo de
+    <strong>Lote → Muestras → Resultados oficiales</strong> después de aceptar este reporte.
   </div>
   <div id="paramsList" style="margin-top:16px;display:flex;flex-direction:column;gap:10px"></div>
 </div>
@@ -117,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch(`${BASE}/reportes-inspeccion/${reporteId}`);
       reporte = KoguApi.unwrapData(res);
       renderHeader();
+      renderArchivoProveedor();
       renderCofa();
       renderParametros();
       renderNc();
@@ -197,6 +211,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${reporte.gerente_nombre ? `<div class="muted" style="font-size:11px;margin-top:6px">Autorizado por: ${escapeHtml(reporte.gerente_nombre)}</div>` : ''}
         </div>
       ` : ''}
+      ${reporte.decision === 'aceptado' || reporte.decision === 'aceptado_con_observacion' ? `
+        <div style="margin-top:14px;padding:12px;background:#dcfce7;color:#166534;border-radius:6px;font-size:13px">
+          ✓ Lote <strong>${escapeHtml(reporte.lote_numero || '—')}</strong> disponible para análisis de laboratorio.
+          ${reporte.lote_compra_id ? `<a href="/modules/lab/lab-lote-detalle.html?id=${reporte.lote_compra_id}" style="margin-left:8px;color:#166534;text-decoration:underline">Ir al lote →</a>` : ''}
+        </div>
+      ` : ''}
     `;
 
     if (isBorrador) {
@@ -209,12 +229,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Renderiza la sección CofA. Solo aparece visible si hay CofA vinculado.
+  // En caso contrario el card queda oculto (módulo opcional silencioso).
   function renderCofa() {
+    const card = $('cofaCard');
     const info = $('cofaInfo');
     const importBtn = $('importarCofaBtn');
     const isTerminal = ['aceptado','aceptado_con_observacion','rechazado'].includes(reporte.decision);
 
     if (reporte.certificado_proveedor_id) {
+      card.style.display = '';
       info.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px">
           <div>
@@ -232,23 +256,93 @@ document.addEventListener('DOMContentLoaded', async () => {
       importBtn.style.display = isTerminal ? 'none' : '';
       importBtn.onclick = importarParametrosCofa;
     } else {
-      info.innerHTML = `
-        <div style="padding:12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;color:#78350f;font-size:13px">
-          ⚠ Este reporte no tiene CofA del proveedor vinculado.
-          Puedes capturar parámetros internos directamente, o
-          ${!isTerminal
-            ? `<a href="#" id="vincularCofaLink" style="color:#92400e;text-decoration:underline">vincular un CofA existente</a>.`
-            : 'el reporte ya es terminal y no se puede editar.'}
+      // Sin CofA: card oculto (la sección "Reporte del proveedor" cubre la captura básica)
+      card.style.display = 'none';
+      info.innerHTML = '';
+      importBtn.style.display = 'none';
+    }
+  }
+
+  // ── Documento del proveedor (PDF/JPG/PNG) ──────
+  function renderArchivoProveedor() {
+    const section = $('archivoProveedorSection');
+    const isTerminal = ['aceptado','aceptado_con_observacion','rechazado'].includes(reporte.decision);
+    if (reporte.pdf_path) {
+      const ext = (reporte.pdf_path.match(/\.[^.]+$/) || [''])[0];
+      section.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#f8fafc;border:1px solid var(--line);border-radius:6px">
+          <div>
+            <div style="font-size:13px"><strong>📎 Documento del proveedor</strong> (${escapeHtml(ext.toUpperCase().slice(1))})</div>
+            ${reporte.pdf_hash ? `<div class="muted" style="font-size:11px;margin-top:4px;font-family:monospace">SHA-256: ${escapeHtml(reporte.pdf_hash.slice(0, 16))}…</div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn ghost" id="downloadArchivoProvBtn">↓ Descargar</button>
+            ${!isTerminal ? `
+              <button class="btn ghost" id="replaceArchivoProvBtn">Reemplazar…</button>
+              <button class="btn ghost danger" id="deleteArchivoProvBtn">×</button>
+            ` : ''}
+          </div>
+        </div>
+        ${!isTerminal ? `<input type="file" id="archivoProvInput" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none"/>` : ''}
+      `;
+      $('downloadArchivoProvBtn').addEventListener('click', descargarArchivoProveedor);
+      if (!isTerminal) {
+        $('replaceArchivoProvBtn').addEventListener('click', () => $('archivoProvInput').click());
+        $('archivoProvInput').addEventListener('change', subirArchivoProveedor);
+        $('deleteArchivoProvBtn').addEventListener('click', eliminarArchivoProveedor);
+      }
+    } else if (isTerminal) {
+      section.innerHTML = `<div class="muted" style="text-align:center;padding:14px;font-size:13px">Sin documento del proveedor adjunto.</div>`;
+    } else {
+      section.innerHTML = `
+        <div>
+          <input type="file" id="archivoProvInput" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:13px"/>
+          <div class="muted" style="font-size:11px;margin-top:6px">Formatos: PDF, JPG, PNG, WebP. Máximo 20 MB.</div>
         </div>
       `;
-      importBtn.style.display = 'none';
-      if (!isTerminal) {
-        document.getElementById('vincularCofaLink')?.addEventListener('click', (e) => {
-          e.preventDefault();
-          abrirModalVincularCofa();
-        });
-      }
+      $('archivoProvInput').addEventListener('change', subirArchivoProveedor);
     }
+  }
+
+  async function subirArchivoProveedor(ev) {
+    const f = ev.target.files?.[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append('archivo', f);
+    try {
+      await KoguApi.apiFetch(`${BASE}/reportes-inspeccion/${reporteId}/upload-archivo-proveedor`,
+        { method: 'POST', body: fd });
+      KoguApi.toast('Archivo del proveedor subido', 'success');
+      await load();
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  async function descargarArchivoProveedor() {
+    try {
+      const resp = await KoguApi.authFetchRaw(`${BASE}/reportes-inspeccion/${reporteId}/archivo-proveedor`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const ext = (reporte.pdf_path?.match(/\.[^.]+$/) || ['.pdf'])[0];
+      let filename = `${reporte.folio_reporte || 'reporte-proveedor'}${ext}`;
+      const cd = resp.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename\*?=(?:UTF-8''|")?([^";]+)/);
+      if (m) filename = decodeURIComponent(m[1]);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  async function eliminarArchivoProveedor() {
+    if (!confirm('¿Eliminar el archivo del proveedor adjunto?')) return;
+    try {
+      await KoguApi.apiFetch(`${BASE}/reportes-inspeccion/${reporteId}/archivo-proveedor`,
+        { method: 'DELETE' });
+      KoguApi.toast('Archivo eliminado', 'success');
+      await load();
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
 
   function renderParametros() {
@@ -275,16 +369,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const valorProv = p.valor_proveedor != null
       ? `<strong>${parseFloat(p.valor_proveedor).toLocaleString()}</strong> ${escapeHtml(p.unidad_simbolo || '')}`
       : (p.valor_proveedor_texto || '—');
-    const valorInt = p.valor_interno != null
-      ? `<strong>${parseFloat(p.valor_interno).toLocaleString()}</strong> ${escapeHtml(p.unidad_simbolo || '')}`
-      : (p.valor_interno_texto || '—');
     const spec = (p.spec_lim_min != null && p.spec_lim_max != null)
       ? `${p.spec_lim_min} – ${p.spec_lim_max}`
       : (p.spec_lim_min != null ? `≥ ${p.spec_lim_min}`
         : (p.spec_lim_max != null ? `≤ ${p.spec_lim_max}`
           : (p.spec_objetivo != null ? `obj. ${p.spec_objetivo}` : '—')));
-    const discChip = p.discrepancia
-      ? '<span class="chip" style="background:#fef3c7;color:#92400e;font-size:10px;margin-left:6px">⚠ discrepancia</span>'
+    // Histórico: si existe valor_interno de antes del refactor, lo mostramos
+    // pequeño como información (no es editable y no se captura más en nuevos).
+    const valorIntHist = p.valor_interno != null
+      ? `<div class="muted" style="font-size:11px;margin-top:2px">valor interno histórico: ${parseFloat(p.valor_interno).toLocaleString()} ${escapeHtml(p.unidad_simbolo || '')}</div>`
       : '';
     return `
       <div style="border:1px solid var(--line);border-radius:8px;padding:14px;background:#fafbfc">
@@ -296,16 +389,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             <span class="chip" style="background:${ev.bg};color:${ev.color}">${ev.label}</span>
-            ${discChip}
             ${!readonly ? `<button class="btn ghost" data-edit="${p.ri_parametro_id}">Editar</button>
                            <button class="btn ghost danger" data-del="${p.ri_parametro_id}">×</button>` : ''}
           </div>
         </div>
         <div class="grid-2" style="margin-top:8px;gap:8px;font-size:13px">
-          <div><strong>Valor proveedor:</strong> ${valorProv}</div>
-          <div><strong>Valor interno:</strong> ${valorInt}</div>
-          <div style="grid-column:1/-1"><strong>Spec aplicada (${escapeHtml(p.spec_origen || 'interna')}):</strong> ${escapeHtml(spec)} ${escapeHtml(p.unidad_simbolo || '')}</div>
+          <div><strong>Valor declarado:</strong> ${valorProv}</div>
+          <div><strong>Spec proveedor:</strong> ${escapeHtml(spec)} ${escapeHtml(p.unidad_simbolo || '')}</div>
           ${p.observaciones ? `<div style="grid-column:1/-1" class="muted" style="font-size:12px">obs: ${escapeHtml(p.observaciones)}</div>` : ''}
+          ${valorIntHist ? `<div style="grid-column:1/-1">${valorIntHist}</div>` : ''}
         </div>
       </div>`;
   }
@@ -342,10 +434,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Acciones cabecera ───────────────────────────
   async function emitirReporte() {
-    if (!reporte.parametros?.length) {
-      return KoguApi.toast('Captura al menos un parámetro antes de emitir.', 'error');
-    }
-    if (!confirm('¿Emitir este reporte?\n\nAl emitir:\n- Se crea el lote físico si no existe.\n- La compra queda marcada como procesada.\n- El reporte ya no puede eliminarse.\n\nDespués podrás aceptar/aceptar con observación/rechazar.')) return;
+    // El reporte puede emitirse SIN parámetros (decisión rápida visual).
+    // Los análisis internos del laboratorio se harán después en el flujo
+    // del lote (muestras → resultados oficiales).
+    if (!confirm('¿Emitir este reporte?\n\nAl emitir:\n- Se crea el lote físico si no existe.\n- La compra queda marcada como procesada.\n- El reporte ya no puede eliminarse.\n\nDespués podrás:\n- Aceptar / aceptar con observación / rechazar de inmediato (opción rápida)\n- O ir al lote para realizar muestras y análisis de laboratorio.')) return;
     try {
       await KoguApi.apiFetch(`${BASE}/reportes-inspeccion/${reporteId}/emitir`,
         { method: 'POST', body: JSON.stringify({}) });
@@ -511,49 +603,33 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
 
           <div>
-            <div class="label-text">Valor proveedor (numérico)</div>
+            <div class="label-text">Valor declarado por el proveedor</div>
             <input class="input" type="number" step="any" id="m_valor_prov" value="${existing?.valor_proveedor ?? ''}"/>
-          </div>
-          <div>
-            <div class="label-text">Valor interno (numérico) *</div>
-            <input class="input" type="number" step="any" id="m_valor_int" value="${existing?.valor_interno ?? ''}"/>
+            <div class="muted" style="font-size:11px;margin-top:2px">Lo que indica el proveedor en su reporte/factura.</div>
           </div>
 
           <div>
-            <div class="label-text">Spec mín</div>
+            <div class="label-text">Spec mín (proveedor)</div>
             <input class="input" type="number" step="any" id="m_spec_min" value="${existing?.spec_lim_min ?? ''}"/>
           </div>
           <div>
-            <div class="label-text">Spec máx</div>
+            <div class="label-text">Spec máx (proveedor)</div>
             <input class="input" type="number" step="any" id="m_spec_max" value="${existing?.spec_lim_max ?? ''}"/>
           </div>
           <div>
             <div class="label-text">Spec objetivo</div>
             <input class="input" type="number" step="any" id="m_spec_obj" value="${existing?.spec_objetivo ?? ''}"/>
           </div>
-          <div>
-            <div class="label-text">Origen de spec</div>
-            <select class="select" id="m_spec_origen">
-              <option value="interna"   ${existing?.spec_origen === 'interna' ? 'selected' : ''}>Interna</option>
-              <option value="proveedor" ${existing?.spec_origen === 'proveedor' ? 'selected' : ''}>Proveedor</option>
-            </select>
-          </div>
 
           <div>
-            <div class="label-text">Evaluación *</div>
+            <div class="label-text">¿Cumple según el proveedor?</div>
             <select class="select" id="m_evaluacion">
-              <option value="no_aplica"  ${existing?.evaluacion === 'no_aplica'  ? 'selected' : ''}>N/A</option>
+              <option value="no_aplica"  ${(existing?.evaluacion ?? 'no_aplica') === 'no_aplica'  ? 'selected' : ''}>Sin información</option>
               <option value="cumple"     ${existing?.evaluacion === 'cumple'     ? 'selected' : ''}>Cumple</option>
               <option value="no_cumple"  ${existing?.evaluacion === 'no_cumple'  ? 'selected' : ''}>No cumple</option>
               <option value="observacion" ${existing?.evaluacion === 'observacion' ? 'selected' : ''}>Observación</option>
             </select>
-          </div>
-          <div>
-            <div class="label-text">¿Discrepancia con proveedor?</div>
-            <select class="select" id="m_discrepancia">
-              <option value="false" ${!existing?.discrepancia ? 'selected' : ''}>No</option>
-              <option value="true"  ${existing?.discrepancia  ? 'selected' : ''}>Sí</option>
-            </select>
+            <div class="muted" style="font-size:11px;margin-top:2px">El análisis interno se hará en el flujo del lote después de aceptar.</div>
           </div>
 
           <div style="grid-column:1/-1">
@@ -587,13 +663,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         metodo_clave:        oQ('#m_metodo').value.trim() || null,
         unidad_simbolo:      oQ('#m_unidad').value.trim() || null,
         valor_proveedor:     parseFloatOrNull(oQ('#m_valor_prov').value),
-        valor_interno:       parseFloatOrNull(oQ('#m_valor_int').value),
         spec_lim_min:        parseFloatOrNull(oQ('#m_spec_min').value),
         spec_lim_max:        parseFloatOrNull(oQ('#m_spec_max').value),
         spec_objetivo:       parseFloatOrNull(oQ('#m_spec_obj').value),
-        spec_origen:         oQ('#m_spec_origen').value,
+        spec_origen:         'proveedor',          // todos los parámetros ahora son del proveedor
         evaluacion:          oQ('#m_evaluacion').value,
-        discrepancia:        oQ('#m_discrepancia').value === 'true',
         observaciones:       oQ('#m_obs').value.trim() || null,
         orden_visual:        existing?.orden_visual ?? (reporte.parametros?.length || 0),
       };
