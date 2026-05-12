@@ -101,14 +101,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     <table>
       <thead><tr>
         <th style="width:32px"><input type="checkbox" id="selAll" title="Seleccionar todo en esta página"/></th>
-        <th>Recepción</th>
+        <th style="width:110px">Recepción</th>
         <th>Proveedor</th>
         <th>Producto</th>
-        <th>Lote</th>
-        <th>Cantidad</th>
-        <th>Clasificación</th>
+        <th style="width:110px">Lote</th>
+        <th style="width:90px;text-align:right">Cantidad</th>
+        <th style="width:130px">Clasificación</th>
         <th>Selección QA</th>
-        <th style="text-align:right">Acciones</th>
+        <th style="text-align:right;white-space:nowrap">Acciones</th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -253,15 +253,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cant  = c.cantidad != null
       ? `${parseFloat(c.cantidad).toLocaleString()} ${escapeHtml(c.unidad || '')}`
       : '—';
+    // Chip compacto: solo icono ⚠ con tooltip "sin match" para no inflar la columna
+    const warnIcon = `<span title="Sin match en catálogo" style="color:#92400e;margin-left:4px;cursor:help">⚠</span>`;
     const provBadge = c.tiene_match_proveedor
       ? escapeHtml(c.proveedor_nombre || c.cve_prov)
-      : `<span class="muted">${escapeHtml(c.cve_prov)}</span>
-         <span class="chip" style="background:#fef3c7;color:#92400e;font-size:10px;margin-left:4px">⚠ sin match</span>`;
+      : `<span class="muted">${escapeHtml(c.cve_prov)}</span>${warnIcon}`;
     const prodBadge = c.tiene_match_producto
       ? `<strong>${escapeHtml(c.cve_prod)}</strong>
-         <div class="muted" style="font-size:11px">${escapeHtml(truncar(c.producto_nombre || '', 40))}</div>`
-      : `<strong class="muted">${escapeHtml(c.cve_prod)}</strong>
-         <span class="chip" style="background:#fef3c7;color:#92400e;font-size:10px;margin-left:4px">⚠ sin match</span>`;
+         <div class="muted" style="font-size:11px">${escapeHtml(truncar(c.producto_nombre || '', 30))}</div>`
+      : `<strong class="muted">${escapeHtml(c.cve_prod)}</strong>${warnIcon}`;
     const clasif = c.clasificacion_origen
       ? `<span class="chip" style="background:${c.requiere_inspeccion ? '#dcfce7' : '#f1f5f9'};color:${c.requiere_inspeccion ? '#166534' : '#64748b'};font-size:11px">${escapeHtml(c.clasificacion_origen)}</span>`
       : '<span class="muted">—</span>';
@@ -301,27 +301,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       stExtra = '<div class="muted" style="font-size:11px;margin-top:2px">sin reporte</div>';
     }
 
+    // Botones compactos (estilo padding reducido) para que las acciones quepan
+    // en pantallas ~1280px sin scroll horizontal.
+    const btnStyle = 'padding:4px 8px;font-size:12px';
     let actions = '';
     if (c.seleccion_qa === 'pendiente') {
       actions = `
-        <button class="btn primary" data-seleccionar="${c.imp_compra_id}" style="background:#16a34a">✓ Seleccionar</button>
-        <button class="btn ghost danger" data-descartar="${c.imp_compra_id}">Descartar</button>`;
+        <button class="btn primary" data-seleccionar="${c.imp_compra_id}" style="background:#16a34a;${btnStyle}" title="Seleccionar">✓</button>
+        <button class="btn ghost danger" data-descartar="${c.imp_compra_id}" style="${btnStyle}" title="Descartar">✗</button>
+        <button class="btn ghost" data-detalle="${c.imp_compra_id}" style="${btnStyle}" title="Detalle">…</button>`;
     } else if (c.seleccion_qa === 'seleccionada') {
       actions = `
-        <button class="btn primary" data-crear-reporte="${c.imp_compra_id}" style="background:#3b82f6">+ Reporte</button>
-        <button class="btn ghost danger" data-descartar="${c.imp_compra_id}">Descartar</button>
-        <button class="btn ghost"  data-restaurar="${c.imp_compra_id}">↺ Restaurar</button>`;
+        <button class="btn primary" data-crear-reporte="${c.imp_compra_id}" style="background:#3b82f6;${btnStyle}" title="Crear reporte de inspección">+ Reporte</button>
+        <button class="btn ghost danger" data-descartar="${c.imp_compra_id}" style="${btnStyle}" title="Descartar">✗</button>
+        <button class="btn ghost" data-restaurar="${c.imp_compra_id}" style="${btnStyle}" title="Restaurar a pendiente">↺</button>
+        <button class="btn ghost" data-detalle="${c.imp_compra_id}" style="${btnStyle}" title="Detalle">…</button>`;
     } else if (c.seleccion_qa === 'descartada') {
-      actions = `<button class="btn ghost"  data-restaurar="${c.imp_compra_id}">↺ Restaurar</button>`;
+      actions = `
+        <button class="btn ghost" data-restaurar="${c.imp_compra_id}" style="${btnStyle}" title="Restaurar a pendiente">↺ Restaurar</button>
+        <button class="btn ghost" data-detalle="${c.imp_compra_id}" style="${btnStyle}" title="Detalle">…</button>`;
     } else if (c.seleccion_qa === 'procesada') {
       const btns = [];
       if (c.reporte_id) {
-        btns.push(`<a class="btn primary" href="/modules/lab/lab-reporte-inspeccion-detalle.html?id=${c.reporte_id}" style="background:#3b82f6">Reporte</a>`);
+        btns.push(`<a class="btn primary" href="/modules/lab/lab-reporte-inspeccion-detalle.html?id=${c.reporte_id}" style="background:#3b82f6;${btnStyle}" title="Abrir reporte">Reporte</a>`);
       }
       if (c.lote_id) {
-        btns.push(`<a class="btn ghost" href="/modules/lab/lab-lote-detalle.html?id=${c.lote_id}">Ver lote</a>`);
+        btns.push(`<a class="btn ghost" href="/modules/lab/lab-lote-detalle.html?id=${c.lote_id}" style="${btnStyle}" title="Abrir lote">Lote</a>`);
       }
-      actions = btns.length ? btns.join(' ') : `<span class="muted" style="font-size:11px">procesada</span>`;
+      btns.push(`<button class="btn ghost" data-detalle="${c.imp_compra_id}" style="${btnStyle}" title="Detalle">…</button>`);
+      actions = btns.join(' ');
     }
 
     const checked = selected.has(c.imp_compra_id) ? 'checked' : '';
@@ -336,11 +344,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${provBadge}</td>
         <td>${prodBadge}</td>
         <td><strong style="font-family:monospace">${escapeHtml(c.numero_lote)}</strong></td>
-        <td style="font-size:13px">${cant}</td>
+        <td style="font-size:13px;text-align:right;white-space:nowrap">${cant}</td>
         <td>${clasif}</td>
         <td>${stChip}${stExtra}</td>
         <td style="text-align:right;white-space:nowrap">
-          <button class="btn ghost" data-detalle="${c.imp_compra_id}">Detalle</button>
           ${actions}
         </td>
       </tr>`;
