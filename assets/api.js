@@ -127,8 +127,18 @@
       throw new Error(readErrorMessage(data) || 'FORBIDDEN');
     }
 
-    // 409 — Sin empresa activa o contexto inconsistente
+    // 409 — Sin empresa activa, contexto inconsistente, o cambio de contraseña pendiente
     if(response.status === 409){
+      const code = data?.error?.code || '';
+      if(code === 'PASSWORD_CHANGE_REQUIRED'){
+        const reason = data?.error?.reason || '';
+        toast('Debes cambiar tu contraseña antes de continuar.', 'error');
+        setTimeout(() => {
+          const qs = reason ? ('?reason=' + encodeURIComponent(reason)) : '';
+          window.location.href = '/password-change.html' + qs;
+        }, 800);
+        throw new Error('PASSWORD_CHANGE_REQUIRED');
+      }
       toast('No hay empresa activa. Selecciona una empresa para continuar.', 'error');
       setTimeout(() => window.location.href = '/modules/core/contexto/cambio-empresa.html', 1200);
       throw new Error(readErrorMessage(data) || 'NO_EMPRESA_ACTIVA');

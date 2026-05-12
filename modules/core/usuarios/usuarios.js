@@ -86,6 +86,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             </select>
           </div>
 
+          <div>
+            <div class="label-text">Política de contraseña</div>
+            <div class="grid-2">
+              <select class="select" id="forzar_motivo">
+                <option value="">Selecciona motivo</option>
+                <option value="admin_reset">Reseteo solicitado por admin</option>
+                <option value="compromiso_credencial">Compromiso de credencial</option>
+                <option value="politica_caducidad">Caducidad de política</option>
+                <option value="primer_login">Primer inicio de sesión</option>
+              </select>
+              <button class="btn" id="forzarPasswordBtn" type="button">Forzar cambio en próximo login</button>
+            </div>
+            <div style="margin-top:6px; font-size:12px; color:#64748b;">
+              El usuario verá una pantalla obligatoria de cambio de contraseña al iniciar sesión.
+            </div>
+          </div>
+
           <div class="page-actions">
             <button class="btn primary" id="saveBtn">Guardar</button>
             <button class="btn" id="passwordBtn">Cambiar contraseña</button>
@@ -258,6 +275,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('password').value = '';
     } catch (err) {
       KoguApi.toast(err.message || 'No fue posible actualizar la contraseña', 'error');
+    }
+  };
+
+  // admin-password-policy-v1: marcar a un usuario para forzar cambio
+  // de contraseña en su próximo inicio de sesión.
+  // Requiere permiso 'usuarios.password.force_change' (validado server-side).
+  document.getElementById('forzarPasswordBtn').onclick = async () => {
+    try {
+      const id = document.getElementById('user_id').value;
+      const motivo = document.getElementById('forzar_motivo').value;
+
+      if (!id) throw new Error('Primero selecciona un usuario.');
+      if (!motivo) throw new Error('Selecciona el motivo del cambio obligatorio.');
+
+      if (!confirm('¿Forzar al usuario a cambiar contraseña en su próximo inicio de sesión?')) return;
+
+      await KoguApi.apiFetch('/protected/core/usuarios/' + id + '/forzar-cambio-password', {
+        method: 'POST',
+        body: JSON.stringify({ motivo })
+      });
+
+      KoguApi.toast('Marcado: el usuario deberá cambiar contraseña al próximo inicio de sesión.', 'success');
+      document.getElementById('forzar_motivo').value = '';
+    } catch (err) {
+      KoguApi.toast(err.message || 'No fue posible aplicar la marca.', 'error');
     }
   };
 

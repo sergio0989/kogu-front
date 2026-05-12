@@ -60,10 +60,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       KoguApi.setEnvName(envSelect.value);
 
-      await KoguAuth.login({
+      const payload = await KoguAuth.login({
         email: document.getElementById('email').value.trim(),
         password: document.getElementById('password').value.trim()
       });
+
+      // admin-password-policy-v1: si el backend marcó cambio obligatorio,
+      // redirigir SIN resolver landing — el usuario no puede operar todavía.
+      if (payload && payload.requiresPasswordChange === true) {
+        const reason = payload.passwordChangeReason || '';
+        KoguApi.toast('Debes cambiar tu contraseña antes de continuar.', 'info');
+        const qs = reason ? ('?reason=' + encodeURIComponent(reason)) : '';
+        window.location.href = '/password-change.html' + qs;
+        return;
+      }
 
       const landing = await resolveLanding();
 
