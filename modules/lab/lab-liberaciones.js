@@ -406,6 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const coaChip = (lib.coa_count || 0) > 0
       ? `<span class="chip" style="background:#dcfce7;color:#166534">✓ ${lib.coa_count} COA${lib.coa_count > 1 ? 's' : ''}</span>${lib.ultimo_coa_folio ? `<div class="muted" style="font-size:11px">${escapeHtml(lib.ultimo_coa_folio)}</div>` : ''}`
       : `<span class="chip" style="background:#f1f5f9;color:#475569">— sin COA</span>`;
+    const ncChip = chipNcAbiertas(lib);
     const checked = selectedLib.has(lib.liberacion_id) ? 'checked' : '';
     return `
       <tr>
@@ -413,6 +414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>
           <strong>${escapeHtml(lib.numero_lote || '—')}</strong>
           <div class="muted" style="font-size:12px">${escapeHtml(lib.cve_prod || '')} — ${escapeHtml(lib.desc_prod || '')}</div>
+          ${ncChip}
         </td>
         <td>
           ${escapeHtml(lib.cliente_nombre || '—')}
@@ -428,14 +430,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       </tr>`;
   }
 
+  // Chip "⚠ N NC abiertas" reusable entre tabs.
+  // Sólo se muestra si el backend devolvió nc_abiertas_count > 0.
+  // Linkea a la bandeja de NCs prefiltrada por lote_id.
+  function chipNcAbiertas(lib) {
+    const n = parseInt(lib?.nc_abiertas_count || 0, 10);
+    if (!n) return '';
+    const plural = n > 1 ? 's' : '';
+    return `
+      <a href="/modules/lab/lab-no-conformidades.html?lote_id=${encodeURIComponent(lib.lote_id)}"
+         class="chip"
+         style="background:#fef3c7;color:#92400e;font-size:11px;text-decoration:none;margin-top:4px;display:inline-block"
+         title="Ver no conformidades abiertas de este lote">⚠ ${n} NC abierta${plural}</a>`;
+  }
+
   function filaHistorico(lib) {
     const st  = STATUS_LIB.find(s => s.code === lib.status) || { label: lib.status, color: '#64748b' };
     const fa  = lib.fecha_anulacion ? new Date(lib.fecha_anulacion).toLocaleString() : '—';
+    const ncChip = chipNcAbiertas(lib);
     return `
       <tr>
         <td>
           <strong>${escapeHtml(lib.numero_lote || '—')}</strong>
           <div class="muted" style="font-size:12px">${escapeHtml(lib.cve_prod || '')} — ${escapeHtml(lib.desc_prod || '')}</div>
+          ${ncChip}
         </td>
         <td>
           ${escapeHtml(lib.cliente_nombre || '—')}

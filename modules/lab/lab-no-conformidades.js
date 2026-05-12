@@ -25,6 +25,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'auditoria',         label: 'Auditoría' },
   ];
 
+  // Pre-filtro opcional por querystring (ej. ?lote_id=<uuid> al venir
+  // desde la bandeja de liberaciones por el chip "⚠ N NC abiertas").
+  const qs           = new URLSearchParams(window.location.search);
+  let   loteFiltro   = qs.get('lote_id') || null;
+  let   loteFiltroLabel = null;   // numero_lote del lote pre-filtrado
+
   const b = await KoguShell.initShell({
     currentPage: PAGE,
     title: 'No Conformidades',
@@ -68,6 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="newNcBtn">+ Nueva NC</button>
     </div>
   </div>
+
+  <div id="lotePrefilterBanner" style="display:none;margin-top:12px;padding:10px 14px;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;color:#78350f;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px"></div>
 
   <div class="grid-2" style="margin-top:14px;gap:10px">
     <input class="input" id="qFil" placeholder="Buscar por folio, descripción, lote, producto, cliente o proveedor…"/>
@@ -189,6 +197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (cliId)  params.set('cliente_id', cliId);
     if (desde)  params.set('fecha_desde', desde);
     if (hasta)  params.set('fecha_hasta', hasta);
+    if (loteFiltro) params.set('lote_id', loteFiltro);
     try {
       const res = await KoguApi.apiFetch(`${BASE}?${params.toString()}`);
       rows = KoguApi.unwrapData(res) || [];
@@ -466,6 +475,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     return m ? m[1] : s;
   }
 
+  // Render del banner contextual cuando se entra con ?lote_id=
+  async function renderLoteFiltroBanner() {
+    const bn = $('lotePrefilterBanner');
+    if (!bn) return;
+    if (!loteFiltro) { bn.style.display = 'none'; return; }
+    // Intentar resolver número de lote para mostrar etiqueta amigable
+    if (!loteFiltroLabel) {
+      try {
+        const res = await KoguApi.apiFetch(`/protected/lab/lotes/${encodeURIComponent(loteFiltro)}`);
+        const lote = KoguApi.unwrapData(res);
+        loteFiltroLabel = lote?.numero_lote || loteFiltro;
+      } catch (_) {
+        loteFiltroLabel = loteFiltro;
+      }
+    }
+    bn.style.display = 'flex';
+    bn.innerHTML = `
+      <div>
+        <strong>🔎 Filtrando por lote:</strong>
+        <span style="font-family:monospace;margin-left:6px">${escapeHtml(loteFiltroLabel)}</span>
+      </div>
+      <button class="btn ghost" id="clearLoteFiltro" style="font-size:12px">Quitar filtro</button>
+    `;
+    $('clearLoteFiltro').addEventListener('click', () => {
+      loteFiltro      = null;
+      loteFiltroLabel = null;
+      // Limpia la URL para que un refresh no reaplique el filtro
+      const url = new URL(window.location.href);
+      url.searchParams.delete('lote_id');
+      window.history.replaceState({}, '', url);
+      bn.style.display = 'none';
+      load({ resetPage: true, showToast: true });
+    });
+  }
+
   await loadCatalogos();
+  await renderLoteFiltroBanner();
   await load();
 });
