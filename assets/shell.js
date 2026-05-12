@@ -40,6 +40,8 @@
       {href:'/modules/erp/pagos/pagos.html',label:'Pagos / Tesorería',perm:'screen.erp.pagos'},
     ]},
     {section:'Lab QA',items:[
+      // ── Vista ejecutiva ──
+      {href:'/modules/lab/lab-kpis.html',             label:'📊 Dashboard KPIs',   perm:'screen.lab.maestros'},
       // ── Entrada (compras) ──
       {href:'/modules/lab/lab-imp-compras.html',      label:'Inspección compras',  perm:'screen.lab.inspeccion_compras'},
       {href:'/modules/lab/lab-cert-proveedor.html',   label:'CofA proveedor',      perm:'screen.lab.inspeccion_compras'},
