@@ -483,19 +483,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       oQ('#importProgress').style.display = 'block';
       oQ('#importResult').style.display = 'none';
       try {
-        // Construir URL base usando KoguApi (consistente con apiFetch)
-        const token   = KoguApi.getToken && KoguApi.getToken();
-        const empresa = KoguApi.getEmpresaActiva && KoguApi.getEmpresaActiva();
-        const url     = (KoguConfig?.API_BASE || '') + `${BASE}/compras/imports`;
-        const headers = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        if (empresa?.empresa_id) headers['X-Empresa-Id'] = empresa.empresa_id;
-        const resp = await fetch(url, { method: 'POST', body: fd, headers });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok) {
-          throw new Error(json?.message || json?.error || `HTTP ${resp.status}`);
-        }
-        const d = json.data || {};
+        // apiFetch detecta FormData y omite Content-Type automáticamente.
+        // Authorization y X-Empresa-Id los inyecta el cliente API base.
+        const json = await KoguApi.apiFetch(`${BASE}/compras/imports`, {
+          method: 'POST',
+          body: fd,
+        });
+        const d = json?.data || {};
         oQ('#importProgress').style.display = 'none';
         oQ('#importResult').style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#dcfce7;color:#166534';
         oQ('#importResult').innerHTML = `

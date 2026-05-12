@@ -244,15 +244,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fd = new FormData();
     fd.append('archivo', f);
     try {
-      const token   = KoguApi.getToken && KoguApi.getToken();
-      const empresa = KoguApi.getEmpresaActiva && KoguApi.getEmpresaActiva();
-      const url     = (KoguConfig?.API_BASE || '') + `${BASE}/${certId}/upload`;
-      const headers = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (empresa?.empresa_id) headers['X-Empresa-Id'] = empresa.empresa_id;
-      const resp = await fetch(url, { method: 'POST', body: fd, headers });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(json?.message || json?.error || `HTTP ${resp.status}`);
+      // apiFetch detecta FormData y omite Content-Type automáticamente.
+      await KoguApi.apiFetch(`${BASE}/${certId}/upload`, { method: 'POST', body: fd });
       KoguApi.toast('Archivo subido', 'success');
       await load();
     } catch (err) { KoguApi.toast(err.message, 'error'); }
@@ -260,13 +253,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function descargarArchivo() {
     try {
-      const token   = KoguApi.getToken && KoguApi.getToken();
-      const empresa = KoguApi.getEmpresaActiva && KoguApi.getEmpresaActiva();
-      const url     = (KoguConfig?.API_BASE || '') + `${BASE}/${certId}/archivo`;
-      const headers = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (empresa?.empresa_id) headers['X-Empresa-Id'] = empresa.empresa_id;
-      const resp = await fetch(url, { headers });
+      // authFetchRaw devuelve Response crudo (no parsea JSON) — apto para binarios.
+      // Inyecta Authorization + X-Empresa-Id desde el cliente API base.
+      const resp = await KoguApi.authFetchRaw(`${BASE}/${certId}/archivo`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       // Determinar nombre desde Content-Disposition o fallback por hint
       let filename = `${cp.folio_interno || 'cofa'}`;
