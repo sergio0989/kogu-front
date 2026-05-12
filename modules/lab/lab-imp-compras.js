@@ -266,10 +266,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? `<span class="chip" style="background:${c.requiere_inspeccion ? '#dcfce7' : '#f1f5f9'};color:${c.requiere_inspeccion ? '#166534' : '#64748b'};font-size:11px">${escapeHtml(c.clasificacion_origen)}</span>`
       : '<span class="muted">—</span>';
     const tab = TABS.find(t => t.code === c.seleccion_qa) || { label: c.seleccion_qa, color: '#64748b' };
-    const stChip = `<span class="chip" style="background:${tab.color}22;color:${tab.color}">${tab.label}</span>`;
-    const stExtra = c.seleccion_qa === 'descartada' && c.motivo_descarte
+    let stChip = `<span class="chip" style="background:${tab.color}22;color:${tab.color}">${tab.label}</span>`;
+    let stExtra = c.seleccion_qa === 'descartada' && c.motivo_descarte
       ? `<div class="muted" style="font-size:11px;margin-top:2px" title="${escapeHtml(c.motivo_descarte)}">${escapeHtml(truncar(c.motivo_descarte, 40))}</div>`
       : '';
+
+    // En tab Procesadas, reemplazamos el chip por la decisión real del reporte
+    // y agregamos el folio RI + chip NC si aplica.
+    if (c.seleccion_qa === 'procesada' && c.reporte_decision) {
+      const decColors = {
+        borrador:                 { label: 'Borrador',           color: '#94a3b8' },
+        emitido:                  { label: 'Emitido',            color: '#3b82f6' },
+        aceptado:                 { label: '✓ Aceptado',         color: '#16a34a' },
+        aceptado_con_observacion: { label: '⚠ Aceptado c/obs',   color: '#f59e0b' },
+        rechazado:                { label: '✗ Rechazado',        color: '#dc2626' },
+      };
+      const d = decColors[c.reporte_decision] || { label: c.reporte_decision, color: '#64748b' };
+      stChip = `<span class="chip" style="background:${d.color}22;color:${d.color}">${d.label}</span>`;
+      const partes = [];
+      if (c.reporte_folio) {
+        partes.push(`<a href="/modules/lab/lab-reporte-inspeccion-detalle.html?id=${c.reporte_id}"
+                       style="font-family:monospace;font-size:11px;text-decoration:none;color:#475569">${escapeHtml(c.reporte_folio)}</a>`);
+      }
+      if (c.nc_folio_reporte) {
+        partes.push(`<a href="/modules/lab/lab-nc-detalle.html?id=${c.nc_id_reporte}"
+                       class="chip"
+                       style="background:#fee2e2;color:#991b1b;font-size:10px;text-decoration:none">⚠ ${escapeHtml(c.nc_folio_reporte)}</a>`);
+      }
+      stExtra = partes.length
+        ? `<div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">${partes.join('')}</div>`
+        : '';
+    } else if (c.seleccion_qa === 'procesada' && !c.reporte_decision) {
+      // Procesada pero sin reporte aún (caso raro de datos previos)
+      stExtra = '<div class="muted" style="font-size:11px;margin-top:2px">sin reporte</div>';
+    }
 
     let actions = '';
     if (c.seleccion_qa === 'pendiente') {
@@ -284,9 +314,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (c.seleccion_qa === 'descartada') {
       actions = `<button class="btn ghost"  data-restaurar="${c.imp_compra_id}">↺ Restaurar</button>`;
     } else if (c.seleccion_qa === 'procesada') {
-      actions = c.lote_id
-        ? `<a class="btn ghost" href="/modules/lab/lab-lote-detalle.html?id=${c.lote_id}">Ver lote</a>`
-        : `<span class="muted" style="font-size:11px">procesada</span>`;
+      const btns = [];
+      if (c.reporte_id) {
+        btns.push(`<a class="btn primary" href="/modules/lab/lab-reporte-inspeccion-detalle.html?id=${c.reporte_id}" style="background:#3b82f6">Reporte</a>`);
+      }
+      if (c.lote_id) {
+        btns.push(`<a class="btn ghost" href="/modules/lab/lab-lote-detalle.html?id=${c.lote_id}">Ver lote</a>`);
+      }
+      actions = btns.length ? btns.join(' ') : `<span class="muted" style="font-size:11px">procesada</span>`;
     }
 
     const checked = selected.has(c.imp_compra_id) ? 'checked' : '';
