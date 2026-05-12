@@ -40,15 +40,19 @@
       {href:'/modules/erp/pagos/pagos.html',label:'Pagos / Tesorería',perm:'screen.erp.pagos'},
     ]},
     {section:'Lab QA',items:[
-      {href:'/modules/lab/lab-maestros.html',         label:'Maestros analíticos', perm:'screen.lab.maestros'},
-      {href:'/modules/lab/lab-especificaciones.html', label:'Especificaciones',    perm:'screen.lab.especificaciones'},
-      {href:'/modules/lab/lab-lotes.html',            label:'Lotes',               perm:'screen.lab.lotes'},
+      // ── Entrada (compras) ──
       {href:'/modules/lab/lab-imp-compras.html',      label:'Inspección compras',  perm:'screen.lab.inspeccion_compras'},
       {href:'/modules/lab/lab-cert-proveedor.html',   label:'CofA proveedor',      perm:'screen.lab.inspeccion_compras'},
+      // ── Proceso (laboratorio) ──
+      {href:'/modules/lab/lab-lotes.html',            label:'Lotes',               perm:'screen.lab.lotes'},
+      {href:'/modules/lab/lab-especificaciones.html', label:'Especificaciones',    perm:'screen.lab.especificaciones'},
+      // ── Salida (ventas / comercialización) ──
       {href:'/modules/lab/lab-liberaciones.html',     label:'Liberaciones',        perm:'screen.lab.liberaciones'},
       {href:'/modules/lab/lab-excepciones.html',      label:'Excepciones',         perm:'screen.lab.bandeja'},
-      {href:'/modules/lab/lab-no-conformidades.html', label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
       {href:'/modules/lab/lab-coa.html',              label:'Certificados COA',    perm:'screen.lab.coa'},
+      // ── Transversal / Configuración ──
+      {href:'/modules/lab/lab-no-conformidades.html', label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
+      {href:'/modules/lab/lab-maestros.html',         label:'Maestros analíticos', perm:'screen.lab.maestros'},
     ]}
   ];
 
