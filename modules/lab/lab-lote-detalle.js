@@ -102,6 +102,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 </div>
 
+<!-- Sección de Reporte de Inspección — solo si origen='compra' -->
+<div class="card" style="margin-top:16px;display:none" id="reporteInspCard">
+  <div class="row" id="reporteInspHeader" style="cursor:pointer;user-select:none">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="reporteInspChevron" style="font-size:12px;color:#64748b;width:16px">▶</span>
+      <div>
+        <div class="eyebrow">Inspección de compra</div>
+        <h2 style="margin:0">Reporte de inspección</h2>
+      </div>
+    </div>
+    <div class="muted" style="font-size:12px" id="reporteInspResumen">Click para ver el reporte</div>
+  </div>
+  <div id="reporteInspBody" style="display:none;margin-top:16px"></div>
+</div>
+
 <!-- Sección de NCs asociadas — colapsable, carga lazy -->
 <div class="card" style="margin-top:16px">
   <div class="row" id="ncHeader" style="cursor:pointer;user-select:none">
@@ -156,6 +171,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderHeader();
       renderMuestras();
       renderOficiales();
+      // Mostrar/ocultar card de Reporte de Inspección según origen del lote
+      const reporteCard = document.getElementById('reporteInspCard');
+      if (reporteCard) {
+        reporteCard.style.display = lote?.origen === 'compra' ? '' : 'none';
+      }
     } catch (err) {
       KoguApi.toast(err.message, 'error');
       $('loteHeader').innerHTML = `<div style="text-align:center;padding:20px;color:var(--danger)">No se pudo cargar el lote.</div>`;
@@ -580,6 +600,114 @@ document.addEventListener('DOMContentLoaded', async () => {
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     })[m]);
   }
+
+  // ── Reporte de Inspección de Compras (G.1) — lazy load ──
+  // Solo aplica si lote.origen='compra'. El card se muestra/oculta
+  // en loadLote(). Resumen visible incluso colapsado si hay reporte.
+  const RI_DECISION = {
+    borrador:                 { label: 'Borrador',           color: '#94a3b8' },
+    emitido:                  { label: 'Emitido',            color: '#3b82f6' },
+    aceptado:                 { label: '✓ Aceptado',         color: '#16a34a' },
+    aceptado_con_observacion: { label: '⚠ Aceptado c/obs',   color: '#f59e0b' },
+    rechazado:                { label: '✗ Rechazado',        color: '#dc2626' },
+  };
+  let reporteInspCargado = false;
+
+  async function cargarReporteInspeccion() {
+    const body = $('reporteInspBody');
+    body.innerHTML = '<div class="muted" style="text-align:center;padding:20px">Cargando reporte…</div>';
+    try {
+      // Filtro por lote_compra_id; idealmente 1 resultado (D.3 del kickoff)
+      const params = new URLSearchParams({
+        lote_compra_id: loteId,
+        pageSize: '5',
+      });
+      const res = await KoguApi.apiFetch(`${BASE}/reportes-inspeccion?${params.toString()}`);
+      const reportes = KoguApi.unwrapData(res) || [];
+      reporteInspCargado = true;
+
+      if (!reportes.length) {
+        body.innerHTML = `
+          <div class="muted" style="text-align:center;padding:24px;font-size:13px">
+            Este lote (origen <strong>compra</strong>) aún no tiene reporte de inspección.<br/>
+            Crea uno desde <a href="/modules/lab/lab-imp-compras.html">Inspección de Compras</a> tras seleccionar la fila.
+          </div>`;
+        $('reporteInspResumen').textContent = 'Sin reporte';
+        return;
+      }
+
+      // Resumen en cabecera colapsada
+      const r = reportes[0];
+      const dec = RI_DECISION[r.decision] || { label: r.decision, color: '#64748b' };
+      $('reporteInspResumen').innerHTML =
+        `<span style="font-family:monospace">${escapeHtml(r.folio_reporte)}</span>` +
+        ` <span class="chip" style="background:${dec.color}22;color:${dec.color};font-size:11px;margin-left:6px">${dec.label}</span>`;
+
+      // Body con detalle
+      body.innerHTML = reportes.map(r => filaReporteInsp(r)).join('');
+      body.querySelectorAll('a[data-ri-id]').forEach(a => {
+        // ya tienen href propio, no hace falta listener
+      });
+    } catch (err) {
+      body.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626">Error: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function filaReporteInsp(r) {
+    const dec = RI_DECISION[r.decision] || { label: r.decision, color: '#64748b' };
+    const fecha = r.fecha_inspeccion ? new Date(r.fecha_inspeccion).toLocaleString() : '—';
+    const noCumple = parseInt(r.parametros_no_cumple || 0, 10);
+    const total = parseInt(r.parametros_count || 0, 10);
+    const okCumple = total - noCumple;
+    const paramsBlock = total
+      ? `<span class="chip" style="background:#dcfce7;color:#166534;font-size:11px">${okCumple} cumplen</span>` +
+        (noCumple ? ` <span class="chip" style="background:#fee2e2;color:#991b1b;font-size:11px">${noCumple} no cumplen</span>` : '') +
+        ` <span class="muted" style="font-size:11px">de ${total} parámetros</span>`
+      : '<span class="muted" style="font-size:11px">Sin parámetros capturados</span>';
+    const ncBlock = r.nc_id
+      ? `<div style="margin-top:8px;padding:8px 10px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b">
+           ⚠ <strong>NC vinculada:</strong>
+           <a href="/modules/lab/lab-nc-detalle.html?id=${r.nc_id}"
+              style="font-family:monospace;color:#991b1b">${escapeHtml(r.folio_nc || '—')}</a>
+           <span class="chip" style="background:#fff;color:#991b1b;font-size:10px;margin-left:6px">${escapeHtml(r.nc_status || '—')}</span>
+         </div>`
+      : '';
+    return `
+      <div style="border:1px solid var(--line);border-radius:8px;padding:14px;background:#fafbfc">
+        <div class="row">
+          <div>
+            <strong style="font-family:monospace">${escapeHtml(r.folio_reporte)}</strong>
+            <span class="chip" style="background:${dec.color}22;color:${dec.color};margin-left:8px">${dec.label}</span>
+          </div>
+          <a class="btn ghost" href="/modules/lab/lab-reporte-inspeccion-detalle.html?id=${r.reporte_inspeccion_id}" data-ri-id="${r.reporte_inspeccion_id}">Abrir</a>
+        </div>
+        <div class="grid-2" style="margin-top:10px;gap:8px;font-size:13px">
+          <div><strong>Inspector:</strong> ${escapeHtml(r.inspector_nombre || '—')}</div>
+          <div><strong>Supervisor:</strong> ${escapeHtml(r.supervisor_nombre || '—')}</div>
+          <div><strong>Fecha:</strong> ${fecha}</div>
+          <div><strong>CofA:</strong> ${r.cert_folio_interno
+            ? `<a href="/modules/lab/lab-cert-proveedor-detalle.html?id=${r.certificado_proveedor_id}" style="font-family:monospace">${escapeHtml(r.cert_folio_interno)}</a>`
+            : '<span class="muted">—</span>'}</div>
+          <div style="grid-column:1/-1"><strong>Parámetros:</strong> ${paramsBlock}</div>
+          ${r.motivo_decision ? `<div style="grid-column:1/-1"><strong>Motivo:</strong> <span class="muted">${escapeHtml(r.motivo_decision)}</span></div>` : ''}
+        </div>
+        ${ncBlock}
+      </div>`;
+  }
+
+  $('reporteInspHeader').addEventListener('click', async () => {
+    const body = $('reporteInspBody');
+    const chev = $('reporteInspChevron');
+    const expanded = body.style.display !== 'none';
+    if (expanded) {
+      body.style.display = 'none';
+      chev.textContent = '▶';
+    } else {
+      body.style.display = 'block';
+      chev.textContent = '▼';
+      if (!reporteInspCargado) await cargarReporteInspeccion();
+    }
+  });
 
   // ── NCs asociadas (no conformidades) — lazy load ─────────
   const NC_STATUS = {

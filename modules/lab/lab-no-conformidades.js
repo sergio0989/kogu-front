@@ -17,12 +17,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'anulada',     label: 'Anulada',      color: '#94a3b8' },
   ];
   const ORIGENES = [
-    { code: 'resultado',         label: 'Resultado fuera spec' },
-    { code: 'excepcion',         label: 'Excepción aprobada' },
-    { code: 'rechazo',           label: 'Rechazo de lote' },
-    { code: 'queja_cliente',     label: 'Queja de cliente' },
-    { code: 'inspeccion_compra', label: 'Inspección de compra' },
-    { code: 'auditoria',         label: 'Auditoría' },
+    { code: 'resultado',         label: 'Resultado fuera spec',   icon: '⚠',  color: '#f59e0b' },
+    { code: 'excepcion',         label: 'Excepción aprobada',     icon: '⚙',  color: '#f97316' },
+    { code: 'rechazo',           label: 'Rechazo de lote',        icon: '✗',  color: '#dc2626' },
+    { code: 'queja_cliente',     label: 'Queja de cliente',       icon: '🗣',  color: '#8b5cf6' },
+    { code: 'inspeccion_compra', label: 'Inspección de compra',   icon: '📥', color: '#3b82f6' },
+    { code: 'auditoria',         label: 'Auditoría',              icon: '🔍', color: '#64748b' },
   ];
 
   // Pre-filtro opcional por querystring (ej. ?lote_id=<uuid> al venir
@@ -223,7 +223,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     tbody.innerHTML = rows.map(n => {
       const st = STATUS.find(s => s.code === n.status) || { label: n.status, color: '#64748b' };
-      const orig = ORIGENES.find(o => o.code === n.origen)?.label || n.origen;
+      const origObj = ORIGENES.find(o => o.code === n.origen);
+      const origCell = origObj
+        ? `<span class="chip" style="background:${origObj.color}22;color:${origObj.color};font-size:11px">${origObj.icon} ${escapeHtml(origObj.label)}</span>`
+        : escapeHtml(n.origen || '—');
       const entidad = entidadAfectada(n);
       const fecha = n.fecha_apertura ? fmtDate(n.fecha_apertura) : '—';
       const capas = n.capas_count > 0
@@ -232,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `
         <tr>
           <td><strong style="font-family:monospace">${escapeHtml(n.folio_nc)}</strong></td>
-          <td>${escapeHtml(orig)}</td>
+          <td>${origCell}</td>
           <td style="font-size:13px">${entidad}</td>
           <td style="font-size:13px">${escapeHtml(n.responsable_nombre || '—')}</td>
           <td style="font-size:12px">${fecha}
