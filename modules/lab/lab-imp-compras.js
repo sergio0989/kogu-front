@@ -481,25 +481,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       fd.append('archivo', f);
       oQ('#uploadBtn').disabled = true;
       oQ('#importProgress').style.display = 'block';
+      oQ('#importProgress').textContent = '⏳ Subiendo archivo…';
       oQ('#importResult').style.display = 'none';
       try {
-        // apiFetch detecta FormData y omite Content-Type automáticamente.
-        // Authorization y X-Empresa-Id los inyecta el cliente API base.
+        // 1. POST /imports → backend responde inmediato con importacion_id
         const json = await KoguApi.apiFetch(`${BASE}/compras/imports`, {
           method: 'POST',
           body: fd,
         });
-        const d = json?.data || {};
+        const importacionId = json?.data?.importacion_id;
+        if (!importacionId) throw new Error('No se obtuvo importacion_id del servidor.');
+
+        // 2. Polling: GET /imports/:id cada 2s hasta estado terminal
+        oQ('#importProgress').textContent = '⏳ Procesando en background…';
+        const imp = await pollImport(importacionId, oQ('#importProgress'));
+
+        // 3. Mostrar resultado
         oQ('#importProgress').style.display = 'none';
-        oQ('#importResult').style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#dcfce7;color:#166534';
-        oQ('#importResult').innerHTML = `
-          <strong>✅ Import completado</strong><br>
-          ${d.filas_leidas || 0} filas leídas · ${d.insertadas || 0} nuevas · ${d.actualizadas || 0} actualizadas
-          · <strong>${d.descartes_auto || 0} auto-descartadas</strong> (servicios u otros)
-          · ${d.errores || 0} errores
-        `;
-        KoguApi.toast('Import completado', 'success');
-        // Refrescar bandeja
+        if (imp.estado === 'completada') {
+          oQ('#importResult').style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#dcfce7;color:#166534';
+          oQ('#importResult').innerHTML = `
+            <strong>✅ Import completado</strong><br>
+            ${escapeHtml(imp.mensaje_resumen || '')}
+          `;
+          KoguApi.toast('Import completado', 'success');
+        } else {
+          oQ('#importResult').style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#fee2e2;color:#991b1b';
+          oQ('#importResult').textContent = '❌ ' + (imp.mensaje_resumen || 'Importación fallida.');
+          KoguApi.toast('Import fallido', 'error');
+        }
         currentPage = 1;
         await load();
         oQ('#uploadBtn').textContent = 'Cerrar';
@@ -512,6 +522,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         oQ('#uploadBtn').disabled = false;
       }
     });
+  }
+
+  // ── Polling de importación ──────────────────────
+  // Backend procesa en background; vamos preguntando estado cada 2s.
+  // Muestra avance en progressEl si lo recibe.
+  async function pollImport(importacionId, progressEl = null) {
+    const INTERVAL_MS = 2000;
+    const MAX_TRIES   = 600;   // 600 × 2s = 20 minutos máximo
+    for (let i = 0; i < MAX_TRIES; i++) {
+      await new Promise(r => setTimeout(r, INTERVAL_MS));
+      try {
+        const res = await KoguApi.apiFetch(`${BASE}/compras/imports/${importacionId}`);
+        const imp = KoguApi.unwrapData(res);
+        if (!imp) continue;
+        if (progressEl) {
+          const leidas  = imp.filas_leidas  || 0;
+          const validas = imp.filas_validas || 0;
+          const errores = imp.filas_error   || 0;
+          progressEl.textContent = `⏳ Procesando… ${leidas} leídas · ${validas} ok · ${errores} errores`;
+        }
+        if (imp.estado === 'completada' || imp.estado === 'fallida') {
+          return imp;
+        }
+      } catch (e) {
+        // Errores transitorios de red — seguimos intentando
+        console.warn('poll error', e.message);
+      }
+    }
+    throw new Error('Timeout esperando que termine la importación (>20 min).');
   }
 
   // ── Modal de historial de imports ───────────────
