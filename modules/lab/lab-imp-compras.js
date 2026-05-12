@@ -490,8 +490,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const wb     = XLSX.read(buffer, { type: 'array', cellDates: true });
         const ws     = wb.Sheets[wb.SheetNames[0]];
         if (!ws) throw new Error('El archivo no contiene hojas.');
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
-        if (!rows.length) throw new Error('El archivo no contiene filas.');
+        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
+        if (!rawRows.length) throw new Error('El archivo no contiene filas.');
+
+        // Normalizar keys: trim + toLowerCase (mismo patrón que ERP).
+        // ALPHA ERP puede exportar con espacios o capitalización inconsistente;
+        // esto garantiza que `cve_prov`, `cve_prod`, `lote`, `fech_revi`, etc.
+        // matcheen lo que espera el backend.
+        const rows = rawRows.map(row => {
+          const r = {};
+          for (const [k, v] of Object.entries(row)) {
+            r[String(k).trim().toLowerCase()] = v;
+          }
+          return r;
+        });
 
         // 2. SHA-256 del archivo (auditoría liviana sin guardar el binario)
         let sha256 = null;
