@@ -32,6 +32,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     medio: { label: 'Medio', color: '#f59e0b' },
     alto:  { label: 'Alto',  color: '#dc2626' },
   };
+  // Colores de estado NC (para el chip de NC vinculada)
+  const STATUS_NC = {
+    abierta:     { label: 'Abierta',     color: '#f59e0b' },
+    en_analisis: { label: 'En análisis', color: '#3b82f6' },
+    con_capa:    { label: 'Con CAPA',    color: '#8b5cf6' },
+    cerrada:     { label: 'Cerrada',     color: '#16a34a' },
+    anulada:     { label: 'Anulada',     color: '#94a3b8' },
+  };
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
@@ -51,6 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let rows = [];
+  let ncByExcepcion = {};   // index: excepcion_id → NC summary (cargado en background)
   let currentPage = 1, pageSize = 25, totalPages = 1, totalRows = 0;
   const $ = (id) => document.getElementById(id);
 
@@ -96,6 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th>Categoría</th>
         <th>Riesgo</th>
         <th>Liberación</th>
+        <th>NC</th>
         <th>Estado</th>
         <th style="text-align:right">Acciones</th>
       </tr></thead>
@@ -152,6 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await KoguApi.apiFetch(`${BASE}?${params.toString()}`);
       rows = KoguApi.unwrapData(res) || [];
+      ncByExcepcion = {};  // reset index al recargar
       const meta = res?.meta || {};
       totalRows = parseInt(meta.total ?? rows.length, 10) || 0;
       pageSize = parseInt(meta.pageSize ?? pageSize, 10) || pageSize;
@@ -160,13 +171,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderRows();
       renderPag();
       if (showToast) KoguApi.toast('Excepciones actualizadas', 'success');
+      // Carga en background de NCs vinculadas → re-render cuando termine.
+      cargarNcsAsociadas().then(() => renderRows()).catch(() => {/* silencioso */});
     } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  // Para cada excepción visible (aprobada o con liberacion_id),
+  // resuelve si tiene NC vinculada vía GET /protected/lab/nc?excepcion_id=X.
+  // Se ejecuta en paralelo y silencioso; si falla, se queda sin chip.
+  async function cargarNcsAsociadas() {
+    const idsExc = rows
+      .filter(e => e.excepcion_id && (e.status === 'aprobada' || e.liberacion_id))
+      .map(e => e.excepcion_id);
+    if (!idsExc.length) return;
+    const results = await Promise.allSettled(idsExc.map(id =>
+      KoguApi.apiFetch(`/protected/lab/nc?excepcion_id=${encodeURIComponent(id)}&pageSize=1`)
+    ));
+    results.forEach((r, i) => {
+      if (r.status !== 'fulfilled') return;
+      const ncs = KoguApi.unwrapData(r.value) || [];
+      if (ncs[0]) ncByExcepcion[idsExc[i]] = ncs[0];
+    });
   }
 
   function renderRows() {
     const tbody = $('rows');
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">
         Sin excepciones con los filtros actuales. Las excepciones se crean desde el flujo de liberación al usar el atajo <strong>"Crear excepción"</strong>.
       </td></tr>`;
       return;
@@ -179,6 +210,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const libChip = e.liberacion_id
         ? `<span class="chip" style="background:#dcfce7;color:#166534">✓ Creada</span>`
         : (e.status === 'aprobada' ? '<span class="muted" style="font-size:11px">Sin liberación</span>' : '<span class="muted">—</span>');
+      // NC vinculada (cargada en 2do paso async)
+      const ncLink = ncByExcepcion[e.excepcion_id];
+      const stNc = ncLink ? (STATUS_NC[ncLink.status] || { color: '#64748b' }) : null;
+      const ncChip = ncLink
+        ? `<a href="/modules/lab/lab-nc-detalle.html?id=${ncLink.nc_id}"
+              class="chip"
+              style="background:${stNc.color}22;color:${stNc.color};font-family:monospace;text-decoration:none;font-size:11px"
+              title="${escapeHtml(ncLink.descripcion || '')}">${escapeHtml(ncLink.folio_nc)}</a>`
+        : (e.status === 'aprobada' ? '<span class="muted" style="font-size:11px">—</span>' : '<span class="muted">—</span>');
       return `
         <tr>
           <td style="font-size:12px">${fecha}
@@ -195,6 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </td>
           <td><span class="chip" style="background:${riesgo.color}22;color:${riesgo.color}">${riesgo.label}</span></td>
           <td>${libChip}</td>
+          <td>${ncChip}</td>
           <td><span class="chip" style="background:${st.color}22;color:${st.color}">${st.label}</span></td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn ghost" data-detalle="${e.excepcion_id}">Detalle</button>
@@ -238,12 +279,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function abrirDetalle(excId) {
     try {
-      const res = await KoguApi.apiFetch(`${BASE}/${excId}`);
-      mostrarModalDetalle(KoguApi.unwrapData(res));
+      const [resExc, resNc] = await Promise.all([
+        KoguApi.apiFetch(`${BASE}/${excId}`),
+        KoguApi.apiFetch(`/protected/lab/nc?excepcion_id=${encodeURIComponent(excId)}&pageSize=1`).catch(() => null),
+      ]);
+      const exc = KoguApi.unwrapData(resExc);
+      const ncs = resNc ? (KoguApi.unwrapData(resNc) || []) : [];
+      mostrarModalDetalle(exc, ncs[0] || null);
     } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
 
-  function mostrarModalDetalle(exc) {
+  function mostrarModalDetalle(exc, ncVinculada = null) {
     const st = STATUS.find(s => s.code === exc.status) || { label: exc.status, color: '#64748b' };
     const cat = CATEGORIAS.find(c => c.code === exc.motivo_categoria)?.label || exc.motivo_categoria;
     let parametros = [];
@@ -296,6 +342,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             <a href="/modules/lab/lab-liberaciones.html" style="margin-left:8px">Ir a Liberaciones →</a>
           </div>
         ` : ''}
+        ${ncVinculada ? (() => {
+          const stNc = STATUS_NC[ncVinculada.status] || { label: ncVinculada.status, color: '#64748b' };
+          return `
+          <div style="margin-top:10px;padding:10px;background:#eef2ff;color:#3730a3;border-radius:6px;font-size:13px">
+            <strong>NC vinculada:</strong>
+            <a href="/modules/lab/lab-nc-detalle.html?id=${ncVinculada.nc_id}"
+               style="font-family:monospace;margin-left:6px">${escapeHtml(ncVinculada.folio_nc)}</a>
+            <span class="chip" style="background:${stNc.color}22;color:${stNc.color};margin-left:8px;font-size:11px">${stNc.label}</span>
+            ${ncVinculada.capas_count
+              ? `<span class="muted" style="margin-left:8px;font-size:11px">${ncVinculada.capas_eficaces || 0}/${ncVinculada.capas_count} CAPAs eficaces</span>`
+              : '<span class="muted" style="margin-left:8px;font-size:11px">Sin CAPAs aún</span>'}
+          </div>`;
+        })() : (exc.status === 'aprobada' ? `
+          <div style="margin-top:10px;padding:10px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px">
+            ⚠ Esta excepción está aprobada pero no se encontró NC vinculada.
+            Las NCs por excepción deberían crearse automáticamente al aprobar.
+          </div>
+        ` : '')}
         ${exc.status === 'rechazada' && exc.motivo_rechazo ? `
           <div style="margin-top:14px;padding:10px;background:#fee2e2;color:#991b1b;border-radius:6px;font-size:13px">
             <strong>Motivo de rechazo:</strong> ${escapeHtml(exc.motivo_rechazo)}
