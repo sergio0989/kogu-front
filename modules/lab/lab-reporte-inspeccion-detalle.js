@@ -162,13 +162,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span class="chip" style="background:${dec.color}22;color:${dec.color};font-size:14px;padding:6px 12px">${dec.label}</span>
           ${isBorrador ? `
-            <button class="btn primary" id="emitirBtn" style="background:#3b82f6">Emitir →</button>
-            <button class="btn ghost danger" id="deleteBtn" title="Eliminar borrador">🗑️</button>
+            <button class="btn primary" id="emitirBtn"
+                    style="background:#3b82f6;padding:6px 14px;font-size:13px"
+                    title="Emitir el reporte: crea el lote físico y la compra pasa a procesada">
+              ▶ Emitir
+            </button>
+            <button class="btn ghost danger" id="deleteBtn"
+                    style="padding:6px 10px;font-size:13px"
+                    title="Eliminar borrador">🗑</button>
           ` : ''}
           ${isEmitido ? `
-            <button class="btn primary" id="aceptarBtn" style="background:#16a34a">✓ Aceptar</button>
-            <button class="btn ghost"   id="aceptarObsBtn" style="color:#92400e">⚠ Aceptar c/observación</button>
-            <button class="btn primary" id="rechazarBtn" style="background:#dc2626">✗ Rechazar…</button>
+            <button class="btn primary" id="aceptarBtn"
+                    style="background:#16a34a;padding:6px 12px;font-size:13px"
+                    title="Aceptar el reporte sin observaciones">
+              ✓ Aceptar
+            </button>
+            <button class="btn ghost" id="aceptarObsBtn"
+                    style="color:#92400e;border-color:#fbbf24;background:#fef3c7;padding:6px 12px;font-size:13px"
+                    title="Aceptar con observación (queda registrado)">
+              ⚠ C/obs
+            </button>
+            <button class="btn primary danger" id="rechazarBtn"
+                    style="background:#dc2626;padding:6px 12px;font-size:13px"
+                    title="Rechazar el reporte (genera NC automática, requiere gerente)">
+              ✗ Rechazar
+            </button>
           ` : ''}
         </div>
       </div>
