@@ -477,22 +477,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     oQ('#uploadBtn').addEventListener('click', async () => {
       const f = oQ('#archivoInput').files?.[0];
       if (!f) return KoguApi.toast('Selecciona un archivo Excel.', 'error');
-      const fd = new FormData();
-      fd.append('archivo', f);
+      if (!f.name.match(/\.(xlsx|xls)$/i)) return KoguApi.toast('Solo .xlsx o .xls', 'error');
+      if (typeof XLSX === 'undefined') return KoguApi.toast('SheetJS no cargado. Recarga la página.', 'error');
+
       oQ('#uploadBtn').disabled = true;
       oQ('#importProgress').style.display = 'block';
-      oQ('#importProgress').textContent = '⏳ Subiendo archivo…';
+      oQ('#importProgress').textContent = '⏳ Leyendo archivo…';
       oQ('#importResult').style.display = 'none';
       try {
-        // 1. POST /imports → backend responde inmediato con importacion_id
+        // 1. Parsear Excel en el navegador con SheetJS (patrón ERP)
+        const buffer = await f.arrayBuffer();
+        const wb     = XLSX.read(buffer, { type: 'array', cellDates: true });
+        const ws     = wb.Sheets[wb.SheetNames[0]];
+        if (!ws) throw new Error('El archivo no contiene hojas.');
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
+        if (!rows.length) throw new Error('El archivo no contiene filas.');
+
+        // 2. SHA-256 del archivo (auditoría liviana sin guardar el binario)
+        let sha256 = null;
+        try {
+          const digest = await crypto.subtle.digest('SHA-256', buffer);
+          sha256 = Array.from(new Uint8Array(digest))
+            .map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (_) { /* opcional, no bloquear si crypto no está */ }
+
+        oQ('#importProgress').textContent = `⏳ Enviando ${rows.length.toLocaleString()} filas…`;
+
+        // 3. POST JSON al backend (mismo patrón que ERP)
         const json = await KoguApi.apiFetch(`${BASE}/compras/imports`, {
           method: 'POST',
-          body: fd,
+          body: JSON.stringify({
+            archivo_nombre: f.name,
+            archivo_bytes:  f.size,
+            archivo_sha256: sha256,
+            rows,
+          }),
         });
         const importacionId = json?.data?.importacion_id;
         if (!importacionId) throw new Error('No se obtuvo importacion_id del servidor.');
 
-        // 2. Polling: GET /imports/:id cada 2s hasta estado terminal
+        // 4. Polling del estado en background
         oQ('#importProgress').textContent = '⏳ Procesando en background…';
         const imp = await pollImport(importacionId, oQ('#importProgress'));
 
