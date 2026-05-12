@@ -102,6 +102,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 </div>
 
+<!-- Sección de NCs asociadas — colapsable, carga lazy -->
+<div class="card" style="margin-top:16px">
+  <div class="row" id="ncHeader" style="cursor:pointer;user-select:none">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="ncChevron" style="font-size:12px;color:#64748b;width:16px">▶</span>
+      <div>
+        <div class="eyebrow">Calidad</div>
+        <h2 style="margin:0">No Conformidades asociadas</h2>
+      </div>
+    </div>
+    <div class="muted" style="font-size:12px" id="ncResumen">Click para ver las NCs de este lote</div>
+  </div>
+  <div id="ncBody" style="display:none;margin-top:16px"></div>
+</div>
+
 <!-- Sección de historial (bitácora) — colapsable, carga lazy -->
 <div class="card" style="margin-top:16px">
   <div class="row" id="bitacoraHeader" style="cursor:pointer;user-select:none">
@@ -565,6 +580,121 @@ document.addEventListener('DOMContentLoaded', async () => {
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     })[m]);
   }
+
+  // ── NCs asociadas (no conformidades) — lazy load ─────────
+  const NC_STATUS = {
+    abierta:     { label: 'Abierta',     color: '#f59e0b' },
+    en_analisis: { label: 'En análisis', color: '#3b82f6' },
+    con_capa:    { label: 'Con CAPA',    color: '#8b5cf6' },
+    cerrada:     { label: 'Cerrada',     color: '#16a34a' },
+    anulada:     { label: 'Anulada',     color: '#94a3b8' },
+  };
+  const NC_ORIGENES = {
+    resultado:         'Resultado fuera spec',
+    excepcion:         'Excepción aprobada',
+    rechazo:           'Rechazo de lote',
+    queja_cliente:     'Queja de cliente',
+    inspeccion_compra: 'Inspección de compra',
+    auditoria:         'Auditoría',
+  };
+  let ncCargadas = false;
+
+  function fmtDateNc(v) {
+    if (!v) return '';
+    const s = String(v);
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : s;
+  }
+
+  async function cargarNcs() {
+    const body = $('ncBody');
+    body.innerHTML = '<div class="muted" style="text-align:center;padding:20px">Cargando NCs…</div>';
+    try {
+      const params = new URLSearchParams({
+        lote_id: loteId,
+        pageSize: '50',
+      });
+      const res = await KoguApi.apiFetch(`${BASE}/nc?${params.toString()}`);
+      const ncs = KoguApi.unwrapData(res) || [];
+      ncCargadas = true;
+
+      if (!ncs.length) {
+        body.innerHTML = `
+          <div class="muted" style="text-align:center;padding:24px;font-size:13px">
+            Este lote no tiene No Conformidades asociadas.<br/>
+            Se generan automáticamente al rechazar el lote o aprobar una excepción,
+            o pueden crearse manualmente desde el módulo de NC/CAPA.
+          </div>`;
+        $('ncResumen').textContent = '0 NCs';
+        return;
+      }
+
+      const abiertas = ncs.filter(n => n.status !== 'cerrada' && n.status !== 'anulada').length;
+      $('ncResumen').innerHTML = abiertas
+        ? `<strong style="color:#dc2626">${abiertas} abierta${abiertas === 1 ? '' : 's'}</strong> · ${ncs.length} total`
+        : `${ncs.length} NC${ncs.length === 1 ? '' : 's'} (todas cerradas o anuladas)`;
+
+      body.innerHTML = `
+        <div class="table-wrap">
+          <table style="font-size:13px">
+            <thead><tr>
+              <th>Folio</th>
+              <th>Origen</th>
+              <th>Descripción</th>
+              <th>Responsable</th>
+              <th>Apertura</th>
+              <th>CAPAs</th>
+              <th>Estado</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${ncs.map(filaNc).join('')}</tbody>
+          </table>
+        </div>`;
+      body.querySelectorAll('[data-nc-id]').forEach(btn => btn.addEventListener('click', () => {
+        window.location.href = `/modules/lab/lab-nc-detalle.html?id=${btn.dataset.ncId}`;
+      }));
+    } catch (err) {
+      body.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626">Error: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function filaNc(n) {
+    const st   = NC_STATUS[n.status]    || { label: n.status, color: '#64748b' };
+    const orig = NC_ORIGENES[n.origen]  || n.origen;
+    const fecha = fmtDateNc(n.fecha_apertura);
+    const desc  = String(n.descripcion || '');
+    const descCorta = desc.length > 80 ? desc.slice(0, 80) + '…' : desc;
+    const capas = (n.capas_count || 0) > 0
+      ? `<span class="chip" style="background:#e0f2fe;color:#075985">${n.capas_eficaces || 0}/${n.capas_count}</span>`
+      : '<span class="muted">—</span>';
+    return `
+      <tr>
+        <td><strong style="font-family:monospace">${escapeHtml(n.folio_nc)}</strong></td>
+        <td>${escapeHtml(orig)}</td>
+        <td title="${escapeHtml(desc)}">${escapeHtml(descCorta)}</td>
+        <td>${escapeHtml(n.responsable_nombre || '—')}</td>
+        <td style="font-size:12px">${fecha || '—'}</td>
+        <td>${capas}</td>
+        <td><span class="chip" style="background:${st.color}22;color:${st.color}">${st.label}</span></td>
+        <td style="text-align:right">
+          <button class="btn ghost" data-nc-id="${n.nc_id}">Abrir</button>
+        </td>
+      </tr>`;
+  }
+
+  $('ncHeader').addEventListener('click', async () => {
+    const body = $('ncBody');
+    const chev = $('ncChevron');
+    const expanded = body.style.display !== 'none';
+    if (expanded) {
+      body.style.display = 'none';
+      chev.textContent = '▶';
+    } else {
+      body.style.display = 'block';
+      chev.textContent = '▼';
+      if (!ncCargadas) await cargarNcs();
+    }
+  });
 
   // ── Bitácora (historial de eventos) — lazy load ──────────
   const ACCION_LABELS = {
