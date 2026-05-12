@@ -301,7 +301,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     tbody.querySelectorAll('button[data-delete]').forEach(b => b.addEventListener('click', () => marcarObsoleto(b.dataset.delete)));
     tbody.querySelectorAll('a[data-download]').forEach(a => a.addEventListener('click', ev => {
       ev.preventDefault();
-      descargarArchivo(a.dataset.download);
+      const cabId = a.dataset.download;
+      const row = rows.find(x => x.cabecera_id === cabId);
+      descargarArchivo(cabId, row?.archivo_nombre_original || '');
     }));
   }
 
@@ -333,7 +335,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Descarga de archivo (autenticada) ─────────────────
-  async function descargarArchivo(cabeceraId) {
+  // Recibe (cabeceraId, hintFilename?). Resolución del filename:
+  //   1. Header Content-Disposition del backend (preferred — incluye filename*).
+  //   2. hintFilename (lo que ya tenemos en memoria del listado / modal).
+  //   3. Fallback genérico con la extensión del MIME del blob.
+  async function descargarArchivo(cabeceraId, hintFilename = '') {
     try {
       const res = await KoguApi.authFetchRaw(`${BASE}/${cabeceraId}/file`, { method: 'GET' });
       if (!res.ok) {
@@ -341,15 +347,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error(body?.error?.message || 'No se pudo descargar el archivo.');
       }
       const blob = await res.blob();
-      const cdHeader = res.headers.get('content-disposition') || '';
-      const matchFn = cdHeader.match(/filename="?([^"]+)"?/);
-      const filename = matchFn ? decodeURIComponent(matchFn[1]) : `pliego-${cabeceraId}.bin`;
+      const filename = resolveFilenameForDownload(res, hintFilename, blob, cabeceraId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  function resolveFilenameForDownload(response, hint, blob, cabeceraId) {
+    // 1. Content-Disposition con filename*=UTF-8'' (RFC 5987) o filename=
+    const cd = response.headers.get('content-disposition') || '';
+    const extStar = cd.match(/filename\*=UTF-8''([^;]+)/i);
+    if (extStar) {
+      try { return decodeURIComponent(extStar[1].trim().replace(/^"|"$/g, '')); } catch (_) { /* noop */ }
+    }
+    const ext = cd.match(/filename="?([^";]+)"?/i);
+    if (ext) {
+      try { return decodeURIComponent(ext[1].trim()); } catch (_) { return ext[1].trim(); }
+    }
+    // 2. Hint pasado por el caller (nombre real desde el listado)
+    if (hint) return hint;
+    // 3. Fallback genérico con extensión por MIME
+    const m = (blob?.type || '').toLowerCase();
+    let ext2 = 'bin';
+    if (m === 'application/pdf') ext2 = 'pdf';
+    else if (m === 'image/png') ext2 = 'png';
+    else if (m === 'image/jpeg') ext2 = 'jpg';
+    else if (m === 'image/webp') ext2 = 'webp';
+    else if (m === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ext2 = 'xlsx';
+    else if (m === 'application/vnd.ms-excel') ext2 = 'xls';
+    else if (m === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') ext2 = 'docx';
+    else if (m === 'application/msword') ext2 = 'doc';
+    else if (m === 'text/csv') ext2 = 'csv';
+    else if (m === 'text/plain') ext2 = 'txt';
+    return `pliego-${cabeceraId}.${ext2}`;
   }
 
   // ── Modal editor ──────────────────────────────────────
@@ -849,7 +882,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         abrirEditor(cab.cabecera_id);
       });
     }
-    oQ('#downloadBtn')?.addEventListener('click', () => descargarArchivo(cab.cabecera_id));
+    oQ('#downloadBtn')?.addEventListener('click', () => descargarArchivo(cab.cabecera_id, cab.archivo_nombre_original || ''));
     oQ('#removeFileBtn')?.addEventListener('click', async () => {
       if (!confirm('¿Eliminar el archivo adjunto del pliego?')) return;
       try {
