@@ -293,9 +293,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_) {
       s = null;
     }
+    // Estado inicial del header (el título descriptivo se llena en loadFichaCfdi
+    // con nombre del tercero + fecha + total — más útil que el UUID).
+    $('cfdiTitle').textContent = 'CFDI';
+    $('cfdiSubtitle').textContent = 'Cargando información fiscal…';
+
     if (s) {
-      $('cfdiTitle').textContent = s.uuid ? `UUID ${s.uuid}` : 'CFDI ' + cfdiId;
-      $('cfdiSubtitle').textContent = (s.scope || '') + (s.uuid ? ` · ${s.uuid}` : '');
       _uuidCfdi = s.uuid;
       $('scoreNum').textContent = s.score ?? '—';
       $('nivelChip').innerHTML  = nivelBadge(s.nivel);
@@ -315,7 +318,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${req.length === 0 ? '<div class="muted" style="margin-top:8px;font-size:11px">No hay reglas aplicables a este CFDI todavía. Ve a Materialidad → Reglas.</div>' : ''}
       `;
     } else {
-      $('cfdiTitle').textContent = 'CFDI ' + cfdiId;
       $('cobertura').innerHTML = '<div class="muted" style="font-size:12px">Score aún no calculado. Presiona <strong>Recalcular score</strong>.</div>';
     }
   }
@@ -323,6 +325,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadFichaCfdi() {
     if (!_uuidCfdi) {
       $('cfdiFiscalCard').style.display = 'none';
+      $('cfdiTitle').textContent = 'CFDI sin score';
+      $('cfdiSubtitle').textContent = 'Recalcula el score para cargar la ficha fiscal.';
       return;
     }
     let ficha;
@@ -331,14 +335,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       ficha = KoguApi.unwrapData(res) || {};
     } catch (e) {
       $('cfdiFiscalCard').innerHTML = `<div class="muted">No fue posible cargar el detalle fiscal del CFDI: ${e.message}</div>`;
+      $('cfdiTitle').textContent = 'CFDI';
+      $('cfdiSubtitle').textContent = 'Detalle fiscal no disponible.';
       return;
     }
 
     // Link al detalle CFDI completo (XML, JSON, PDF)
     $('detalleCfdiLink').href = '/modules/cfdi/detalle/detalle.html?uuid=' + encodeURIComponent(_uuidCfdi);
 
+    // ── Header descriptivo: nombre del tercero + scope + fecha + total ─────
+    const origenUC = (ficha.origen || '').toUpperCase();
+    const esRecibido = origenUC.includes('RECIB');
+    const terceroNombre = esRecibido ? (ficha.emisor_nombre || ficha.emisor || '—')
+                                     : (ficha.receptor_nombre || ficha.receptor || '—');
+    const terceroRfc    = esRecibido ? (ficha.emisor_rfc || '—')
+                                     : (ficha.receptor_rfc || '—');
+    $('cfdiTitle').textContent = terceroNombre;
+
+    const partesSubtitle = [];
+    if (terceroRfc && terceroRfc !== '—') partesSubtitle.push(`RFC ${terceroRfc}`);
+    partesSubtitle.push(esRecibido ? 'Recibido' : 'Emitido');
+    if (ficha.fecha_emision || ficha.fecha) partesSubtitle.push(shortDate(ficha.fecha_emision || ficha.fecha));
+    if (ficha.total != null) partesSubtitle.push(fmtMoney(ficha.total, ficha.moneda));
+    if (ficha.metodo_pago) partesSubtitle.push(ficha.metodo_pago);
+    $('cfdiSubtitle').textContent = partesSubtitle.join(' · ');
+
     // ── Origen chip ─────
-    const origen = (ficha.origen || '').toUpperCase();
+    const origen = origenUC;
     const origenColor = origen === 'RECIBIDO' ? '#0e7490' : origen === 'EMITIDO' ? '#7c3aed' : '#64748b';
     $('origenChip').style.cssText = `background:${origenColor}1a;color:${origenColor};border:1px solid ${origenColor}55`;
     $('origenChip').textContent = origen || 'CFDI';
