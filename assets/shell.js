@@ -39,6 +39,12 @@
       {href:'/modules/erp/cobranza/cobranza.html',label:'Cobranza',perm:'screen.erp.cobranza'},
       {href:'/modules/erp/pagos/pagos.html',label:'Pagos / Tesorería',perm:'screen.erp.pagos'},
     ]},
+    {section:'Materialidad',items:[
+      {href:'/modules/mat/bandeja-defensa.html',label:'Bandeja de Defensa',         perm:'screen.mat.bandeja_defensa'},
+      {href:'/modules/mat/casos.html',          label:'Casos de operación',         perm:'screen.mat.casos'},
+      {href:'/modules/exp/expedientes.html',    label:'Expedientes de terceros',    perm:'screen.exp.expedientes'},
+      {href:'/modules/mat/reglas.html',         label:'Reglas de materialidad',     perm:'screen.mat.reglas'},
+    ]},
     {section:'Lab QA',items:[
       // ── Vista ejecutiva ──
       {href:'/modules/lab/lab-kpis.html',             label:'📊 Dashboard KPIs',   perm:'screen.lab.maestros'},
