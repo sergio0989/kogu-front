@@ -321,6 +321,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pres = Array.isArray(s.evidencias_presentes)  ? s.evidencias_presentes  : [];
       const falt = Array.isArray(s.evidencias_faltantes)  ? s.evidencias_faltantes  : [];
 
+      // Castigos aplicados — explicación humana del score
+      const cast = Array.isArray(s.castigos_aplicados) ? s.castigos_aplicados : [];
+      const castigosHtml = cast.length === 0 ? '' : `
+        <div style="margin-top:14px">
+          <div class="muted" style="font-size:12px;margin-bottom:8px">Castigos aplicados al score</div>
+          <div style="border:1px solid #fecaca;border-radius:8px;overflow:hidden">
+            ${cast.map(c => `
+              <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;background:#fef2f2;border-bottom:1px solid #fecaca;font-size:12px">
+                <div>
+                  <div style="font-weight:600;color:#991b1b">${KoguUi.escapeHtml(c.codigo || '—')}</div>
+                  <div style="color:#7f1d1d;margin-top:2px">${KoguUi.escapeHtml(c.descripcion || '')}</div>
+                </div>
+                <div style="font-weight:700;color:#dc2626;font-size:14px;white-space:nowrap">${c.puntos > 0 ? '+' : ''}${c.puntos}</div>
+              </div>
+            `).join('')}
+            <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;background:#fff;font-size:13px;font-weight:700">
+              <div>Total de castigos</div>
+              <div style="color:#dc2626">${cast.reduce((acc, c) => acc + (Number(c.puntos) || 0), 0)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
       $('cobertura').innerHTML = `
         <div class="muted" style="font-size:12px;margin-bottom:8px">Cobertura de evidencias</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -328,6 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${falt.map(t => `<span class="chip" style="background:#dc26261a;color:#dc2626;border:1px solid #dc262655">✗ ${TIPO_EVIDENCIA_LABELS[t] || t}</span>`).join('')}
         </div>
         ${req.length === 0 ? '<div class="muted" style="margin-top:8px;font-size:11px">No hay reglas aplicables a este CFDI todavía. Ve a Materialidad → Reglas.</div>' : ''}
+        ${castigosHtml}
       `;
     } else {
       $('cobertura').innerHTML = '<div class="muted" style="font-size:12px">Score aún no calculado. Presiona <strong>Recalcular score</strong>.</div>';
