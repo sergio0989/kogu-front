@@ -52,6 +52,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       return '/modules/core/proveedores/proveedores.html';
     }
 
+    // ── Lab QA — perfiles analista_lab / supervisor_lab / gerente_calidad ──
+    // Cualquier usuario con acceso al módulo Lab aterriza en el Dashboard KPIs
+    // (la pantalla más "ejecutiva" del módulo). Si no tiene KPIs/Maestros, se
+    // intenta Lotes, Bandeja y Liberaciones como fallbacks razonables.
+    if (Array.isArray(perms)) {
+      if (perms.includes('screen.lab.maestros')) {
+        return '/modules/lab/lab-kpis.html';
+      }
+      if (perms.includes('screen.lab.lotes')) {
+        return '/modules/lab/lab-lotes.html';
+      }
+      if (perms.includes('screen.lab.bandeja')) {
+        return '/modules/lab/lab-bandeja.html';
+      }
+      if (perms.includes('screen.lab.liberaciones')) {
+        return '/modules/lab/lab-liberaciones.html';
+      }
+    }
+
     return '/modules/cfdi/dashboard/resumen.html';
   }
 
