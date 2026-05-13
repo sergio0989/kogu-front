@@ -85,55 +85,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div id="cobertura" style="margin-top:14px"></div>
   </div>
 
-  <!-- ── DETALLE FISCAL DEL CFDI ──────────────────────────────────────── -->
+  <!-- ── DETALLE FISCAL DEL CFDI (colapsable) ─────────────────────────── -->
   <div class="card" id="cfdiFiscalCard">
-    <div class="row">
-      <div><div class="eyebrow">Información fiscal</div><h2>Detalle del CFDI</h2></div>
-      <span class="chip" id="origenChip"></span>
-    </div>
-    <div id="fiscalHeader" style="margin-top:14px"></div>
-
-    <div class="split" style="margin-top:14px">
-      <div>
-        <div class="eyebrow">Emisor</div>
-        <div id="emisorBlock" style="margin-top:6px"></div>
+    <div class="row" id="cfdiFiscalHeaderToggle" style="cursor:pointer;user-select:none" title="Click para expandir / contraer">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="cfdiFiscalChevron" style="font-size:14px;color:#64748b;transition:transform .15s">▼</span>
+        <div>
+          <div class="eyebrow">Información fiscal</div>
+          <h2 style="margin:0">Detalle del CFDI</h2>
+        </div>
       </div>
-      <div>
-        <div class="eyebrow">Receptor</div>
-        <div id="receptorBlock" style="margin-top:6px"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="muted" id="cfdiFiscalResumen" style="font-size:12px"></span>
+        <span class="chip" id="origenChip"></span>
       </div>
     </div>
 
-    <div style="margin-top:18px">
-      <div class="eyebrow">Conceptos</div>
-      <div class="table-wrap" style="margin-top:6px">
-        <table id="conceptosTable">
-          <thead><tr>
-            <th>#</th><th>Clave</th><th style="text-align:right">Cantidad</th>
-            <th>Unidad</th><th>Descripción</th>
-            <th style="text-align:right">V. unitario</th>
-            <th style="text-align:right">Descuento</th>
-            <th style="text-align:right">Importe</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
+    <div id="cfdiFiscalBody">
+      <div id="fiscalHeader" style="margin-top:14px"></div>
 
-    <div class="split" style="margin-top:18px">
-      <div>
-        <div class="eyebrow">Totales</div>
-        <div id="totalesBlock" style="margin-top:6px"></div>
+      <div class="split" style="margin-top:14px">
+        <div>
+          <div class="eyebrow">Emisor</div>
+          <div id="emisorBlock" style="margin-top:6px"></div>
+        </div>
+        <div>
+          <div class="eyebrow">Receptor</div>
+          <div id="receptorBlock" style="margin-top:6px"></div>
+        </div>
       </div>
-      <div>
-        <div class="eyebrow">Control SAT · Semáforo fiscal</div>
-        <div id="controlSatBlock" style="margin-top:6px"></div>
-      </div>
-    </div>
 
-    <div style="margin-top:18px" id="relacionesWrap">
-      <div class="eyebrow">Trazabilidad SAT</div>
-      <div id="relacionesBlock" style="margin-top:6px"></div>
+      <div style="margin-top:18px">
+        <div class="eyebrow">Conceptos</div>
+        <div class="table-wrap" style="margin-top:6px">
+          <table id="conceptosTable">
+            <thead><tr>
+              <th>#</th><th>Clave</th><th style="text-align:right">Cantidad</th>
+              <th>Unidad</th><th>Descripción</th>
+              <th style="text-align:right">V. unitario</th>
+              <th style="text-align:right">Descuento</th>
+              <th style="text-align:right">Importe</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="split" style="margin-top:18px">
+        <div>
+          <div class="eyebrow">Totales</div>
+          <div id="totalesBlock" style="margin-top:6px"></div>
+        </div>
+        <div>
+          <div class="eyebrow">Control SAT · Semáforo fiscal</div>
+          <div id="controlSatBlock" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px" id="relacionesWrap">
+        <div class="eyebrow">Trazabilidad SAT</div>
+        <div id="relacionesBlock" style="margin-top:6px"></div>
+      </div>
     </div>
   </div>
 
@@ -365,6 +377,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const origenColor = origen === 'RECIBIDO' ? '#0e7490' : origen === 'EMITIDO' ? '#7c3aed' : '#64748b';
     $('origenChip').style.cssText = `background:${origenColor}1a;color:${origenColor};border:1px solid ${origenColor}55`;
     $('origenChip').textContent = origen || 'CFDI';
+
+    // ── Resumen breve visible incluso colapsado ─────
+    const resumenPartes = [];
+    if (ficha.fecha_emision || ficha.fecha) resumenPartes.push(shortDate(ficha.fecha_emision || ficha.fecha));
+    if (ficha.total != null) resumenPartes.push(fmtMoney(ficha.total, ficha.moneda));
+    if (ficha.estatus_sat) resumenPartes.push(String(ficha.estatus_sat).toUpperCase());
+    $('cfdiFiscalResumen').textContent = resumenPartes.join(' · ');
 
     // ── Cabecera fiscal ─────
     $('fiscalHeader').innerHTML = `
@@ -612,6 +631,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       await reload();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   };
+
+  // ── Colapsable de "Detalle del CFDI" con persistencia por sesión ──────────
+  const COLLAPSE_KEY = 'mat.cfdi.detalle.collapsed';
+  function aplicaEstadoColapso() {
+    const colapsado = sessionStorage.getItem(COLLAPSE_KEY) === '1';
+    $('cfdiFiscalBody').style.display = colapsado ? 'none' : '';
+    $('cfdiFiscalChevron').style.transform = colapsado ? 'rotate(-90deg)' : 'rotate(0deg)';
+  }
+  $('cfdiFiscalHeaderToggle').addEventListener('click', () => {
+    const colapsado = sessionStorage.getItem(COLLAPSE_KEY) === '1';
+    sessionStorage.setItem(COLLAPSE_KEY, colapsado ? '0' : '1');
+    aplicaEstadoColapso();
+  });
+  aplicaEstadoColapso();
 
   KoguShell.subscribeEmpresaActivaChange(() => {
     window.location.href = '/modules/mat/bandeja-defensa.html';
