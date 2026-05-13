@@ -192,22 +192,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   ['fTipo','fNivel','fEstatus','fScope','fEfos','fFrom','fTo'].forEach(id => $(id).onchange = load);
   $('refreshBtn').onclick = load;
 
-  // Recalcular pendientes (lote de hasta 50 por click)
+  // Recalcular pendientes (lote de hasta 50 por click).
+  // Respeta los filtros actuales de Tipo CFDI y Scope para procesar solo
+  // el subset visible en la bandeja.
   $('recalcPendientesBtn').onclick = async () => {
     const btn = $('recalcPendientesBtn');
-    if (!confirm('Calcular score de hasta 50 CFDIs sin puntaje aún. ¿Continuar?')) return;
+    const tipoCfdi = $('fTipo').value;
+    const scope    = $('fScope').value;
+
+    // Etiqueta humana de los filtros activos
+    const TIPO_LABELS = { I:'Ingreso', E:'Egreso', T:'Traslado', P:'Pago (REP)', N:'Nómina' };
+    const partes = [];
+    if (tipoCfdi) partes.push(`tipo ${TIPO_LABELS[tipoCfdi] || tipoCfdi}`);
+    if (scope)    partes.push(scope === 'RECIBIDO' ? 'recibidos' : 'emitidos');
+    const filtroLabel = partes.length ? partes.join(' · ') : 'sin filtros (todos los tipos)';
+
+    if (!confirm(`Calcular score de hasta 50 CFDIs sin puntaje aún (${filtroLabel}). ¿Continuar?`)) return;
     btn.disabled = true; btn.textContent = 'Procesando...';
     try {
       const res = await KoguApi.apiFetch('/protected/mat/score/recalcular-pendientes', {
         method: 'POST',
-        body: JSON.stringify({ batch_limit: 50 }),
+        body: JSON.stringify({
+          batch_limit: 50,
+          tipo_cfdi:   tipoCfdi || null,
+          scope:       scope    || null,
+        }),
       });
       const data = KoguApi.unwrapData(res);
       if (data.procesados === 0 && (!data.errores || data.errores.length === 0)) {
-        KoguApi.toast('No hay CFDIs pendientes de score.', 'info');
+        KoguApi.toast(`No hay CFDIs pendientes de score (${filtroLabel}).`, 'info');
       } else {
         const errCount = data.errores?.length || 0;
-        KoguApi.toast(`Procesados: ${data.procesados} · Errores: ${errCount}. Recargando…`, 'success');
+        KoguApi.toast(`Procesados: ${data.procesados} · Errores: ${errCount} · ${filtroLabel}. Recargando…`, 'success');
       }
       await load();
     } catch (e) {
