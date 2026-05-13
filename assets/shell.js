@@ -4,8 +4,11 @@
       {href:'/modules/core/dashboard/index.html',label:'Inicio administración',perm:'screen.root.index'},
       {href:'/modules/core/empresas/empresas.html',label:'Empresas',perm:'screen.root.index'},
       {href:'/modules/core/empresas/empresa-usuarios.html',label:'Usuarios por empresa',perm:'screen.root.index'},
-      {href:'/modules/core/usuarios/usuarios.html',label:'Usuarios',perm:'screen.catalogos.usuarios'},
-      {href:'/modules/core/usuarios/usuario-certificados.html',label:'Mis certificados',perm:null},
+      {href:'/modules/core/usuarios/usuarios.html',label:'Usuarios',perm:'screen.root.index'},
+      // "Mis certificados" se movió a la sección "Mi cuenta" al final del NAV
+      // para que la sección "Administrador" no aparezca a perfiles no-admin
+      // (gerente_calidad, supervisor_lab, analista_lab) que tienen catalogos.usuarios
+      // sólo para resolver nombres en pickers, no para gestionar usuarios.
       {href:'/modules/core/perfiles/perfiles.html',label:'Perfiles',perm:'screen.catalogos.perfiles'},
       {href:'/modules/core/permisos/permisos.html',label:'Permisos',perm:'screen.catalogos.permisos'},
       {href:'/modules/core/certificados/certificados.html',label:'Certificados',perm:'screen.root.index'},
@@ -61,6 +64,9 @@
       // ── Transversal / Configuración ──
       {href:'/modules/lab/lab-no-conformidades.html', label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
       {href:'/modules/lab/lab-maestros.html',         label:'Maestros analíticos', perm:'screen.lab.maestros'},
+    ]},
+    {section:'Mi cuenta',items:[
+      {href:'/modules/core/usuarios/usuario-certificados.html',label:'Mis certificados',perm:null},
     ]}
   ];
 
