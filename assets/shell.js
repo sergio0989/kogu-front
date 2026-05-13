@@ -64,9 +64,6 @@
       // ── Transversal / Configuración ──
       {href:'/modules/lab/lab-no-conformidades.html', label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
       {href:'/modules/lab/lab-maestros.html',         label:'Maestros analíticos', perm:'screen.lab.maestros'},
-    ]},
-    {section:'Mi cuenta',items:[
-      {href:'/modules/core/usuarios/usuario-certificados.html',label:'Mis certificados',perm:null},
     ]}
   ];
 
