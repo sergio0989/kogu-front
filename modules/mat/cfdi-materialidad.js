@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${caso}</td>
         <td>${KoguUi.escapeHtml(e.descripcion || '')}</td>
         <td>${e.validado_at ? '✓ ' + fmtDate(e.validado_at) : '<span class="muted">—</span>'}</td>
-        <td>${descargar} ${delBtn}</td>
+        <td><div class="actions-cell">${descargar} ${delBtn}</div></td>
       </tr>`;
   }
 

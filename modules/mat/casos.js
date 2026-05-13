@@ -155,8 +155,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${fmtMoney(r.monto_total, r.moneda)}</td>
         <td>${statusBadge(r.status)}</td>
         <td>
-          <button class="btn btn-edit" data-id="${r.caso_id}">Editar</button>
-          <a class="btn" href="/modules/mat/caso-detalle.html?id=${encodeURIComponent(r.caso_id)}">Detalle</a>
+          <div class="actions-cell">
+            <button class="btn btn-edit" data-id="${r.caso_id}">Editar</button>
+            <a class="btn" href="/modules/mat/caso-detalle.html?id=${encodeURIComponent(r.caso_id)}">Detalle</a>
+          </div>
         </td>
       </tr>
     `).join('') : '<tr><td colspan="7" class="empty">Sin casos creados</td></tr>';

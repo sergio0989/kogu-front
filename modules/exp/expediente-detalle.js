@@ -203,8 +203,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="font-family:monospace;font-size:11px">${(d.hash_sha256 || '').slice(0, 12)}…</td>
         <td>${KoguUi.statusBadge(STATUS_DOC_LABELS[d.status] || d.status)}</td>
         <td>
-          <a class="btn" href="${KoguApi.getBaseUrl()}/protected/exp/documentos/${d.documento_id}/archivo" target="_blank" rel="noopener">Descargar</a>
-          <button class="btn btn-delete" data-id="${d.documento_id}">Eliminar</button>
+          <div class="actions-cell">
+            <a class="btn" href="${KoguApi.getBaseUrl()}/protected/exp/documentos/${d.documento_id}/archivo" target="_blank" rel="noopener">Descargar</a>
+            <button class="btn btn-delete" data-id="${d.documento_id}">Eliminar</button>
+          </div>
         </td>
       </tr>
     `).join('') : '<tr><td colspan="7" class="empty">Sin documentos</td></tr>';

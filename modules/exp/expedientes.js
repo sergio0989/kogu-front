@@ -200,8 +200,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${typeof r.score_actual === 'number' ? r.score_actual : '<span class="muted">—</span>'}</td>
         <td>${nivelBadge(r.nivel_riesgo)}</td>
         <td>
-          <button class="btn btn-edit" data-id="${r.expediente_id}">Editar</button>
-          <a class="btn" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(r.expediente_id)}">Detalle</a>
+          <div class="actions-cell">
+            <button class="btn btn-edit" data-id="${r.expediente_id}">Editar</button>
+            <a class="btn" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(r.expediente_id)}">Detalle</a>
+          </div>
         </td>
       </tr>
     `).join('') : `<tr><td colspan="6" class="empty">Sin expedientes</td></tr>`;

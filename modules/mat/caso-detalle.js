@@ -68,8 +68,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- CFDI miembros -->
   <div class="card">
     <div class="row">
-      <div><div class="eyebrow">Miembros</div><h2>CFDI vinculados al caso</h2></div>
-      <button class="btn primary" id="addCfdiBtn">Vincular CFDI</button>
+      <div><div class="eyebrow">Miembros</div><h2>CFDI asociados al caso</h2></div>
+      <button class="btn primary" id="addCfdiBtn">Asociar CFDI al caso</button>
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
@@ -95,32 +95,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
-  <!-- Modal vincular CFDI -->
+  <!-- Modal asociar CFDI (con picker / búsqueda) -->
   <div id="cfdiModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:50;align-items:center;justify-content:center;padding:20px;">
-    <div class="card" style="max-width:520px;width:100%;background:#fff">
-      <div class="row"><h3 style="margin:0">Vincular CFDI al caso</h3><button class="btn" id="closeCfdiBtn">Cerrar</button></div>
+    <div class="card" style="max-width:920px;width:100%;background:#fff;max-height:90vh;display:flex;flex-direction:column">
+      <div class="row"><h3 style="margin:0">Asociar CFDI al caso</h3><button class="btn" id="closeCfdiBtn">Cerrar</button></div>
       <div class="stack" style="margin-top:16px">
-        <div>
-          <div class="label-text">CFDI ID <span class="muted" style="font-size:11px">(UUID interno KOGU)</span></div>
-          <input class="input" id="cfdi_id" placeholder="cfdi_id (uuid del CFDI)"/>
-          <div class="muted" style="margin-top:6px;font-size:11px">
-            Tip: lo obtienes desde la bandeja CFDI (columna ID) o desde la Bandeja de Defensa.
+        <div class="grid-2">
+          <div>
+            <div class="label-text">Buscar CFDI (UUID, RFC, serie, folio)</div>
+            <input class="input" id="cfdi_search" placeholder="Escribe para filtrar…" autocomplete="off"/>
+          </div>
+          <div>
+            <div class="label-text">Rol en el caso</div>
+            <select class="select" id="rol_en_caso">
+              ${Object.entries(ROL_CFDI_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div>
-          <div class="label-text">Rol en el caso</div>
-          <select class="select" id="rol_en_caso">
-            ${Object.entries(ROL_CFDI_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <div class="label-text">Observaciones</div>
+          <div class="label-text">Observaciones <span class="muted" style="font-size:11px">(opcional)</span></div>
           <input class="input" id="obs_cfdi"/>
         </div>
-        <div class="page-actions">
-          <button class="btn primary" id="submitCfdiBtn">Vincular</button>
-          <button class="btn" id="cancelCfdiBtn">Cancelar</button>
+        <div class="muted" style="font-size:12px">
+          Mostrando CFDI de la empresa activa. Selecciona uno para asociarlo al caso.
         </div>
+        <div class="table-wrap" style="flex:1;overflow:auto;max-height:48vh;border:1px solid #e2e8f0;border-radius:8px">
+          <table>
+            <thead style="position:sticky;top:0;background:#f8fafc">
+              <tr>
+                <th>UUID</th><th>Fecha</th><th>Scope</th><th>Tercero</th><th style="text-align:right">Total</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="cfdiPickerRows"></tbody>
+          </table>
+        </div>
+        <div class="muted" id="cfdiPickerMeta" style="font-size:12px"></div>
       </div>
     </div>
   </div>
@@ -195,11 +204,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${c.score_cfdi ?? '<span class="muted">—</span>'} ${c.nivel_cfdi ? '· ' + c.nivel_cfdi : ''}</td>
         <td>${KoguUi.escapeHtml(ROL_CFDI_LABELS[c.rol_en_caso] || c.rol_en_caso || '')}</td>
         <td>
-          <a class="btn" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(c.cfdi_id)}">Materialidad</a>
-          <button class="btn btn-detach" data-cfdi="${c.cfdi_id}">Desvincular</button>
+          <div class="actions-cell">
+            <a class="btn" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(c.cfdi_id)}">Materialidad</a>
+            <button class="btn btn-detach" data-cfdi="${c.cfdi_id}">Desvincular</button>
+          </div>
         </td>
       </tr>
-    `).join('') : '<tr><td colspan="8" class="empty">Sin CFDI vinculados. Usa "Vincular CFDI".</td></tr>';
+    `).join('') : '<tr><td colspan="8" class="empty">Sin CFDI asociados. Usa "Asociar CFDI al caso".</td></tr>';
 
     document.querySelectorAll('.btn-detach').forEach(btn => btn.onclick = async () => {
       if (!confirm('¿Desvincular este CFDI del caso?')) return;
@@ -218,8 +229,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${fmtBytes(e.size_bytes)}</td>
         <td>${fmtDate(e.created_at)}</td>
         <td>
-          ${e.storage_ref ? `<a class="btn" href="${KoguApi.getBaseUrl()}/protected/mat/caso-evidencias/${e.evidencia_caso_id}/archivo" target="_blank" rel="noopener">Descargar</a>` : ''}
-          <button class="btn btn-ev-delete" data-id="${e.evidencia_caso_id}">Eliminar</button>
+          <div class="actions-cell">
+            ${e.storage_ref ? `<a class="btn" href="${KoguApi.getBaseUrl()}/protected/mat/caso-evidencias/${e.evidencia_caso_id}/archivo" target="_blank" rel="noopener">Descargar</a>` : ''}
+            <button class="btn btn-ev-delete" data-id="${e.evidencia_caso_id}">Eliminar</button>
+          </div>
         </td>
       </tr>
     `).join('') : '<tr><td colspan="5" class="empty">Sin evidencias del caso</td></tr>';
@@ -234,27 +247,90 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ── Modal vincular CFDI ───────────────────────────────────────────────────
-  $('addCfdiBtn').onclick    = () => { ['cfdi_id','obs_cfdi'].forEach(id => $(id).value = ''); $('rol_en_caso').value = 'principal'; $('cfdiModal').style.display = 'flex'; };
-  $('closeCfdiBtn').onclick  = () => $('cfdiModal').style.display = 'none';
-  $('cancelCfdiBtn').onclick = () => $('cfdiModal').style.display = 'none';
-  $('submitCfdiBtn').onclick = async () => {
+  // ── Modal asociar CFDI con picker / búsqueda ──────────────────────────────
+  let _cfdiPickerData = [];
+  let _yaAsociados = new Set();
+
+  async function openCfdiPicker() {
+    $('obs_cfdi').value = '';
+    $('cfdi_search').value = '';
+    $('rol_en_caso').value = 'principal';
+    $('cfdiPickerRows').innerHTML = '<tr><td colspan="6" class="empty">Cargando CFDIs…</td></tr>';
+    $('cfdiPickerMeta').textContent = '';
+    $('cfdiModal').style.display = 'flex';
+
     try {
-      const cid = $('cfdi_id').value.trim();
-      if (!cid) throw new Error('CFDI ID es obligatorio.');
-      await KoguApi.apiFetch('/protected/mat/casos/' + casoId + '/cfdis', {
-        method: 'POST',
-        body: JSON.stringify({
-          cfdi_id: cid,
-          rol_en_caso: $('rol_en_caso').value,
-          observaciones: $('obs_cfdi').value || null,
-        }),
-      });
-      KoguApi.toast('CFDI vinculado al caso', 'success');
-      $('cfdiModal').style.display = 'none';
-      await loadAll();
-    } catch (e) { KoguApi.toast(e.message, 'error'); }
-  };
+      // Cargar IDs de CFDI ya asociados al caso para excluirlos
+      const casoRes = await KoguApi.apiFetch('/protected/mat/casos/' + casoId);
+      const casoData = KoguApi.unwrapData(casoRes) || {};
+      _yaAsociados = new Set((casoData.cfdis || []).map(c => String(c.cfdi_id)));
+
+      // Cargar CFDIs disponibles (toda la bandeja, hasta 200)
+      const res = await KoguApi.apiFetch('/protected/mat/bandeja-defensa?limit=200');
+      _cfdiPickerData = (KoguApi.unwrapRows(res) || []).filter(c => !_yaAsociados.has(String(c.cfdi_id)));
+      renderCfdiPicker();
+    } catch (e) {
+      $('cfdiPickerRows').innerHTML = `<tr><td colspan="6" class="empty">No fue posible cargar CFDIs: ${e.message}</td></tr>`;
+    }
+  }
+
+  function fmtMoneyShort(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:0}); }
+
+  function renderCfdiPicker() {
+    const q = ($('cfdi_search').value || '').toLowerCase().trim();
+    const rows = !q ? _cfdiPickerData : _cfdiPickerData.filter(r => {
+      const hay = `${r.cfdi_uuid || ''} ${r.serie || ''} ${r.folio || ''} ${r.emisor_rfc || ''} ${r.emisor_nombre || ''} ${r.receptor_rfc || ''} ${r.receptor_nombre || ''} ${r.total || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+
+    $('cfdiPickerRows').innerHTML = rows.length ? rows.slice(0, 100).map(r => {
+      const scopeEf = r.scope || (String(r.cfdi_origen || '').toUpperCase().includes('RECIB') ? 'RECIBIDO' : 'EMITIDO');
+      const tercero = scopeEf === 'RECIBIDO'
+        ? `${r.emisor_rfc || ''} · ${r.emisor_nombre || ''}`
+        : `${r.receptor_rfc || ''} · ${r.receptor_nombre || ''}`;
+      return `
+        <tr>
+          <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml((r.cfdi_uuid || '').slice(0, 8))}…
+              <div class="muted" style="font-size:10px">${KoguUi.escapeHtml((r.serie || '') + (r.folio ? '·' + r.folio : ''))}</div></td>
+          <td>${(r.fecha_emision || '').slice(0, 10)}</td>
+          <td>${scopeEf}</td>
+          <td style="font-size:12px">${KoguUi.escapeHtml(tercero)}</td>
+          <td style="text-align:right">${fmtMoneyShort(r.total, r.moneda)}</td>
+          <td><button class="btn primary btn-pick" data-cfdi="${KoguUi.escapeHtml(r.cfdi_id)}">Asociar</button></td>
+        </tr>
+      `;
+    }).join('') : `<tr><td colspan="6" class="empty">${
+      _cfdiPickerData.length === 0
+        ? 'No hay CFDIs disponibles para asociar (todos ya están en el caso o la empresa no tiene CFDIs).'
+        : 'Sin coincidencias con el filtro.'
+    }</td></tr>`;
+
+    $('cfdiPickerMeta').textContent = `${rows.length} de ${_cfdiPickerData.length} disponibles${rows.length > 100 ? ' (mostrando los primeros 100)' : ''}`;
+
+    document.querySelectorAll('.btn-pick').forEach(btn => btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = '...';
+      try {
+        await KoguApi.apiFetch('/protected/mat/casos/' + casoId + '/cfdis', {
+          method: 'POST',
+          body: JSON.stringify({
+            cfdi_id:       btn.dataset.cfdi,
+            rol_en_caso:   $('rol_en_caso').value,
+            observaciones: $('obs_cfdi').value || null,
+          }),
+        });
+        KoguApi.toast('CFDI asociado al caso', 'success');
+        $('cfdiModal').style.display = 'none';
+        await loadAll();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Asociar';
+        KoguApi.toast(e.message, 'error');
+      }
+    });
+  }
+
+  $('addCfdiBtn').onclick    = openCfdiPicker;
+  $('closeCfdiBtn').onclick  = () => $('cfdiModal').style.display = 'none';
+  document.addEventListener('input', (e) => { if (e.target.id === 'cfdi_search') renderCfdiPicker(); });
 
   // ── Modal evidencia del caso ──────────────────────────────────────────────
   $('addEvBtn').onclick     = () => { ['ev_tipo','ev_descripcion','ev_archivo'].forEach(id => $(id).value = ''); $('evModal').style.display = 'flex'; };
