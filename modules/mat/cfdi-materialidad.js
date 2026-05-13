@@ -1,7 +1,12 @@
 // ============================================================
 // cfdi-materialidad.js
-// Detalle de materialidad por CFDI: score, evidencias directas + heredadas
-// de casos, observaciones (razón de negocio).
+// Detalle de materialidad por CFDI:
+//   - Info completa del CFDI (cabecera fiscal, emisor/receptor, conceptos,
+//     totales, control SAT) replicando el formato del detalle CFDI original.
+//   - Score de materialidad con cobertura de evidencias.
+//   - Evidencias directas + heredadas de casos.
+//   - Observaciones / razón de negocio.
+//
 // Sub-proyecto: materialidad-v1 — Iteración 1.
 // ============================================================
 
@@ -48,7 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage:        '/modules/mat/bandeja-defensa.html',
     title:              'Materialidad del CFDI',
-    description:        'Score, evidencias y observaciones (razón de negocio) para defensa fiscal.',
+    description:        'Detalle fiscal + score de materialidad + evidencias + observaciones para defensa.',
     requiredPermission: 'screen.mat.cfdi_detalle',
   });
   if (!b) return;
@@ -64,7 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <h2 id="cfdiTitle">Cargando…</h2>
         <div id="cfdiSubtitle" class="muted" style="margin-top:6px"></div>
       </div>
-      <div style="text-align:right;min-width:200px">
+      <div style="text-align:right;min-width:220px">
         <div class="muted" style="font-size:11px">Score de materialidad</div>
         <div id="scoreNum" style="font-size:42px;font-weight:700">—</div>
         <div id="nivelChip"></div>
@@ -75,8 +80,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="/modules/mat/bandeja-defensa.html">← Volver a bandeja</a>
       <button class="btn primary" id="recalcBtn">Recalcular score</button>
+      <a class="btn" id="detalleCfdiLink" target="_blank" rel="noopener">Ver detalle CFDI completo →</a>
     </div>
     <div id="cobertura" style="margin-top:14px"></div>
+  </div>
+
+  <!-- ── DETALLE FISCAL DEL CFDI ──────────────────────────────────────── -->
+  <div class="card" id="cfdiFiscalCard">
+    <div class="row">
+      <div><div class="eyebrow">Información fiscal</div><h2>Detalle del CFDI</h2></div>
+      <span class="chip" id="origenChip"></span>
+    </div>
+    <div id="fiscalHeader" style="margin-top:14px"></div>
+
+    <div class="split" style="margin-top:14px">
+      <div>
+        <div class="eyebrow">Emisor</div>
+        <div id="emisorBlock" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <div class="eyebrow">Receptor</div>
+        <div id="receptorBlock" style="margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px">
+      <div class="eyebrow">Conceptos</div>
+      <div class="table-wrap" style="margin-top:6px">
+        <table id="conceptosTable">
+          <thead><tr>
+            <th>#</th><th>Clave</th><th style="text-align:right">Cantidad</th>
+            <th>Unidad</th><th>Descripción</th>
+            <th style="text-align:right">V. unitario</th>
+            <th style="text-align:right">Descuento</th>
+            <th style="text-align:right">Importe</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="split" style="margin-top:18px">
+      <div>
+        <div class="eyebrow">Totales</div>
+        <div id="totalesBlock" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <div class="eyebrow">Control SAT · Semáforo fiscal</div>
+        <div id="controlSatBlock" style="margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px" id="relacionesWrap">
+      <div class="eyebrow">Trazabilidad SAT</div>
+      <div id="relacionesBlock" style="margin-top:6px"></div>
+    </div>
   </div>
 
   <!-- Evidencias -->
@@ -87,9 +145,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div style="margin-top:8px" class="muted" id="evCounter"></div>
     <div class="table-wrap" style="margin-top:16px">
-      <table><thead><tr>
-        <th>Tipo</th><th>Origen</th><th>Caso (si hereda)</th><th>Descripción</th><th>Validado</th><th>Acciones</th>
-      </tr></thead><tbody id="evRows"></tbody></table>
+      <table id="evTable">
+        <thead><tr>
+          <th>Tipo</th><th>Origen</th><th>Caso (si hereda)</th><th>Descripción</th><th>Validado</th><th></th>
+        </tr></thead>
+        <tbody id="evRows"></tbody>
+      </table>
     </div>
   </div>
 
@@ -100,13 +161,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="addObsBtn">Nueva observación</button>
     </div>
     <div class="table-wrap" style="margin-top:16px">
-      <table><thead><tr>
-        <th>Fecha</th><th>Tipo</th><th>Autor</th><th>Texto</th>
-      </tr></thead><tbody id="obsRows"></tbody></table>
+      <table id="obsTable">
+        <thead><tr>
+          <th>Fecha</th><th>Tipo</th><th>Autor</th><th>Texto</th>
+        </tr></thead>
+        <tbody id="obsRows"></tbody>
+      </table>
     </div>
   </div>
 
-  <!-- Modal adjuntar evidencia (con archivo) -->
+  <!-- Modal adjuntar evidencia -->
   <div id="evModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:50;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="max-width:520px;width:100%;background:#fff">
       <div class="row"><h3 style="margin:0">Adjuntar evidencia</h3><button class="btn" id="closeEvBtn">Cerrar</button></div>
@@ -161,6 +225,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const $ = id => document.getElementById(id);
 
+  // ── Helpers de formato ────────────────────────────────────────────────────
+  function n(v){ const x = Number(v||0); return Number.isFinite(x) ? x : 0; }
+  function asText(v, d='—'){ return (v === null || v === undefined || v === '') ? d : String(v); }
+  function fmtMoney(v, mon='MXN'){
+    if (v === null || v === undefined || v === '') return '—';
+    return Number(v).toLocaleString('es-MX', { style: 'currency', currency: mon, minimumFractionDigits: 2 });
+  }
+  function shortDate(v){ if(!v) return '—'; const d = new Date(v); if (Number.isNaN(d.getTime())) return asText(v); return d.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' }); }
+  function dateTimeText(v){ if(!v) return '—'; const d = new Date(v); if (Number.isNaN(d.getTime())) return asText(v); return d.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+
   function nivelBadge(n) {
     if (!n) return '';
     const c = n === 'BAJO' ? '#16a34a' : n === 'MEDIO' ? '#ca8a04' : n === 'ALTO' ? '#ea580c' : '#dc2626';
@@ -183,14 +257,46 @@ document.addEventListener('DOMContentLoaded', async () => {
             : '#64748b';
     return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">EFOS: ${e}</span>`;
   }
-  function fmtDate(d){ if(!d) return ''; return new Date(d).toLocaleString('es-MX'); }
+  function rowKV(label, value) {
+    return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px dashed #e2e8f0;font-size:13px">
+      <div style="min-width:160px;color:var(--muted,#64748b);font-size:12px">${KoguUi.escapeHtml(label)}</div>
+      <div style="flex:1;font-weight:500">${value}</div>
+    </div>`;
+  }
+
+  function relationLabel(code) {
+    const k = String(code || '').padStart(2, '0');
+    const map = {
+      '01':'Nota de crédito','02':'Nota de débito','03':'Devolución de mercancía',
+      '04':'Sustitución de CFDI previos','05':'Traslados facturados previamente',
+      '06':'Factura por traslados previos','07':'CFDI por aplicación de anticipo',
+    };
+    return map[k] || 'Relación SAT';
+  }
+  function efosTextFromCode(code) {
+    const c = String(code || '').trim();
+    if (c === '200') return 'Sin alerta';
+    if (c === '100') return 'Alerta EFOS';
+    if (c === '101' || c === '201') return 'Revisión fiscal';
+    if (c) return 'Otro código SAT';
+    return 'Sin validación';
+  }
 
   // ── Loaders ───────────────────────────────────────────────────────────────
-  async function loadScore() {
+  let _uuidCfdi = null;
+
+  async function loadScoreYHeader() {
+    let s = null;
     try {
       const res = await KoguApi.apiFetch('/protected/mat/score/' + cfdiId);
-      const s = KoguApi.unwrapData(res);
-
+      s = KoguApi.unwrapData(res);
+    } catch (_) {
+      s = null;
+    }
+    if (s) {
+      $('cfdiTitle').textContent = s.uuid ? `UUID ${s.uuid}` : 'CFDI ' + cfdiId;
+      $('cfdiSubtitle').textContent = (s.scope || '') + (s.uuid ? ` · ${s.uuid}` : '');
+      _uuidCfdi = s.uuid;
       $('scoreNum').textContent = s.score ?? '—';
       $('nivelChip').innerHTML  = nivelBadge(s.nivel);
       $('estatusChip').innerHTML = estatusBadge(s.estatus_defensa);
@@ -208,22 +314,148 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         ${req.length === 0 ? '<div class="muted" style="margin-top:8px;font-size:11px">No hay reglas aplicables a este CFDI todavía. Ve a Materialidad → Reglas.</div>' : ''}
       `;
-    } catch (e) {
-      $('scoreNum').textContent = '—';
+    } else {
+      $('cfdiTitle').textContent = 'CFDI ' + cfdiId;
       $('cobertura').innerHTML = '<div class="muted" style="font-size:12px">Score aún no calculado. Presiona <strong>Recalcular score</strong>.</div>';
     }
   }
 
-  async function loadCfdiHeader() {
-    // Reusa la query de bandeja con filtro por uuid no es trivial; aprovechamos
-    // que el endpoint de score ya devuelve uuid, scope y datos básicos.
+  async function loadFichaCfdi() {
+    if (!_uuidCfdi) {
+      $('cfdiFiscalCard').style.display = 'none';
+      return;
+    }
+    let ficha;
     try {
-      const res = await KoguApi.apiFetch('/protected/mat/score/' + cfdiId);
-      const s = KoguApi.unwrapData(res);
-      $('cfdiTitle').textContent = (s.uuid ? `UUID ${s.uuid}` : 'CFDI');
-      $('cfdiSubtitle').textContent = (s.scope || '') + (s.uuid ? ` · ${s.uuid}` : '');
-    } catch (_) {
-      $('cfdiTitle').textContent = 'CFDI ' + cfdiId;
+      const res = await KoguApi.apiFetch('/cfdi/protected/cfdi/facturas/' + encodeURIComponent(_uuidCfdi));
+      ficha = KoguApi.unwrapData(res) || {};
+    } catch (e) {
+      $('cfdiFiscalCard').innerHTML = `<div class="muted">No fue posible cargar el detalle fiscal del CFDI: ${e.message}</div>`;
+      return;
+    }
+
+    // Link al detalle CFDI completo (XML, JSON, PDF)
+    $('detalleCfdiLink').href = '/modules/cfdi/detalle/detalle.html?uuid=' + encodeURIComponent(_uuidCfdi);
+
+    // ── Origen chip ─────
+    const origen = (ficha.origen || '').toUpperCase();
+    const origenColor = origen === 'RECIBIDO' ? '#0e7490' : origen === 'EMITIDO' ? '#7c3aed' : '#64748b';
+    $('origenChip').style.cssText = `background:${origenColor}1a;color:${origenColor};border:1px solid ${origenColor}55`;
+    $('origenChip').textContent = origen || 'CFDI';
+
+    // ── Cabecera fiscal ─────
+    $('fiscalHeader').innerHTML = `
+      <div class="grid-2" style="gap:0">
+        <div style="padding-right:14px">
+          ${rowKV('UUID', `<span style="font-family:monospace;font-size:12px">${KoguUi.escapeHtml(ficha.uuid || _uuidCfdi)}</span>`)}
+          ${rowKV('Serie / Folio', `${asText(ficha.serie)} / ${asText(ficha.folio)}`)}
+          ${rowKV('Fecha emisión', shortDate(ficha.fecha_emision || ficha.fecha))}
+          ${rowKV('Timbrado', dateTimeText(ficha.fecha_timbrado))}
+          ${rowKV('Lugar expedición', asText(ficha.lugar_expedicion))}
+        </div>
+        <div style="padding-left:14px;border-left:1px solid #e2e8f0">
+          ${rowKV('Tipo comprobante', asText(ficha.tipo_comprobante))}
+          ${rowKV('Método de pago', asText(ficha.metodo_pago))}
+          ${rowKV('Forma de pago', asText(ficha.forma_pago))}
+          ${rowKV('Moneda', asText(ficha.moneda) + (ficha.tipo_cambio ? ` (TC ${ficha.tipo_cambio})` : ''))}
+          ${rowKV('Uso CFDI', asText(ficha.uso_cfdi))}
+        </div>
+      </div>
+    `;
+
+    // ── Emisor / Receptor ─────
+    $('emisorBlock').innerHTML = `
+      <div style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="font-weight:600;font-size:14px">${KoguUi.escapeHtml(ficha.emisor_nombre || ficha.emisor || '—')}</div>
+        <div class="muted" style="margin-top:4px;font-size:12px">RFC: <span style="font-family:monospace">${KoguUi.escapeHtml(ficha.emisor_rfc || '—')}</span></div>
+        ${ficha.emisor_regimen ? `<div class="muted" style="margin-top:2px;font-size:12px">Régimen: ${KoguUi.escapeHtml(ficha.emisor_regimen)}</div>` : ''}
+      </div>
+    `;
+    $('receptorBlock').innerHTML = `
+      <div style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="font-weight:600;font-size:14px">${KoguUi.escapeHtml(ficha.receptor_nombre || ficha.receptor || '—')}</div>
+        <div class="muted" style="margin-top:4px;font-size:12px">RFC: <span style="font-family:monospace">${KoguUi.escapeHtml(ficha.receptor_rfc || '—')}</span></div>
+        ${ficha.receptor_uso_cfdi ? `<div class="muted" style="margin-top:2px;font-size:12px">Uso CFDI: ${KoguUi.escapeHtml(ficha.receptor_uso_cfdi)}</div>` : ''}
+        ${ficha.receptor_regimen_fiscal ? `<div class="muted" style="margin-top:2px;font-size:12px">Régimen: ${KoguUi.escapeHtml(ficha.receptor_regimen_fiscal)}</div>` : ''}
+      </div>
+    `;
+
+    // ── Conceptos ─────
+    const conceptos = Array.isArray(ficha.conceptos) ? ficha.conceptos
+                    : Array.isArray(ficha.detalle)   ? ficha.detalle
+                    : Array.isArray(ficha.lineas)    ? ficha.lineas
+                    : [];
+    const conceptosBody = $('conceptosTable').querySelector('tbody');
+    conceptosBody.innerHTML = conceptos.length ? conceptos.map((c, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(c.clave_prod || c.clave || c.clave_prodserv || '—')}</td>
+        <td style="text-align:right">${asText(c.cantidad)}</td>
+        <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(c.unidad || c.clave_unidad || '—')}</td>
+        <td>${KoguUi.escapeHtml(c.descripcion || '—')}</td>
+        <td style="text-align:right">${fmtMoney(c.valor_unit ?? c.valor_unitario, ficha.moneda)}</td>
+        <td style="text-align:right">${fmtMoney(c.descuento || 0, ficha.moneda)}</td>
+        <td style="text-align:right;font-weight:600">${fmtMoney(c.importe, ficha.moneda)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="8" class="empty">Sin conceptos disponibles</td></tr>';
+
+    // ── Totales ─────
+    $('totalesBlock').innerHTML = `
+      <div style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        ${rowKV('Subtotal', `<strong>${fmtMoney(ficha.subtotal, ficha.moneda)}</strong>`)}
+        ${rowKV('Impuestos trasladados', fmtMoney(ficha.impuestos_tras || ficha.total_impuestos_trasladados || 0, ficha.moneda))}
+        ${rowKV('Retenciones', fmtMoney(ficha.impuestos_ret || ficha.total_impuestos_retenidos || 0, ficha.moneda))}
+        ${ficha.impuestos_ret_iva ? rowKV('Retención IVA', fmtMoney(ficha.impuestos_ret_iva, ficha.moneda)) : ''}
+        ${ficha.impuestos_ret_isr ? rowKV('Retención ISR', fmtMoney(ficha.impuestos_ret_isr, ficha.moneda)) : ''}
+        <div style="margin-top:6px;padding-top:8px;border-top:2px solid #0f172a;display:flex;justify-content:space-between;font-size:16px;font-weight:700">
+          <span>Total</span>
+          <span>${fmtMoney(ficha.total, ficha.moneda)}</span>
+        </div>
+      </div>
+    `;
+
+    // ── Control SAT ─────
+    const estatusSat = (ficha.estatus_sat || '').toString().toUpperCase();
+    const estatusColor = estatusSat === 'VIGENTE' ? '#16a34a' : estatusSat === 'CANCELADO' ? '#dc2626' : '#64748b';
+    const efosText = efosTextFromCode(ficha.validacion_efos);
+    const efosColor = /alerta/i.test(efosText) ? '#dc2626' : /revisi/i.test(efosText) ? '#ea580c' : /sin alerta/i.test(efosText) ? '#16a34a' : '#64748b';
+    $('controlSatBlock').innerHTML = `
+      <div style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <span class="chip" style="background:${estatusColor}1a;color:${estatusColor};border:1px solid ${estatusColor}55">${estatusSat || '—'}</span>
+          <span class="chip" style="background:${efosColor}1a;color:${efosColor};border:1px solid ${efosColor}55">${efosText}</span>
+        </div>
+        ${rowKV('Última consulta SAT', dateTimeText(ficha.fecha_ultima_consulta_sat))}
+        ${rowKV('Origen consulta', asText(ficha.origen_consulta))}
+        ${rowKV('Es cancelable', asText(ficha.es_cancelable))}
+        ${rowKV('Estatus cancelación', asText(ficha.estatus_cancelacion))}
+        ${rowKV('Validación EFOS (código)', asText(ficha.validacion_efos))}
+        ${rowKV('Fecha cancelación', shortDate(ficha.fecha_cancelacion))}
+        ${rowKV('Paquete origen', `<span style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(ficha.cfdi_paquete_id || '—')}</span>`)}
+      </div>
+    `;
+
+    // ── Trazabilidad / Relaciones ─────
+    const rels = Array.isArray(ficha.relaciones) ? ficha.relaciones : [];
+    if (rels.length === 0) {
+      $('relacionesBlock').innerHTML = '<div class="muted" style="font-size:12px">Sin relaciones registradas en la ficha.</div>';
+    } else {
+      $('relacionesBlock').innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tipo</th><th>UUID relacionado</th><th>Descripción</th></tr></thead>
+            <tbody>
+              ${rels.map(r => `
+                <tr>
+                  <td><span class="chip">${asText(r.tipo_relacion)}</span></td>
+                  <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(r.uuid_relacionado || '—')}</td>
+                  <td>${KoguUi.escapeHtml(relationLabel(r.tipo_relacion))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
   }
 
@@ -267,7 +499,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${KoguUi.escapeHtml(ORIGEN_LABELS[e.origen] || e.origen)}${heredada ? ' <span class="chip" style="background:#7c3aed1a;color:#7c3aed;border:1px solid #7c3aed55">heredada</span>' : ''}</td>
         <td>${caso}</td>
         <td>${KoguUi.escapeHtml(e.descripcion || '')}</td>
-        <td>${e.validado_at ? '✓ ' + fmtDate(e.validado_at) : '<span class="muted">—</span>'}</td>
+        <td>${e.validado_at ? '✓ ' + dateTimeText(e.validado_at) : '<span class="muted">—</span>'}</td>
         <td><div class="actions-cell">${descargar} ${delBtn}</div></td>
       </tr>`;
   }
@@ -277,7 +509,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const obs = KoguApi.unwrapRows(res) || [];
     $('obsRows').innerHTML = obs.length ? obs.map(o => `
       <tr>
-        <td>${fmtDate(o.created_at)}</td>
+        <td>${dateTimeText(o.created_at)}</td>
         <td>${KoguUi.escapeHtml(TIPO_OBS_LABELS[o.tipo] || o.tipo)}</td>
         <td>${KoguUi.escapeHtml(o.autor_nombre || '—')}</td>
         <td>${KoguUi.escapeHtml(o.texto || '')}</td>
@@ -286,7 +518,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function reload() {
-    await Promise.all([loadCfdiHeader(), loadScore(), loadEvidencias(), loadObservaciones()]);
+    // Score primero porque devuelve el UUID para luego pedir la ficha CFDI
+    await loadScoreYHeader();
+    await Promise.all([
+      loadFichaCfdi(),
+      loadEvidencias(),
+      loadObservaciones(),
+    ]);
   }
 
   // ── Acciones ──────────────────────────────────────────────────────────────
@@ -327,7 +565,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       KoguApi.toast('Evidencia adjuntada. Recalculando score…', 'success');
       $('evModal').style.display = 'none';
-      // Recalcular score automáticamente al adjuntar evidencia
       await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
       await reload();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
@@ -346,7 +583,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       KoguApi.toast('Observación registrada', 'success');
       $('obsModal').style.display = 'none';
-      // Si es razón de negocio, recalcular score (limpia el castigo -10)
       if (body.tipo === 'razon_negocio') {
         await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
       }
