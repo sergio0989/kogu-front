@@ -24,35 +24,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 
   <div class="grid-2" style="margin-top:16px;gap:8px">
-    <select class="select" id="fNivel">
-      <option value="">Todos los niveles</option>
-      <option value="BAJO">BAJO</option><option value="MEDIO">MEDIO</option>
-      <option value="ALTO">ALTO</option><option value="CRITICO">CRÍTICO</option>
-    </select>
-    <select class="select" id="fEstatus">
-      <option value="">Cualquier estatus de defensa</option>
-      <option value="sin_iniciar">Sin iniciar</option>
-      <option value="en_armado">En armado</option>
-      <option value="completo">Completo</option>
-      <option value="insuficiente">Insuficiente</option>
-      <option value="requiere_aprobacion">Requiere aprobación</option>
-      <option value="cerrado">Cerrado</option>
-    </select>
+    <div>
+      <div class="label-text">Tipo CFDI</div>
+      <select class="select" id="fTipo">
+        <option value="I" selected>Ingreso (compras / ventas)</option>
+        <option value="E">Egreso (notas de crédito)</option>
+        <option value="T">Traslado</option>
+        <option value="P">Pago (REP)</option>
+        <option value="N">Nómina</option>
+        <option value="">Todos los tipos</option>
+      </select>
+    </div>
+    <div>
+      <div class="label-text">Scope</div>
+      <select class="select" id="fScope">
+        <option value="RECIBIDO" selected>Recibidos (defensa de deducciones)</option>
+        <option value="EMITIDO">Emitidos</option>
+        <option value="">Emitidos y recibidos</option>
+      </select>
+    </div>
   </div>
 
   <div class="grid-2" style="margin-top:8px;gap:8px">
-    <select class="select" id="fScope">
-      <option value="">Emitidos y recibidos</option>
-      <option value="EMITIDO">Emitidos</option>
-      <option value="RECIBIDO">Recibidos</option>
-    </select>
-    <select class="select" id="fEfos">
-      <option value="">Cualquier estado EFOS/69-B</option>
-      <option value="presunto">Presunto</option>
-      <option value="definitivo">Definitivo</option>
-      <option value="desvirtuado">Desvirtuado</option>
-      <option value="sentencia">Sentencia favorable</option>
-    </select>
+    <div>
+      <div class="label-text">Nivel</div>
+      <select class="select" id="fNivel">
+        <option value="">Todos los niveles</option>
+        <option value="BAJO">BAJO</option><option value="MEDIO">MEDIO</option>
+        <option value="ALTO">ALTO</option><option value="CRITICO">CRÍTICO</option>
+      </select>
+    </div>
+    <div>
+      <div class="label-text">Estatus defensa</div>
+      <select class="select" id="fEstatus">
+        <option value="">Cualquier estatus</option>
+        <option value="sin_iniciar">Sin iniciar</option>
+        <option value="en_armado">En armado</option>
+        <option value="completo">Completo</option>
+        <option value="insuficiente">Insuficiente</option>
+        <option value="requiere_aprobacion">Requiere aprobación</option>
+        <option value="cerrado">Cerrado</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:8px;gap:8px">
+    <div>
+      <div class="label-text">EFOS / 69-B</div>
+      <select class="select" id="fEfos">
+        <option value="">Cualquier estado EFOS/69-B</option>
+        <option value="presunto">Presunto</option>
+        <option value="definitivo">Definitivo</option>
+        <option value="desvirtuado">Desvirtuado</option>
+        <option value="sentencia">Sentencia favorable</option>
+      </select>
+    </div>
+    <div></div>
   </div>
 
   <div class="grid-2" style="margin-top:8px;gap:8px">
@@ -99,6 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function load() {
     const p = new URLSearchParams();
     const set = (k, id) => { const v = $(id).value.trim(); if (v) p.set(k, v); };
+    set('tipo_cfdi','fTipo');
     set('nivel','fNivel');
     set('estatus_defensa','fEstatus');
     set('scope','fScope');
@@ -161,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  ['fNivel','fEstatus','fScope','fEfos','fFrom','fTo'].forEach(id => $(id).onchange = load);
+  ['fTipo','fNivel','fEstatus','fScope','fEfos','fFrom','fTo'].forEach(id => $(id).onchange = load);
   $('refreshBtn').onclick = load;
 
   // Recalcular pendientes (lote de hasta 50 por click)
