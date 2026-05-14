@@ -251,6 +251,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let _cfdiPickerData = [];
   let _yaAsociados = new Set();
 
+  let _searchDebounce = null;
+  let _lastSearchToken = 0;
+
   async function openCfdiPicker() {
     $('obs_cfdi').value = '';
     $('cfdi_search').value = '';
@@ -265,23 +268,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       const casoData = KoguApi.unwrapData(casoRes) || {};
       _yaAsociados = new Set((casoData.cfdis || []).map(c => String(c.cfdi_id)));
 
-      // Cargar CFDIs disponibles (toda la bandeja, hasta 200)
-      const res = await KoguApi.apiFetch('/protected/mat/bandeja-defensa?limit=200');
-      _cfdiPickerData = (KoguApi.unwrapRows(res) || []).filter(c => !_yaAsociados.has(String(c.cfdi_id)));
-      renderCfdiPicker();
+      // Carga inicial: top 200 CFDIs de la empresa
+      await fetchPickerData('');
     } catch (e) {
       $('cfdiPickerRows').innerHTML = `<tr><td colspan="6" class="empty">No fue posible cargar CFDIs: ${e.message}</td></tr>`;
+    }
+  }
+
+  // Llama al backend con el filtro libre (UUID, RFC, serie, folio, nombre).
+  // Si q vacío, devuelve el top 200; con q, el backend filtra y devuelve coincidencias.
+  async function fetchPickerData(q) {
+    const myToken = ++_lastSearchToken;
+    const url = q
+      ? '/protected/mat/bandeja-defensa?limit=200&q=' + encodeURIComponent(q)
+      : '/protected/mat/bandeja-defensa?limit=200';
+    try {
+      const res = await KoguApi.apiFetch(url);
+      // Si llegó una respuesta tarde después de otra búsqueda, descartar
+      if (myToken !== _lastSearchToken) return;
+      const rows = (KoguApi.unwrapRows(res) || []).filter(c => !_yaAsociados.has(String(c.cfdi_id)));
+      _cfdiPickerData = rows;
+      renderCfdiPicker();
+    } catch (e) {
+      if (myToken !== _lastSearchToken) return;
+      $('cfdiPickerRows').innerHTML = `<tr><td colspan="6" class="empty">Error al buscar CFDIs: ${e.message}</td></tr>`;
     }
   }
 
   function fmtMoneyShort(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:0}); }
 
   function renderCfdiPicker() {
-    const q = ($('cfdi_search').value || '').toLowerCase().trim();
-    const rows = !q ? _cfdiPickerData : _cfdiPickerData.filter(r => {
-      const hay = `${r.cfdi_uuid || ''} ${r.serie || ''} ${r.folio || ''} ${r.emisor_rfc || ''} ${r.emisor_nombre || ''} ${r.receptor_rfc || ''} ${r.receptor_nombre || ''} ${r.total || ''}`.toLowerCase();
-      return hay.includes(q);
-    });
+    // Búsqueda híbrida: si el usuario escribió texto, _cfdiPickerData ya viene
+    // del backend con esa coincidencia. Aquí solo renderiza tal cual.
+    const rows = _cfdiPickerData;
 
     $('cfdiPickerRows').innerHTML = rows.length ? rows.slice(0, 100).map(r => {
       const scopeEf = r.scope || (String(r.cfdi_origen || '').toUpperCase().includes('RECIB') ? 'RECIBIDO' : 'EMITIDO');
@@ -300,12 +319,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr>
       `;
     }).join('') : `<tr><td colspan="6" class="empty">${
-      _cfdiPickerData.length === 0
-        ? 'No hay CFDIs disponibles para asociar (todos ya están en el caso o la empresa no tiene CFDIs).'
-        : 'Sin coincidencias con el filtro.'
+      ($('cfdi_search').value || '').trim()
+        ? 'Sin coincidencias para "' + KoguUi.escapeHtml($('cfdi_search').value.trim()) + '". Prueba con UUID, RFC, serie, folio o nombre del tercero.'
+        : 'No hay CFDIs disponibles para asociar (todos ya están en el caso o la empresa no tiene CFDIs).'
     }</td></tr>`;
 
-    $('cfdiPickerMeta').textContent = `${rows.length} de ${_cfdiPickerData.length} disponibles${rows.length > 100 ? ' (mostrando los primeros 100)' : ''}`;
+    const filtroActivo = ($('cfdi_search').value || '').trim();
+    $('cfdiPickerMeta').textContent = filtroActivo
+      ? `${rows.length} coincidencias${rows.length > 100 ? ' (mostrando las primeras 100)' : ''} para "${filtroActivo}"`
+      : `${rows.length} CFDIs cargados (top más reciente). Escribe para buscar en todos.`;
 
     document.querySelectorAll('.btn-pick').forEach(btn => btn.onclick = async () => {
       btn.disabled = true; btn.textContent = '...';
@@ -330,7 +352,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('addCfdiBtn').onclick    = openCfdiPicker;
   $('closeCfdiBtn').onclick  = () => $('cfdiModal').style.display = 'none';
-  document.addEventListener('input', (e) => { if (e.target.id === 'cfdi_search') renderCfdiPicker(); });
+
+  // Debounce de 300ms — cada tecla en el buscador refresca desde backend.
+  // El backend filtra por UUID, RFC, nombre, serie, folio (V053+).
+  document.addEventListener('input', (e) => {
+    if (e.target.id !== 'cfdi_search') return;
+    const q = (e.target.value || '').trim();
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(() => fetchPickerData(q), 300);
+  });
 
   // ── Modal evidencia del caso ──────────────────────────────────────────────
   $('addEvBtn').onclick     = () => { ['ev_tipo','ev_descripcion','ev_archivo'].forEach(id => $(id).value = ''); $('evModal').style.display = 'flex'; };
