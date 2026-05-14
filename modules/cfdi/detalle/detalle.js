@@ -34,26 +34,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   if (!boot) return;
 
-  // En modo embedded, eliminar físicamente los elementos del shell del DOM
-  // (más confiable que CSS, porque el shell agrega sus propios estilos
-  // inline y selectores específicos que pueden ganar al cascade).
+  // En modo embedded: extraer #pageContent del shell y eliminar el resto.
+  // El shell del KOGU envuelve todo en <div class="layout"><aside/><main>...
+  // <section id="pageContent"></section></main></div>. Solo "esconder" el
+  // topbar o sidebar deja el grid del layout activo y el espacio en blanco.
+  // La solución correcta es mover #pageContent al body y borrar el resto.
   if (isEmbedded) {
-    const stripSelectors = [
-      'aside.sidebar', '.sidebar',
-      'header.topbar', '.topbar',
-      '[data-kogu-sidebar]', '[data-kogu-topbar]',
-      '.sidebar-toggle', '#sidebarToggleBtnTopbar',
-    ];
-    stripSelectors.forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => { try { el.remove(); } catch(_){} });
-    });
-    // Reset del grid del body en caso de que el shell lo haya cambiado
-    document.body.style.cssText = 'padding:0;margin:0;display:block;background:#fff';
-    // Asegurar que #pageContent ocupa todo el ancho
-    const pc = document.getElementById('pageContent');
-    if (pc) {
-      pc.style.cssText = 'padding:16px;max-width:100%;margin:0';
-    }
+    const promoteAndStrip = () => {
+      const pc = document.getElementById('pageContent');
+      if (pc && pc.parentElement !== document.body) {
+        document.body.appendChild(pc);
+      }
+      // Eliminar cualquier residuo: app shell + sidebar + topbar + etc.
+      ['#app', 'aside.sidebar', '.sidebar', 'header.topbar', '.topbar',
+       'main.main', '.layout', '.topbar-cards', '.top-mini', '.topbar-leading',
+       '.sidebar-toggle', '#sidebarToggleBtnTopbar',
+       '[data-kogu-sidebar]', '[data-kogu-topbar]',
+      ].forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+          if (el.id !== 'pageContent' && !el.contains(document.getElementById('pageContent'))) {
+            try { el.remove(); } catch(_){}
+          }
+        });
+      });
+      // Reset body para que no tenga grid heredado
+      document.body.style.cssText = 'padding:0;margin:0;display:block;background:#fff';
+      if (pc) pc.style.cssText = 'padding:16px;max-width:100%;margin:0';
+    };
+
+    promoteAndStrip();
+    // Re-ejecutar en próximos ticks por si el shell vuelve a renderizar algo
+    setTimeout(promoteAndStrip, 0);
+    setTimeout(promoteAndStrip, 200);
+    // Observer para reinserciones inesperadas (max 3 segundos vigilando)
+    const obs = new MutationObserver(() => promoteAndStrip());
+    obs.observe(document.body, { childList: true, subtree: false });
+    setTimeout(() => obs.disconnect(), 3000);
   }
 
   const c = document.getElementById('pageContent');
