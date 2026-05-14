@@ -126,6 +126,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 
   <div id="meta" class="muted" style="margin-top:10px;font-size:12px"></div>
+  <div id="bannerLimite" style="display:none;margin-top:10px;padding:10px 14px;background:#fefce8;border:1px solid #fde047;border-radius:8px;font-size:12px;color:#854d0e">
+    ⚠️ <strong>Vista limitada:</strong> Se están mostrando los primeros <strong id="bannerLimiteN"></strong> CFDIs. Usa los filtros (fecha, nivel, scope) para acotar la búsqueda y ver el rango que necesitas.
+  </div>
 </div>`;
 
   const $ = id => document.getElementById(id);
@@ -155,11 +158,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   function fmtDate(d){ if(!d) return ''; return new Date(d).toLocaleDateString('es-MX'); }
   function fmtMoney(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:2}); }
 
-  // Estado de paginación cliente
-  let _allRows = [];
+  // Estado de paginación server-side
+  let _pageRows    = [];   // filas de la página actual (viene del servidor)
+  let _total       = 0;   // total de registros con los filtros activos
+  let _totalConScore  = 0;
+  let _totalSinScore  = 0;
   let _currentPage = 1;
 
   async function load(opts = {}) {
+    if (opts.resetPage !== false) _currentPage = 1;
+
+    const pageSize = Number($('pgSize').value) || 50;
+    const offset   = (_currentPage - 1) * pageSize;
+
     const p = new URLSearchParams();
     const set = (k, id) => { const v = $(id).value.trim(); if (v) p.set(k, v); };
     set('tipo_cfdi','fTipo');
@@ -170,27 +181,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     set('from','fFrom');
     set('to','fTo');
     set('q','fQ');
-    p.set('limit', '500'); // suficiente para paginar cliente; el filtro q reduce más
-    const qs = '?' + p.toString();
-    const res = await KoguApi.apiFetch('/protected/mat/bandeja-defensa' + qs);
-    _allRows = KoguApi.unwrapRows(res) || [];
-    if (opts.resetPage !== false) _currentPage = 1;
+    p.set('limit',  String(pageSize));
+    p.set('offset', String(offset));
+
+    const res      = await KoguApi.apiFetch('/protected/mat/bandeja-defensa?' + p.toString());
+    const data     = KoguApi.unwrapData(res) || {};
+    _pageRows      = data.rows          || [];
+    _total         = data.total         || 0;
+    _totalConScore = data.totalConScore || 0;
+    _totalSinScore = data.totalSinScore || 0;
+
+    // Ocultar banner (ya no aplica con paginación real)
+    $('bannerLimite').style.display = 'none';
+
     renderPage();
   }
 
   function renderPage() {
-    const pageSize = Number($('pgSize').value) || 50;
-    const total = _allRows.length;
+    const pageSize  = Number($('pgSize').value) || 50;
+    const total     = _total;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     if (_currentPage > totalPages) _currentPage = totalPages;
     if (_currentPage < 1) _currentPage = 1;
 
     const from = total === 0 ? 0 : (_currentPage - 1) * pageSize;
-    const to = Math.min(_currentPage * pageSize, total);
-    const pageRows = _allRows.slice(from, to);
+    const to   = Math.min(from + _pageRows.length, total);
+    const pageRows = _pageRows;
 
-    let conScore = 0, sinScore = 0;
-    for (const r of _allRows) { if (r.score_id != null) conScore++; else sinScore++; }
+    const conScore  = _totalConScore;
+    const sinScore  = _totalSinScore;
 
     $('rows').innerHTML = pageRows.length ? pageRows.map(r => {
       const tieneScore = r.score_id != null;
@@ -278,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.querySelectorAll('.pgN').forEach(b => b.onclick = () => {
       _currentPage = Number(b.dataset.n);
-      renderPage();
+      load({ resetPage: false });
     });
   }
 
@@ -290,12 +309,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     _qDebounce = setTimeout(() => load({ resetPage: true }), 300);
   });
 
-  // Controles de paginación
-  $('pgSize').onchange = () => { _currentPage = 1; renderPage(); };
-  $('pgFirst').onclick = () => { _currentPage = 1; renderPage(); };
-  $('pgPrev').onclick  = () => { _currentPage = Math.max(1, _currentPage - 1); renderPage(); };
-  $('pgNext').onclick  = () => { _currentPage++; renderPage(); };
-  $('pgLast').onclick  = () => { _currentPage = Math.ceil(_allRows.length / (Number($('pgSize').value) || 50)); renderPage(); };
+  // Controles de paginación — cada cambio de página recarga del servidor
+  $('pgSize').onchange = () => load({ resetPage: true });
+  $('pgFirst').onclick = () => { _currentPage = 1;                                                                           load({ resetPage: false }); };
+  $('pgPrev').onclick  = () => { _currentPage = Math.max(1, _currentPage - 1);                                               load({ resetPage: false }); };
+  $('pgNext').onclick  = () => { _currentPage++;                                                                              load({ resetPage: false }); };
+  $('pgLast').onclick  = () => { _currentPage = Math.ceil(_total / (Number($('pgSize').value) || 50));                       load({ resetPage: false }); };
 
   $('refreshBtn').onclick = () => load({ resetPage: false });
 

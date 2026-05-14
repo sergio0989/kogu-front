@@ -10,6 +10,25 @@ const TIPOS_EVIDENCIA = [
   'acta_entrega','comprobante_servicio','reporte_actividades','otro',
 ];
 
+const TIPOS_EVIDENCIA_LABELS = {
+  contrato_especifico:  'Contrato específico',
+  orden_compra:         'Orden de compra',
+  recepcion_fisica:     'Recepción física',
+  bitacora_entrada:     'Bitácora de entrada',
+  foto_recepcion:       'Foto de recepción',
+  coa_lote:             'COA / Lote',
+  inspeccion_qa:        'Inspección QA',
+  rep_pago:             'REP / Complemento de pago',
+  correo:               'Correo electrónico',
+  acta_entrega:         'Acta de entrega',
+  comprobante_servicio: 'Comprobante de servicio',
+  reporte_actividades:  'Reporte de actividades',
+  otro:                 'Otro',
+};
+
+/** Devuelve la etiqueta legible de un tipo de evidencia, o el valor crudo si no está mapeado. */
+function evidenciaLabel(t) { return TIPOS_EVIDENCIA_LABELS[t] || t; }
+
 document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage:        '/modules/mat/reglas.html',
@@ -80,7 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div>
         <div class="label-text">Evidencias requeridas <span class="muted" style="font-size:11px">(selecciona varias)</span></div>
         <select class="select" id="evidencias_requeridas" multiple size="6">
-          ${TIPOS_EVIDENCIA.map(t => `<option value="${t}">${t}</option>`).join('')}
+          ${TIPOS_EVIDENCIA.map(t => `<option value="${t}">${evidenciaLabel(t)}</option>`).join('')}
         </select>
       </div>
 
@@ -138,7 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td>${r.tipo_cfdi || '—'}</td>
           <td>${r.scope || ''}</td>
           <td style="font-size:12px">${rango}</td>
-          <td style="font-size:11px">${ev.map(t => `<span class="chip">${t}</span>`).join(' ')}</td>
+          <td style="font-size:11px">${ev.map(t => `<span class="chip">${evidenciaLabel(t)}</span>`).join(' ')}</td>
           <td>${r.requiere_razon_negocio ? 'Sí' : 'No'}</td>
           <td>${KoguUi.statusBadge(r.activo ? 'activo' : 'inactivo')}</td>
           <td>${r.prioridad}</td>

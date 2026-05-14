@@ -384,8 +384,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     let ficha;
     try {
-      const res = await KoguApi.apiFetch('/cfdi/protected/cfdi/facturas/' + encodeURIComponent(_uuidCfdi));
-      ficha = KoguApi.unwrapData(res) || {};
+      const res = await KoguApi.apiFetch('/protected/kogu/cfdi/facturas/' + encodeURIComponent(_uuidCfdi) + '/ficha');
+      ficha = KoguApi.unwrapData(res)?.cfdi || {};
     } catch (e) {
       $('cfdiFiscalCard').innerHTML = `<div class="muted">No fue posible cargar el detalle fiscal del CFDI: ${e.message}</div>`;
       $('cfdiTitle').textContent = 'CFDI';
