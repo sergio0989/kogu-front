@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><div class="eyebrow">Listado</div><h2>Expedientes</h2></div>
       <button class="btn primary" id="refreshBtn">Actualizar</button>
     </div>
-    <div class="grid-2" style="margin-top:16px">
+    <div class="grid-3" style="margin-top:16px">
       <input class="input" id="q" placeholder="Buscar por nombre o RFC…" />
       <select class="select" id="terceroTipoFiltro">
         <option value="">Cliente y proveedor</option>
@@ -32,23 +32,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="proveedor">Solo proveedor</option>
         <option value="ambos">Ambos</option>
       </select>
-    </div>
-    <div class="grid-2" style="margin-top:8px">
       <select class="select" id="nivelFiltro">
         <option value="">Todos los niveles</option>
         ${NIVELES.map(n => `<option value="${n}">${n}</option>`).join('')}
       </select>
-      <div></div>
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th style="min-width:130px;white-space:nowrap">RFC</th>
-        <th style="min-width:200px">Nombre / Razón social</th>
+        <th style="min-width:120px;white-space:nowrap">RFC</th>
+        <th style="min-width:180px">Nombre / Razón social</th>
         <th>Tipo</th>
-        <th style="text-align:center;min-width:70px">Score</th>
+        <th style="text-align:center;min-width:80px">Score</th>
         <th>Nivel</th>
-        <th style="text-align:center">Última revisión</th>
-        <th style="min-width:160px">Acciones</th>
+        <th style="text-align:center;white-space:nowrap">Última revisión</th>
+        <th style="min-width:140px;white-space:nowrap">Acciones</th>
       </tr></thead><tbody id="rows"></tbody></table>
     </div>
     <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
@@ -335,22 +332,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   function render() {
     const page = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
     $('rows').innerHTML = page.length ? page.map(r => {
-      const ultRev = r.ultima_revision_at ? new Date(r.ultima_revision_at).toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'2-digit' }) : null;
+      const ultRev = r.ultima_revision_at
+        ? new Date(r.ultima_revision_at).toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'2-digit' })
+        : null;
+
+      // Score: número con color semáforo + mini barra de progreso
+      const score = typeof r.score_actual === 'number' ? r.score_actual : null;
+      const sc = score !== null ? score : -1;
+      const scoreColor = sc >= 80 ? '#16a34a' : sc >= 60 ? '#ca8a04' : sc >= 30 ? '#ea580c' : sc >= 0 ? '#dc2626' : '#94a3b8';
+      const scoreHtml = score !== null
+        ? `<div style="font-weight:700;font-size:15px;color:${scoreColor};line-height:1">${score}</div>
+           <div style="height:3px;border-radius:2px;background:#e2e8f0;margin-top:5px;width:48px">
+             <div style="height:100%;width:${score}%;background:${scoreColor};border-radius:2px"></div>
+           </div>`
+        : '<span class="muted" style="font-size:13px">—</span>';
+
       return `
       <tr>
-        <td style="font-family:monospace;font-size:12px;white-space:nowrap"><strong>${KoguUi.escapeHtml(r.rfc || '')}</strong></td>
-        <td style="font-size:13px">
-          <strong>${KoguUi.escapeHtml(r.nombre || '')}</strong>
-          ${r.responsable_nombre ? `<div class="muted" style="font-size:11px;margin-top:2px">Resp.: ${KoguUi.escapeHtml(r.responsable_nombre)}</div>` : ''}
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis"
+            title="${KoguUi.escapeHtml(r.rfc || '')}">
+          <strong>${KoguUi.escapeHtml(r.rfc || '')}</strong>
+        </td>
+        <td style="font-size:13px;max-width:200px">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600"
+               title="${KoguUi.escapeHtml(r.nombre || '')}">${KoguUi.escapeHtml(r.nombre || '')}</div>
+          ${r.responsable_nombre ? `<div class="muted" style="font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Resp.: ${KoguUi.escapeHtml(r.responsable_nombre)}</div>` : ''}
         </td>
         <td><span class="chip">${KoguUi.escapeHtml(r.tercero_tipo || '')}</span></td>
-        <td style="text-align:center;font-weight:700">${typeof r.score_actual === 'number' ? r.score_actual : '<span class="muted" style="font-weight:400">—</span>'}</td>
+        <td style="text-align:center">${scoreHtml}</td>
         <td>${KoguUi.nivelBadge(r.nivel_riesgo)}</td>
-        <td style="text-align:center;font-size:11px;color:var(--muted,#64748b)">${ultRev || '<span class="muted">—</span>'}</td>
+        <td style="text-align:center;font-size:11px;color:var(--muted,#64748b);white-space:nowrap">${ultRev || '<span class="muted">—</span>'}</td>
         <td>
-          <div class="actions-cell">
-            <button class="btn sm btn-edit" data-id="${r.expediente_id}">Editar</button>
-            <a class="btn sm" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(r.expediente_id)}">Detalle</a>
+          <div class="actions-cell" style="flex-wrap:nowrap">
+            <button class="btn sm btn-edit" data-id="${r.expediente_id}" style="white-space:nowrap">Editar</button>
+            <a class="btn sm" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(r.expediente_id)}" style="white-space:nowrap">Detalle</a>
           </div>
         </td>
       </tr>`;
