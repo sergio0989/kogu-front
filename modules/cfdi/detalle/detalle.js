@@ -1,4 +1,22 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  const qs0 = new URLSearchParams(location.search);
+  const isEmbedded = qs0.get('embedded') === '1';
+
+  // Modo embedded: pantalla cargada dentro de un iframe (p.ej. desde el modal
+  // de Materialidad CFDI). Oculta la cromería del shell (sidebar/topbar) para
+  // evitar duplicación y aprovecha 100% del espacio para la ficha.
+  if (isEmbedded) {
+    const css = document.createElement('style');
+    css.textContent = `
+      .sidebar, aside, .topbar, header, .empresa-chip, .user-chip,
+      [class*="sidebar"], [class*="navbar"], [class*="topbar"] { display: none !important; }
+      .main, main, .content, #pageContent { grid-column: 1 / -1 !important; padding: 16px !important; max-width: 100% !important; }
+      body { padding: 0 !important; margin: 0 !important; }
+      body > div:first-child { display: block !important; grid-template-columns: 1fr !important; }
+    `;
+    document.head.appendChild(css);
+  }
+
   const boot = await KoguShell.initShell({
     currentPage: '/modules/cfdi/detalle/detalle.html',
     title: 'Detalle CFDI',

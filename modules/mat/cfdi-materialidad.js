@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="/modules/mat/bandeja-defensa.html">← Volver a bandeja</a>
       <button class="btn primary" id="recalcBtn">Recalcular score</button>
-      <a class="btn" id="detalleCfdiLink">Ver detalle CFDI completo →</a>
+      <button type="button" class="btn" id="detalleCfdiBtn">Ver detalle CFDI completo →</button>
     </div>
     <div id="cobertura" style="margin-top:14px"></div>
   </div>
@@ -207,6 +207,23 @@ document.addEventListener('DOMContentLoaded', async () => {
           <button class="btn" id="cancelEvBtn">Cancelar</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal detalle CFDI completo (iframe) -->
+  <div id="detalleModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:60;align-items:center;justify-content:center;padding:24px;">
+    <div class="card" style="max-width:1280px;width:100%;height:90vh;display:flex;flex-direction:column;background:#fff;padding:0;overflow:hidden">
+      <div class="row" style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0">
+        <div>
+          <div class="eyebrow">Detalle CFDI completo</div>
+          <h3 style="margin:0;font-size:16px" id="detalleModalTitle">Cargando…</h3>
+        </div>
+        <div style="display:flex;gap:8px">
+          <a class="btn" id="detalleAbrirNueva" target="_blank" title="Abrir en pantalla completa">Abrir en pestaña ↗</a>
+          <button class="btn" id="closeDetalleBtn">Cerrar</button>
+        </div>
+      </div>
+      <iframe id="detalleIframe" src="about:blank" style="flex:1;border:0;width:100%;background:#fff"></iframe>
     </div>
   </div>
 
@@ -376,8 +393,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Link al detalle CFDI completo (XML, JSON, PDF)
-    $('detalleCfdiLink').href = '/modules/cfdi/detalle/detalle.html?uuid=' + encodeURIComponent(_uuidCfdi);
+    // Nada que setear aquí — el botón de detalle CFDI completo se maneja
+    // con click handler que abre el modal con iframe (ver más abajo).
 
     // ── Header descriptivo: nombre del tercero + scope + fecha + total ─────
     const origenUC = (ficha.origen || '').toUpperCase();
@@ -655,6 +672,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       await reload();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   };
+
+  // ── Modal "Detalle CFDI completo" (iframe) ────────────────────────────────
+  // Abre la pantalla original /modules/cfdi/detalle/detalle.html en un iframe
+  // dentro de un modal. El iframe es same-origin, así que comparte el
+  // sessionStorage con la página padre (token de sesión preservado).
+  // El parámetro ?embedded=1 le indica a detalle.html que NO renderice el
+  // shell (sidebar + topbar) para no duplicar la cromería.
+  function openDetalleModal() {
+    if (!_uuidCfdi) {
+      KoguApi.toast('Aún no hay UUID. Recalcula el score primero.', 'error');
+      return;
+    }
+    const url = '/modules/cfdi/detalle/detalle.html?uuid=' + encodeURIComponent(_uuidCfdi) + '&embedded=1';
+    $('detalleIframe').src = url;
+    $('detalleAbrirNueva').href = '/modules/cfdi/detalle/detalle.html?uuid=' + encodeURIComponent(_uuidCfdi);
+    $('detalleModalTitle').textContent = 'UUID ' + _uuidCfdi;
+    $('detalleModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDetalleModal() {
+    $('detalleModal').style.display = 'none';
+    $('detalleIframe').src = 'about:blank'; // libera recursos
+    document.body.style.overflow = '';
+  }
+  $('detalleCfdiBtn').addEventListener('click', openDetalleModal);
+  $('closeDetalleBtn').addEventListener('click', closeDetalleModal);
+  // Cerrar con Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('detalleModal').style.display === 'flex') closeDetalleModal();
+  });
+  // Cerrar haciendo click fuera del card
+  $('detalleModal').addEventListener('click', (e) => {
+    if (e.target.id === 'detalleModal') closeDetalleModal();
+  });
 
   // ── Colapsable de "Detalle del CFDI" con persistencia por sesión ──────────
   const COLLAPSE_KEY = 'mat.cfdi.detalle.collapsed';
