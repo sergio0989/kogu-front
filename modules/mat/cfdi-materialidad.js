@@ -515,13 +515,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     ].join('');
     $('evRows').innerHTML = html || '<tr><td colspan="6" class="empty">Sin evidencias todavía.</td></tr>';
 
-    document.querySelectorAll('.btn-ev-delete').forEach(btn => btn.onclick = async () => {
+    document.querySelectorAll('.btn-ev-delete').forEach(btn => btn.onclick = async function () {
       if (!confirm('¿Eliminar esta evidencia?')) return;
-      try {
-        await KoguApi.apiFetch('/protected/mat/evidencias/' + btn.dataset.id, { method: 'DELETE' });
-        KoguApi.toast('Evidencia eliminada', 'success');
-        await loadEvidencias();
-      } catch (e) { KoguApi.toast(e.message, 'error'); }
+      await KoguUi.withLoading(this, async () => {
+        try {
+          await KoguApi.apiFetch('/protected/mat/evidencias/' + btn.dataset.id, { method: 'DELETE' });
+          KoguApi.toast('Evidencia eliminada', 'success');
+          $('scoreNum').textContent = '…';
+          await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
+          await reload();
+        } catch (e) { KoguApi.toast(e.message, 'error'); }
+      }, 'Eliminando…');
     });
   }
 
@@ -569,66 +573,78 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Acciones ──────────────────────────────────────────────────────────────
-  $('recalcBtn').onclick = async () => {
-    try {
-      const res = await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' });
-      const s = KoguApi.unwrapData(res);
-      KoguApi.toast(`Score recalculado: ${s.score} (${s.nivel})`, 'success');
-      await reload();
-    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  $('recalcBtn').onclick = async function () {
+    await KoguUi.withLoading(this, async () => {
+      $('scoreNum').textContent = '…';
+      try {
+        const res = await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' });
+        const s = KoguApi.unwrapData(res);
+        KoguApi.toast(`Score recalculado: ${s.score} (${s.nivel})`, 'success');
+        await reload();
+      } catch (e) { KoguApi.toast(e.message, 'error'); }
+    }, 'Recalculando…');
   };
 
   // Modal evidencia
   $('addEvBtn').onclick     = () => { ['ev_tipo','ev_descripcion','ev_archivo'].forEach(id => $(id).value = ''); $('evModal').style.display = 'flex'; };
   $('closeEvBtn').onclick   = () => $('evModal').style.display = 'none';
   $('cancelEvBtn').onclick  = () => $('evModal').style.display = 'none';
-  $('submitEvBtn').onclick  = async () => {
-    try {
-      const tipo = $('ev_tipo').value;
-      const file = $('ev_archivo').files[0];
-      if (!tipo) throw new Error('Selecciona el tipo de evidencia.');
-      if (!file) throw new Error('Selecciona un archivo.');
+  $('submitEvBtn').onclick  = async function () {
+    const btn = this;
+    const tipo = $('ev_tipo').value;
+    const file = $('ev_archivo').files[0];
+    if (!tipo) { KoguApi.toast('Selecciona el tipo de evidencia.', 'error'); return; }
+    if (!file) { KoguApi.toast('Selecciona un archivo.', 'error'); return; }
 
-      const fd = new FormData();
-      fd.append('archivo', file);
-      fd.append('tipo_evidencia', tipo);
-      if ($('ev_descripcion').value) fd.append('descripcion', $('ev_descripcion').value);
+    await KoguUi.withLoading(btn, async () => {
+      try {
+        const fd = new FormData();
+        fd.append('archivo', file);
+        fd.append('tipo_evidencia', tipo);
+        if ($('ev_descripcion').value) fd.append('descripcion', $('ev_descripcion').value);
 
-      const token = KoguApi.getToken();
-      const empresaId = KoguApi.getEmpresaId();
-      const resp = await fetch(KoguApi.getBaseUrl() + '/protected/mat/cfdi/' + cfdiId + '/evidencias', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token, ...(empresaId ? { 'X-Empresa-Id': empresaId } : {}) },
-        body: fd,
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || data?.ok === false) throw new Error(data?.error?.message || 'No fue posible subir la evidencia.');
+        const token = KoguApi.getToken();
+        const empresaId = KoguApi.getEmpresaId();
+        const resp = await fetch(KoguApi.getBaseUrl() + '/protected/mat/cfdi/' + cfdiId + '/evidencias', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, ...(empresaId ? { 'X-Empresa-Id': empresaId } : {}) },
+          body: fd,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data?.ok === false) throw new Error(data?.error?.message || 'No fue posible subir la evidencia.');
 
-      KoguApi.toast('Evidencia adjuntada. Recalculando score…', 'success');
-      $('evModal').style.display = 'none';
-      await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
-      await reload();
-    } catch (e) { KoguApi.toast(e.message, 'error'); }
+        $('evModal').style.display = 'none';
+        KoguApi.toast('Evidencia adjuntada. Recalculando score…', 'success');
+
+        // Mostrar estado de carga en el score mientras recalcula
+        $('scoreNum').textContent = '…';
+        await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
+        await reload();
+      } catch (e) { KoguApi.toast(e.message, 'error'); }
+    }, 'Subiendo…');
   };
 
   // Modal observación
   $('addObsBtn').onclick    = () => { $('obs_tipo').value = 'razon_negocio'; $('obs_texto').value = ''; $('obsModal').style.display = 'flex'; };
   $('closeObsBtn').onclick  = () => $('obsModal').style.display = 'none';
   $('cancelObsBtn').onclick = () => $('obsModal').style.display = 'none';
-  $('submitObsBtn').onclick = async () => {
-    try {
-      const body = { tipo: $('obs_tipo').value, texto: $('obs_texto').value };
-      if (!body.texto || !body.texto.trim()) throw new Error('El texto es obligatorio.');
-      await KoguApi.apiFetch('/protected/mat/cfdi/' + cfdiId + '/observaciones', {
-        method: 'POST', body: JSON.stringify(body),
-      });
-      KoguApi.toast('Observación registrada', 'success');
-      $('obsModal').style.display = 'none';
-      if (body.tipo === 'razon_negocio') {
-        await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
-      }
-      await reload();
-    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  $('submitObsBtn').onclick = async function () {
+    const body = { tipo: $('obs_tipo').value, texto: $('obs_texto').value };
+    if (!body.texto || !body.texto.trim()) { KoguApi.toast('El texto es obligatorio.', 'error'); return; }
+    await KoguUi.withLoading(this, async () => {
+      try {
+        await KoguApi.apiFetch('/protected/mat/cfdi/' + cfdiId + '/observaciones', {
+          method: 'POST', body: JSON.stringify(body),
+        });
+        $('obsModal').style.display = 'none';
+        KoguApi.toast('Observación registrada', 'success');
+        if (body.tipo === 'razon_negocio') {
+          $('scoreNum').textContent = '…';
+          await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' }).catch(() => {});
+        }
+        await reload();
+      } catch (e) { KoguApi.toast(e.message, 'error'); }
+    }, 'Guardando…');
   };
 
   // ── Modal "Detalle CFDI completo" (iframe) ────────────────────────────────
