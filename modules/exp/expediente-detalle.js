@@ -69,8 +69,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="/modules/exp/expedientes.html">← Volver a listado</a>
+      <button class="btn primary" id="recalcScoreBtn" title="Recalcula el score a partir de documentos vigentes + CFDIs del tercero">Recalcular score</button>
       <button class="btn" id="refreshBtn">Actualizar</button>
     </div>
+    <div id="scoreDesglose" style="margin-top:10px"></div>
   </div>
 
   <!-- Documentos -->
@@ -342,6 +344,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   $('refreshBtn').onclick = reload;
+
+  // ── Recalcular score del expediente ─────────────────────
+  $('recalcScoreBtn').onclick = async () => {
+    const btn = $('recalcScoreBtn');
+    btn.disabled = true; btn.textContent = 'Calculando…';
+    try {
+      const res = await KoguApi.apiFetch('/protected/exp/expedientes/' + expedienteId + '/recalcular-score', { method: 'POST' });
+      const data = KoguApi.unwrapData(res);
+      KoguApi.toast(`Score actualizado: ${data.score_anterior ?? '—'} → ${data.score_nuevo} (${data.nivel_nuevo})`, 'success');
+
+      // Mostrar desglose
+      const d = data.desglose;
+      $('scoreDesglose').innerHTML = `
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Desglose del score</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:12px">
+          <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px">
+            <div class="muted">Documentos vigentes</div>
+            <div style="font-weight:700">${d.documentos.vigentes}/${d.documentos.total} → +${d.puntos_docs}</div>
+          </div>
+          <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px">
+            <div class="muted">CFDIs del tercero</div>
+            <div style="font-weight:700">${d.cfdis.cfdi_count} (avg ${d.cfdis.score_avg ?? '—'}) → +${d.puntos_cfdis}</div>
+          </div>
+          ${d.castigo_docs ? `<div style="padding:8px 10px;border:1px solid #fecaca;border-radius:6px;background:#fef2f2">
+            <div class="muted">Castigo docs vencidos/inválidos</div>
+            <div style="font-weight:700;color:#dc2626">${d.castigo_docs}</div>
+          </div>` : ''}
+          ${d.castigo_efos ? `<div style="padding:8px 10px;border:1px solid #fecaca;border-radius:6px;background:#fef2f2">
+            <div class="muted">Castigo EFOS en CFDIs del tercero</div>
+            <div style="font-weight:700;color:#dc2626">${d.castigo_efos}</div>
+          </div>` : ''}
+        </div>
+      `;
+      await loadHeader();
+    } catch (e) {
+      KoguApi.toast(e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Recalcular score';
+    }
+  };
 
   // ── Cambio de empresa ─────────────────────────────────────────────────────
   // Si el usuario cambia empresa estando en el detalle, lo regresamos al
