@@ -178,9 +178,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = id => document.getElementById(id);
 
   // ── Loaders ───────────────────────────────────────────────────────────────
+  /** Pinta el panel de desglose de score dado un objeto `desglose` del backend. */
+  function renderDesglose(d) {
+    if (!d) { $('scoreDesglose').innerHTML = ''; return; }
+    $('scoreDesglose').innerHTML = `
+      <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Desglose del score</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:12px">
+        <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px">
+          <div class="muted">Documentos vigentes</div>
+          <div style="font-weight:700">${d.documentos.vigentes}/${d.documentos.total} → +${d.puntos_docs}</div>
+        </div>
+        <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px">
+          <div class="muted">CFDIs del tercero</div>
+          <div style="font-weight:700">${d.cfdis.cfdi_count} (avg ${d.cfdis.score_avg ?? '—'}) → +${d.puntos_cfdis}</div>
+        </div>
+        ${d.castigo_docs ? `<div style="padding:8px 10px;border:1px solid #fecaca;border-radius:6px;background:#fef2f2">
+          <div class="muted">Castigo docs vencidos/inválidos</div>
+          <div style="font-weight:700;color:#dc2626">${d.castigo_docs}</div>
+        </div>` : ''}
+        ${d.castigo_efos ? `<div style="padding:8px 10px;border:1px solid #fecaca;border-radius:6px;background:#fef2f2">
+          <div class="muted">Castigo EFOS en CFDIs del tercero</div>
+          <div style="font-weight:700;color:#dc2626">${d.castigo_efos}</div>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
   async function loadHeader() {
-    const res = await KoguApi.apiFetch('/protected/exp/expedientes/' + expedienteId);
-    const exp = KoguApi.unwrapData(res);
+    const [resExp, resDesglose] = await Promise.all([
+      KoguApi.apiFetch('/protected/exp/expedientes/' + expedienteId),
+      KoguApi.apiFetch('/protected/exp/expedientes/' + expedienteId + '/desglose').catch(() => null),
+    ]);
+    const exp = KoguApi.unwrapData(resExp);
     $('expedienteTitle').textContent = exp.nombre || '(sin nombre)';
     $('expedienteSubtitle').innerHTML = `
       <strong style="font-family:monospace">${KoguUi.escapeHtml(exp.rfc || '')}</strong>
@@ -191,6 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
     $('scoreActual').textContent = typeof exp.score_actual === 'number' ? exp.score_actual : '—';
     $('nivelActual').innerHTML = nivelBadge(exp.nivel_riesgo);
+    if (resDesglose) renderDesglose(KoguApi.unwrapData(resDesglose)?.desglose);
   }
 
   async function loadDocs() {
@@ -354,29 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = KoguApi.unwrapData(res);
       KoguApi.toast(`Score actualizado: ${data.score_anterior ?? '—'} → ${data.score_nuevo} (${data.nivel_nuevo})`, 'success');
 
-      // Mostrar desglose
-      const d = data.desglose;
-      $('scoreDesglose').innerHTML = `
-        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Desglose del score</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:12px">
-          <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px">
-            <div class="muted">Documentos vigentes</div>
-            <div style="font-weight:700">${d.documentos.vigentes}/${d.documentos.total} → +${d.puntos_docs}</div>
-          </div>
-          <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px">
-            <div class="muted">CFDIs del tercero</div>
-            <div style="font-weight:700">${d.cfdis.cfdi_count} (avg ${d.cfdis.score_avg ?? '—'}) → +${d.puntos_cfdis}</div>
-          </div>
-          ${d.castigo_docs ? `<div style="padding:8px 10px;border:1px solid #fecaca;border-radius:6px;background:#fef2f2">
-            <div class="muted">Castigo docs vencidos/inválidos</div>
-            <div style="font-weight:700;color:#dc2626">${d.castigo_docs}</div>
-          </div>` : ''}
-          ${d.castigo_efos ? `<div style="padding:8px 10px;border:1px solid #fecaca;border-radius:6px;background:#fef2f2">
-            <div class="muted">Castigo EFOS en CFDIs del tercero</div>
-            <div style="font-weight:700;color:#dc2626">${d.castigo_efos}</div>
-          </div>` : ''}
-        </div>
-      `;
+      renderDesglose(data.desglose);
       await loadHeader();
     } catch (e) {
       KoguApi.toast(e.message, 'error');
