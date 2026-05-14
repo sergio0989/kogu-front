@@ -54,8 +54,11 @@
       // ── Vista ejecutiva ──
       {href:'/modules/lab/lab-kpis.html',             label:'📊 Dashboard KPIs',   perm:'screen.lab.maestros'},
       // ── Entrada (compras) ──
-      {href:'/modules/lab/lab-imp-compras.html',      label:'Inspección compras',  perm:'screen.lab.inspeccion_compras'},
-      {href:'/modules/lab/lab-cert-proveedor.html',   label:'CofA proveedor',      perm:'screen.lab.inspeccion_compras'},
+      {href:'/modules/lab/lab-imp-compras.html',         label:'Inspección compras',    perm:'screen.lab.inspeccion_compras'},
+      {href:'/modules/lab/lab-cert-proveedor.html',      label:'CofA proveedor',        perm:'screen.lab.inspeccion_compras'},
+      // ── Importaciones ERP ──
+      {href:'/modules/lab/lab-imp-producciones.html',    label:'Imp. Producciones ERP', perm:'screen.lab.producciones_imports'},
+      {href:'/modules/lab/lab-imp-facturas-venta.html',  label:'Imp. Facturas venta',   perm:'screen.lab.facturas_imports'},
       // ── Proceso (laboratorio) ──
       {href:'/modules/lab/lab-lotes.html',            label:'Lotes',               perm:'screen.lab.lotes'},
       {href:'/modules/lab/lab-especificaciones.html', label:'Especificaciones',    perm:'screen.lab.especificaciones'},
