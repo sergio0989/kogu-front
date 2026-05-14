@@ -82,9 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div>
         <div class="label-text">Expediente tercero <span class="muted" style="font-size:11px">(opcional)</span></div>
-        <select class="select" id="expediente_tercero_id">
-          <option value="">— ninguno —</option>
-        </select>
+        <div style="display:flex;gap:6px">
+          <input class="input" id="expediente_label" readonly placeholder="— ninguno —"
+                 style="flex:1;cursor:pointer;background:#f8fafc"/>
+          <button type="button" class="btn ghost" id="expediente_pick">Buscar…</button>
+          <button type="button" class="btn ghost" id="expediente_clear" title="Limpiar">×</button>
+        </div>
+        <input type="hidden" id="expediente_tercero_id"/>
       </div>
       <div class="grid-2">
         <div><div class="label-text">Monto total</div><input class="input" id="monto_total" type="number" step="0.01"/></div>
@@ -129,9 +133,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await KoguApi.apiFetch('/protected/exp/expedientes');
       expedientes = KoguApi.unwrapRows(res) || [];
-      $('expediente_tercero_id').innerHTML = '<option value="">— ninguno —</option>' +
-        expedientes.map(e => `<option value="${KoguUi.escapeHtml(e.expediente_id)}">${KoguUi.escapeHtml((e.rfc||'') + ' · ' + (e.nombre||''))}</option>`).join('');
     } catch (e) { /* sin permisos exp_, no es crítico */ }
+  }
+
+  // Picker de expediente (patrón Lab QA con KoguUi.openSearchPicker)
+  function pickExpediente() {
+    KoguUi.openSearchPicker({
+      title: 'Vincular expediente del tercero',
+      items: expedientes,
+      placeholder: 'Buscar por RFC, nombre o tipo…',
+      columns: [
+        { key: 'nombre',       label: 'Nombre',  primary: true },
+        { key: 'rfc',          label: 'RFC' },
+        { key: 'tercero_tipo', label: 'Tipo' },
+        { key: 'nivel_riesgo', label: 'Nivel' },
+      ],
+      emptyText: expedientes.length === 0
+        ? 'No hay expedientes registrados en esta empresa. Crea uno en Materialidad → Expedientes.'
+        : 'Sin coincidencias',
+      onSelect: (e) => {
+        $('expediente_tercero_id').value = e.expediente_id;
+        $('expediente_label').value      = (e.nombre || '') + (e.rfc ? ' · ' + e.rfc : '');
+      },
+    });
+  }
+  function clearExpediente() {
+    $('expediente_tercero_id').value = '';
+    $('expediente_label').value      = '';
   }
 
   async function load() {
@@ -172,7 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function reset() {
     ['caso_id','nombre','descripcion','monto_total','fecha_inicio','fecha_fin'].forEach(id => $(id).value = '');
     $('tipo_caso').value = '';
-    $('expediente_tercero_id').value = '';
+    clearExpediente();
     $('moneda').value = 'MXN';
     $('status').value = 'abierto';
     $('formTitle').textContent = 'Alta de caso';
@@ -184,7 +212,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('nombre').value = r.nombre || '';
     $('descripcion').value = r.descripcion || '';
     $('tipo_caso').value = r.tipo_caso || '';
-    $('expediente_tercero_id').value = r.expediente_tercero_id || '';
+    if (r.expediente_tercero_id) {
+      const exp = expedientes.find(e => String(e.expediente_id) === String(r.expediente_tercero_id));
+      $('expediente_tercero_id').value = r.expediente_tercero_id;
+      $('expediente_label').value = exp ? ((exp.nombre || '') + (exp.rfc ? ' · ' + exp.rfc : ''))
+                                        : (r.expediente_rfc ? `${r.expediente_rfc} · ${r.expediente_nombre || ''}` : '(expediente vinculado)');
+    } else {
+      clearExpediente();
+    }
     $('monto_total').value = r.monto_total ?? '';
     $('moneda').value = r.moneda || 'MXN';
     $('fecha_inicio').value = (r.fecha_inicio || '').slice(0, 10);
@@ -232,6 +267,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('q').oninput = () => load();
   $('fStatus').onchange = load;
   $('fTipo').onchange = load;
+
+  // Picker de expediente
+  $('expediente_pick').addEventListener('click',  pickExpediente);
+  $('expediente_label').addEventListener('click', pickExpediente);
+  $('expediente_clear').addEventListener('click', clearExpediente);
 
   KoguShell.subscribeEmpresaActivaChange(async () => {
     await loadExpedientes();

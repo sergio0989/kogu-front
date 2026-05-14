@@ -81,15 +81,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="grid-2">
         <div>
           <div class="label-text">Cliente vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
-          <select class="select" id="cliente_id">
-            <option value="">— ninguno —</option>
-          </select>
+          <div style="display:flex;gap:6px">
+            <input class="input" id="cliente_label" readonly placeholder="— ninguno —"
+                   style="flex:1;cursor:pointer;background:#f8fafc"/>
+            <button type="button" class="btn ghost" id="cliente_pick">Buscar…</button>
+            <button type="button" class="btn ghost" id="cliente_clear" title="Limpiar">×</button>
+          </div>
+          <input type="hidden" id="cliente_id"/>
         </div>
         <div>
           <div class="label-text">Proveedor vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
-          <select class="select" id="proveedor_id">
-            <option value="">— ninguno —</option>
-          </select>
+          <div style="display:flex;gap:6px">
+            <input class="input" id="proveedor_label" readonly placeholder="— ninguno —"
+                   style="flex:1;cursor:pointer;background:#f8fafc"/>
+            <button type="button" class="btn ghost" id="proveedor_pick">Buscar…</button>
+            <button type="button" class="btn ghost" id="proveedor_clear" title="Limpiar">×</button>
+          </div>
+          <input type="hidden" id="proveedor_id"/>
         </div>
       </div>
 
@@ -138,17 +146,63 @@ document.addEventListener('DOMContentLoaded', async () => {
       ]);
       clientes    = KoguApi.unwrapRows(cli)  || [];
       proveedores = KoguApi.unwrapRows(pro)  || [];
-
-      const cs = $('cliente_id');
-      cs.innerHTML = '<option value="">— ninguno —</option>' +
-        clientes.map(c => `<option value="${KoguUi.escapeHtml(c.cliente_id)}">${KoguUi.escapeHtml((c.nombre || c.razon_social || '') + ' · ' + (c.rfc || ''))}</option>`).join('');
-
-      const ps = $('proveedor_id');
-      ps.innerHTML = '<option value="">— ninguno —</option>' +
-        proveedores.map(p => `<option value="${KoguUi.escapeHtml(p.proveedor_id)}">${KoguUi.escapeHtml((p.nombre || p.razon_social || '') + ' · ' + (p.rfc || ''))}</option>`).join('');
     } catch (e) {
       console.warn('Catálogos no disponibles:', e);
     }
+  }
+
+  // Helpers para picker de búsqueda (patrón Lab QA: KoguUi.openSearchPicker)
+  function pickCliente() {
+    KoguUi.openSearchPicker({
+      title: 'Vincular cliente',
+      items: clientes,
+      placeholder: 'Buscar por nombre, RFC o cve_cte…',
+      columns: [
+        { key: 'nombre',  label: 'Nombre',  primary: true },
+        { key: 'rfc',     label: 'RFC' },
+        { key: 'cve_cte', label: 'cve_cte' },
+      ],
+      emptyText: clientes.length === 0
+        ? 'No hay clientes en esta empresa.'
+        : 'Sin coincidencias',
+      onSelect: (c) => {
+        $('cliente_id').value    = c.cliente_id;
+        $('cliente_label').value = (c.nombre || c.razon_social || '') + (c.rfc ? ' · ' + c.rfc : '');
+        if (!$('nombre').value) $('nombre').value = c.nombre || c.razon_social || '';
+        if (!$('rfc').value)    $('rfc').value    = (c.rfc || '').toUpperCase();
+      },
+    });
+  }
+
+  function pickProveedor() {
+    KoguUi.openSearchPicker({
+      title: 'Vincular proveedor',
+      items: proveedores,
+      placeholder: 'Buscar por nombre, RFC o cve_prov…',
+      columns: [
+        { key: 'nombre',   label: 'Nombre',   primary: true },
+        { key: 'rfc',      label: 'RFC' },
+        { key: 'cve_prov', label: 'cve_prov' },
+      ],
+      emptyText: proveedores.length === 0
+        ? 'No hay proveedores en esta empresa.'
+        : 'Sin coincidencias',
+      onSelect: (p) => {
+        $('proveedor_id').value    = p.proveedor_id;
+        $('proveedor_label').value = (p.nombre || p.razon_social || '') + (p.rfc ? ' · ' + p.rfc : '');
+        if (!$('nombre').value) $('nombre').value = p.nombre || p.razon_social || '';
+        if (!$('rfc').value)    $('rfc').value    = (p.rfc || '').toUpperCase();
+      },
+    });
+  }
+
+  function clearCliente() {
+    $('cliente_id').value = '';
+    $('cliente_label').value = '';
+  }
+  function clearProveedor() {
+    $('proveedor_id').value = '';
+    $('proveedor_label').value = '';
   }
 
   async function load(showToast = false) {
@@ -220,8 +274,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function reset() {
     ['expediente_id','rfc','nombre','num_reg_id_trib','residencia_fiscal','observaciones'].forEach(id => $(id).value = '');
     $('tercero_tipo').value = '';
-    $('cliente_id').value   = '';
-    $('proveedor_id').value = '';
+    clearCliente();
+    clearProveedor();
     $('formTitle').textContent = 'Alta de expediente';
     $('modeChip').textContent  = 'Alta';
     $('rfcHint').textContent   = '';
@@ -232,11 +286,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('tercero_tipo').value      = r.tercero_tipo || '';
     $('rfc').value               = r.rfc || '';
     $('nombre').value            = r.nombre || '';
-    $('cliente_id').value        = r.cliente_id || '';
-    $('proveedor_id').value      = r.proveedor_id || '';
     $('num_reg_id_trib').value   = r.num_reg_id_trib || '';
     $('residencia_fiscal').value = r.residencia_fiscal || '';
     $('observaciones').value     = r.observaciones || '';
+
+    // Reconstruir labels desde los catálogos en memoria
+    if (r.cliente_id) {
+      const cli = clientes.find(c => String(c.cliente_id) === String(r.cliente_id));
+      $('cliente_id').value = r.cliente_id;
+      $('cliente_label').value = cli ? ((cli.nombre || cli.razon_social || '') + (cli.rfc ? ' · ' + cli.rfc : '')) : (r.cliente_nombre || '(cliente vinculado)');
+    } else {
+      clearCliente();
+    }
+    if (r.proveedor_id) {
+      const pro = proveedores.find(p => String(p.proveedor_id) === String(r.proveedor_id));
+      $('proveedor_id').value = r.proveedor_id;
+      $('proveedor_label').value = pro ? ((pro.nombre || pro.razon_social || '') + (pro.rfc ? ' · ' + pro.rfc : '')) : (r.proveedor_nombre || '(proveedor vinculado)');
+    } else {
+      clearProveedor();
+    }
+
     $('formTitle').textContent = 'Editar expediente';
     $('modeChip').textContent  = 'Edición';
     $('rfcHint').textContent   = '';
@@ -255,25 +324,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = '/modules/exp/expediente-detalle.html?id=' + encodeURIComponent(id);
   };
 
-  // Sugerir nombre desde catálogo cuando se elige cliente/proveedor
-  $('cliente_id').onchange = () => {
-    const cid = $('cliente_id').value;
-    if (!cid) return;
-    const cli = clientes.find(c => String(c.cliente_id) === cid);
-    if (cli) {
-      if (!$('nombre').value) $('nombre').value = cli.nombre || cli.razon_social || '';
-      if (!$('rfc').value)    $('rfc').value    = (cli.rfc || '').toUpperCase();
-    }
-  };
-  $('proveedor_id').onchange = () => {
-    const pid = $('proveedor_id').value;
-    if (!pid) return;
-    const pro = proveedores.find(p => String(p.proveedor_id) === pid);
-    if (pro) {
-      if (!$('nombre').value) $('nombre').value = pro.nombre || pro.razon_social || '';
-      if (!$('rfc').value)    $('rfc').value    = (pro.rfc || '').toUpperCase();
-    }
-  };
+  // Picker buttons — patrón Lab QA con KoguUi.openSearchPicker
+  $('cliente_pick').addEventListener('click',  pickCliente);
+  $('cliente_label').addEventListener('click', pickCliente);
+  $('cliente_clear').addEventListener('click', clearCliente);
+
+  $('proveedor_pick').addEventListener('click',  pickProveedor);
+  $('proveedor_label').addEventListener('click', pickProveedor);
+  $('proveedor_clear').addEventListener('click', clearProveedor);
   // Hint RFC dinámico
   $('rfc').oninput = () => {
     const rfc = ($('rfc').value || '').toUpperCase().trim();
