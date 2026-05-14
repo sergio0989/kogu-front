@@ -180,17 +180,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function evidenciasHtml(ev) {
     if (!ev || ev.length === 0) return '<span class="muted" style="font-size:12px">—</span>';
-    const MAX_VISIBLE = 2;
-    const visible = ev.slice(0, MAX_VISIBLE);
-    const resto   = ev.length - MAX_VISIBLE;
-    const allLabels = ev.map(t => KoguUi.evidenciaLabel(t)).join(', ');
-    const chips = visible.map(t =>
+    const chips = ev.map(t =>
       `<span class="chip" style="font-size:11px;white-space:nowrap">${KoguUi.evidenciaLabel(t)}</span>`
     ).join('');
-    const mas = resto > 0
-      ? `<span class="chip" style="font-size:11px;background:#e2e8f01a;color:#475569;border:1px solid #e2e8f0;cursor:default" title="${KoguUi.escapeHtml(allLabels)}">+${resto} más</span>`
-      : '';
-    return `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center" title="${KoguUi.escapeHtml(allLabels)}">${chips}${mas}</div>`;
+    return `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">${chips}</div>`;
   }
 
   function rangoHtml(min, max) {
@@ -214,11 +207,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         : '<span class="chip" style="background:#dc26261a;color:#dc2626;border:1px solid #dc262655;font-size:11px">No</span>';
       return `
         <tr>
-          <td style="max-width:200px">
-            <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600"
-                 title="${KoguUi.escapeHtml(r.nombre)}">${KoguUi.escapeHtml(r.nombre)}</div>
-            ${r.descripcion ? `<div class="muted" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px"
-                                    title="${KoguUi.escapeHtml(r.descripcion)}">${KoguUi.escapeHtml(r.descripcion)}</div>` : ''}
+          <td style="min-width:180px">
+            <div style="font-weight:600;line-height:1.3">${KoguUi.escapeHtml(r.nombre)}</div>
+            ${r.descripcion ? `<div class="muted" style="font-size:11px;margin-top:2px;line-height:1.3">${KoguUi.escapeHtml(r.descripcion)}</div>` : ''}
           </td>
           <td style="text-align:center">${tipoCfdi}</td>
           <td>${scopeChip}</td>
