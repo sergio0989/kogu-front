@@ -2,74 +2,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const qs0 = new URLSearchParams(location.search);
   const isEmbedded = qs0.get('embedded') === '1';
 
-  // Modo embedded: pantalla cargada dentro de un iframe (p.ej. desde el modal
-  // de Materialidad CFDI). Oculta la cromería del shell (sidebar/topbar) para
-  // evitar duplicación y aprovecha 100% del espacio para la ficha.
+  // Modo embedded: la pantalla se carga dentro de un iframe (p.ej. desde el
+  // modal de Materialidad CFDI). NO se inicializa el shell — solo se valida
+  // sesión y se prepara un #pageContent limpio en el body.
+  let boot = null;
   if (isEmbedded) {
-    const css = document.createElement('style');
-    css.textContent = `
-      .sidebar, aside.sidebar, header.topbar { display: none !important; }
-      body { padding: 0 !important; margin: 0 !important; }
-      .app, .layout, .shell, body > div:first-child {
-        display: block !important;
-        grid-template-columns: 1fr !important;
-        grid-template-areas: "main" !important;
-      }
-      #pageContent, .main, main {
-        grid-column: 1 / -1 !important;
-        grid-area: main !important;
-        padding: 16px !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-      }
-    `;
-    document.head.appendChild(css);
-  }
-
-  const boot = await KoguShell.initShell({
-    currentPage: '/modules/cfdi/detalle/detalle.html',
-    title: 'Detalle CFDI',
-    description: 'Vista tipo factura impresa con lectura fiscal SAT, EFOS y cancelabilidad.',
-    requiredPermission: 'screen.cfdi.sat_dm'
-  });
-  if (!boot) return;
-
-  // En modo embedded: extraer #pageContent del shell y eliminar el resto.
-  // El shell del KOGU envuelve todo en <div class="layout"><aside/><main>...
-  // <section id="pageContent"></section></main></div>. Solo "esconder" el
-  // topbar o sidebar deja el grid del layout activo y el espacio en blanco.
-  // La solución correcta es mover #pageContent al body y borrar el resto.
-  if (isEmbedded) {
-    const promoteAndStrip = () => {
-      const pc = document.getElementById('pageContent');
-      if (pc && pc.parentElement !== document.body) {
-        document.body.appendChild(pc);
-      }
-      // Eliminar cualquier residuo: app shell + sidebar + topbar + etc.
-      ['#app', 'aside.sidebar', '.sidebar', 'header.topbar', '.topbar',
-       'main.main', '.layout', '.topbar-cards', '.top-mini', '.topbar-leading',
-       '.sidebar-toggle', '#sidebarToggleBtnTopbar',
-       '[data-kogu-sidebar]', '[data-kogu-topbar]',
-      ].forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => {
-          if (el.id !== 'pageContent' && !el.contains(document.getElementById('pageContent'))) {
-            try { el.remove(); } catch(_){}
-          }
-        });
-      });
-      // Reset body para que no tenga grid heredado
-      document.body.style.cssText = 'padding:0;margin:0;display:block;background:#fff';
-      if (pc) pc.style.cssText = 'padding:16px;max-width:100%;margin:0';
-    };
-
-    promoteAndStrip();
-    // Re-ejecutar en próximos ticks por si el shell vuelve a renderizar algo
-    setTimeout(promoteAndStrip, 0);
-    setTimeout(promoteAndStrip, 200);
-    // Observer para reinserciones inesperadas (max 3 segundos vigilando)
-    const obs = new MutationObserver(() => promoteAndStrip());
-    obs.observe(document.body, { childList: true, subtree: false });
-    setTimeout(() => obs.disconnect(), 3000);
+    if (!KoguApi.getToken()) {
+      document.body.innerHTML = '<div style="padding:32px;text-align:center;font-family:sans-serif"><h2>Sesión requerida</h2><p>Abre el detalle desde la pantalla padre.</p></div>';
+      return;
+    }
+    // Reset del body y crear pageContent limpio (sin sidebar ni topbar)
+    document.body.innerHTML = '<section id="pageContent" style="padding:16px;max-width:100%;background:#fff"></section>';
+    document.body.style.cssText = 'padding:0;margin:0;display:block;background:#fff';
+    boot = { user: {}, empresas: [], empresa_activa: {} }; // mock mínimo para que el resto funcione
+  } else {
+    boot = await KoguShell.initShell({
+      currentPage: '/modules/cfdi/detalle/detalle.html',
+      title: 'Detalle CFDI',
+      description: 'Vista tipo factura impresa con lectura fiscal SAT, EFOS y cancelabilidad.',
+      requiredPermission: 'screen.cfdi.sat_dm'
+    });
+    if (!boot) return;
   }
 
   const c = document.getElementById('pageContent');
