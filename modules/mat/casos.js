@@ -58,7 +58,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th>Nombre</th><th>Tipo</th><th>Tercero</th><th>CFDI</th><th>Monto</th><th>Status</th><th>Acción</th>
+        <th style="min-width:220px">Nombre</th>
+        <th>Tipo</th>
+        <th style="min-width:200px">Tercero</th>
+        <th style="text-align:center;min-width:60px">CFDI</th>
+        <th style="text-align:right;min-width:110px;white-space:nowrap">Monto</th>
+        <th>Status</th>
+        <th style="min-width:160px">Acción</th>
       </tr></thead><tbody id="rows"></tbody></table>
     </div>
   </div>
@@ -176,16 +182,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   function render() {
     $('rows').innerHTML = rows.length ? rows.map(r => `
       <tr>
-        <td><strong>${KoguUi.escapeHtml(r.nombre || '')}</strong></td>
-        <td>${KoguUi.escapeHtml(TIPO_CASO_LABELS[r.tipo_caso] || r.tipo_caso)}</td>
-        <td>${KoguUi.escapeHtml(r.expediente_rfc ? (r.expediente_rfc + ' · ' + (r.expediente_nombre || '')) : '—')}</td>
-        <td>${r.cfdi_count || 0}</td>
-        <td>${fmtMoney(r.monto_total, r.moneda)}</td>
+        <td style="font-size:13px;line-height:1.4">
+          <strong>${KoguUi.escapeHtml(r.nombre || '')}</strong>
+          ${r.descripcion ? `<div class="muted" style="font-size:11px;margin-top:2px;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${KoguUi.escapeHtml(r.descripcion)}">${KoguUi.escapeHtml(r.descripcion)}</div>` : ''}
+        </td>
+        <td><span class="chip">${KoguUi.escapeHtml(TIPO_CASO_LABELS[r.tipo_caso] || r.tipo_caso)}</span></td>
+        <td style="font-size:12px;line-height:1.4">
+          ${r.expediente_rfc ? `
+            <strong>${KoguUi.escapeHtml(r.expediente_nombre || '')}</strong>
+            <div style="font-family:monospace;font-size:11px;color:var(--muted,#64748b)">${KoguUi.escapeHtml(r.expediente_rfc)}</div>
+          ` : '<span class="muted">— sin expediente —</span>'}
+        </td>
+        <td style="text-align:center;font-weight:600">${r.cfdi_count || 0}</td>
+        <td style="text-align:right;white-space:nowrap;font-weight:600">${fmtMoney(r.monto_total, r.moneda)}</td>
         <td>${statusBadge(r.status)}</td>
         <td>
           <div class="actions-cell">
-            <button class="btn btn-edit" data-id="${r.caso_id}">Editar</button>
-            <a class="btn" href="/modules/mat/caso-detalle.html?id=${encodeURIComponent(r.caso_id)}">Detalle</a>
+            <button class="btn sm btn-edit" data-id="${r.caso_id}">Editar</button>
+            <a class="btn sm" href="/modules/mat/caso-detalle.html?id=${encodeURIComponent(r.caso_id)}">Detalle</a>
           </div>
         </td>
       </tr>

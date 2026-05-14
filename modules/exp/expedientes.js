@@ -42,7 +42,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th>RFC</th><th>Nombre</th><th>Tipo</th><th>Score</th><th>Nivel</th><th>Acciones</th>
+        <th style="min-width:130px;white-space:nowrap">RFC</th>
+        <th style="min-width:200px">Nombre / Razón social</th>
+        <th>Tipo</th>
+        <th style="text-align:center;min-width:70px">Score</th>
+        <th>Nivel</th>
+        <th style="text-align:center">Última revisión</th>
+        <th style="min-width:160px">Acciones</th>
       </tr></thead><tbody id="rows"></tbody></table>
     </div>
     <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
@@ -336,21 +342,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render() {
     const page = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-    $('rows').innerHTML = page.length ? page.map(r => `
+    $('rows').innerHTML = page.length ? page.map(r => {
+      const ultRev = r.ultima_revision_at ? new Date(r.ultima_revision_at).toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'2-digit' }) : null;
+      return `
       <tr>
-        <td style="font-family:monospace"><strong>${KoguUi.escapeHtml(r.rfc || '')}</strong></td>
-        <td>${KoguUi.escapeHtml(r.nombre || '')}</td>
-        <td>${KoguUi.escapeHtml(r.tercero_tipo || '')}</td>
-        <td>${typeof r.score_actual === 'number' ? r.score_actual : '<span class="muted">—</span>'}</td>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap"><strong>${KoguUi.escapeHtml(r.rfc || '')}</strong></td>
+        <td style="font-size:13px">
+          <strong>${KoguUi.escapeHtml(r.nombre || '')}</strong>
+          ${r.responsable_nombre ? `<div class="muted" style="font-size:11px;margin-top:2px">Resp.: ${KoguUi.escapeHtml(r.responsable_nombre)}</div>` : ''}
+        </td>
+        <td><span class="chip">${KoguUi.escapeHtml(r.tercero_tipo || '')}</span></td>
+        <td style="text-align:center;font-weight:700">${typeof r.score_actual === 'number' ? r.score_actual : '<span class="muted" style="font-weight:400">—</span>'}</td>
         <td>${nivelBadge(r.nivel_riesgo)}</td>
+        <td style="text-align:center;font-size:11px;color:var(--muted,#64748b)">${ultRev || '<span class="muted">—</span>'}</td>
         <td>
           <div class="actions-cell">
-            <button class="btn btn-edit" data-id="${r.expediente_id}">Editar</button>
-            <a class="btn" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(r.expediente_id)}">Detalle</a>
+            <button class="btn sm btn-edit" data-id="${r.expediente_id}">Editar</button>
+            <a class="btn sm" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(r.expediente_id)}">Detalle</a>
           </div>
         </td>
-      </tr>
-    `).join('') : `<tr><td colspan="6" class="empty">Sin expedientes</td></tr>`;
+      </tr>`;
+    }).join('') : `<tr><td colspan="7" class="empty">Sin expedientes</td></tr>`;
 
     document.querySelectorAll('.btn-edit').forEach(btn => btn.onclick = () => {
       const row = rows.find(r => String(r.expediente_id) === btn.dataset.id);

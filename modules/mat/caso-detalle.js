@@ -73,8 +73,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th>UUID</th><th>Fecha</th><th>Tipo</th><th>Tercero</th><th>Total</th>
-        <th>Score CFDI</th><th>Rol en caso</th><th>Acciones</th>
+        <th style="min-width:120px">UUID</th>
+        <th style="min-width:90px">Serie / Folio</th>
+        <th style="min-width:90px;white-space:nowrap">Fecha</th>
+        <th style="text-align:center">Tipo</th>
+        <th style="min-width:200px">Tercero</th>
+        <th style="text-align:right;min-width:110px;white-space:nowrap">Total</th>
+        <th style="min-width:90px">Score CFDI</th>
+        <th>Rol en caso</th>
+        <th style="min-width:200px">Acciones</th>
       </tr></thead><tbody id="cfdiRows"></tbody></table>
     </div>
   </div>
@@ -194,23 +201,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('statusChip').innerHTML = statusBadge(caso.status);
 
     // CFDI miembros
-    $('cfdiRows').innerHTML = cfdis.length ? cfdis.map(c => `
-      <tr>
-        <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml((c.cfdi_uuid || '').slice(0, 8))}…</td>
-        <td>${fmtDate(c.fecha_emision)}</td>
-        <td>${KoguUi.escapeHtml(c.tipo_comprobante || '')}</td>
-        <td>${KoguUi.escapeHtml((c.emisor_rfc || '') + ' / ' + (c.receptor_rfc || ''))}</td>
-        <td>${fmtMoney(c.total, c.moneda)}</td>
-        <td>${c.score_cfdi ?? '<span class="muted">—</span>'} ${c.nivel_cfdi ? '· ' + c.nivel_cfdi : ''}</td>
-        <td>${KoguUi.escapeHtml(ROL_CFDI_LABELS[c.rol_en_caso] || c.rol_en_caso || '')}</td>
-        <td>
-          <div class="actions-cell">
-            <a class="btn" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(c.cfdi_id)}">Materialidad</a>
-            <button class="btn btn-detach" data-cfdi="${c.cfdi_id}">Desvincular</button>
-          </div>
-        </td>
-      </tr>
-    `).join('') : '<tr><td colspan="8" class="empty">Sin CFDI asociados. Usa "Asociar CFDI al caso".</td></tr>';
+    $('cfdiRows').innerHTML = cfdis.length ? cfdis.map(c => {
+      const origenUC = String(c.cfdi_origen || c.origen || '').toUpperCase();
+      const esRecibido = origenUC.includes('RECIB');
+      const terceroRfc    = esRecibido ? c.emisor_rfc    : c.receptor_rfc;
+      const terceroNombre = esRecibido ? c.emisor_nombre : c.receptor_nombre;
+      const uuidFull      = c.cfdi_uuid || '';
+      const uuidShort     = uuidFull.slice(0, 8);
+      const serie         = c.serie || '';
+      const folio         = c.folio != null ? String(c.folio) : '';
+      const serieFolio    = serie + (folio ? (serie ? ' / ' : '') + folio : '');
+
+      return `
+        <tr>
+          <td title="${KoguUi.escapeHtml(uuidFull)}">
+            <span style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(uuidShort)}…</span>
+          </td>
+          <td>${serieFolio ? `<strong style="font-size:12px">${KoguUi.escapeHtml(serieFolio)}</strong>` : '<span class="muted">—</span>'}</td>
+          <td style="white-space:nowrap;font-size:12px">${fmtDate(c.fecha_emision)}</td>
+          <td style="text-align:center"><span class="chip">${KoguUi.escapeHtml(c.tipo_comprobante || '—')}</span></td>
+          <td style="font-size:12px;line-height:1.4">
+            <strong>${KoguUi.escapeHtml(terceroNombre || '—')}</strong>
+            <div style="font-family:monospace;font-size:11px;color:var(--muted,#64748b)">${KoguUi.escapeHtml(terceroRfc || '')}</div>
+          </td>
+          <td style="text-align:right;white-space:nowrap;font-weight:600">${fmtMoney(c.total, c.moneda)}</td>
+          <td>${
+            c.score_cfdi != null
+              ? `<strong>${c.score_cfdi}</strong>${c.nivel_cfdi ? ' · ' + c.nivel_cfdi : ''}`
+              : '<span class="muted" style="font-size:11px">— sin score —</span>'
+          }</td>
+          <td><span class="chip">${KoguUi.escapeHtml(ROL_CFDI_LABELS[c.rol_en_caso] || c.rol_en_caso || '')}</span></td>
+          <td>
+            <div class="actions-cell">
+              <a class="btn" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(c.cfdi_id)}">Materialidad</a>
+              <button class="btn btn-detach" data-cfdi="${c.cfdi_id}">Desvincular</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('') : '<tr><td colspan="9" class="empty">Sin CFDI asociados. Usa "Asociar CFDI al caso".</td></tr>';
 
     document.querySelectorAll('.btn-detach').forEach(btn => btn.onclick = async () => {
       if (!confirm('¿Desvincular este CFDI del caso?')) return;

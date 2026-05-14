@@ -79,7 +79,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="sentencia">Sentencia favorable</option>
       </select>
     </div>
-    <div></div>
+    <div>
+      <div class="label-text">Buscar UUID / RFC / Serie / Folio</div>
+      <input class="input" id="fQ" placeholder="UUID, RFC del tercero, serie o folio…" autocomplete="off"/>
+    </div>
   </div>
 
   <div class="grid-2" style="margin-top:8px;gap:8px">
@@ -89,10 +92,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <div class="table-wrap" style="margin-top:16px">
     <table><thead><tr>
-      <th>UUID</th><th>Fecha</th><th>Scope</th><th>Tercero</th><th>Total</th>
-      <th>Score</th><th>Nivel</th><th>Estatus</th><th>EFOS</th><th>Acción</th>
+      <th style="min-width:120px">UUID</th>
+      <th style="min-width:90px">Serie / Folio</th>
+      <th style="min-width:90px;white-space:nowrap">Fecha</th>
+      <th>Scope</th>
+      <th style="min-width:200px">Tercero</th>
+      <th style="text-align:right;min-width:110px;white-space:nowrap">Total</th>
+      <th style="text-align:center;min-width:70px">Score</th>
+      <th>Nivel</th><th>Estatus</th><th>EFOS</th>
+      <th style="min-width:140px">Acción</th>
     </tr></thead><tbody id="rows"></tbody></table>
   </div>
+
+  <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:10px;font-size:13px;color:var(--muted,#64748b)">
+    <div id="pgInfo">—</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:12px">Por página:</span>
+      <select id="pgSize" class="select" style="width:auto">
+        <option>25</option>
+        <option selected>50</option>
+        <option>100</option>
+        <option>200</option>
+      </select>
+      <button class="btn sm" id="pgFirst" title="Primera">«</button>
+      <button class="btn sm" id="pgPrev"  title="Anterior">‹</button>
+      <span id="pgNumeros" style="padding:0 4px"></span>
+      <button class="btn sm" id="pgNext"  title="Siguiente">›</button>
+      <button class="btn sm" id="pgLast"  title="Última">»</button>
+    </div>
+  </div>
+
   <div id="meta" class="muted" style="margin-top:10px;font-size:12px"></div>
 </div>`;
 
@@ -123,7 +152,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function fmtDate(d){ if(!d) return ''; return new Date(d).toLocaleDateString('es-MX'); }
   function fmtMoney(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:2}); }
 
-  async function load() {
+  // Estado de paginación cliente
+  let _allRows = [];
+  let _currentPage = 1;
+
+  async function load(opts = {}) {
     const p = new URLSearchParams();
     const set = (k, id) => { const v = $(id).value.trim(); if (v) p.set(k, v); };
     set('tipo_cfdi','fTipo');
@@ -133,45 +166,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     set('riesgo_efos','fEfos');
     set('from','fFrom');
     set('to','fTo');
-    const qs = p.toString() ? `?${p}` : '';
+    set('q','fQ');
+    p.set('limit', '500'); // suficiente para paginar cliente; el filtro q reduce más
+    const qs = '?' + p.toString();
     const res = await KoguApi.apiFetch('/protected/mat/bandeja-defensa' + qs);
-    const rows = KoguApi.unwrapRows(res) || [];
+    _allRows = KoguApi.unwrapRows(res) || [];
+    if (opts.resetPage !== false) _currentPage = 1;
+    renderPage();
+  }
+
+  function renderPage() {
+    const pageSize = Number($('pgSize').value) || 50;
+    const total = _allRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (_currentPage > totalPages) _currentPage = totalPages;
+    if (_currentPage < 1) _currentPage = 1;
+
+    const from = total === 0 ? 0 : (_currentPage - 1) * pageSize;
+    const to = Math.min(_currentPage * pageSize, total);
+    const pageRows = _allRows.slice(from, to);
 
     let conScore = 0, sinScore = 0;
-    $('rows').innerHTML = rows.length ? rows.map(r => {
+    for (const r of _allRows) { if (r.score_id != null) conScore++; else sinScore++; }
+
+    $('rows').innerHTML = pageRows.length ? pageRows.map(r => {
       const tieneScore = r.score_id != null;
-      if (tieneScore) conScore++; else sinScore++;
-
-      // El scope efectivo: usa s.scope (calculado) cuando hay score; si no, deriva de cfdi.origen
       const scopeEfectivo = r.scope || (String(r.cfdi_origen || '').toUpperCase().includes('RECIB') ? 'RECIBIDO' : 'EMITIDO');
-      const tercero = scopeEfectivo === 'RECIBIDO'
-        ? `${r.emisor_rfc || ''} · ${r.emisor_nombre || ''}`
-        : `${r.receptor_rfc || ''} · ${r.receptor_nombre || ''}`;
+      const esRecibido = scopeEfectivo === 'RECIBIDO';
+      const terceroRfc    = esRecibido ? r.emisor_rfc    : r.receptor_rfc;
+      const terceroNombre = esRecibido ? r.emisor_nombre : r.receptor_nombre;
+      const uuidFull  = r.cfdi_uuid || '';
+      const uuidShort = uuidFull.slice(0, 8);
+      const serieFolio = (r.serie || '') + (r.folio != null && r.folio !== '' ? ((r.serie ? ' / ' : '') + r.folio) : '');
 
-      // Acciones según si hay score o no
       const accionHtml = tieneScore
-        ? `<a class="btn" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(r.cfdi_id)}">Abrir</a>`
-        : `<button class="btn primary btn-calc" data-cfdi="${KoguUi.escapeHtml(r.cfdi_id)}">Calcular</button>
-           <a class="btn" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(r.cfdi_id)}">Abrir</a>`;
+        ? `<a class="btn sm" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(r.cfdi_id)}">Abrir</a>`
+        : `<button class="btn primary sm btn-calc" data-cfdi="${KoguUi.escapeHtml(r.cfdi_id)}">Calcular</button>
+           <a class="btn sm" href="/modules/mat/cfdi-materialidad.html?cfdi_id=${encodeURIComponent(r.cfdi_id)}">Abrir</a>`;
 
       const rowStyle = tieneScore ? '' : 'background:#fafafa;color:#475569;';
       return `
         <tr style="${rowStyle}">
-          <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml((r.cfdi_uuid || '').slice(0, 8))}…</td>
-          <td>${fmtDate(r.fecha_emision)}</td>
+          <td title="${KoguUi.escapeHtml(uuidFull)}">
+            <span style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(uuidShort)}…</span>
+          </td>
+          <td>${serieFolio ? `<strong style="font-size:12px">${KoguUi.escapeHtml(serieFolio)}</strong>` : '<span class="muted">—</span>'}</td>
+          <td style="white-space:nowrap;font-size:12px">${fmtDate(r.fecha_emision)}</td>
           <td>${KoguUi.escapeHtml(scopeEfectivo)}</td>
-          <td>${KoguUi.escapeHtml(tercero)}</td>
-          <td>${fmtMoney(r.total, r.moneda)}</td>
-          <td style="font-weight:700">${tieneScore ? r.score : '<span class="muted">—</span>'}</td>
+          <td style="font-size:12px;line-height:1.4">
+            <strong>${KoguUi.escapeHtml(terceroNombre || '—')}</strong>
+            <div style="font-family:monospace;font-size:11px;color:var(--muted,#64748b)">${KoguUi.escapeHtml(terceroRfc || '')}</div>
+          </td>
+          <td style="text-align:right;white-space:nowrap;font-weight:600">${fmtMoney(r.total, r.moneda)}</td>
+          <td style="text-align:center;font-weight:700">${tieneScore ? r.score : '<span class="muted">—</span>'}</td>
           <td>${tieneScore ? nivelBadge(r.nivel) : '<span class="muted" style="font-size:11px">— sin calcular —</span>'}</td>
           <td>${tieneScore ? estatusBadge(r.estatus_defensa) : '<span class="muted">—</span>'}</td>
           <td>${tieneScore ? efosBadge(r.riesgo_efos) : '<span class="muted">—</span>'}</td>
           <td><div class="actions-cell">${accionHtml}</div></td>
         </tr>
       `;
-    }).join('') : '<tr><td colspan="10" class="empty">Sin CFDIs en esta empresa. Procesa algún paquete SAT primero para que aparezcan aquí.</td></tr>';
-
-    $('meta').textContent = `${rows.length} CFDI · ${conScore} con score · ${sinScore} pendientes`;
+    }).join('') : '<tr><td colspan="11" class="empty">Sin CFDIs que coincidan con los filtros.</td></tr>';
 
     // Wire de "Calcular" individual
     document.querySelectorAll('.btn-calc').forEach(btn => btn.onclick = async () => {
@@ -181,16 +235,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         const res = await KoguApi.apiFetch('/protected/mat/score/' + cfdiId + '/recalcular', { method: 'POST' });
         const s = KoguApi.unwrapData(res);
         KoguApi.toast(`Score calculado: ${s.score} (${s.nivel})`, 'success');
-        await load();
+        await load({ resetPage: false });
       } catch (e) {
         btn.disabled = false; btn.textContent = 'Calcular';
         KoguApi.toast(e.message, 'error');
       }
     });
+
+    renderPagination(total, totalPages, from, to);
+    $('meta').textContent = `${total} CFDI · ${conScore} con score · ${sinScore} pendientes`;
   }
 
-  ['fTipo','fNivel','fEstatus','fScope','fEfos','fFrom','fTo'].forEach(id => $(id).onchange = load);
-  $('refreshBtn').onclick = load;
+  function renderPagination(total, totalPages, from, to) {
+    $('pgInfo').textContent = total === 0
+      ? 'Sin registros'
+      : `Mostrando ${from + 1}–${to} de ${total}`;
+
+    $('pgFirst').disabled = _currentPage <= 1;
+    $('pgPrev').disabled  = _currentPage <= 1;
+    $('pgNext').disabled  = _currentPage >= totalPages;
+    $('pgLast').disabled  = _currentPage >= totalPages;
+
+    // Ventana de páginas: máximo 5 alrededor de la actual + primera/última con …
+    const win = [];
+    const push = (n) => { if (!win.includes(n) && n >= 1 && n <= totalPages) win.push(n); };
+    push(1);
+    for (let i = _currentPage - 2; i <= _currentPage + 2; i++) push(i);
+    push(totalPages);
+    win.sort((a, b) => a - b);
+
+    let html = '';
+    let prev = 0;
+    for (const n of win) {
+      if (n - prev > 1) html += '<span style="color:#94a3b8;padding:0 4px">…</span>';
+      html += `<button class="btn sm pgN" data-n="${n}" ${n === _currentPage ? 'style="background:#0f172a;color:#fff;border-color:#0f172a"' : ''}>${n}</button>`;
+      prev = n;
+    }
+    $('pgNumeros').innerHTML = html;
+
+    document.querySelectorAll('.pgN').forEach(b => b.onclick = () => {
+      _currentPage = Number(b.dataset.n);
+      renderPage();
+    });
+  }
+
+  // Filtros que recargan desde backend (incluyen q con debounce)
+  ['fTipo','fNivel','fEstatus','fScope','fEfos','fFrom','fTo'].forEach(id => $(id).onchange = () => load({ resetPage: true }));
+  let _qDebounce = null;
+  $('fQ').addEventListener('input', () => {
+    clearTimeout(_qDebounce);
+    _qDebounce = setTimeout(() => load({ resetPage: true }), 300);
+  });
+
+  // Controles de paginación
+  $('pgSize').onchange = () => { _currentPage = 1; renderPage(); };
+  $('pgFirst').onclick = () => { _currentPage = 1; renderPage(); };
+  $('pgPrev').onclick  = () => { _currentPage = Math.max(1, _currentPage - 1); renderPage(); };
+  $('pgNext').onclick  = () => { _currentPage++; renderPage(); };
+  $('pgLast').onclick  = () => { _currentPage = Math.ceil(_allRows.length / (Number($('pgSize').value) || 50)); renderPage(); };
+
+  $('refreshBtn').onclick = () => load({ resetPage: false });
 
   // Recalcular pendientes (lote de hasta 50 por click).
   // Respeta los filtros actuales de Tipo CFDI y Scope para procesar solo
@@ -234,6 +338,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  KoguShell.subscribeEmpresaActivaChange(load);
-  await load();
+  KoguShell.subscribeEmpresaActivaChange(() => load({ resetPage: true }));
+  await load({ resetPage: true });
 });
