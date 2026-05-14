@@ -133,8 +133,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             : '#94a3b8';
     return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${STATUS_LABELS[s] || s}</span>`;
   }
-  function fmtMoney(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:2}); }
-
   async function loadExpedientes() {
     try {
       const res = await KoguApi.apiFetch('/protected/exp/expedientes');
@@ -194,7 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ` : '<span class="muted">— sin expediente —</span>'}
         </td>
         <td style="text-align:center;font-weight:600">${r.cfdi_count || 0}</td>
-        <td style="text-align:right;white-space:nowrap;font-weight:600">${fmtMoney(r.monto_total, r.moneda)}</td>
+        <td style="text-align:right;white-space:nowrap;font-weight:600">${KoguUi.fmtMoney(r.monto_total, r.moneda)}</td>
         <td>${statusBadge(r.status)}</td>
         <td>
           <div class="actions-cell">

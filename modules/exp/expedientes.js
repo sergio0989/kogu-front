@@ -315,14 +315,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-  function nivelBadge(nivel) {
-    if (!nivel) return '<span class="muted" style="font-size:11px">— sin evaluar —</span>';
-    const color = nivel === 'BAJO' ? '#16a34a'
-                : nivel === 'MEDIO' ? '#ca8a04'
-                : nivel === 'ALTO' ? '#ea580c'
-                : '#dc2626';
-    return `<span class="chip" style="background:${color}1a;color:${color};border:1px solid ${color}55;">${nivel}</span>`;
-  }
 
   function renderPagination(total) {
     const bar = $('pgBar');
@@ -353,7 +345,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </td>
         <td><span class="chip">${KoguUi.escapeHtml(r.tercero_tipo || '')}</span></td>
         <td style="text-align:center;font-weight:700">${typeof r.score_actual === 'number' ? r.score_actual : '<span class="muted" style="font-weight:400">—</span>'}</td>
-        <td>${nivelBadge(r.nivel_riesgo)}</td>
+        <td>${KoguUi.nivelBadge(r.nivel_riesgo)}</td>
         <td style="text-align:center;font-size:11px;color:var(--muted,#64748b)">${ultRev || '<span class="muted">—</span>'}</td>
         <td>
           <div class="actions-cell">

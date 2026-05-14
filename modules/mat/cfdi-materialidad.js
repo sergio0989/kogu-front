@@ -10,22 +10,6 @@
 // Sub-proyecto: materialidad-v1 — Iteración 1.
 // ============================================================
 
-const TIPO_EVIDENCIA_LABELS = {
-  contrato_especifico:    'Contrato específico',
-  orden_compra:           'Orden de compra',
-  recepcion_fisica:       'Recepción física',
-  bitacora_entrada:       'Bitácora de entrada',
-  foto_recepcion:         'Foto de recepción',
-  coa_lote:               'COA / Certificado de análisis',
-  inspeccion_qa:          'Inspección QA',
-  rep_pago:               'REP / Comprobante de pago',
-  correo:                 'Correo / comunicación',
-  acta_entrega:           'Acta de entrega',
-  comprobante_servicio:   'Comprobante de servicio',
-  reporte_actividades:    'Reporte de actividades',
-  otro:                   'Otro',
-};
-
 const ORIGEN_LABELS = {
   manual:        'Manual',
   derivado_erp:  'ERP',
@@ -191,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="label-text">Tipo de evidencia</div>
           <select class="select" id="ev_tipo">
             <option value="">Selecciona…</option>
-            ${Object.entries(TIPO_EVIDENCIA_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+            ${Object.entries(KoguUi.TIPO_EVIDENCIA_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -257,35 +241,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Helpers de formato ────────────────────────────────────────────────────
   function n(v){ const x = Number(v||0); return Number.isFinite(x) ? x : 0; }
   function asText(v, d='—'){ return (v === null || v === undefined || v === '') ? d : String(v); }
-  function fmtMoney(v, mon='MXN'){
-    if (v === null || v === undefined || v === '') return '—';
-    return Number(v).toLocaleString('es-MX', { style: 'currency', currency: mon, minimumFractionDigits: 2 });
-  }
   function shortDate(v){ if(!v) return '—'; const d = new Date(v); if (Number.isNaN(d.getTime())) return asText(v); return d.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' }); }
   function dateTimeText(v){ if(!v) return '—'; const d = new Date(v); if (Number.isNaN(d.getTime())) return asText(v); return d.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
 
-  function nivelBadge(n) {
-    if (!n) return '';
-    const c = n === 'BAJO' ? '#16a34a' : n === 'MEDIO' ? '#ca8a04' : n === 'ALTO' ? '#ea580c' : '#dc2626';
-    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${n}</span>`;
-  }
-  function estatusBadge(e) {
-    if (!e) return '';
-    const c = e === 'completo' ? '#16a34a'
-            : e === 'en_armado' ? '#ca8a04'
-            : e === 'requiere_aprobacion' ? '#7c3aed'
-            : e === 'insuficiente' ? '#dc2626'
-            : '#64748b';
-    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${e.replace('_',' ')}</span>`;
-  }
-  function efosBadge(e) {
-    if (!e) return '';
-    const c = e === 'definitivo' ? '#dc2626'
-            : e === 'presunto'  ? '#ea580c'
-            : e === 'desvirtuado' ? '#16a34a'
-            : '#64748b';
-    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">EFOS: ${e}</span>`;
-  }
   function rowKV(label, value) {
     return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px dashed #e2e8f0;font-size:13px">
       <div style="min-width:160px;color:var(--muted,#64748b);font-size:12px">${KoguUi.escapeHtml(label)}</div>
@@ -330,9 +288,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (s) {
       _uuidCfdi = s.uuid;
       $('scoreNum').textContent = s.score ?? '—';
-      $('nivelChip').innerHTML  = nivelBadge(s.nivel);
-      $('estatusChip').innerHTML = estatusBadge(s.estatus_defensa);
-      $('efosChip').innerHTML   = efosBadge(s.riesgo_efos);
+      $('nivelChip').innerHTML  = KoguUi.nivelBadge(s.nivel);
+      $('estatusChip').innerHTML = KoguUi.estatusBadge(s.estatus_defensa);
+      $('efosChip').innerHTML   = KoguUi.efosBadge(s.riesgo_efos);
 
       const req  = Array.isArray(s.evidencias_requeridas) ? s.evidencias_requeridas : [];
       const pres = Array.isArray(s.evidencias_presentes)  ? s.evidencias_presentes  : [];
@@ -364,8 +322,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('cobertura').innerHTML = `
         <div class="muted" style="font-size:12px;margin-bottom:8px">Cobertura de evidencias</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${pres.map(t => `<span class="chip" style="background:#16a34a1a;color:#16a34a;border:1px solid #16a34a55">✓ ${TIPO_EVIDENCIA_LABELS[t] || t}</span>`).join('')}
-          ${falt.map(t => `<span class="chip" style="background:#dc26261a;color:#dc2626;border:1px solid #dc262655">✗ ${TIPO_EVIDENCIA_LABELS[t] || t}</span>`).join('')}
+          ${pres.map(t => `<span class="chip" style="background:#16a34a1a;color:#16a34a;border:1px solid #16a34a55">✓ ${KoguUi.TIPO_EVIDENCIA_LABELS[t] || t}</span>`).join('')}
+          ${falt.map(t => `<span class="chip" style="background:#dc26261a;color:#dc2626;border:1px solid #dc262655">✗ ${KoguUi.TIPO_EVIDENCIA_LABELS[t] || t}</span>`).join('')}
         </div>
         ${req.length === 0 ? '<div class="muted" style="margin-top:8px;font-size:11px">No hay reglas aplicables a este CFDI todavía. Ve a Materialidad → Reglas.</div>' : ''}
         ${castigosHtml}
@@ -409,7 +367,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (terceroRfc && terceroRfc !== '—') partesSubtitle.push(`RFC ${terceroRfc}`);
     partesSubtitle.push(esRecibido ? 'Recibido' : 'Emitido');
     if (ficha.fecha_emision || ficha.fecha) partesSubtitle.push(shortDate(ficha.fecha_emision || ficha.fecha));
-    if (ficha.total != null) partesSubtitle.push(fmtMoney(ficha.total, ficha.moneda));
+    if (ficha.total != null) partesSubtitle.push(KoguUi.fmtMoney(ficha.total, ficha.moneda));
     if (ficha.metodo_pago) partesSubtitle.push(ficha.metodo_pago);
     $('cfdiSubtitle').textContent = partesSubtitle.join(' · ');
 
@@ -422,7 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── Resumen breve visible incluso colapsado ─────
     const resumenPartes = [];
     if (ficha.fecha_emision || ficha.fecha) resumenPartes.push(shortDate(ficha.fecha_emision || ficha.fecha));
-    if (ficha.total != null) resumenPartes.push(fmtMoney(ficha.total, ficha.moneda));
+    if (ficha.total != null) resumenPartes.push(KoguUi.fmtMoney(ficha.total, ficha.moneda));
     if (ficha.estatus_sat) resumenPartes.push(String(ficha.estatus_sat).toUpperCase());
     $('cfdiFiscalResumen').textContent = resumenPartes.join(' · ');
 
@@ -476,23 +434,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right">${asText(c.cantidad)}</td>
         <td style="font-family:monospace;font-size:11px">${KoguUi.escapeHtml(c.unidad || c.clave_unidad || '—')}</td>
         <td>${KoguUi.escapeHtml(c.descripcion || '—')}</td>
-        <td style="text-align:right">${fmtMoney(c.valor_unit ?? c.valor_unitario, ficha.moneda)}</td>
-        <td style="text-align:right">${fmtMoney(c.descuento || 0, ficha.moneda)}</td>
-        <td style="text-align:right;font-weight:600">${fmtMoney(c.importe, ficha.moneda)}</td>
+        <td style="text-align:right">${KoguUi.fmtMoney(c.valor_unit ?? c.valor_unitario, ficha.moneda)}</td>
+        <td style="text-align:right">${KoguUi.fmtMoney(c.descuento || 0, ficha.moneda)}</td>
+        <td style="text-align:right;font-weight:600">${KoguUi.fmtMoney(c.importe, ficha.moneda)}</td>
       </tr>
     `).join('') : '<tr><td colspan="8" class="empty">Sin conceptos disponibles</td></tr>';
 
     // ── Totales ─────
     $('totalesBlock').innerHTML = `
       <div style="padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
-        ${rowKV('Subtotal', `<strong>${fmtMoney(ficha.subtotal, ficha.moneda)}</strong>`)}
-        ${rowKV('Impuestos trasladados', fmtMoney(ficha.impuestos_tras || ficha.total_impuestos_trasladados || 0, ficha.moneda))}
-        ${rowKV('Retenciones', fmtMoney(ficha.impuestos_ret || ficha.total_impuestos_retenidos || 0, ficha.moneda))}
-        ${ficha.impuestos_ret_iva ? rowKV('Retención IVA', fmtMoney(ficha.impuestos_ret_iva, ficha.moneda)) : ''}
-        ${ficha.impuestos_ret_isr ? rowKV('Retención ISR', fmtMoney(ficha.impuestos_ret_isr, ficha.moneda)) : ''}
+        ${rowKV('Subtotal', `<strong>${KoguUi.fmtMoney(ficha.subtotal, ficha.moneda)}</strong>`)}
+        ${rowKV('Impuestos trasladados', KoguUi.fmtMoney(ficha.impuestos_tras || ficha.total_impuestos_trasladados || 0, ficha.moneda))}
+        ${rowKV('Retenciones', KoguUi.fmtMoney(ficha.impuestos_ret || ficha.total_impuestos_retenidos || 0, ficha.moneda))}
+        ${ficha.impuestos_ret_iva ? rowKV('Retención IVA', KoguUi.fmtMoney(ficha.impuestos_ret_iva, ficha.moneda)) : ''}
+        ${ficha.impuestos_ret_isr ? rowKV('Retención ISR', KoguUi.fmtMoney(ficha.impuestos_ret_isr, ficha.moneda)) : ''}
         <div style="margin-top:6px;padding-top:8px;border-top:2px solid #0f172a;display:flex;justify-content:space-between;font-size:16px;font-weight:700">
           <span>Total</span>
-          <span>${fmtMoney(ficha.total, ficha.moneda)}</span>
+          <span>${KoguUi.fmtMoney(ficha.total, ficha.moneda)}</span>
         </div>
       </div>
     `;
@@ -578,7 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '';
     return `
       <tr>
-        <td>${KoguUi.escapeHtml(TIPO_EVIDENCIA_LABELS[e.tipo_evidencia] || e.tipo_evidencia)}</td>
+        <td>${KoguUi.escapeHtml(KoguUi.TIPO_EVIDENCIA_LABELS[e.tipo_evidencia] || e.tipo_evidencia)}</td>
         <td>${KoguUi.escapeHtml(ORIGEN_LABELS[e.origen] || e.origen)}${heredada ? ' <span class="chip" style="background:#7c3aed1a;color:#7c3aed;border:1px solid #7c3aed55">heredada</span>' : ''}</td>
         <td>${caso}</td>
         <td>${KoguUi.escapeHtml(e.descripcion || '')}</td>

@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${exp.responsable_nombre ? '<br>Responsable: ' + KoguUi.escapeHtml(exp.responsable_nombre) : ''}
     `;
     $('scoreActual').textContent = typeof exp.score_actual === 'number' ? exp.score_actual : '—';
-    $('nivelActual').innerHTML = nivelBadge(exp.nivel_riesgo);
+    $('nivelActual').innerHTML = KoguUi.nivelBadge(exp.nivel_riesgo);
     if (resDesglose) renderDesglose(KoguApi.unwrapData(resDesglose)?.desglose);
   }
 
@@ -273,14 +273,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Helpers UI ────────────────────────────────────────────────────────────
-  function nivelBadge(nivel) {
-    if (!nivel) return '<span class="muted" style="font-size:11px">— sin evaluar —</span>';
-    const color = nivel === 'BAJO' ? '#16a34a'
-                : nivel === 'MEDIO' ? '#ca8a04'
-                : nivel === 'ALTO' ? '#ea580c'
-                : '#dc2626';
-    return `<span class="chip" style="background:${color}1a;color:${color};border:1px solid ${color}55;">${nivel}</span>`;
-  }
   function fmtBytes(b) {
     if (!b) return '—';
     if (b < 1024) return b + ' B';

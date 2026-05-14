@@ -133,30 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const $ = id => document.getElementById(id);
 
-  function nivelBadge(n) {
-    if (!n) return '<span class="muted">—</span>';
-    const c = n === 'BAJO' ? '#16a34a' : n === 'MEDIO' ? '#ca8a04' : n === 'ALTO' ? '#ea580c' : '#dc2626';
-    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${n}</span>`;
-  }
-  function estatusBadge(e) {
-    if (!e) return '<span class="muted">—</span>';
-    const c = e === 'completo' ? '#16a34a'
-            : e === 'en_armado' ? '#ca8a04'
-            : e === 'requiere_aprobacion' ? '#7c3aed'
-            : e === 'insuficiente' ? '#dc2626'
-            : '#64748b';
-    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${e.replace('_',' ')}</span>`;
-  }
-  function efosBadge(e) {
-    if (!e) return '<span class="muted">—</span>';
-    const c = e === 'definitivo' ? '#dc2626'
-            : e === 'presunto'  ? '#ea580c'
-            : e === 'desvirtuado' ? '#16a34a'
-            : '#64748b';
-    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${e}</span>`;
-  }
   function fmtDate(d){ if(!d) return ''; return new Date(d).toLocaleDateString('es-MX'); }
-  function fmtMoney(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:2}); }
 
   // Estado de paginación server-side
   let _pageRows    = [];   // filas de la página actual (viene del servidor)
@@ -239,11 +216,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <strong>${KoguUi.escapeHtml(terceroNombre || '—')}</strong>
             <div style="font-family:monospace;font-size:11px;color:var(--muted,#64748b)">${KoguUi.escapeHtml(terceroRfc || '')}</div>
           </td>
-          <td style="text-align:right;white-space:nowrap;font-weight:600">${fmtMoney(r.total, r.moneda)}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:600">${KoguUi.fmtMoney(r.total, r.moneda)}</td>
           <td style="text-align:center;font-weight:700">${tieneScore ? r.score : '<span class="muted">—</span>'}</td>
-          <td>${tieneScore ? nivelBadge(r.nivel) : '<span class="muted" style="font-size:11px">— sin calcular —</span>'}</td>
-          <td>${tieneScore ? estatusBadge(r.estatus_defensa) : '<span class="muted">—</span>'}</td>
-          <td>${tieneScore ? efosBadge(r.riesgo_efos) : '<span class="muted">—</span>'}</td>
+          <td>${tieneScore ? KoguUi.nivelBadge(r.nivel) : '<span class="muted" style="font-size:11px">— sin calcular —</span>'}</td>
+          <td>${tieneScore ? KoguUi.estatusBadge(r.estatus_defensa) : '<span class="muted">—</span>'}</td>
+          <td>${tieneScore ? KoguUi.efosBadge(r.riesgo_efos) : '<span class="muted">—</span>'}</td>
           <td><div class="actions-cell">${accionHtml}</div></td>
         </tr>
       `;

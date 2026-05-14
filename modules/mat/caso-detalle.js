@@ -4,22 +4,6 @@
 // Sub-proyecto: materialidad-v1 — Iteración 1.
 // ============================================================
 
-const TIPO_EVIDENCIA_LABELS = {
-  contrato_especifico:    'Contrato específico',
-  orden_compra:           'Orden de compra',
-  recepcion_fisica:       'Recepción física',
-  bitacora_entrada:       'Bitácora de entrada',
-  foto_recepcion:         'Foto de recepción',
-  coa_lote:               'COA / Certificado de análisis',
-  inspeccion_qa:          'Inspección QA',
-  rep_pago:               'REP / Comprobante de pago',
-  correo:                 'Correo / comunicación',
-  acta_entrega:           'Acta de entrega',
-  comprobante_servicio:   'Comprobante de servicio',
-  reporte_actividades:    'Reporte de actividades',
-  otro:                   'Otro',
-};
-
 const ROL_CFDI_LABELS = {
   principal:      'Principal',
   complementario: 'Complementario',
@@ -150,7 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="label-text">Tipo de evidencia</div>
           <select class="select" id="ev_tipo">
             <option value="">Selecciona…</option>
-            ${Object.entries(TIPO_EVIDENCIA_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+            ${Object.entries(KoguUi.TIPO_EVIDENCIA_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
           </select>
         </div>
         <div><div class="label-text">Descripción</div><input class="input" id="ev_descripcion"/></div>
@@ -180,7 +164,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function fmtDate(d){ if(!d) return ''; return new Date(d).toLocaleDateString('es-MX'); }
   function fmtBytes(b){ if(!b) return '—'; if (b < 1024) return b + ' B'; if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB'; return (b/1024/1024).toFixed(2) + ' MB'; }
-  function fmtMoney(v, mon){ if(v == null) return '—'; return Number(v).toLocaleString('es-MX',{style:'currency',currency:(mon||'MXN'),maximumFractionDigits:2}); }
 
   async function loadAll() {
     const res = await KoguApi.apiFetch('/protected/mat/casos/' + casoId);
@@ -195,7 +178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${KoguUi.escapeHtml(caso.tipo_caso || '')}
       ${caso.expediente_rfc ? '<br>Tercero: <strong style="font-family:monospace">' + KoguUi.escapeHtml(caso.expediente_rfc) + '</strong> · ' + KoguUi.escapeHtml(caso.expediente_nombre || '') : ''}
       ${caso.fecha_inicio || caso.fecha_fin ? `<br>${fmtDate(caso.fecha_inicio)} → ${fmtDate(caso.fecha_fin)}` : ''}
-      ${caso.monto_total ? '<br>Monto: ' + fmtMoney(caso.monto_total, caso.moneda) : ''}
+      ${caso.monto_total ? '<br>Monto: ' + KoguUi.fmtMoney(caso.monto_total, caso.moneda) : ''}
       ${caso.descripcion ? '<br>' + KoguUi.escapeHtml(caso.descripcion) : ''}
     `;
     $('statusChip').innerHTML = statusBadge(caso.status);
@@ -224,7 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <strong>${KoguUi.escapeHtml(terceroNombre || '—')}</strong>
             <div style="font-family:monospace;font-size:11px;color:var(--muted,#64748b)">${KoguUi.escapeHtml(terceroRfc || '')}</div>
           </td>
-          <td style="text-align:right;white-space:nowrap;font-weight:600">${fmtMoney(c.total, c.moneda)}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:600">${KoguUi.fmtMoney(c.total, c.moneda)}</td>
           <td>${
             c.score_cfdi != null
               ? `<strong>${c.score_cfdi}</strong>${c.nivel_cfdi ? ' · ' + c.nivel_cfdi : ''}`
@@ -253,7 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Evidencias del caso
     $('evRows').innerHTML = evidencias.length ? evidencias.map(e => `
       <tr>
-        <td>${KoguUi.escapeHtml(TIPO_EVIDENCIA_LABELS[e.tipo_evidencia] || e.tipo_evidencia)}</td>
+        <td>${KoguUi.escapeHtml(KoguUi.TIPO_EVIDENCIA_LABELS[e.tipo_evidencia] || e.tipo_evidencia)}</td>
         <td>${KoguUi.escapeHtml(e.descripcion || '')}</td>
         <td>${fmtBytes(e.size_bytes)}</td>
         <td>${fmtDate(e.created_at)}</td>

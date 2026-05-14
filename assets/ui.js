@@ -208,8 +208,76 @@
     _pickerEl = null;
   }
 
+  // ── Utilidades compartidas módulo Materialidad ───────────────────────────
+
+  /** Formatea una cantidad monetaria. mon = código ISO 4217, default MXN. */
+  function fmtMoney(v, mon) {
+    if (v == null) return '—';
+    return Number(v).toLocaleString('es-MX', { style: 'currency', currency: mon || 'MXN', maximumFractionDigits: 2 });
+  }
+
+  /** Badge de nivel de riesgo: BAJO · MEDIO · ALTO · CRITICO */
+  function nivelBadge(n) {
+    if (!n) return '<span class="muted">—</span>';
+    const c = n === 'BAJO' ? '#16a34a' : n === 'MEDIO' ? '#ca8a04' : n === 'ALTO' ? '#ea580c' : '#dc2626';
+    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${n}</span>`;
+  }
+
+  const _ESTATUS_DEFENSA_COLOR = {
+    completo:             '#16a34a',
+    en_armado:            '#ca8a04',
+    requiere_aprobacion:  '#7c3aed',
+    insuficiente:         '#dc2626',
+    cerrado:              '#334155',
+    sin_iniciar:          '#94a3b8',
+  };
+  const _ESTATUS_DEFENSA_LABEL = {
+    completo:             'Completo',
+    en_armado:            'En armado',
+    requiere_aprobacion:  'Req. aprobación',
+    insuficiente:         'Insuficiente',
+    cerrado:              'Cerrado',
+    sin_iniciar:          'Sin iniciar',
+  };
+  /** Badge de estatus de defensa fiscal. */
+  function estatusBadge(e) {
+    if (!e) return '<span class="muted">—</span>';
+    const c = _ESTATUS_DEFENSA_COLOR[e] || '#64748b';
+    const label = _ESTATUS_DEFENSA_LABEL[e] || e.replace(/_/g, ' ');
+    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${label}</span>`;
+  }
+
+  /** Badge de riesgo EFOS (69-B). */
+  function efosBadge(e) {
+    if (!e) return '<span class="muted">—</span>';
+    const c = e === 'definitivo' ? '#dc2626' : e === 'presunto' ? '#ea580c' : e === 'desvirtuado' ? '#16a34a' : '#64748b';
+    return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${e}</span>`;
+  }
+
+  /** Mapa clave → etiqueta legible para tipos de evidencia de materialidad. */
+  const TIPO_EVIDENCIA_LABELS = {
+    contrato_especifico:  'Contrato específico',
+    orden_compra:         'Orden de compra',
+    recepcion_fisica:     'Recepción física',
+    bitacora_entrada:     'Bitácora de entrada',
+    foto_recepcion:       'Foto de recepción',
+    coa_lote:             'COA / Lote',
+    inspeccion_qa:        'Inspección QA',
+    rep_pago:             'REP / Complemento de pago',
+    correo:               'Correo electrónico',
+    acta_entrega:         'Acta de entrega',
+    comprobante_servicio: 'Comprobante de servicio',
+    reporte_actividades:  'Reporte de actividades',
+    otro:                 'Otro',
+  };
+  /** Etiqueta legible de un tipo de evidencia (fallback: valor crudo). */
+  function evidenciaLabel(t) { return TIPO_EVIDENCIA_LABELS[t] || t; }
+
   window.KoguUi = {
     money, int, fmtDate, escapeHtml, statusBadge, cardStat, queryParams, parseBool, withLoading,
     openSearchPicker, closeSearchPicker,
+    // Materialidad
+    fmtMoney, nivelBadge, estatusBadge, efosBadge,
+    TIPO_EVIDENCIA_LABELS, evidenciaLabel,
   };
 })();
