@@ -183,18 +183,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   function filaFactura(r) {
     const warnIcon = `<span title="Sin match en catálogo" style="color:#92400e;margin-left:4px;cursor:help">⚠</span>`;
 
+    // tiene_match_* se deriva de si se resolvió el FK en el backend
+    const tieneMatchCliente  = r.cliente_id  != null;
+    const tieneMatchProducto = r.producto_id != null;
+
     // Cliente
-    const cteBadge = r.tiene_match_cliente
+    const cteBadge = tieneMatchCliente
       ? `<strong>${escapeHtml(r.cliente_nombre || r.cve_cte)}</strong><div class="muted" style="font-size:11px">${escapeHtml(r.cve_cte)}</div>`
-      : `<span class="muted">${escapeHtml(r.cve_cte)}</span>${warnIcon}<div class="muted" style="font-size:10px">${escapeHtml(truncar(r.nom_cte || '', 25))}</div>`;
+      : `<span class="muted">${escapeHtml(r.cve_cte)}</span>${warnIcon}`;
 
     // Producto
-    const prodBadge = r.tiene_match_producto
+    const prodBadge = tieneMatchProducto
       ? `<strong>${escapeHtml(r.cve_prod)}</strong>`
       : `<strong class="muted">${escapeHtml(r.cve_prod)}</strong>${warnIcon}`;
 
-    const cant = r.cant_surt != null
-      ? `${parseFloat(r.cant_surt).toLocaleString()} ${escapeHtml(r.unidad || '')}`
+    // cantidad → columna real en BD (cant_surt es nombre del ERP, no de la tabla staging)
+    const cant = r.cantidad != null
+      ? `${parseFloat(r.cantidad).toLocaleString()} ${escapeHtml(r.unidad || '')}`
       : '—';
 
     // Chip "Lote en Lab"
@@ -215,7 +220,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnStyle = 'padding:4px 8px;font-size:12px';
     let actions = '';
     if (!r.procesado) {
-      actions = `<button class="btn primary" data-crear-lib="${r.imp_factura_id}"
+      // PK de la tabla es imp_factura_venta_id (no imp_factura_id)
+      actions = `<button class="btn primary" data-crear-lib="${r.imp_factura_venta_id}"
                    style="background:#3b82f6;${btnStyle}" title="Crear liberación QA">＋ Liberación</button>`;
     } else if (r.liberacion_id) {
       actions = `<a class="btn ghost" href="/modules/lab/lab-liberaciones.html?id=${r.liberacion_id}"

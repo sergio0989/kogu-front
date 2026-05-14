@@ -174,13 +174,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function filaProduccion(r) {
     const warnIcon = `<span title="Sin match en catálogo" style="color:#92400e;margin-left:4px;cursor:help">⚠</span>`;
-    const prodBadge = r.tiene_match_producto
+    // tiene_match_producto se deriva de si se resolvió el FK en el backend
+    const tieneMatchProducto = r.producto_id != null;
+    const prodBadge = tieneMatchProducto
       ? `<strong>${escapeHtml(r.cve_prod)}</strong>`
       : `<strong class="muted">${escapeHtml(r.cve_prod)}</strong>${warnIcon}`;
     const cant = r.cantidad != null
       ? `${parseFloat(r.cantidad).toLocaleString()} ${escapeHtml(r.unidad || '')}`
       : '—';
-    const matchChip = r.tiene_match_producto
+    const matchChip = tieneMatchProducto
       ? `<span class="chip" style="background:#dcfce7;color:#166534;font-size:11px">✓ Mapeado</span>`
       : `<span class="chip" style="background:#fef3c7;color:#92400e;font-size:11px">⚠ Sin match</span>`;
     const estadoChip = r.procesado
