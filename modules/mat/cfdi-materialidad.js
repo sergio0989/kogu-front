@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="/modules/mat/bandeja-defensa.html">← Volver a bandeja</a>
       <button class="btn primary" id="recalcBtn">Recalcular score</button>
-      <a class="btn" id="detalleCfdiLink" target="_blank" rel="noopener">Ver detalle CFDI completo →</a>
+      <a class="btn" id="detalleCfdiLink">Ver detalle CFDI completo →</a>
     </div>
     <div id="cobertura" style="margin-top:14px"></div>
   </div>
