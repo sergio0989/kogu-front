@@ -8,11 +8,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (isEmbedded) {
     const css = document.createElement('style');
     css.textContent = `
-      .sidebar, aside, .topbar, header, .empresa-chip, .user-chip,
-      [class*="sidebar"], [class*="navbar"], [class*="topbar"] { display: none !important; }
-      .main, main, .content, #pageContent { grid-column: 1 / -1 !important; padding: 16px !important; max-width: 100% !important; }
+      .sidebar, aside.sidebar, header.topbar { display: none !important; }
       body { padding: 0 !important; margin: 0 !important; }
-      body > div:first-child { display: block !important; grid-template-columns: 1fr !important; }
+      .app, .layout, .shell, body > div:first-child {
+        display: block !important;
+        grid-template-columns: 1fr !important;
+        grid-template-areas: "main" !important;
+      }
+      #pageContent, .main, main {
+        grid-column: 1 / -1 !important;
+        grid-area: main !important;
+        padding: 16px !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+      }
     `;
     document.head.appendChild(css);
   }
@@ -24,6 +33,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     requiredPermission: 'screen.cfdi.sat_dm'
   });
   if (!boot) return;
+
+  // En modo embedded, eliminar físicamente los elementos del shell del DOM
+  // (más confiable que CSS, porque el shell agrega sus propios estilos
+  // inline y selectores específicos que pueden ganar al cascade).
+  if (isEmbedded) {
+    const stripSelectors = [
+      'aside.sidebar', '.sidebar',
+      'header.topbar', '.topbar',
+      '[data-kogu-sidebar]', '[data-kogu-topbar]',
+      '.sidebar-toggle', '#sidebarToggleBtnTopbar',
+    ];
+    stripSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => { try { el.remove(); } catch(_){} });
+    });
+    // Reset del grid del body en caso de que el shell lo haya cambiado
+    document.body.style.cssText = 'padding:0;margin:0;display:block;background:#fff';
+    // Asegurar que #pageContent ocupa todo el ancho
+    const pc = document.getElementById('pageContent');
+    if (pc) {
+      pc.style.cssText = 'padding:16px;max-width:100%;margin:0';
+    }
+  }
 
   const c = document.getElementById('pageContent');
   const qs = new URLSearchParams(location.search);
