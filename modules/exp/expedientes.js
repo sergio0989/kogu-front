@@ -81,21 +81,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="grid-2">
         <div>
           <div class="label-text">Cliente vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;min-width:0">
             <input class="input" id="cliente_label" readonly placeholder="— ninguno —"
-                   style="flex:1;cursor:pointer;background:#f8fafc"/>
-            <button type="button" class="btn ghost" id="cliente_pick">Buscar…</button>
-            <button type="button" class="btn ghost" id="cliente_clear" title="Limpiar">×</button>
+                   style="flex:1;min-width:0;cursor:pointer;background:#f8fafc;text-overflow:ellipsis;overflow:hidden;white-space:nowrap"
+                   title=""/>
+            <button type="button" class="btn ghost" id="cliente_pick" style="flex-shrink:0">Buscar…</button>
+            <button type="button" class="btn ghost" id="cliente_clear" title="Limpiar" style="flex-shrink:0;padding:7px 10px">×</button>
           </div>
           <input type="hidden" id="cliente_id"/>
         </div>
         <div>
           <div class="label-text">Proveedor vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;min-width:0">
             <input class="input" id="proveedor_label" readonly placeholder="— ninguno —"
-                   style="flex:1;cursor:pointer;background:#f8fafc"/>
-            <button type="button" class="btn ghost" id="proveedor_pick">Buscar…</button>
-            <button type="button" class="btn ghost" id="proveedor_clear" title="Limpiar">×</button>
+                   style="flex:1;min-width:0;cursor:pointer;background:#f8fafc;text-overflow:ellipsis;overflow:hidden;white-space:nowrap"
+                   title=""/>
+            <button type="button" class="btn ghost" id="proveedor_pick" style="flex-shrink:0">Buscar…</button>
+            <button type="button" class="btn ghost" id="proveedor_clear" title="Limpiar" style="flex-shrink:0;padding:7px 10px">×</button>
           </div>
           <input type="hidden" id="proveedor_id"/>
         </div>
@@ -108,7 +110,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div>
           <div class="label-text">Residencia fiscal (ISO 3)</div>
-          <input class="input" id="residencia_fiscal" maxlength="3" placeholder="MEX, USA, ESP…"/>
+          <select class="select" id="residencia_fiscal">
+            <option value="">— no aplica (residente MX) —</option>
+            <option value="MEX">MEX · México</option>
+            <option value="USA">USA · Estados Unidos</option>
+            <option value="CAN">CAN · Canadá</option>
+            <option value="ARG">ARG · Argentina</option>
+            <option value="AUS">AUS · Australia</option>
+            <option value="AUT">AUT · Austria</option>
+            <option value="BEL">BEL · Bélgica</option>
+            <option value="BOL">BOL · Bolivia</option>
+            <option value="BRA">BRA · Brasil</option>
+            <option value="CHE">CHE · Suiza</option>
+            <option value="CHL">CHL · Chile</option>
+            <option value="CHN">CHN · China</option>
+            <option value="COL">COL · Colombia</option>
+            <option value="CRI">CRI · Costa Rica</option>
+            <option value="CUB">CUB · Cuba</option>
+            <option value="DEU">DEU · Alemania</option>
+            <option value="DNK">DNK · Dinamarca</option>
+            <option value="DOM">DOM · República Dominicana</option>
+            <option value="ECU">ECU · Ecuador</option>
+            <option value="ESP">ESP · España</option>
+            <option value="FIN">FIN · Finlandia</option>
+            <option value="FRA">FRA · Francia</option>
+            <option value="GBR">GBR · Reino Unido</option>
+            <option value="GTM">GTM · Guatemala</option>
+            <option value="HKG">HKG · Hong Kong</option>
+            <option value="HND">HND · Honduras</option>
+            <option value="IND">IND · India</option>
+            <option value="IRL">IRL · Irlanda</option>
+            <option value="ISR">ISR · Israel</option>
+            <option value="ITA">ITA · Italia</option>
+            <option value="JPN">JPN · Japón</option>
+            <option value="KOR">KOR · Corea del Sur</option>
+            <option value="NIC">NIC · Nicaragua</option>
+            <option value="NLD">NLD · Países Bajos</option>
+            <option value="NOR">NOR · Noruega</option>
+            <option value="NZL">NZL · Nueva Zelanda</option>
+            <option value="PAN">PAN · Panamá</option>
+            <option value="PER">PER · Perú</option>
+            <option value="POL">POL · Polonia</option>
+            <option value="PRT">PRT · Portugal</option>
+            <option value="PRY">PRY · Paraguay</option>
+            <option value="RUS">RUS · Rusia</option>
+            <option value="SGP">SGP · Singapur</option>
+            <option value="SLV">SLV · El Salvador</option>
+            <option value="SWE">SWE · Suecia</option>
+            <option value="TUR">TUR · Turquía</option>
+            <option value="URY">URY · Uruguay</option>
+            <option value="VEN">VEN · Venezuela</option>
+            <option value="ZAF">ZAF · Sudáfrica</option>
+          </select>
         </div>
       </div>
 
@@ -167,7 +220,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         : 'Sin coincidencias',
       onSelect: (c) => {
         $('cliente_id').value    = c.cliente_id;
-        $('cliente_label').value = (c.nombre || c.razon_social || '') + (c.rfc ? ' · ' + c.rfc : '');
+        const txt = (c.nombre || c.razon_social || '') + (c.rfc ? ' · ' + c.rfc : '');
+        $('cliente_label').value = txt;
+        $('cliente_label').title = txt;
         if (!$('nombre').value) $('nombre').value = c.nombre || c.razon_social || '';
         if (!$('rfc').value)    $('rfc').value    = (c.rfc || '').toUpperCase();
       },
@@ -189,7 +244,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         : 'Sin coincidencias',
       onSelect: (p) => {
         $('proveedor_id').value    = p.proveedor_id;
-        $('proveedor_label').value = (p.nombre || p.razon_social || '') + (p.rfc ? ' · ' + p.rfc : '');
+        const txt = (p.nombre || p.razon_social || '') + (p.rfc ? ' · ' + p.rfc : '');
+        $('proveedor_label').value = txt;
+        $('proveedor_label').title = txt;
         if (!$('nombre').value) $('nombre').value = p.nombre || p.razon_social || '';
         if (!$('rfc').value)    $('rfc').value    = (p.rfc || '').toUpperCase();
       },
@@ -199,10 +256,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   function clearCliente() {
     $('cliente_id').value = '';
     $('cliente_label').value = '';
+    $('cliente_label').title = '';
   }
   function clearProveedor() {
     $('proveedor_id').value = '';
     $('proveedor_label').value = '';
+    $('proveedor_label').title = '';
+  }
+
+  // Aplica el estado habilitado/deshabilitado de los pickers según
+  // tercero_tipo: si tipo=cliente, el picker de proveedor se deshabilita
+  // (y se limpia si tenía valor). Si tipo=proveedor, al revés. Si tipo=ambos
+  // o vacío, ambos habilitados.
+  function applyTipoTerceroUI() {
+    const tipo = $('tercero_tipo').value;
+    const habCliente   = tipo === 'cliente'   || tipo === 'ambos' || tipo === '';
+    const habProveedor = tipo === 'proveedor' || tipo === 'ambos' || tipo === '';
+
+    setPickerEnabled('cliente',   habCliente);
+    setPickerEnabled('proveedor', habProveedor);
+
+    // Limpiar valor del lado deshabilitado para no enviar inconsistente al save
+    if (!habCliente)   clearCliente();
+    if (!habProveedor) clearProveedor();
+  }
+
+  function setPickerEnabled(prefix, enabled) {
+    const label = $(prefix + '_label');
+    const pick  = $(prefix + '_pick');
+    const clr   = $(prefix + '_clear');
+    [label, pick, clr].forEach(el => {
+      if (!el) return;
+      el.disabled = !enabled;
+      el.style.opacity = enabled ? '1' : '.45';
+      el.style.cursor  = enabled ? (el.tagName === 'INPUT' ? 'pointer' : 'pointer') : 'not-allowed';
+    });
+    if (!enabled) label.placeholder = '(deshabilitado por tipo de tercero)';
+    else          label.placeholder = '— ninguno —';
   }
 
   async function load(showToast = false) {
@@ -276,6 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('tercero_tipo').value = '';
     clearCliente();
     clearProveedor();
+    applyTipoTerceroUI();
     $('formTitle').textContent = 'Alta de expediente';
     $('modeChip').textContent  = 'Alta';
     $('rfcHint').textContent   = '';
@@ -293,19 +384,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Reconstruir labels desde los catálogos en memoria
     if (r.cliente_id) {
       const cli = clientes.find(c => String(c.cliente_id) === String(r.cliente_id));
+      const txt = cli ? ((cli.nombre || cli.razon_social || '') + (cli.rfc ? ' · ' + cli.rfc : '')) : (r.cliente_nombre || '(cliente vinculado)');
       $('cliente_id').value = r.cliente_id;
-      $('cliente_label').value = cli ? ((cli.nombre || cli.razon_social || '') + (cli.rfc ? ' · ' + cli.rfc : '')) : (r.cliente_nombre || '(cliente vinculado)');
+      $('cliente_label').value = txt;
+      $('cliente_label').title = txt;
     } else {
       clearCliente();
     }
     if (r.proveedor_id) {
       const pro = proveedores.find(p => String(p.proveedor_id) === String(r.proveedor_id));
+      const txt = pro ? ((pro.nombre || pro.razon_social || '') + (pro.rfc ? ' · ' + pro.rfc : '')) : (r.proveedor_nombre || '(proveedor vinculado)');
       $('proveedor_id').value = r.proveedor_id;
-      $('proveedor_label').value = pro ? ((pro.nombre || pro.razon_social || '') + (pro.rfc ? ' · ' + pro.rfc : '')) : (r.proveedor_nombre || '(proveedor vinculado)');
+      $('proveedor_label').value = txt;
+      $('proveedor_label').title = txt;
     } else {
       clearProveedor();
     }
 
+    applyTipoTerceroUI();
     $('formTitle').textContent = 'Editar expediente';
     $('modeChip').textContent  = 'Edición';
     $('rfcHint').textContent   = '';
@@ -324,14 +420,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = '/modules/exp/expediente-detalle.html?id=' + encodeURIComponent(id);
   };
 
-  // Picker buttons — patrón Lab QA con KoguUi.openSearchPicker
-  $('cliente_pick').addEventListener('click',  pickCliente);
-  $('cliente_label').addEventListener('click', pickCliente);
-  $('cliente_clear').addEventListener('click', clearCliente);
+  // Picker buttons — patrón Lab QA con KoguUi.openSearchPicker.
+  // Respetan estado disabled (se ignoran si el tipo_tercero no aplica).
+  function safePick(prefix, fn) {
+    return () => {
+      if ($(prefix + '_pick').disabled) return;
+      fn();
+    };
+  }
+  $('cliente_pick').addEventListener('click',  safePick('cliente',  pickCliente));
+  $('cliente_label').addEventListener('click', safePick('cliente',  pickCliente));
+  $('cliente_clear').addEventListener('click', safePick('cliente',  clearCliente));
 
-  $('proveedor_pick').addEventListener('click',  pickProveedor);
-  $('proveedor_label').addEventListener('click', pickProveedor);
-  $('proveedor_clear').addEventListener('click', clearProveedor);
+  $('proveedor_pick').addEventListener('click',  safePick('proveedor', pickProveedor));
+  $('proveedor_label').addEventListener('click', safePick('proveedor', pickProveedor));
+  $('proveedor_clear').addEventListener('click', safePick('proveedor', clearProveedor));
+
+  // Sincronizar UI cuando cambia el tipo de tercero
+  $('tercero_tipo').addEventListener('change', applyTipoTerceroUI);
   // Hint RFC dinámico
   $('rfc').oninput = () => {
     const rfc = ($('rfc').value || '').toUpperCase().trim();
