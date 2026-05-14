@@ -16,172 +16,195 @@ document.addEventListener('DOMContentLoaded', async () => {
   const NIVELES = ['BAJO', 'MEDIO', 'ALTO', 'CRITICO'];
 
   document.getElementById('pageContent').innerHTML = `
-<div class="split">
-
-  <!-- ── Listado ── -->
-  <div class="card">
-    <div class="row">
-      <div><div class="eyebrow">Listado</div><h2>Expedientes</h2></div>
-      <button class="btn primary" id="refreshBtn">Actualizar</button>
+<div class="card">
+  <div class="row">
+    <div><div class="eyebrow">Listado</div><h2>Expedientes</h2></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" id="newBtn">+ Nuevo expediente</button>
+      <button class="btn" id="refreshBtn">Actualizar</button>
     </div>
-    <div class="grid-3" style="margin-top:16px">
-      <input class="input" id="q" placeholder="Buscar por nombre o RFC…" />
-      <select class="select" id="terceroTipoFiltro">
-        <option value="">Cliente y proveedor</option>
-        <option value="cliente">Solo cliente</option>
-        <option value="proveedor">Solo proveedor</option>
-        <option value="ambos">Ambos</option>
-      </select>
-      <select class="select" id="nivelFiltro">
-        <option value="">Todos los niveles</option>
-        ${NIVELES.map(n => `<option value="${n}">${n}</option>`).join('')}
-      </select>
-    </div>
-    <div class="table-wrap" style="margin-top:16px">
-      <table><thead><tr>
+  </div>
+  <div class="grid-3" style="margin-top:16px">
+    <input class="input" id="q" placeholder="Buscar por nombre o RFC…" />
+    <select class="select" id="terceroTipoFiltro">
+      <option value="">Cliente y proveedor</option>
+      <option value="cliente">Solo cliente</option>
+      <option value="proveedor">Solo proveedor</option>
+      <option value="ambos">Ambos</option>
+    </select>
+    <select class="select" id="nivelFiltro">
+      <option value="">Todos los niveles</option>
+      ${NIVELES.map(n => `<option value="${n}">${n}</option>`).join('')}
+    </select>
+  </div>
+  <div class="table-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr>
         <th style="min-width:120px;white-space:nowrap">RFC</th>
-        <th style="min-width:180px">Nombre / Razón social</th>
+        <th style="min-width:200px">Nombre / Razón social</th>
         <th>Tipo</th>
-        <th style="text-align:center;min-width:80px">Score</th>
+        <th style="text-align:center;min-width:90px">Score</th>
         <th>Nivel</th>
         <th style="text-align:center;white-space:nowrap">Última revisión</th>
-        <th style="min-width:140px;white-space:nowrap">Acciones</th>
-      </tr></thead><tbody id="rows"></tbody></table>
-    </div>
-    <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
+        <th style="white-space:nowrap">Acciones</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
   </div>
-
-  <!-- ── Formulario ── -->
-  <div class="card">
-    <div class="row">
-      <div><div class="eyebrow">Formulario</div><h2 id="formTitle">Alta de expediente</h2></div>
-      <span class="chip" id="modeChip">Alta</span>
-    </div>
-    <div class="stack" style="margin-top:16px">
-      <input type="hidden" id="expediente_id" />
-
-      <div>
-        <div class="label-text">Tipo de tercero</div>
-        <select class="select" id="tercero_tipo">
-          <option value="">Selecciona…</option>
-          <option value="cliente">Cliente</option>
-          <option value="proveedor">Proveedor</option>
-          <option value="ambos">Ambos</option>
-        </select>
-      </div>
-
-      <div>
-        <div class="label-text">RFC</div>
-        <input class="input" id="rfc" placeholder="13 caracteres (12 para PM)" maxlength="13"/>
-        <div id="rfcHint" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
-      </div>
-
-      <div>
-        <div class="label-text">Nombre / Razón social</div>
-        <input class="input" id="nombre" />
-      </div>
-
-      <div class="grid-2">
-        <div>
-          <div class="label-text">Cliente vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
-          <div style="display:flex;gap:6px;min-width:0">
-            <input class="input" id="cliente_label" readonly placeholder="— ninguno —"
-                   style="flex:1;min-width:0;cursor:pointer;background:#f8fafc;text-overflow:ellipsis;overflow:hidden;white-space:nowrap"
-                   title=""/>
-            <button type="button" class="btn ghost" id="cliente_pick" style="flex-shrink:0">Buscar…</button>
-            <button type="button" class="btn ghost" id="cliente_clear" title="Limpiar" style="flex-shrink:0;padding:7px 10px">×</button>
-          </div>
-          <input type="hidden" id="cliente_id"/>
-        </div>
-        <div>
-          <div class="label-text">Proveedor vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
-          <div style="display:flex;gap:6px;min-width:0">
-            <input class="input" id="proveedor_label" readonly placeholder="— ninguno —"
-                   style="flex:1;min-width:0;cursor:pointer;background:#f8fafc;text-overflow:ellipsis;overflow:hidden;white-space:nowrap"
-                   title=""/>
-            <button type="button" class="btn ghost" id="proveedor_pick" style="flex-shrink:0">Buscar…</button>
-            <button type="button" class="btn ghost" id="proveedor_clear" title="Limpiar" style="flex-shrink:0;padding:7px 10px">×</button>
-          </div>
-          <input type="hidden" id="proveedor_id"/>
-        </div>
-      </div>
-
-      <div class="grid-2">
-        <div>
-          <div class="label-text">Num. Reg. Id. Tributaria <span class="muted" style="font-size:11px">(extranjeros)</span></div>
-          <input class="input" id="num_reg_id_trib" />
-        </div>
-        <div>
-          <div class="label-text">Residencia fiscal (ISO 3)</div>
-          <select class="select" id="residencia_fiscal">
-            <option value="">— no aplica (residente MX) —</option>
-            <option value="MEX">MEX · México</option>
-            <option value="USA">USA · Estados Unidos</option>
-            <option value="CAN">CAN · Canadá</option>
-            <option value="ARG">ARG · Argentina</option>
-            <option value="AUS">AUS · Australia</option>
-            <option value="AUT">AUT · Austria</option>
-            <option value="BEL">BEL · Bélgica</option>
-            <option value="BOL">BOL · Bolivia</option>
-            <option value="BRA">BRA · Brasil</option>
-            <option value="CHE">CHE · Suiza</option>
-            <option value="CHL">CHL · Chile</option>
-            <option value="CHN">CHN · China</option>
-            <option value="COL">COL · Colombia</option>
-            <option value="CRI">CRI · Costa Rica</option>
-            <option value="CUB">CUB · Cuba</option>
-            <option value="DEU">DEU · Alemania</option>
-            <option value="DNK">DNK · Dinamarca</option>
-            <option value="DOM">DOM · República Dominicana</option>
-            <option value="ECU">ECU · Ecuador</option>
-            <option value="ESP">ESP · España</option>
-            <option value="FIN">FIN · Finlandia</option>
-            <option value="FRA">FRA · Francia</option>
-            <option value="GBR">GBR · Reino Unido</option>
-            <option value="GTM">GTM · Guatemala</option>
-            <option value="HKG">HKG · Hong Kong</option>
-            <option value="HND">HND · Honduras</option>
-            <option value="IND">IND · India</option>
-            <option value="IRL">IRL · Irlanda</option>
-            <option value="ISR">ISR · Israel</option>
-            <option value="ITA">ITA · Italia</option>
-            <option value="JPN">JPN · Japón</option>
-            <option value="KOR">KOR · Corea del Sur</option>
-            <option value="NIC">NIC · Nicaragua</option>
-            <option value="NLD">NLD · Países Bajos</option>
-            <option value="NOR">NOR · Noruega</option>
-            <option value="NZL">NZL · Nueva Zelanda</option>
-            <option value="PAN">PAN · Panamá</option>
-            <option value="PER">PER · Perú</option>
-            <option value="POL">POL · Polonia</option>
-            <option value="PRT">PRT · Portugal</option>
-            <option value="PRY">PRY · Paraguay</option>
-            <option value="RUS">RUS · Rusia</option>
-            <option value="SGP">SGP · Singapur</option>
-            <option value="SLV">SLV · El Salvador</option>
-            <option value="SWE">SWE · Suecia</option>
-            <option value="TUR">TUR · Turquía</option>
-            <option value="URY">URY · Uruguay</option>
-            <option value="VEN">VEN · Venezuela</option>
-            <option value="ZAF">ZAF · Sudáfrica</option>
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <div class="label-text">Observaciones</div>
-        <textarea class="input" id="observaciones" rows="3"></textarea>
-      </div>
-
-      <div class="page-actions">
-        <button class="btn primary" id="saveBtn">Guardar</button>
-        <button class="btn" id="newBtn">Nuevo</button>
-        <button class="btn" id="detalleBtn">Abrir detalle</button>
-      </div>
-    </div>
-  </div>
-
+  <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
 </div>`;
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  function buildModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'expModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
+
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:640px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
+        <!-- Header -->
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div>
+            <div class="eyebrow">Formulario</div>
+            <h2 id="formTitle" style="margin:0;font-size:20px">Alta de expediente</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="chip" id="modeChip">Alta</span>
+            <button class="btn ghost" id="closeModalBtn" style="padding:6px 10px;font-size:16px">✕</button>
+          </div>
+        </div>
+        <!-- Body (scrollable) -->
+        <div style="flex:1;overflow-y:auto;padding:20px">
+          <div class="stack">
+            <input type="hidden" id="expediente_id" />
+
+            <div>
+              <div class="label-text">Tipo de tercero</div>
+              <select class="select" id="tercero_tipo">
+                <option value="">Selecciona…</option>
+                <option value="cliente">Cliente</option>
+                <option value="proveedor">Proveedor</option>
+                <option value="ambos">Ambos</option>
+              </select>
+            </div>
+
+            <div>
+              <div class="label-text">RFC</div>
+              <input class="input" id="rfc" placeholder="13 caracteres (12 para PM)" maxlength="13"/>
+              <div id="rfcHint" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
+            </div>
+
+            <div>
+              <div class="label-text">Nombre / Razón social</div>
+              <input class="input" id="nombre" />
+            </div>
+
+            <div class="grid-2">
+              <div>
+                <div class="label-text">Cliente vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
+                <div style="display:flex;gap:6px;min-width:0">
+                  <input class="input" id="cliente_label" readonly placeholder="— ninguno —"
+                         style="flex:1;min-width:0;cursor:pointer;background:#f8fafc;text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title=""/>
+                  <button type="button" class="btn ghost" id="cliente_pick" style="flex-shrink:0">Buscar…</button>
+                  <button type="button" class="btn ghost" id="cliente_clear" title="Limpiar" style="flex-shrink:0;padding:7px 10px">×</button>
+                </div>
+                <input type="hidden" id="cliente_id"/>
+              </div>
+              <div>
+                <div class="label-text">Proveedor vinculado <span class="muted" style="font-size:11px">(opcional)</span></div>
+                <div style="display:flex;gap:6px;min-width:0">
+                  <input class="input" id="proveedor_label" readonly placeholder="— ninguno —"
+                         style="flex:1;min-width:0;cursor:pointer;background:#f8fafc;text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title=""/>
+                  <button type="button" class="btn ghost" id="proveedor_pick" style="flex-shrink:0">Buscar…</button>
+                  <button type="button" class="btn ghost" id="proveedor_clear" title="Limpiar" style="flex-shrink:0;padding:7px 10px">×</button>
+                </div>
+                <input type="hidden" id="proveedor_id"/>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div>
+                <div class="label-text">Num. Reg. Id. Tributaria <span class="muted" style="font-size:11px">(extranjeros)</span></div>
+                <input class="input" id="num_reg_id_trib" />
+              </div>
+              <div>
+                <div class="label-text">Residencia fiscal (ISO 3)</div>
+                <select class="select" id="residencia_fiscal">
+                  <option value="">— no aplica (residente MX) —</option>
+                  <option value="MEX">MEX · México</option>
+                  <option value="USA">USA · Estados Unidos</option>
+                  <option value="CAN">CAN · Canadá</option>
+                  <option value="ARG">ARG · Argentina</option>
+                  <option value="AUS">AUS · Australia</option>
+                  <option value="AUT">AUT · Austria</option>
+                  <option value="BEL">BEL · Bélgica</option>
+                  <option value="BOL">BOL · Bolivia</option>
+                  <option value="BRA">BRA · Brasil</option>
+                  <option value="CHE">CHE · Suiza</option>
+                  <option value="CHL">CHL · Chile</option>
+                  <option value="CHN">CHN · China</option>
+                  <option value="COL">COL · Colombia</option>
+                  <option value="CRI">CRI · Costa Rica</option>
+                  <option value="CUB">CUB · Cuba</option>
+                  <option value="DEU">DEU · Alemania</option>
+                  <option value="DNK">DNK · Dinamarca</option>
+                  <option value="DOM">DOM · República Dominicana</option>
+                  <option value="ECU">ECU · Ecuador</option>
+                  <option value="ESP">ESP · España</option>
+                  <option value="FIN">FIN · Finlandia</option>
+                  <option value="FRA">FRA · Francia</option>
+                  <option value="GBR">GBR · Reino Unido</option>
+                  <option value="GTM">GTM · Guatemala</option>
+                  <option value="HKG">HKG · Hong Kong</option>
+                  <option value="HND">HND · Honduras</option>
+                  <option value="IND">IND · India</option>
+                  <option value="IRL">IRL · Irlanda</option>
+                  <option value="ISR">ISR · Israel</option>
+                  <option value="ITA">ITA · Italia</option>
+                  <option value="JPN">JPN · Japón</option>
+                  <option value="KOR">KOR · Corea del Sur</option>
+                  <option value="NIC">NIC · Nicaragua</option>
+                  <option value="NLD">NLD · Países Bajos</option>
+                  <option value="NOR">NOR · Noruega</option>
+                  <option value="NZL">NZL · Nueva Zelanda</option>
+                  <option value="PAN">PAN · Panamá</option>
+                  <option value="PER">PER · Perú</option>
+                  <option value="POL">POL · Polonia</option>
+                  <option value="PRT">PRT · Portugal</option>
+                  <option value="PRY">PRY · Paraguay</option>
+                  <option value="RUS">RUS · Rusia</option>
+                  <option value="SGP">SGP · Singapur</option>
+                  <option value="SLV">SLV · El Salvador</option>
+                  <option value="SWE">SWE · Suecia</option>
+                  <option value="TUR">TUR · Turquía</option>
+                  <option value="URY">URY · Uruguay</option>
+                  <option value="VEN">VEN · Venezuela</option>
+                  <option value="ZAF">ZAF · Sudáfrica</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <div class="label-text">Observaciones</div>
+              <textarea class="input" id="observaciones" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+        <!-- Footer -->
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0">
+          <button class="btn" id="detalleBtn" style="display:none;margin-right:auto">Abrir detalle →</button>
+          <button class="btn" id="cancelModalBtn">Cancelar</button>
+          <button class="btn primary" id="saveBtn">Guardar</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && overlay.style.display !== 'none') closeModal(); });
+  }
+
+  function openModal() { document.getElementById('expModal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('expModal').style.display = 'none'; }
 
   // ── Estado ────────────────────────────────────────────────────────────────
   const PAGE_SIZE = 50;
@@ -192,6 +215,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const $ = id => document.getElementById(id);
   const val = id => $(id).value.trim();
+
+  // Build modal before wiring events
+  buildModal();
 
   // ── Loaders ───────────────────────────────────────────────────────────────
   async function loadCatalogos() {
@@ -341,27 +367,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       const sc = score !== null ? score : -1;
       const scoreColor = sc >= 80 ? '#16a34a' : sc >= 60 ? '#ca8a04' : sc >= 30 ? '#ea580c' : sc >= 0 ? '#dc2626' : '#94a3b8';
       const scoreHtml = score !== null
-        ? `<div style="font-weight:700;font-size:15px;color:${scoreColor};line-height:1">${score}</div>
-           <div style="height:3px;border-radius:2px;background:#e2e8f0;margin-top:5px;width:48px">
-             <div style="height:100%;width:${score}%;background:${scoreColor};border-radius:2px"></div>
+        ? `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:4px">
+             <div style="font-weight:700;font-size:16px;color:${scoreColor};line-height:1">${score}</div>
+             <div style="width:48px;height:3px;border-radius:2px;background:#e2e8f0;overflow:hidden">
+               <div style="height:100%;width:${score}%;background:${scoreColor}"></div>
+             </div>
            </div>`
         : '<span class="muted" style="font-size:13px">—</span>';
 
       return `
       <tr>
-        <td style="font-family:monospace;font-size:12px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis"
-            title="${KoguUi.escapeHtml(r.rfc || '')}">
-          <strong>${KoguUi.escapeHtml(r.rfc || '')}</strong>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap" title="${KoguUi.escapeHtml(r.rfc||'')}">
+          <strong>${KoguUi.escapeHtml(r.rfc||'')}</strong>
         </td>
-        <td style="font-size:13px;max-width:200px">
-          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600"
-               title="${KoguUi.escapeHtml(r.nombre || '')}">${KoguUi.escapeHtml(r.nombre || '')}</div>
+        <td style="font-size:13px;max-width:220px">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${KoguUi.escapeHtml(r.nombre||'')}">${KoguUi.escapeHtml(r.nombre||'')}</div>
           ${r.responsable_nombre ? `<div class="muted" style="font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Resp.: ${KoguUi.escapeHtml(r.responsable_nombre)}</div>` : ''}
         </td>
-        <td><span class="chip">${KoguUi.escapeHtml(r.tercero_tipo || '')}</span></td>
+        <td><span class="chip">${KoguUi.escapeHtml(r.tercero_tipo||'')}</span></td>
         <td style="text-align:center">${scoreHtml}</td>
         <td>${KoguUi.nivelBadge(r.nivel_riesgo)}</td>
-        <td style="text-align:center;font-size:11px;color:var(--muted,#64748b);white-space:nowrap">${ultRev || '<span class="muted">—</span>'}</td>
+        <td style="text-align:center;font-size:11px;color:var(--muted,#64748b);white-space:nowrap">${ultRev||'<span class="muted">—</span>'}</td>
         <td>
           <div class="actions-cell" style="flex-wrap:nowrap">
             <button class="btn sm btn-edit" data-id="${r.expediente_id}" style="white-space:nowrap">Editar</button>
@@ -373,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.querySelectorAll('.btn-edit').forEach(btn => btn.onclick = () => {
       const row = rows.find(r => String(r.expediente_id) === btn.dataset.id);
-      if (row) fill(row);
+      if (row) { fill(row); openModal(); }
     });
 
     renderPagination(rows.length);
@@ -389,6 +415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('formTitle').textContent = 'Alta de expediente';
     $('modeChip').textContent  = 'Alta';
     $('rfcHint').textContent   = '';
+    $('detalleBtn').style.display = 'none';
   }
 
   function fill(r) {
@@ -424,19 +451,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('formTitle').textContent = 'Editar expediente';
     $('modeChip').textContent  = 'Edición';
     $('rfcHint').textContent   = '';
+    $('detalleBtn').style.display = '';
   }
 
   // ── Eventos ───────────────────────────────────────────────────────────────
   $('refreshBtn').onclick = () => load(false);
-  $('newBtn').onclick     = reset;
+  $('newBtn').onclick     = () => { reset(); openModal(); };
   $('q').oninput          = () => load(false);
   $('terceroTipoFiltro').onchange = () => load(false);
   $('nivelFiltro').onchange       = () => load(false);
+  $('closeModalBtn').onclick  = closeModal;
+  $('cancelModalBtn').onclick = closeModal;
 
   $('detalleBtn').onclick = () => {
     const id = $('expediente_id').value;
-    if (!id) { KoguApi.toast('Primero selecciona un expediente.', 'error'); return; }
-    window.location.href = '/modules/exp/expediente-detalle.html?id=' + encodeURIComponent(id);
+    if (id) window.location.href = '/modules/exp/expediente-detalle.html?id=' + encodeURIComponent(id);
   };
 
   // Picker buttons — patrón Lab QA con KoguUi.openSearchPicker.
@@ -457,6 +486,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Sincronizar UI cuando cambia el tipo de tercero
   $('tercero_tipo').addEventListener('change', applyTipoTerceroUI);
+
   // Hint RFC dinámico
   $('rfc').oninput = () => {
     const rfc = ($('rfc').value || '').toUpperCase().trim();
@@ -471,44 +501,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  $('saveBtn').onclick = async () => {
-    try {
-      const tipo = $('tercero_tipo').value;
-      const rfc  = val('rfc').toUpperCase();
-      const nombre = val('nombre');
-      if (!tipo)   throw new Error('Tipo de tercero es obligatorio.');
-      if (!rfc)    throw new Error('RFC es obligatorio.');
-      if (!nombre) throw new Error('Nombre es obligatorio.');
+  $('saveBtn').onclick = async function () {
+    const tipo   = $('tercero_tipo').value;
+    const rfc    = val('rfc').toUpperCase();
+    const nombre = val('nombre');
+    if (!tipo)   { KoguApi.toast('Tipo de tercero es obligatorio.', 'error'); return; }
+    if (!rfc)    { KoguApi.toast('RFC es obligatorio.', 'error'); return; }
+    if (!nombre) { KoguApi.toast('Nombre es obligatorio.', 'error'); return; }
 
-      const payload = {
-        tercero_tipo:      tipo,
-        rfc,
-        nombre,
-        cliente_id:        $('cliente_id').value || null,
-        proveedor_id:      $('proveedor_id').value || null,
-        num_reg_id_trib:   val('num_reg_id_trib') || null,
-        residencia_fiscal: val('residencia_fiscal').toUpperCase() || null,
-        observaciones:     val('observaciones') || null,
-      };
+    await KoguUi.withLoading(this, async () => {
+      try {
+        const payload = {
+          tercero_tipo:      tipo,
+          rfc,
+          nombre,
+          cliente_id:        $('cliente_id').value || null,
+          proveedor_id:      $('proveedor_id').value || null,
+          num_reg_id_trib:   val('num_reg_id_trib') || null,
+          residencia_fiscal: val('residencia_fiscal').toUpperCase() || null,
+          observaciones:     val('observaciones') || null,
+        };
 
-      const id = $('expediente_id').value;
-      if (id) {
-        await KoguApi.apiFetch('/protected/exp/expedientes/' + id, {
-          method: 'PUT', body: JSON.stringify(payload),
-        });
-        KoguApi.toast('Expediente actualizado', 'success');
-      } else {
-        const res = await KoguApi.apiFetch('/protected/exp/expedientes', {
-          method: 'POST', body: JSON.stringify(payload),
-        });
-        const created = KoguApi.unwrapData(res);
-        KoguApi.toast('Expediente creado · ' + (created?.rfc || ''), 'success');
+        const id = $('expediente_id').value;
+        if (id) {
+          await KoguApi.apiFetch('/protected/exp/expedientes/' + id, {
+            method: 'PUT', body: JSON.stringify(payload),
+          });
+          KoguApi.toast('Expediente actualizado', 'success');
+        } else {
+          const res = await KoguApi.apiFetch('/protected/exp/expedientes', {
+            method: 'POST', body: JSON.stringify(payload),
+          });
+          const created = KoguApi.unwrapData(res);
+          KoguApi.toast('Expediente creado · ' + (created?.rfc || ''), 'success');
+        }
+        closeModal();
+        await load(false);
+      } catch (err) {
+        KoguApi.toast(err.message || 'No fue posible guardar el expediente', 'error');
       }
-      reset();
-      await load(false);
-    } catch (err) {
-      KoguApi.toast(err.message || 'No fue posible guardar el expediente', 'error');
-    }
+    }, 'Guardando…');
   };
 
   // ── Cambio de empresa ─────────────────────────────────────────────────────
