@@ -23,7 +23,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
-  <div class="grid-2" style="margin-top:16px;gap:8px">
+  <div style="margin-top:16px">
+    <div class="label-text">🔍 Buscar UUID · RFC · Serie · Folio · Nombre del tercero</div>
+    <input class="input" id="fQ" placeholder="Pega un UUID o escribe parte del RFC, nombre del proveedor/cliente, serie o folio…" autocomplete="off" style="font-size:14px;padding:10px 12px"/>
+    <div class="muted" style="font-size:11px;margin-top:4px">La búsqueda se aplica sobre todos los CFDIs de la empresa, no solo los visibles.</div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px;gap:8px">
     <div>
       <div class="label-text">Tipo CFDI</div>
       <select class="select" id="fTipo">
@@ -79,10 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="sentencia">Sentencia favorable</option>
       </select>
     </div>
-    <div>
-      <div class="label-text">Buscar UUID / RFC / Serie / Folio</div>
-      <input class="input" id="fQ" placeholder="UUID, RFC del tercero, serie o folio…" autocomplete="off"/>
-    </div>
+    <div></div>
   </div>
 
   <div class="grid-2" style="margin-top:8px;gap:8px">
