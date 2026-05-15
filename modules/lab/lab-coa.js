@@ -123,7 +123,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tr>
           <td><strong>${escapeHtml(c.folio_coa)}</strong>${c.tiene_excepcion ? ' <span class="chip" style="background:#fef3c7;color:#92400e;font-size:11px">excep.</span>' : ''}</td>
           <td>${escapeHtml(c.cliente_nombre || '—')}<br><span class="muted" style="font-size:12px">${escapeHtml(c.cliente_rfc || '')}</span></td>
-          <td>${escapeHtml(c.cve_prod || '')}<br><span class="muted" style="font-size:12px">Lote ${escapeHtml(c.numero_lote || '')}</span></td>
+          <td>${c.cve_prod
+            ? `${escapeHtml(c.cve_prod)}<br><span class="muted" style="font-size:12px">Lote ${escapeHtml(c.numero_lote || '—')}</span>`
+            : c.folio_factura_externa
+              ? `<span class="muted" style="font-size:12px">Factura</span><br><span style="font-family:monospace;font-size:12px">${escapeHtml(c.folio_factura_externa)}</span>`
+              : `<span class="muted" style="font-size:12px;font-style:italic">Sin lote vinculado</span>`
+          }</td>
           <td><span class="chip" style="background:#e0f2fe;color:#075985;text-transform:uppercase;font-size:11px">${escapeHtml(c.idioma)}</span></td>
           <td><span class="chip" style="background:${estado.color}22;color:${estado.color}">${estado.label}</span></td>
           <td>${fecha}<br><span class="muted" style="font-size:12px">por ${escapeHtml(c.emisor_nombre || '—')}</span></td>
