@@ -5,7 +5,7 @@ window.__MODULE_DEF__ = {
   singular:    'cliente',
   basePath:    '/protected/core/clientes',
   idField:     'cliente_id',
-  buildPayload: x => ({ nombre_cliente: x.nombre, rfc: x.rfc, status: x.status, activo: x.activo })
+  buildPayload: x => ({ nombre: x.nombre, rfc: x.rfc, cve_cte: x.cve_cte || null, activo: x.activo })
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th>Nombre</th><th>RFC</th><th>Status</th><th>Activo</th><th>Acciones</th>
+        <th>Nombre</th><th>RFC</th><th style="width:110px">Cve SAI</th><th>Activo</th><th>Acciones</th>
       </tr></thead><tbody id="rows"></tbody></table>
     </div>
     <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
@@ -56,11 +56,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><div class="label-text">Nombre</div><input class="input" id="nombre" /></div>
       <div><div class="label-text">RFC</div><input class="input" id="rfc" /></div>
       <div>
-        <div class="label-text">Status</div>
-        <select class="select" id="status">
-          <option value="activo">activo</option>
-          <option value="inactivo">inactivo</option>
-        </select>
+        <div class="label-text">Cve SAI <span style="color:var(--muted);font-weight:400;font-size:11px">(cve_cte — identificador ERP)</span></div>
+        <input class="input" id="cveCte" placeholder="Ej. C0001" />
       </div>
       <div>
         <div class="label-text">Activo</div>
@@ -91,19 +88,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Helpers formulario ────────────────────────────────────────────────────
   function reset() {
-    ['id', 'nombre', 'rfc'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('status').value    = 'activo';
+    ['id', 'nombre', 'rfc', 'cveCte'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('activo').value    = 'true';
     document.getElementById('formTitle').textContent = 'Alta de ' + MODULE.singular;
     document.getElementById('modeChip').textContent  = 'Alta';
   }
 
   function fill(r) {
-    document.getElementById('id').value     = mapId(r);
-    document.getElementById('nombre').value = mapName(r);
-    document.getElementById('rfc').value    = mapRfc(r);
-    document.getElementById('status').value = r.status || 'activo';
-    document.getElementById('activo').value = String(!!r.activo);
+    document.getElementById('id').value      = mapId(r);
+    document.getElementById('nombre').value  = mapName(r);
+    document.getElementById('rfc').value     = mapRfc(r);
+    document.getElementById('cveCte').value  = r.cve_cte || '';
+    document.getElementById('activo').value  = String(!!r.activo);
     document.getElementById('formTitle').textContent = 'Editar ' + MODULE.singular;
     document.getElementById('modeChip').textContent  = 'Edición';
   }
@@ -122,7 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const q  = val('q').toLowerCase();
     const af = document.getElementById('activoFiltro').value;
     return rows.filter(r => {
-      const text = `${mapName(r)} ${mapRfc(r)}`.toLowerCase();
+      const text = `${mapName(r)} ${mapRfc(r)} ${r.cve_cte || ''}`.toLowerCase();
       return (!q  || text.includes(q))
           && (af === '' || String(!!r.activo) === af);
     });
@@ -154,8 +150,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? page.map(r => `
           <tr>
             <td>${KoguUi.escapeHtml(mapName(r))}</td>
-            <td>${KoguUi.escapeHtml(mapRfc(r))}</td>
-            <td>${KoguUi.statusBadge(r.status || '-')}</td>
+            <td style="font-family:monospace;font-size:12px">${KoguUi.escapeHtml(mapRfc(r))}</td>
+            <td style="font-family:monospace;font-size:12px;color:${r.cve_cte ? 'var(--primary)' : 'var(--muted)'}">${KoguUi.escapeHtml(r.cve_cte || '—')}</td>
             <td>${KoguUi.statusBadge(r.activo ? 'activo' : 'inactivo')}</td>
             <td><button class="btn btn-edit" data-id="${mapId(r)}">Editar</button></td>
           </tr>`).join('')
@@ -173,10 +169,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('saveBtn').onclick = async () => {
     try {
       const payload = MODULE.buildPayload({
-        nombre: val('nombre'),
-        rfc:    val('rfc'),
-        status: document.getElementById('status').value,
-        activo: document.getElementById('activo').value === 'true'
+        nombre:  val('nombre'),
+        rfc:     val('rfc'),
+        cve_cte: val('cveCte') || null,
+        activo:  document.getElementById('activo').value === 'true',
       });
       if (!val('nombre')) throw new Error('Nombre es obligatorio.');
       const id = document.getElementById('id').value;
