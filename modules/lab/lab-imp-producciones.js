@@ -125,8 +125,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Carga ───────────────────────────────────────
   async function loadContadores() {
     try {
-      const res = await KoguApi.apiFetch(`${BASE}/imp-producciones/contadores`);
-      counts = KoguApi.unwrapData(res) || counts;
+      const res  = await KoguApi.apiFetch(`${BASE}/imp-producciones/contadores`);
+      const data = KoguApi.unwrapData(res) || {};
+      // Backend devuelve { pendientes, procesadas } (plural); tabs usan código singular
+      counts = {
+        pendiente: parseInt(data.pendientes ?? 0, 10),
+        procesada: parseInt(data.procesadas  ?? 0, 10),
+      };
       renderTabs();
     } catch (_) { /* silencioso */ }
   }
