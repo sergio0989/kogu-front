@@ -10,213 +10,237 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
-<div class="split">
-
-  <!-- ── Lista ── -->
-  <div class="card">
-    <div class="row">
-      <div><div class="eyebrow">Catálogo</div><h2>Productos</h2></div>
-      <button class="btn primary" id="refreshBtn">Actualizar</button>
-    </div>
-    <div class="grid-2" style="margin-top:16px;gap:10px">
-      <input  class="input"  id="q"        placeholder="Buscar por clave o descripción" />
-      <select class="select" id="tipoFil">
-        <option value="">Todos los tipos</option>
-        <option value="producto">Producto</option>
-        <option value="servicio">Servicio</option>
-        <option value="kit">Kit</option>
-      </select>
-      <select class="select" id="usoFil">
-        <option value="">Todos los usos</option>
-        <option value="producto_terminado">Producto terminado</option>
-        <option value="materia_prima">Materia prima</option>
-        <option value="producto_en_proceso">En proceso</option>
-        <option value="consumible">Consumible</option>
-        <option value="activo_fijo">Activo fijo</option>
-        <option value="mercancia_reventa">Mercancía reventa</option>
-        <option value="servicio_externo">Servicio externo</option>
-      </select>
-      <select class="select" id="famFil"><option value="">Todas las familias</option></select>
-    </div>
-    <div class="grid-2" style="margin-top:8px;gap:10px">
-      <select class="select" id="activoFil"><option value="">Todos</option><option value="true">Activos</option><option value="false">Inactivos</option></select>
-    </div>
-    <div class="table-wrap" style="margin-top:16px">
-      <table><thead><tr>
-        <th>Clave</th><th>Descripción</th><th>Tipo</th><th>Uso</th><th>Familia</th><th>Precio</th><th>Estado</th><th></th>
-      </tr></thead><tbody id="rowsProductos"></tbody></table>
-    </div>
-    <div id="pgBarProductos" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
-  </div>
-
-  <!-- ── Formulario ── -->
-  <div class="card" style="overflow-y:auto;max-height:90vh">
-    <div class="row">
-      <div><div class="eyebrow">Producto</div><h2 id="prodTitle">Nuevo producto</h2></div>
-      <span class="chip" id="prodChip">Alta</span>
-    </div>
-    <input type="hidden" id="productoId" />
-
-    <!-- Identificación ERP -->
-    <div style="margin-top:16px">
-      <div class="eyebrow" style="margin-bottom:10px">Identificación ERP</div>
-      <div class="grid-2" style="gap:10px">
-        <div>
-          <div class="label-text">Clave ERP <span style="color:var(--danger)">*</span></div>
-          <input class="input" id="pCve"   placeholder="Ej: CAJA-001" style="text-transform:uppercase" maxlength="50"/>
-        </div>
-        <div>
-          <div class="label-text">Nombre corto</div>
-          <input class="input" id="pNombreCorto" placeholder="Para búsqueda rápida" maxlength="100"/>
-        </div>
-      </div>
-      <div style="margin-top:10px">
-        <div class="label-text">Descripción <span style="color:var(--danger)">*</span></div>
-        <input class="input" id="pDesc" placeholder="Descripción completa del producto" maxlength="300"/>
-      </div>
-    </div>
-
-    <!-- Clasificación -->
-    <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:14px">
-      <div class="eyebrow" style="margin-bottom:10px">Clasificación</div>
-      <div class="grid-2" style="gap:10px">
-        <div>
-          <div class="label-text">Tipo <span style="color:var(--danger)">*</span></div>
-          <select class="select" id="pTipo">
-            <option value="producto">Producto</option>
-            <option value="servicio">Servicio</option>
-            <option value="kit">Kit</option>
-          </select>
-        </div>
-        <div>
-          <div class="label-text">Uso <span style="color:var(--danger)">*</span></div>
-          <select class="select" id="pUso">
-            <option value="producto_terminado">Producto terminado</option>
-            <option value="materia_prima">Materia prima</option>
-            <option value="producto_en_proceso">En proceso</option>
-            <option value="consumible">Consumible</option>
-            <option value="activo_fijo">Activo fijo</option>
-            <option value="mercancia_reventa">Mercancía reventa</option>
-            <option value="servicio_externo">Servicio externo</option>
-          </select>
-        </div>
-        <div>
-          <div class="label-text">Familia</div>
-          <select class="select" id="pFamilia"><option value="">— Sin familia —</option></select>
-        </div>
-        <div>
-          <div class="label-text">Subfamilia</div>
-          <select class="select" id="pSubfamilia"><option value="">— Sin subfamilia —</option></select>
-        </div>
-      </div>
-    </div>
-
-    <!-- Unidad de medida -->
-    <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:14px">
-      <div class="eyebrow" style="margin-bottom:10px">Unidad de Medida</div>
-      <div class="grid-2" style="gap:10px">
-        <div>
-          <div class="label-text">Unidad uso / venta</div>
-          <select class="select" id="pUnidad"><option value="">— Seleccionar —</option></select>
-        </div>
-        <div>
-          <div class="label-text">Unidad compra</div>
-          <select class="select" id="pUnidadCompra"><option value="">— Igual a uso —</option></select>
-        </div>
-        <div>
-          <div class="label-text">Factor conversión</div>
-          <input class="input" id="pFactor" type="number" value="1" min="0.0001" step="any" placeholder="1"/>
-        </div>
-      </div>
-    </div>
-
-    <!-- Precios -->
-    <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:14px">
-      <div class="eyebrow" style="margin-bottom:10px">Precios</div>
-      <div class="grid-2" style="gap:10px">
-        <div>
-          <div class="label-text">Precio base</div>
-          <input class="input" id="pPrecio" type="number" min="0" step="0.01" placeholder="0.00"/>
-        </div>
-        <div>
-          <div class="label-text">Costo base</div>
-          <input class="input" id="pCosto" type="number" min="0" step="0.01" placeholder="0.00"/>
-        </div>
-        <div>
-          <div class="label-text">Moneda</div>
-          <select class="select" id="pMoneda">
-            <option value="MXN">MXN — Peso mexicano</option>
-            <option value="USD">USD — Dólar</option>
-            <option value="EUR">EUR — Euro</option>
-          </select>
-        </div>
-        <div>
-          <div class="label-text">IVA default (%)</div>
-          <select class="select" id="pIva">
-            <option value="16">16%</option>
-            <option value="8">8% (frontera)</option>
-            <option value="0">0% (exento)</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <!-- Flags -->
-    <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:14px">
-      <div class="eyebrow" style="margin-bottom:10px">Módulos que lo usan</div>
-      <div class="grid-2" style="gap:10px">
-        <div>
-          <div class="label-text">¿Es vendible?</div>
-          <select class="select" id="pVendible"><option value="true">Sí</option><option value="false">No</option></select>
-        </div>
-        <div>
-          <div class="label-text">¿Es comprable?</div>
-          <select class="select" id="pComprable"><option value="true">Sí</option><option value="false">No</option></select>
-        </div>
-        <div>
-          <div class="label-text">¿Es activo fijo?</div>
-          <select class="select" id="pActivoFijo"><option value="false">No</option><option value="true">Sí</option></select>
-        </div>
-        <div>
-          <div class="label-text">¿Maneja inventario?</div>
-          <select class="select" id="pInventario"><option value="false">No</option><option value="true">Sí</option></select>
-        </div>
-      </div>
-    </div>
-
-    <!-- SAT (colapsado) -->
-    <details style="margin-top:18px; border-top:1px solid var(--line); padding-top:14px">
-      <summary style="cursor:pointer; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)">Datos SAT (opcional)</summary>
-      <div class="grid-2" style="gap:10px; margin-top:12px">
-        <div>
-          <div class="label-text">ClaveProdServ SAT</div>
-          <input class="input" id="pClaveSat" placeholder="Ej: 43232000" maxlength="10"/>
-        </div>
-        <div>
-          <div class="label-text">ClaveUnidad SAT</div>
-          <input class="input" id="pUnidadSat" placeholder="Ej: H87" maxlength="5" style="text-transform:uppercase"/>
-        </div>
-      </div>
-    </details>
-
-    <!-- Estado + acciones -->
-    <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:14px">
-      <div class="label-text">Estado</div>
-      <select class="select" id="pActivo" style="margin-top:4px"><option value="true">Activo</option><option value="false">Inactivo</option></select>
-    </div>
-    <div class="page-actions" style="margin-top:16px">
-      <button class="btn primary" id="saveProdBtn">Guardar</button>
-      <button class="btn"         id="newProdBtn">Nuevo</button>
+<div class="card">
+  <div class="row">
+    <div><div class="eyebrow">Catálogo</div><h2>Productos</h2></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" id="newProdBtn">+ Nuevo producto</button>
+      <button class="btn"         id="refreshBtn">Actualizar</button>
     </div>
   </div>
-
+  <div class="grid-2" style="margin-top:16px;gap:10px">
+    <input  class="input"  id="q"        placeholder="Buscar por clave o descripción" />
+    <select class="select" id="tipoFil">
+      <option value="">Todos los tipos</option>
+      <option value="producto">Producto</option>
+      <option value="servicio">Servicio</option>
+      <option value="kit">Kit</option>
+    </select>
+    <select class="select" id="usoFil">
+      <option value="">Todos los usos</option>
+      <option value="producto_terminado">Producto terminado</option>
+      <option value="materia_prima">Materia prima</option>
+      <option value="producto_en_proceso">En proceso</option>
+      <option value="consumible">Consumible</option>
+      <option value="activo_fijo">Activo fijo</option>
+      <option value="mercancia_reventa">Mercancía reventa</option>
+      <option value="servicio_externo">Servicio externo</option>
+    </select>
+    <select class="select" id="famFil"><option value="">Todas las familias</option></select>
+  </div>
+  <div class="grid-2" style="margin-top:8px;gap:10px">
+    <select class="select" id="activoFil"><option value="">Todos</option><option value="true">Activos</option><option value="false">Inactivos</option></select>
+  </div>
+  <div class="table-wrap" style="margin-top:16px">
+    <table><thead><tr>
+      <th>Clave</th><th>Descripción</th><th>Tipo</th><th>Uso</th><th>Familia</th><th>Precio</th><th>Estado</th><th></th>
+    </tr></thead><tbody id="rowsProductos"></tbody></table>
+  </div>
+  <div id="pgBarProductos" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
 </div>`;
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  function buildModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'prodModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:680px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
+        <!-- Header -->
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div>
+            <div class="eyebrow">Producto</div>
+            <h2 id="formTitle" style="margin:0;font-size:20px">Nuevo producto</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="chip" id="modeChip">Alta</span>
+            <button class="btn ghost" id="closeModalBtn" style="padding:6px 10px;font-size:16px">✕</button>
+          </div>
+        </div>
+        <!-- Body scrollable -->
+        <div style="flex:1;overflow-y:auto;padding:20px">
+          <div class="stack">
+            <input type="hidden" id="productoId"/>
+
+            <!-- Identificación ERP -->
+            <div class="eyebrow" style="margin-bottom:6px">Identificación ERP</div>
+            <div class="grid-2" style="gap:10px">
+              <div>
+                <div class="label-text">Clave ERP <span style="color:var(--danger)">*</span></div>
+                <input class="input" id="pCve" placeholder="Ej: CAJA-001" style="text-transform:uppercase" maxlength="50"/>
+              </div>
+              <div>
+                <div class="label-text">Nombre corto</div>
+                <input class="input" id="pNombreCorto" placeholder="Para búsqueda rápida" maxlength="100"/>
+              </div>
+            </div>
+            <div>
+              <div class="label-text">Descripción <span style="color:var(--danger)">*</span></div>
+              <input class="input" id="pDesc" placeholder="Descripción completa del producto" maxlength="300"/>
+            </div>
+
+            <!-- Clasificación -->
+            <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <div class="eyebrow" style="margin-bottom:8px">Clasificación</div>
+              <div class="grid-2" style="gap:10px">
+                <div>
+                  <div class="label-text">Tipo <span style="color:var(--danger)">*</span></div>
+                  <select class="select" id="pTipo">
+                    <option value="producto">Producto</option>
+                    <option value="servicio">Servicio</option>
+                    <option value="kit">Kit</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="label-text">Uso <span style="color:var(--danger)">*</span></div>
+                  <select class="select" id="pUso">
+                    <option value="producto_terminado">Producto terminado</option>
+                    <option value="materia_prima">Materia prima</option>
+                    <option value="producto_en_proceso">En proceso</option>
+                    <option value="consumible">Consumible</option>
+                    <option value="activo_fijo">Activo fijo</option>
+                    <option value="mercancia_reventa">Mercancía reventa</option>
+                    <option value="servicio_externo">Servicio externo</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="label-text">Familia</div>
+                  <select class="select" id="pFamilia"><option value="">— Sin familia —</option></select>
+                </div>
+                <div>
+                  <div class="label-text">Subfamilia</div>
+                  <select class="select" id="pSubfamilia"><option value="">— Sin subfamilia —</option></select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Unidad de medida -->
+            <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <div class="eyebrow" style="margin-bottom:8px">Unidad de Medida</div>
+              <div class="grid-2" style="gap:10px">
+                <div>
+                  <div class="label-text">Unidad uso / venta</div>
+                  <select class="select" id="pUnidad"><option value="">— Seleccionar —</option></select>
+                </div>
+                <div>
+                  <div class="label-text">Unidad compra</div>
+                  <select class="select" id="pUnidadCompra"><option value="">— Igual a uso —</option></select>
+                </div>
+                <div>
+                  <div class="label-text">Factor conversión</div>
+                  <input class="input" id="pFactor" type="number" value="1" min="0.0001" step="any" placeholder="1"/>
+                </div>
+              </div>
+            </div>
+
+            <!-- Precios -->
+            <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <div class="eyebrow" style="margin-bottom:8px">Precios</div>
+              <div class="grid-2" style="gap:10px">
+                <div>
+                  <div class="label-text">Precio base</div>
+                  <input class="input" id="pPrecio" type="number" min="0" step="0.01" placeholder="0.00"/>
+                </div>
+                <div>
+                  <div class="label-text">Costo base</div>
+                  <input class="input" id="pCosto" type="number" min="0" step="0.01" placeholder="0.00"/>
+                </div>
+                <div>
+                  <div class="label-text">Moneda</div>
+                  <select class="select" id="pMoneda">
+                    <option value="MXN">MXN — Peso mexicano</option>
+                    <option value="USD">USD — Dólar</option>
+                    <option value="EUR">EUR — Euro</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="label-text">IVA default (%)</div>
+                  <select class="select" id="pIva">
+                    <option value="16">16%</option>
+                    <option value="8">8% (frontera)</option>
+                    <option value="0">0% (exento)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Flags -->
+            <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <div class="eyebrow" style="margin-bottom:8px">Módulos que lo usan</div>
+              <div class="grid-2" style="gap:10px">
+                <div>
+                  <div class="label-text">¿Es vendible?</div>
+                  <select class="select" id="pVendible"><option value="true">Sí</option><option value="false">No</option></select>
+                </div>
+                <div>
+                  <div class="label-text">¿Es comprable?</div>
+                  <select class="select" id="pComprable"><option value="true">Sí</option><option value="false">No</option></select>
+                </div>
+                <div>
+                  <div class="label-text">¿Es activo fijo?</div>
+                  <select class="select" id="pActivoFijo"><option value="false">No</option><option value="true">Sí</option></select>
+                </div>
+                <div>
+                  <div class="label-text">¿Maneja inventario?</div>
+                  <select class="select" id="pInventario"><option value="false">No</option><option value="true">Sí</option></select>
+                </div>
+              </div>
+            </div>
+
+            <!-- SAT -->
+            <details style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <summary style="cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Datos SAT (opcional)</summary>
+              <div class="grid-2" style="gap:10px;margin-top:12px">
+                <div>
+                  <div class="label-text">ClaveProdServ SAT</div>
+                  <input class="input" id="pClaveSat" placeholder="Ej: 43232000" maxlength="10"/>
+                </div>
+                <div>
+                  <div class="label-text">ClaveUnidad SAT</div>
+                  <input class="input" id="pUnidadSat" placeholder="Ej: H87" maxlength="5" style="text-transform:uppercase"/>
+                </div>
+              </div>
+            </details>
+
+            <!-- Estado -->
+            <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <div class="label-text">Estado</div>
+              <select class="select" id="pActivo" style="margin-top:4px"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+            </div>
+          </div>
+        </div>
+        <!-- Footer -->
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+          <button class="btn ghost" id="cancelModalBtn">Cancelar</button>
+          <button class="btn primary" id="saveProdBtn">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  const modal   = buildModal();
+  const openM   = () => { modal.style.display = 'flex'; }
+  const closeM  = () => { modal.style.display = 'none'; }
+  modal.addEventListener('click', e => { if (e.target === modal) closeM(); });
+  document.getElementById('closeModalBtn').addEventListener('click', closeM);
+  document.getElementById('cancelModalBtn').addEventListener('click', closeM);
 
   // ── Estado ─────────────────────────────────────────────────────────────
   const PAGE_SIZE = 50;
   let productos   = [];
   let familias    = [];
-  let subfamilias = {};  // keyed by familia_id
+  let subfamilias = {};
   let unidades    = [];
   let currentPage = 1;
 
@@ -225,7 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
   const num  = id => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? undefined : v; };
 
-  // ── Carga de catálogos de soporte ────────────────────────────────────────
+  // ── Catálogos de soporte ──────────────────────────────────────────────
   async function loadSupportData() {
     const [resFam, resUnd] = await Promise.all([
       KoguApi.apiFetch(BASE_FAM),
@@ -241,19 +265,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const opts = '<option value="">— Sin familia —</option>' +
       familias.map(f => `<option value="${f.familia_id}">${KoguUi.escapeHtml(f.clave)} — ${KoguUi.escapeHtml(f.nombre)}</option>`).join('');
     document.getElementById('pFamilia').innerHTML = opts;
-    // Filter select en lista
-    const famFil = document.getElementById('famFil');
-    famFil.innerHTML = '<option value="">Todas las familias</option>' +
+    document.getElementById('famFil').innerHTML =
+      '<option value="">Todas las familias</option>' +
       familias.map(f => `<option value="${f.familia_id}">${KoguUi.escapeHtml(f.nombre)}</option>`).join('');
   }
 
   function populateUnidadesSelects() {
     const opts = '<option value="">— Seleccionar —</option>' +
       unidades.map(u => `<option value="${u.unidad_id}">${KoguUi.escapeHtml(u.clave_interna)} — ${KoguUi.escapeHtml(u.nombre)}</option>`).join('');
-    const optsCompra = '<option value="">— Igual a uso —</option>' +
+    const optsC = '<option value="">— Igual a uso —</option>' +
       unidades.map(u => `<option value="${u.unidad_id}">${KoguUi.escapeHtml(u.clave_interna)} — ${KoguUi.escapeHtml(u.nombre)}</option>`).join('');
     document.getElementById('pUnidad').innerHTML = opts;
-    document.getElementById('pUnidadCompra').innerHTML = optsCompra;
+    document.getElementById('pUnidadCompra').innerHTML = optsC;
   }
 
   async function loadSubfamiliasForFamilia(familiaId) {
@@ -269,9 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ).join('');
   }
 
-  document.getElementById('pFamilia').onchange = () => {
-    loadSubfamiliasForFamilia(sel('pFamilia'));
-  };
+  document.getElementById('pFamilia').onchange = () => loadSubfamiliasForFamilia(sel('pFamilia'));
 
   // ── Reset / Fill ─────────────────────────────────────────────────────────
   function reset() {
@@ -283,8 +304,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('pVendible', 'true'); setV('pComprable', 'true');
     setV('pActivoFijo', 'false'); setV('pInventario', 'false');
     setV('pClaveSat', ''); setV('pUnidadSat', ''); setV('pActivo', 'true');
-    document.getElementById('prodTitle').textContent = 'Nuevo producto';
-    document.getElementById('prodChip').textContent  = 'Alta';
+    document.getElementById('formTitle').textContent = 'Nuevo producto';
+    document.getElementById('modeChip').textContent  = 'Alta';
     document.getElementById('pSubfamilia').innerHTML = '<option value="">— Sin subfamilia —</option>';
   }
 
@@ -293,7 +314,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('pNombreCorto', r.nombre_corto || '');
     setV('pTipo', r.tipo_producto); setV('pUso', r.uso_producto);
     setV('pFamilia', r.familia_id || '');
-    if (r.familia_id) { await loadSubfamiliasForFamilia(r.familia_id); }
+    if (r.familia_id) await loadSubfamiliasForFamilia(r.familia_id);
     setV('pSubfamilia', r.subfamilia_id || '');
     setV('pUnidad', r.unidad_medida_id || ''); setV('pUnidadCompra', r.unidad_compra_id || '');
     setV('pFactor', r.factor_conversion ?? 1);
@@ -303,13 +324,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('pActivoFijo', String(!!r.es_activo_fijo)); setV('pInventario', String(!!r.maneja_inventario));
     setV('pClaveSat', r.clave_prod_serv_sat || ''); setV('pUnidadSat', r.clave_unidad_sat || '');
     setV('pActivo', String(!!r.activo));
-    document.getElementById('prodTitle').textContent = 'Editar: ' + r.cve_prod;
-    document.getElementById('prodChip').textContent  = 'Edición';
+    document.getElementById('formTitle').textContent = 'Editar: ' + r.cve_prod;
+    document.getElementById('modeChip').textContent  = 'Edición';
   }
 
-  // ── Carga y render lista ─────────────────────────────────────────────────
+  // ── Carga y render ────────────────────────────────────────────────────────
   async function load(showToast = false) {
-    const res  = await KoguApi.apiFetch(BASE);
+    const res = await KoguApi.apiFetch(BASE);
     productos  = KoguApi.unwrapRows(res);
     currentPage = 1;
     render();
@@ -317,9 +338,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const TIPO_LABEL = { producto: 'Producto', servicio: 'Servicio', kit: 'Kit' };
-  const USO_SHORT  = { producto_terminado: 'P. Terminado', materia_prima: 'Mat. Prima',
-    producto_en_proceso: 'En Proceso', consumible: 'Consumible', activo_fijo: 'Activo Fijo',
-    mercancia_reventa: 'Reventa', servicio_externo: 'Serv. Externo' };
+  const USO_SHORT  = {
+    producto_terminado: 'P. Terminado', materia_prima: 'Mat. Prima',
+    producto_en_proceso: 'En Proceso',  consumible: 'Consumible',
+    activo_fijo: 'Activo Fijo',         mercancia_reventa: 'Reventa',
+    servicio_externo: 'Serv. Externo',
+  };
 
   function getFiltered() {
     const q  = val('q').toLowerCase();
@@ -342,7 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
     const from       = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
     const to         = Math.min(currentPage * PAGE_SIZE, total);
-    bar.innerHTML    = `
+    bar.innerHTML = `
       <span>${from}–${to} de ${total}</span>
       <div style="display:flex;gap:8px">
         <button class="btn" id="pgPrev" ${currentPage <= 1 ? 'disabled' : ''}>Anterior</button>
@@ -356,12 +380,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function render() {
     const filtered = getFiltered();
     const page     = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
     document.getElementById('rowsProductos').innerHTML = page.length
       ? page.map(r => `
           <tr>
             <td><span class="chip-compact">${KoguUi.escapeHtml(r.cve_prod)}</span></td>
-            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${KoguUi.escapeHtml(r.desc_prod)}">${KoguUi.escapeHtml(r.desc_prod)}</td>
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${KoguUi.escapeHtml(r.desc_prod)}">${KoguUi.escapeHtml(r.desc_prod)}</td>
             <td><span class="badge neutral">${TIPO_LABEL[r.tipo_producto] || r.tipo_producto}</span></td>
             <td style="font-size:11px;color:var(--muted)">${USO_SHORT[r.uso_producto] || r.uso_producto}</td>
             <td style="font-size:11px;color:var(--muted)">${KoguUi.escapeHtml(r.familia_nombre || '-')}</td>
@@ -373,37 +396,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.querySelectorAll('.btn-edit').forEach(x => x.onclick = async () => {
       const row = productos.find(r => r.producto_id === x.dataset.id);
-      if (row) await fill(row);
-      document.getElementById('rightPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (row) { reset(); await fill(row); openM(); }
     });
-
     renderPaginationProductos(filtered.length);
   }
 
-  // ── Guardar ─────────────────────────────────────────────────────────────
+  // ── Guardar ──────────────────────────────────────────────────────────────
   document.getElementById('saveProdBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {
       try {
         const id = val('productoId');
         const payload = {
-          cve_prod:          val('pCve').toUpperCase(),
-          desc_prod:         val('pDesc'),
-          nombre_corto:      val('pNombreCorto') || undefined,
-          tipo_producto:     sel('pTipo'),
-          uso_producto:      sel('pUso'),
-          familia_id:        sel('pFamilia')      || undefined,
-          subfamilia_id:     sel('pSubfamilia')   || undefined,
-          unidad_medida_id:  sel('pUnidad')       || undefined,
-          unidad_compra_id:  sel('pUnidadCompra') || undefined,
-          factor_conversion: num('pFactor') ?? 1,
-          precio_base:       num('pPrecio'),
-          costo_base:        num('pCosto'),
-          moneda:            sel('pMoneda'),
-          tasa_iva_default:  parseFloat(sel('pIva')),
-          es_vendible:       sel('pVendible')   === 'true',
-          es_comprable:      sel('pComprable')  === 'true',
-          es_activo_fijo:    sel('pActivoFijo') === 'true',
-          maneja_inventario: sel('pInventario') === 'true',
+          cve_prod:            val('pCve').toUpperCase(),
+          desc_prod:           val('pDesc'),
+          nombre_corto:        val('pNombreCorto') || undefined,
+          tipo_producto:       sel('pTipo'),
+          uso_producto:        sel('pUso'),
+          familia_id:          sel('pFamilia')      || undefined,
+          subfamilia_id:       sel('pSubfamilia')   || undefined,
+          unidad_medida_id:    sel('pUnidad')       || undefined,
+          unidad_compra_id:    sel('pUnidadCompra') || undefined,
+          factor_conversion:   num('pFactor') ?? 1,
+          precio_base:         num('pPrecio'),
+          costo_base:          num('pCosto'),
+          moneda:              sel('pMoneda'),
+          tasa_iva_default:    parseFloat(sel('pIva')),
+          es_vendible:         sel('pVendible')   === 'true',
+          es_comprable:        sel('pComprable')  === 'true',
+          es_activo_fijo:      sel('pActivoFijo') === 'true',
+          maneja_inventario:   sel('pInventario') === 'true',
           clave_prod_serv_sat: val('pClaveSat') || undefined,
           clave_unidad_sat:    val('pUnidadSat').toUpperCase() || undefined,
           activo:              sel('pActivo') === 'true',
@@ -417,15 +438,17 @@ document.addEventListener('DOMContentLoaded', async () => {
           await KoguApi.apiFetch(BASE, { method: 'POST', body: JSON.stringify(payload) });
           KoguApi.toast('Producto creado', 'success');
         }
-        reset(); await load();
+        closeM();
+        reset();
+        await load();
       } catch (err) { KoguApi.toast(err.message, 'error'); }
     }, 'Guardando...');
   };
 
-  // ── Eventos globales ──────────────────────────────────────────────────────
-  document.getElementById('refreshBtn').onclick  = () => load(false);
-  document.getElementById('newProdBtn').onclick  = reset;
-  document.getElementById('q').oninput          = () => { currentPage = 1; render(); };
+  // ── Eventos ───────────────────────────────────────────────────────────────
+  document.getElementById('newProdBtn').onclick = () => { reset(); openM(); };
+  document.getElementById('refreshBtn').onclick = () => load(false);
+  document.getElementById('q').oninput = () => { currentPage = 1; render(); };
   ['tipoFil', 'usoFil', 'famFil', 'activoFil'].forEach(id =>
     document.getElementById(id).onchange = () => { currentPage = 1; render(); }
   );
