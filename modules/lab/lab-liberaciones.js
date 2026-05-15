@@ -231,6 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('tablaHead').innerHTML = `
         <tr>
           <th style="width:32px"><input type="checkbox" id="selAll" title="Seleccionar todo"/></th>
+          <th style="width:120px">Folio</th>
           <th>Lote</th>
           <th>Cliente</th>
           <th>Condición</th>
@@ -242,6 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // historico
       $('tablaHead').innerHTML = `
         <tr>
+          <th style="width:120px">Folio</th>
           <th>Lote</th>
           <th>Cliente</th>
           <th>Estado</th>
@@ -411,6 +413,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `
       <tr>
         <td><input type="checkbox" data-pick="${lib.liberacion_id}" ${checked}/></td>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap;color:var(--primary);font-weight:600">
+          ${escapeHtml(lib.folio_liberacion || '—')}
+        </td>
         <td>
           <strong>${escapeHtml(lib.numero_lote || '—')}</strong>
           <div class="muted" style="font-size:12px">${escapeHtml(lib.cve_prod || '')} — ${escapeHtml(lib.desc_prod || '')}</div>
@@ -450,6 +455,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ncChip = chipNcAbiertas(lib);
     return `
       <tr>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap;color:var(--muted);font-weight:600">
+          ${escapeHtml(lib.folio_liberacion || '—')}
+        </td>
         <td>
           <strong>${escapeHtml(lib.numero_lote || '—')}</strong>
           <div class="muted" style="font-size:12px">${escapeHtml(lib.cve_prod || '')} — ${escapeHtml(lib.desc_prod || '')}</div>
