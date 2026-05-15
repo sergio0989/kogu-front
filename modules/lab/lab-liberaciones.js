@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderRows() {
     const tbody = $('rows');
     if (!rows.length) {
-      const colspan = currentTab === 'pendientes' ? 6 : 7;
+      const colspan = currentTab === 'pendientes' ? 6 : currentTab === 'activas' ? 8 : 7;
       const emptyMsg = currentTab === 'pendientes'
         ? 'No hay lotes pendientes de liberar. Cuando un lote pase a estado "Listo revisión", aparecerá aquí.'
         : currentTab === 'activas'
