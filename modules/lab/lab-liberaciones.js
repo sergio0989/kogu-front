@@ -1014,6 +1014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="eyebrow">Liberación · ${escapeHtml(lib.numero_lote || '—')}</div>
             <h2 style="margin:6px 0 0 0">${escapeHtml(lib.cliente_nombre || '—')}</h2>
             <div class="muted" style="font-size:12px">${escapeHtml(lib.cliente_rfc || '')}</div>
+            ${lib.folio_liberacion ? `<div style="margin-top:4px;font-family:monospace;font-size:13px;color:var(--primary)">${escapeHtml(lib.folio_liberacion)}</div>` : ''}
           </div>
           <button class="btn ghost" id="closeDetalleBtn">×</button>
         </div>
