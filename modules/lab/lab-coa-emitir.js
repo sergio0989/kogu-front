@@ -206,15 +206,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch(`${BASE}/lotes-disponibles?cliente_id=${encodeURIComponent(clienteId)}`);
       lotesDisponibles = KoguApi.unwrapData(res) || [];
       lotesSeleccionados.clear();
-      // Si se llegó con ?lote_id=XYZ y aparece en los disponibles del cliente,
-      // lo marcamos automáticamente para ahorrarle un click al usuario.
-      if (preselectLoteId && lotesDisponibles.some(l => l.lote_id === preselectLoteId)) {
-        lotesSeleccionados.add(preselectLoteId);
+      // Si se llegó con ?lote_id=XYZ, buscamos la liberación correspondiente y la preseleccionamos.
+      const matchLote = preselectLoteId
+        ? lotesDisponibles.find(l => l.lote_id === preselectLoteId)
+        : null;
+      if (matchLote) {
+        lotesSeleccionados.add(matchLote.liberacion_id);
       }
       renderLotes();
-      if (preselectLoteId) {
-        // Marca el checkbox tras render
-        const cb = document.querySelector(`input[data-lote-pick][value="${preselectLoteId}"]`);
+      if (matchLote) {
+        // Marca el checkbox tras render (el value ahora es liberacion_id)
+        const cb = document.querySelector(`input[data-lote-pick][value="${matchLote.liberacion_id}"]`);
         if (cb) cb.checked = true;
         actualizarResumen();
         actualizarBotonEmitir();
@@ -259,7 +261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const cant = l.cantidad ? `${parseFloat(l.cantidad).toLocaleString()} ${l.unidad_simbolo || ''}` : '—';
           return `
             <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:white">
-              <input type="checkbox" data-lote-pick="${idx}" value="${l.lote_id}" />
+              <input type="checkbox" data-lote-pick="${idx}" value="${l.liberacion_id}" />
               <div style="flex:1">
                 <div><strong>${escapeHtml(l.numero_lote)}</strong> <span class="muted">·</span> ${escapeHtml(l.cve_prod || '')} — ${escapeHtml(l.desc_prod || '')}</div>
                 <div class="muted" style="font-size:12px;margin-top:2px">
@@ -280,8 +282,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const idx = parseInt(e.target.dataset.lotePick, 10);
         const lote = lotesDisponibles[idx];
         if (!lote) return;
-        if (e.target.checked) lotesSeleccionados.add(lote.lote_id);
-        else lotesSeleccionados.delete(lote.lote_id);
+        if (e.target.checked) lotesSeleccionados.add(lote.liberacion_id);
+        else lotesSeleccionados.delete(lote.liberacion_id);
         actualizarResumen();
         actualizarBotonEmitir();
       });
@@ -361,17 +363,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       idioma:        $('idioma').value,
       formato:       $('formato').value,
       observaciones: $('observaciones').value.trim() || null,
-      lotes:         Array.from(lotesSeleccionados),
+      liberaciones:  Array.from(lotesSeleccionados),
     };
 
-    if (!confirm(`¿Emitir COA consolidado con ${payload.lotes.length} lote${payload.lotes.length === 1 ? '' : 's'}? Se generará un certificado inmutable.`)) return;
+    if (!confirm(`¿Emitir COA consolidado con ${payload.liberaciones.length} lote${payload.liberaciones.length === 1 ? '' : 's'}? Se generará un certificado inmutable.`)) return;
 
     try {
       const res = await KoguApi.apiFetch(`${BASE}/emitir-factura`, {
         method: 'POST', body: JSON.stringify(payload),
       });
       const coa = KoguApi.unwrapData(res);
-      KoguApi.toast(`COA ${coa.folio_coa} emitido (${payload.lotes.length} lote${payload.lotes.length === 1 ? '' : 's'})`, 'success');
+      KoguApi.toast(`COA ${coa.folio_coa} emitido (${payload.liberaciones.length} lote${payload.liberaciones.length === 1 ? '' : 's'})`, 'success');
       window.location.href = `/modules/lab/lab-coa-detalle.html?id=${coa.coa_id}`;
     } catch (err) {
       KoguApi.toast(err.message, 'error');
@@ -440,12 +442,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           await cargarLotesDisponibles();
           await cargarFacturasImportadas();
 
-          // Marcar checkboxes de los lotes que vienen en las liberaciones
-          const loteIdsAIncluir = new Set(validas.map(v => v.lote_id));
+          // Marcar checkboxes por liberacion_id directamente (el value del checkbox es liberacion_id)
+          const libIdsAIncluir = new Set(preselectLibIds);
           lotesSeleccionados.clear();
           lotesDisponibles
-            .filter(l => loteIdsAIncluir.has(l.lote_id))
-            .forEach(l => lotesSeleccionados.add(l.lote_id));
+            .filter(l => libIdsAIncluir.has(l.liberacion_id))
+            .forEach(l => lotesSeleccionados.add(l.liberacion_id));
           renderLotes();
           // Marcar visualmente los checkboxes tras render
           document.querySelectorAll('input[data-lote-pick]').forEach(cb => {
@@ -454,8 +456,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           actualizarResumen();
           actualizarBotonEmitir();
 
-          // Si algún lote no aparece en lotes-disponibles, avisar
-          const noEncontrados = validas.length - lotesSeleccionados.size;
+          // Si alguna liberación no aparece en lotes-disponibles, avisar
+          const noEncontrados = preselectLibIds.length - lotesSeleccionados.size;
           if (noEncontrados > 0) {
             KoguApi.toast(
               `${noEncontrados} lote(s) de la selección no están disponibles para este cliente (puede que la liberación esté inactiva).`,
