@@ -223,45 +223,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>` : '';
 
+    // ── Celdas de metadatos ──────────────────────────────
+    const cell = (label, value) => `
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">${label}</div>
+        <div style="font-size:14px;color:var(--text)">${value}</div>
+      </div>`;
+
+    const fechaElab = lote.fecha_elaboracion ? new Date(lote.fecha_elaboracion).toLocaleDateString('es-MX') : '—';
+    const fechaCad  = lote.fecha_caducidad   ? new Date(lote.fecha_caducidad).toLocaleDateString('es-MX')   : '—';
+    const origenLabel = { compra: 'Compra / insumo', produccion: 'Producción propia', transferencia: 'Transferencia' }[lote.origen] || lote.origen;
+
     $('loteHeader').innerHTML = `
-      <div class="row">
+      <!-- ── Fila título ── -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div>
-          <div class="eyebrow" style="font-size:13px;font-weight:600;letter-spacing:.5px;color:var(--accent)">LOTE · ${escapeHtml(lote.numero_lote)}</div>
-          <h2>${escapeHtml(lote.cve_prod || '')} — ${escapeHtml(lote.desc_prod || '')}</h2>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);margin-bottom:4px">
+            Lote · ${escapeHtml(lote.numero_lote)}
+          </div>
+          <h2 style="margin:0;font-size:20px;line-height:1.2">
+            ${escapeHtml(lote.cve_prod || '')} <span style="color:#94a3b8;font-weight:400">—</span> ${escapeHtml(lote.desc_prod || '')}
+          </h2>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span class="chip" style="background:${estado.color}22;color:${estado.color};font-size:14px;padding:6px 12px">${estado.label}</span>
-        </div>
+        <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
+                     border-radius:20px;font-size:13px;font-weight:600;letter-spacing:.3px;
+                     background:${estado.color}18;color:${estado.color};border:1.5px solid ${estado.color}44">
+          <span style="width:7px;height:7px;border-radius:50%;background:${estado.color};display:inline-block"></span>
+          ${estado.label}
+        </span>
       </div>
-      <div class="grid-2" style="margin-top:16px;gap:10px;font-size:14px">
-        <div><strong>Origen:</strong> ${escapeHtml(lote.origen)}</div>
-        <div><strong>Fecha del evento:</strong> ${fecha}</div>
-        <div><strong>Cantidad:</strong> ${cantidad}</div>
-        <div><strong>Referencia externa:</strong> ${escapeHtml(lote.referencia_externa || '—')}</div>
-        <div><strong>Fecha de elaboración:</strong>
-          ${puedeCambiarEstado
-            ? `<input type="date" id="fechaElabEdit" class="select" style="display:inline-block;width:auto;margin-left:6px"
-                value="${lote.fecha_elaboracion ? lote.fecha_elaboracion.slice(0,10) : ''}">`
-            : escapeHtml(lote.fecha_elaboracion ? new Date(lote.fecha_elaboracion).toLocaleDateString() : '—')}
-        </div>
-        <div><strong>Fecha de caducidad:</strong>
-          ${puedeCambiarEstado
-            ? `<input type="date" id="fechaCadEdit" class="select" style="display:inline-block;width:auto;margin-left:6px"
-                value="${lote.fecha_caducidad ? lote.fecha_caducidad.slice(0,10) : ''}">`
-            : escapeHtml(lote.fecha_caducidad ? new Date(lote.fecha_caducidad).toLocaleDateString() : '—')}
-        </div>
-        ${lote.proveedor_nombre ? `<div><strong>Proveedor:</strong> ${escapeHtml(lote.proveedor_nombre)}</div>` : ''}
-        ${puedeCambiarEstado ? `
-        <div style="grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-          <span><strong>Cambiar estado:</strong>
-            <select class="select" id="estadoEdit" style="display:inline-block;width:auto;margin-left:6px">
-              ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
-            </select>
-          </span>
-          <button class="btn ghost" id="guardarFechasBtn" style="font-size:12px">Guardar fechas</button>
-        </div>` : ''}
+
+      <!-- ── Grid de metadatos ── -->
+      <div style="margin-top:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 20px;
+                  padding:14px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+        ${cell('Origen', escapeHtml(origenLabel))}
+        ${cell('Fecha del evento', fecha)}
+        ${cell('Cantidad', cantidad)}
+        ${cell('Ref. externa', escapeHtml(lote.referencia_externa || '—'))}
+        ${cell('Elaboración', puedeCambiarEstado
+          ? `<input type="date" id="fechaElabEdit" class="select" style="width:auto;padding:3px 8px;font-size:13px;margin-top:2px" value="${lote.fecha_elaboracion ? lote.fecha_elaboracion.slice(0,10) : ''}">`
+          : fechaElab)}
+        ${cell('Caducidad', puedeCambiarEstado
+          ? `<input type="date" id="fechaCadEdit" class="select" style="width:auto;padding:3px 8px;font-size:13px;margin-top:2px" value="${lote.fecha_caducidad ? lote.fecha_caducidad.slice(0,10) : ''}">`
+          : fechaCad)}
+        ${lote.proveedor_nombre ? cell('Proveedor', escapeHtml(lote.proveedor_nombre)) : ''}
       </div>
-      ${lote.observaciones ? `<div style="margin-top:12px;padding:10px;background:var(--muted-bg, #f1f5f9);border-radius:6px;font-size:13px"><strong>Observaciones:</strong> ${escapeHtml(lote.observaciones)}</div>` : ''}
+
+      <!-- ── Barra de acciones (solo con permiso) ── -->
+      ${puedeCambiarEstado ? `
+      <div style="margin-top:12px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;
+                  padding:12px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Cambiar estado</label>
+          <select class="select" id="estadoEdit" style="width:auto;min-width:170px">
+            ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
+          </select>
+        </div>
+        <div style="height:36px;width:1px;background:#e2e8f0;align-self:flex-end"></div>
+        <button class="btn ghost" id="guardarFechasBtn" style="font-size:13px;height:36px;align-self:flex-end">
+          💾 Guardar fechas
+        </button>
+      </div>` : ''}
+
+      <!-- ── Observaciones ── -->
+      ${lote.observaciones ? `
+      <div style="margin-top:12px;padding:10px 14px;background:#fffbeb;border-left:3px solid #f59e0b;
+                  border-radius:0 6px 6px 0;font-size:13px;color:#78350f">
+        <span style="font-weight:600">Observaciones:</span> ${escapeHtml(lote.observaciones)}
+      </div>` : ''}
+
+      <!-- ── Banner de bloqueo ── -->
       ${bannerBloqueo}
     `;
 
