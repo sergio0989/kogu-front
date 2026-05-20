@@ -448,12 +448,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             $('folioFactura').value = [...foliosUnicos][0];
           }
 
-          // Marcar checkboxes por liberacion_id directamente (el value del checkbox es liberacion_id)
+          // Cuando se llega con liberacion_ids, mostrar SOLO esas liberaciones
+          // (no el resto del lote que viaja en otras facturas)
           const libIdsAIncluir = new Set(preselectLibIds);
+          lotesDisponibles = lotesDisponibles.filter(l => libIdsAIncluir.has(l.liberacion_id));
+
+          // Marcar todas como seleccionadas (ya son exactamente las del parámetro)
           lotesSeleccionados.clear();
-          lotesDisponibles
-            .filter(l => libIdsAIncluir.has(l.liberacion_id))
-            .forEach(l => lotesSeleccionados.add(l.liberacion_id));
+          lotesDisponibles.forEach(l => lotesSeleccionados.add(l.liberacion_id));
           renderLotes();
           // Marcar visualmente los checkboxes tras render
           document.querySelectorAll('input[data-lote-pick]').forEach(cb => {
