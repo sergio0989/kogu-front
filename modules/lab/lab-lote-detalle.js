@@ -89,7 +89,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="calcularBtn">Calcular oficial</button>
     </div>
   </div>
-  <div class="table-wrap" style="margin-top:16px">
+  <!-- Resumen período de análisis + sensorial -->
+  <div id="analisisSummary" style="margin-top:12px"></div>
+  <div class="table-wrap" style="margin-top:12px">
     <table><thead><tr>
       <th>Parámetro</th>
       <th>Estrategia</th>
@@ -271,19 +273,79 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       <!-- ── Barra de acciones (solo con permiso) ── -->
       ${puedeCambiarEstado ? `
-      <div style="margin-top:12px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;
-                  padding:12px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Cambiar estado</label>
-          <select class="select" id="estadoEdit" style="width:auto;min-width:170px">
-            ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
-          </select>
+      <div style="margin-top:12px;padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <!-- Fila 1: estado + guardar fechas elaboración/caducidad -->
+        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Cambiar estado</label>
+            <select class="select" id="estadoEdit" style="width:auto;min-width:170px">
+              ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
+            </select>
+          </div>
+          <div style="height:36px;width:1px;background:#e2e8f0;align-self:flex-end"></div>
+          <button class="btn ghost" id="guardarFechasBtn" style="font-size:13px;height:36px;align-self:flex-end">
+            💾 Guardar fechas
+          </button>
         </div>
-        <div style="height:36px;width:1px;background:#e2e8f0;align-self:flex-end"></div>
-        <button class="btn ghost" id="guardarFechasBtn" style="font-size:13px;height:36px;align-self:flex-end">
-          💾 Guardar fechas
-        </button>
+
+        <!-- Divisor -->
+        <div style="margin:12px 0;border-top:1px solid #f1f5f9"></div>
+
+        <!-- Fila 2: datos del período de análisis y sensorial -->
+        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Inicio análisis</label>
+            <input type="date" id="loteInicio" class="select" style="width:auto;font-size:13px"
+              value="${lote.fecha_inicio_analisis ? lote.fecha_inicio_analisis.slice(0,10) : ''}">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Término análisis</label>
+            <input type="date" id="loteTermino" class="select" style="width:auto;font-size:13px"
+              value="${lote.fecha_termino_analisis ? lote.fecha_termino_analisis.slice(0,10) : ''}">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Núm. jueces</label>
+            <input type="number" id="loteJueces" class="select" min="0" style="width:90px;font-size:13px"
+              value="${lote.num_jueces ?? ''}">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Correctos</label>
+            <input type="number" id="loteCorrectos" class="select" min="0" style="width:90px;font-size:13px"
+              value="${lote.num_juicios_correctos ?? ''}">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Mín. requerido</label>
+            <input type="number" id="loteMinJuicios" class="select" min="0" style="width:90px;font-size:13px"
+              value="${lote.min_juicios_correctos ?? ''}">
+          </div>
+          <button class="btn ghost" id="guardarAnalisisBtn" style="font-size:13px;height:36px;align-self:flex-end">
+            💾 Guardar análisis
+          </button>
+        </div>
+        ${lote.comentarios_sensorial || puedeCambiarEstado ? `
+        <div style="margin-top:10px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:4px">Comentarios sensoriales</label>
+          <textarea id="loteComentariosSensorial" class="input" rows="2"
+            style="width:100%;resize:vertical;font-size:13px">${escapeHtml(lote.comentarios_sensorial || '')}</textarea>
+        </div>` : ''}
+      </div>` : `
+      <!-- Vista de solo lectura de datos del análisis -->
+      ${(lote.fecha_inicio_analisis || lote.num_jueces || lote.comentarios_sensorial) ? `
+      <div style="margin-top:12px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 20px">
+        ${lote.fecha_inicio_analisis ? `<div style="display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Período análisis</div>
+          <div style="font-size:13px">${new Date(lote.fecha_inicio_analisis+'T12:00:00').toLocaleDateString('es-MX')}${lote.fecha_termino_analisis ? ' – '+new Date(lote.fecha_termino_analisis+'T12:00:00').toLocaleDateString('es-MX') : ''}</div>
+        </div>` : ''}
+        ${lote.num_jueces ? `<div style="display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Panel sensorial</div>
+          <div style="font-size:13px">${lote.num_jueces} jueces — ${lote.num_juicios_correctos ?? '—'} correctos (mín. ${lote.min_juicios_correctos ?? '—'})</div>
+        </div>` : ''}
+        ${lote.comentarios_sensorial ? `<div style="grid-column:1/-1;display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Comentarios sensoriales</div>
+          <div style="font-size:13px;color:#78350f;font-style:italic">${escapeHtml(lote.comentarios_sensorial)}</div>
+        </div>` : ''}
       </div>` : ''}
+      `}
 
       <!-- ── Observaciones ── -->
       ${lote.observaciones ? `
@@ -315,6 +377,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             }),
           });
           KoguApi.toast('Fechas guardadas', 'success');
+          await loadLote();
+        } catch (err) {
+          KoguApi.toast(err.message, 'error');
+        }
+      });
+    }
+
+    // Guardar datos del período de análisis y sensorial
+    const guardarAnalisisBtn = document.getElementById('guardarAnalisisBtn');
+    if (guardarAnalisisBtn) {
+      guardarAnalisisBtn.addEventListener('click', async () => {
+        const inicio     = document.getElementById('loteInicio')?.value    || null;
+        const termino    = document.getElementById('loteTermino')?.value   || null;
+        const jueces     = document.getElementById('loteJueces')?.value;
+        const correctos  = document.getElementById('loteCorrectos')?.value;
+        const minJuicios = document.getElementById('loteMinJuicios')?.value;
+        const comentarios= document.getElementById('loteComentariosSensorial')?.value.trim() || null;
+        if (termino && inicio && termino < inicio) {
+          KoguApi.toast('El término del análisis no puede ser anterior al inicio', 'error');
+          return;
+        }
+        try {
+          await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              fecha_inicio_analisis:  inicio    || null,
+              fecha_termino_analisis: termino   || null,
+              num_jueces:             jueces     ? parseInt(jueces)     : null,
+              num_juicios_correctos:  correctos  ? parseInt(correctos)  : null,
+              min_juicios_correctos:  minJuicios ? parseInt(minJuicios) : null,
+              comentarios_sensorial:  comentarios,
+            }),
+          });
+          KoguApi.toast('Datos del análisis guardados', 'success');
           await loadLote();
         } catch (err) {
           KoguApi.toast(err.message, 'error');
@@ -443,18 +539,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <strong>Muestra #${m.numero_muestra}</strong>
                 <span class="chip" style="background:${estado.color}22;color:${estado.color}">${estado.label}</span>
                 ${m.identificador_envase ? `<span class="muted">${escapeHtml(m.identificador_envase)}</span>` : ''}
-                ${m.fecha_inicio_analisis ? (() => {
-                  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'});
-                  const rango = m.fecha_termino_analisis
-                    ? `${fmt(m.fecha_inicio_analisis.slice(0,10))} – ${fmt(m.fecha_termino_analisis.slice(0,10))}`
-                    : `desde ${fmt(m.fecha_inicio_analisis.slice(0,10))}`;
-                  return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:12px;font-size:11px;font-weight:500">
-                    <span style="font-size:11px">📅</span>${rango}
-                  </span>`;
-                })() : ''}
-                ${m.num_jueces ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:12px;font-size:11px;font-weight:500">
-                    <span style="font-size:11px">◎</span>${m.num_jueces} jueces
-                  </span>` : ''}
               </div>
               <div style="display:flex;gap:6px" data-stop-toggle>
                 ${m.estado !== 'anulada' ? `
@@ -467,98 +551,12 @@ document.addEventListener('DOMContentLoaded', async () => {
               ${m.lugar_muestreo ? escapeHtml(m.lugar_muestreo) + ' · ' : ''}${fechaMuestreo}
               ${m.persona_muestreo_nombre ? `· por ${escapeHtml(m.persona_muestreo_nombre)}` : ''}
               · ${resumen}
-              ${m.fecha_inicio_analisis ? ` · Análisis: ${new Date(m.fecha_inicio_analisis).toLocaleDateString()}${m.fecha_termino_analisis ? ' – ' + new Date(m.fecha_termino_analisis).toLocaleDateString() : ''}` : ''}
-              ${m.num_jueces ? ` · ${m.num_jueces} jueces${m.num_juicios_correctos != null ? ', ' + m.num_juicios_correctos + ' correctos' : ''}` : ''}
             </div>
-            ${m.comentarios_sensorial ? `<div style="margin-top:4px;font-size:12px;color:#92400e;font-style:italic">${escapeHtml(m.comentarios_sensorial)}</div>` : ''}
             ${m.motivo_anulacion ? `<div style="margin-top:6px;font-size:13px;color:var(--danger)"><strong>Anulación:</strong> ${escapeHtml(m.motivo_anulacion)}</div>` : ''}
           </div>
 
           <!-- Cuerpo colapsable -->
           <div class="muestra-body" style="display:${colapsada ? 'none' : 'block'}">
-
-            <!-- ── Panel de datos del análisis (editable inline) ── -->
-            ${(() => {
-              const fInicio  = m.fecha_inicio_analisis  ? m.fecha_inicio_analisis.slice(0,10)  : '';
-              const fTermino = m.fecha_termino_analisis ? m.fecha_termino_analisis.slice(0,10) : '';
-              const fInicioLabel  = fInicio  ? new Date(fInicio  + 'T12:00:00').toLocaleDateString('es-MX') : '—';
-              const fTerminoLabel = fTermino ? new Date(fTermino + 'T12:00:00').toLocaleDateString('es-MX') : '—';
-              const tieneAnalisis = fInicio || fTermino || m.num_jueces || m.comentarios_sensorial;
-
-              const cellA = (label, val) => `
-                <div style="display:flex;flex-direction:column;gap:2px">
-                  <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">${label}</div>
-                  <div style="font-size:13px;color:var(--text)">${val}</div>
-                </div>`;
-
-              const juecesLabel = m.num_jueces
-                ? `${m.num_jueces} jueces — ${m.num_juicios_correctos ?? '—'} correctos (mín. ${m.min_juicios_correctos ?? '—'})`
-                : '—';
-
-              return `
-              <div id="analisis-panel-${m.muestra_id}" style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-                <!-- Cabecera del panel -->
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
-                  <span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#64748b">Datos del análisis</span>
-                  <button class="btn ghost" style="font-size:11px;padding:2px 10px"
-                    data-edit-analisis="${m.muestra_id}">Editar</button>
-                </div>
-
-                <!-- Vista estática -->
-                <div id="analisis-view-${m.muestra_id}" style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 20px">
-                  ${cellA('Inicio análisis', fInicioLabel)}
-                  ${cellA('Término análisis', fTerminoLabel)}
-                  ${cellA('Panel sensorial', juecesLabel)}
-                  ${m.comentarios_sensorial
-                    ? `<div style="grid-column:1/-1;display:flex;flex-direction:column;gap:2px">
-                        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Comentarios sensoriales</div>
-                        <div style="font-size:13px;color:#78350f;font-style:italic">${escapeHtml(m.comentarios_sensorial)}</div>
-                       </div>`
-                    : `<div style="grid-column:1/-1;font-size:12px;color:#94a3b8;font-style:italic">${tieneAnalisis ? '' : 'Sin datos de análisis registrados'}</div>`}
-                </div>
-
-                <!-- Formulario de edición (oculto) -->
-                <div id="analisis-form-${m.muestra_id}" style="display:none;padding:14px;background:#fff">
-                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px">
-                    <div>
-                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Inicio análisis</label>
-                      <input type="date" id="ae-inicio-${m.muestra_id}" class="select" style="width:100%;font-size:13px"
-                        value="${fInicio}">
-                    </div>
-                    <div>
-                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Término análisis</label>
-                      <input type="date" id="ae-termino-${m.muestra_id}" class="select" style="width:100%;font-size:13px"
-                        value="${fTermino}">
-                    </div>
-                    <div>
-                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Núm. jueces</label>
-                      <input type="number" id="ae-jueces-${m.muestra_id}" class="input" min="0" style="width:100%"
-                        value="${m.num_jueces ?? ''}">
-                    </div>
-                    <div>
-                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Juicios correctos</label>
-                      <input type="number" id="ae-correctos-${m.muestra_id}" class="input" min="0" style="width:100%"
-                        value="${m.num_juicios_correctos ?? ''}">
-                    </div>
-                    <div>
-                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Mín. requerido</label>
-                      <input type="number" id="ae-minjuicios-${m.muestra_id}" class="input" min="0" style="width:100%"
-                        value="${m.min_juicios_correctos ?? ''}">
-                    </div>
-                    <div style="grid-column:1/-1">
-                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Comentarios sensoriales</label>
-                      <textarea id="ae-comentarios-${m.muestra_id}" class="input" rows="2"
-                        style="width:100%;resize:vertical;font-size:13px">${escapeHtml(m.comentarios_sensorial || '')}</textarea>
-                    </div>
-                  </div>
-                  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-                    <button class="btn ghost" data-cancel-analisis="${m.muestra_id}">Cancelar</button>
-                    <button class="btn primary" data-save-analisis="${m.muestra_id}">Guardar</button>
-                  </div>
-                </div>
-              </div>`;
-            })()}
-
             <div class="table-wrap" style="margin-top:12px">
               <table style="font-size:13px"><thead><tr>
                 <th>Parámetro</th><th>Valor</th><th>Método</th><th></th>
@@ -632,62 +630,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const card = header.closest('.muestra-card');
         const isCollapsed = card.dataset.collapsed === 'true';
         setMuestraCollapsed(muestraId, !isCollapsed);
-      });
-    });
-
-    // ── Edición inline de datos del análisis por muestra ────
-    document.querySelectorAll('[data-edit-analisis]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const mid = btn.dataset.editAnalisis;
-        document.getElementById(`analisis-view-${mid}`).style.display = 'none';
-        document.getElementById(`analisis-form-${mid}`).style.display = 'block';
-        btn.style.display = 'none';
-      });
-    });
-
-    document.querySelectorAll('[data-cancel-analisis]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const mid = btn.dataset.cancelAnalisis;
-        document.getElementById(`analisis-form-${mid}`).style.display = 'none';
-        document.getElementById(`analisis-view-${mid}`).style.display = '';
-        const editBtn = document.querySelector(`[data-edit-analisis="${mid}"]`);
-        if (editBtn) editBtn.style.display = '';
-      });
-    });
-
-    document.querySelectorAll('[data-save-analisis]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const mid    = btn.dataset.saveAnalisis;
-        const inicio = document.getElementById(`ae-inicio-${mid}`)?.value   || null;
-        const termino= document.getElementById(`ae-termino-${mid}`)?.value  || null;
-        const jueces = document.getElementById(`ae-jueces-${mid}`)?.value;
-        const correctos = document.getElementById(`ae-correctos-${mid}`)?.value;
-        const minjuicios= document.getElementById(`ae-minjuicios-${mid}`)?.value;
-        const comentarios= document.getElementById(`ae-comentarios-${mid}`)?.value.trim() || null;
-
-        if (termino && inicio && termino < inicio) {
-          KoguApi.toast('La fecha de término no puede ser anterior al inicio del análisis', 'error');
-          return;
-        }
-        btn.disabled = true;
-        try {
-          await KoguApi.apiFetch(`${BASE}/muestras/${mid}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              fecha_inicio_analisis:  inicio   || null,
-              fecha_termino_analisis: termino  || null,
-              num_jueces:             jueces      ? parseInt(jueces)      : null,
-              num_juicios_correctos:  correctos   ? parseInt(correctos)   : null,
-              min_juicios_correctos:  minjuicios  ? parseInt(minjuicios)  : null,
-              comentarios_sensorial:  comentarios,
-            }),
-          });
-          KoguApi.toast('Datos del análisis guardados', 'success');
-          await loadLote();
-        } catch (err) {
-          KoguApi.toast(err.message, 'error');
-          btn.disabled = false;
-        }
       });
     });
 
@@ -828,6 +770,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Oficiales ────────────────────────────────────────────
   function renderOficiales() {
     const tbody = $('rowsOficiales');
+
+    // ── Resumen de datos del análisis a nivel lote ──
+    const sumEl = $('analisisSummary');
+    if (sumEl) {
+      const fIni = lote.fecha_inicio_analisis;
+      const fTer = lote.fecha_termino_analisis;
+      const fmt  = d => new Date(d.slice(0,10) + 'T12:00:00').toLocaleDateString('es-MX', { day:'numeric', month:'short', year:'numeric' });
+      const partes = [];
+      if (fIni) partes.push(`<span><strong>Período:</strong> ${fmt(fIni)}${fTer ? ' – ' + fmt(fTer) : ''}</span>`);
+      if (lote.num_jueces) partes.push(`<span><strong>Panel sensorial:</strong> ${lote.num_jueces} jueces — ${lote.num_juicios_correctos ?? '—'} correctos (mín. ${lote.min_juicios_correctos ?? '—'})</span>`);
+      if (lote.comentarios_sensorial) partes.push(`<span style="font-style:italic;color:#78350f">${escapeHtml(lote.comentarios_sensorial)}</span>`);
+      sumEl.innerHTML = partes.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:12px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:13px;color:#0c4a6e">${partes.join('<span style="color:#94a3b8">·</span>')}</div>`
+        : '';
+    }
+
     const oficiales = lote.oficiales || [];
     if (!oficiales.length) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Sin resultados oficiales calculados. Haz click en "Calcular oficial".</td></tr>`;
@@ -909,36 +867,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             <label style="display:block;font-weight:600;margin-bottom:4px">Lugar de muestreo</label>
             <input id="nm_lugar" class="input" type="text" placeholder="ej. Almacén A, Línea 3…" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-weight:600;margin-bottom:4px">Fecha inicio de análisis</label>
-            <input id="nm_inicio" class="input" type="date" value="${hoy}" style="width:100%">
-          </div>
-          <div>
-            <label style="display:block;font-weight:600;margin-bottom:4px">Fecha término de análisis</label>
-            <input id="nm_termino" class="input" type="date" style="width:100%">
-          </div>
-        </div>
-
-        <div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:6px;font-size:13px">
-          <strong style="display:block;margin-bottom:10px;color:#475569">Análisis sensorial (opcional)</strong>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-            <div>
-              <label style="display:block;font-weight:500;margin-bottom:3px">No. jueces</label>
-              <input id="nm_jueces" class="input" type="number" min="0" placeholder="0" style="width:100%">
-            </div>
-            <div>
-              <label style="display:block;font-weight:500;margin-bottom:3px">Juicios correctos</label>
-              <input id="nm_juicios" class="input" type="number" min="0" placeholder="0" style="width:100%">
-            </div>
-            <div>
-              <label style="display:block;font-weight:500;margin-bottom:3px">Mín. requerido</label>
-              <input id="nm_minjuicios" class="input" type="number" min="0" placeholder="0" style="width:100%">
-            </div>
-          </div>
-          <div style="margin-top:10px">
-            <label style="display:block;font-weight:500;margin-bottom:3px">Resultados / Comentarios</label>
-            <textarea id="nm_comentarios" class="input" rows="2" placeholder="Observaciones sensoriales…" style="width:100%;resize:vertical"></textarea>
-          </div>
         </div>
 
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
@@ -954,27 +882,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
     overlay.querySelector('#saveMuestraModal').addEventListener('click', async () => {
-      const inicio   = overlay.querySelector('#nm_inicio').value   || null;
-      const termino  = overlay.querySelector('#nm_termino').value  || null;
-      const jueces   = overlay.querySelector('#nm_jueces').value;
-      const juicios  = overlay.querySelector('#nm_juicios').value;
-      const minjuicios = overlay.querySelector('#nm_minjuicios').value;
-
-      if (termino && inicio && termino < inicio) {
-        KoguApi.toast('La fecha de término no puede ser anterior al inicio', 'error');
-        return;
-      }
       try {
         await KoguApi.apiFetch(`${BASE}/lotes/${loteId}/muestras`, {
           method: 'POST',
           body: JSON.stringify({
-            lugar_muestreo:         overlay.querySelector('#nm_lugar').value.trim() || null,
-            fecha_inicio_analisis:  inicio,
-            fecha_termino_analisis: termino,
-            num_jueces:             jueces     ? parseInt(jueces)     : null,
-            num_juicios_correctos:  juicios    ? parseInt(juicios)    : null,
-            min_juicios_correctos:  minjuicios ? parseInt(minjuicios) : null,
-            comentarios_sensorial:  overlay.querySelector('#nm_comentarios').value.trim() || null,
+            lugar_muestreo: overlay.querySelector('#nm_lugar').value.trim() || null,
             estado: 'pendiente',
           }),
         });
