@@ -185,12 +185,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Header del lote ──────────────────────────────────────
   function renderHeader() {
     if (!lote) return;
-    const estado = ESTADOS_LOTE.find(s => s.code === lote.estado_calidad) || { label: lote.estado_calidad, color: '#64748b' };
-    const fecha = lote.fecha_evento ? new Date(lote.fecha_evento).toLocaleDateString() : '—';
+    const estado   = ESTADOS_LOTE.find(s => s.code === lote.estado_calidad) || { label: lote.estado_calidad, color: '#64748b' };
+    const fecha    = lote.fecha_evento ? new Date(lote.fecha_evento).toLocaleDateString() : '—';
     const cantidad = lote.cantidad
       ? `${parseFloat(lote.cantidad).toLocaleString()} ${lote.unidad_simbolo || ''}`
       : '—';
-    const puedeEmitirCoa = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
+
+    const puedeCambiarEstado = KoguShell.hasPerm(b, 'lab.lotes.cambiar_estado');
+    const estaLiberado       = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
+
+    // Banner de bloqueo cuando el lote no está liberado
+    const bannerBloqueo = !estaLiberado ? `
+      <div style="margin-top:14px;padding:12px 16px;background:#fff7ed;border-left:4px solid #f97316;
+                  border-radius:6px;font-size:13px;color:#7c2d12;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:16px;flex-shrink:0">⚠</span>
+        <div>
+          <strong>Lote no liberado</strong> — No se pueden crear liberaciones ni emitir COAs hasta que el estado sea
+          <strong>Liberado</strong>${puedeCambiarEstado
+            ? '. Usa el selector de estado para cambiar el estado cuando el análisis esté completo.'
+            : '. Contacta a un <strong>Supervisor de Lab</strong> o al <strong>Gerente de Calidad</strong> para liberar este lote.'}
+        </div>
+      </div>` : '';
+
     $('loteHeader').innerHTML = `
       <div class="row">
         <div>
@@ -199,7 +215,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="chip" style="background:${estado.color}22;color:${estado.color};font-size:14px;padding:6px 12px">${estado.label}</span>
-          ${puedeEmitirCoa ? `<button class="btn primary" id="emitirCoaBtn" title="Ir al asistente de emisión de COA por factura">Emitir COA por factura →</button>` : ''}
         </div>
       </div>
       <div class="grid-2" style="margin-top:16px;gap:10px;font-size:14px">
@@ -208,41 +223,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><strong>Cantidad:</strong> ${cantidad}</div>
         <div><strong>Referencia externa:</strong> ${escapeHtml(lote.referencia_externa || '—')}</div>
         ${lote.proveedor_nombre ? `<div><strong>Proveedor:</strong> ${escapeHtml(lote.proveedor_nombre)}</div>` : ''}
+        ${puedeCambiarEstado ? `
         <div>
           <strong>Cambiar estado:</strong>
           <select class="select" id="estadoEdit" style="display:inline-block;width:auto;margin-left:6px">
             ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
           </select>
-        </div>
+        </div>` : ''}
       </div>
       ${lote.observaciones ? `<div style="margin-top:12px;padding:10px;background:var(--muted-bg, #f1f5f9);border-radius:6px;font-size:13px"><strong>Observaciones:</strong> ${escapeHtml(lote.observaciones)}</div>` : ''}
+      ${bannerBloqueo}
     `;
 
-    // Cambio de estado
-    $('estadoEdit').addEventListener('change', async (e) => {
-      const nuevoEstado = e.target.value;
-      if (nuevoEstado === lote.estado_calidad) return;
-      try {
-        await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ estado_calidad: nuevoEstado }),
-        });
-        KoguApi.toast(`Estado cambiado a ${nuevoEstado}`, 'success');
-        await loadLote();
-      } catch (err) {
-        KoguApi.toast(err.message, 'error');
-        e.target.value = lote.estado_calidad;
-      }
-    });
-
-    // Emitir COA — flujo unificado: redirige al asistente "COA por factura"
-    // donde se elige cliente, factura y se incluyen uno o varios lotes
-    // (V032+ reemplazó el flujo de COA por lote único).
-    const emitirBtn = document.getElementById('emitirCoaBtn');
-    if (emitirBtn) {
-      emitirBtn.addEventListener('click', () => {
-        const url = `/modules/lab/lab-coa-emitir.html?lote_id=${encodeURIComponent(loteId)}`;
-        window.location.href = url;
+    // Cambio de estado (solo si tiene permiso)
+    const estadoEl = document.getElementById('estadoEdit');
+    if (estadoEl) {
+      estadoEl.addEventListener('change', async (e) => {
+        const nuevoEstado = e.target.value;
+        if (nuevoEstado === lote.estado_calidad) return;
+        const estadoLabel = ESTADOS_LOTE.find(s => s.code === nuevoEstado)?.label || nuevoEstado;
+        if (!confirm(`¿Cambiar el estado del lote a "${estadoLabel}"?`)) {
+          e.target.value = lote.estado_calidad;
+          return;
+        }
+        try {
+          await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ estado_calidad: nuevoEstado }),
+          });
+          KoguApi.toast(`Estado cambiado a ${estadoLabel}`, 'success');
+          await loadLote();
+        } catch (err) {
+          KoguApi.toast(err.message, 'error');
+          e.target.value = lote.estado_calidad;
+        }
       });
     }
   }
