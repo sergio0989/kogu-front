@@ -67,8 +67,9 @@
       {href:'/modules/lab/lab-excepciones.html',      label:'Excepciones',         perm:'screen.lab.bandeja'},
       {href:'/modules/lab/lab-coa.html',              label:'Certificados COA',    perm:'screen.lab.coa'},
       // ── Transversal / Configuración ──
-      {href:'/modules/lab/lab-no-conformidades.html', label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
-      {href:'/modules/lab/lab-maestros.html',         label:'Maestros analíticos', perm:'screen.lab.maestros'},
+      {href:'/modules/lab/lab-no-conformidades.html',    label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
+      {href:'/modules/lab/lab-maestros.html',            label:'Maestros analíticos', perm:'screen.lab.maestros'},
+      {href:'/modules/lab/lab-plantilla-producto.html',  label:'Plantilla productos', perm:'lab.plantilla_producto.manage'},
     ]}
   ];
 
