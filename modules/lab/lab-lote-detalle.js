@@ -464,6 +464,89 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <!-- Cuerpo colapsable -->
           <div class="muestra-body" style="display:${colapsada ? 'none' : 'block'}">
+
+            <!-- ── Panel de datos del análisis (editable inline) ── -->
+            ${(() => {
+              const fInicio  = m.fecha_inicio_analisis  ? m.fecha_inicio_analisis.slice(0,10)  : '';
+              const fTermino = m.fecha_termino_analisis ? m.fecha_termino_analisis.slice(0,10) : '';
+              const fInicioLabel  = fInicio  ? new Date(fInicio  + 'T12:00:00').toLocaleDateString('es-MX') : '—';
+              const fTerminoLabel = fTermino ? new Date(fTermino + 'T12:00:00').toLocaleDateString('es-MX') : '—';
+              const tieneAnalisis = fInicio || fTermino || m.num_jueces || m.comentarios_sensorial;
+
+              const cellA = (label, val) => `
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">${label}</div>
+                  <div style="font-size:13px;color:var(--text)">${val}</div>
+                </div>`;
+
+              const juecesLabel = m.num_jueces
+                ? `${m.num_jueces} jueces — ${m.num_juicios_correctos ?? '—'} correctos (mín. ${m.min_juicios_correctos ?? '—'})`
+                : '—';
+
+              return `
+              <div id="analisis-panel-${m.muestra_id}" style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+                <!-- Cabecera del panel -->
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#64748b">Datos del análisis</span>
+                  <button class="btn ghost" style="font-size:11px;padding:2px 10px"
+                    data-edit-analisis="${m.muestra_id}">Editar</button>
+                </div>
+
+                <!-- Vista estática -->
+                <div id="analisis-view-${m.muestra_id}" style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 20px">
+                  ${cellA('Inicio análisis', fInicioLabel)}
+                  ${cellA('Término análisis', fTerminoLabel)}
+                  ${cellA('Panel sensorial', juecesLabel)}
+                  ${m.comentarios_sensorial
+                    ? `<div style="grid-column:1/-1;display:flex;flex-direction:column;gap:2px">
+                        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Comentarios sensoriales</div>
+                        <div style="font-size:13px;color:#78350f;font-style:italic">${escapeHtml(m.comentarios_sensorial)}</div>
+                       </div>`
+                    : `<div style="grid-column:1/-1;font-size:12px;color:#94a3b8;font-style:italic">${tieneAnalisis ? '' : 'Sin datos de análisis registrados'}</div>`}
+                </div>
+
+                <!-- Formulario de edición (oculto) -->
+                <div id="analisis-form-${m.muestra_id}" style="display:none;padding:14px;background:#fff">
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px">
+                    <div>
+                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Inicio análisis</label>
+                      <input type="date" id="ae-inicio-${m.muestra_id}" class="select" style="width:100%;font-size:13px"
+                        value="${fInicio}">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Término análisis</label>
+                      <input type="date" id="ae-termino-${m.muestra_id}" class="select" style="width:100%;font-size:13px"
+                        value="${fTermino}">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Núm. jueces</label>
+                      <input type="number" id="ae-jueces-${m.muestra_id}" class="input" min="0" style="width:100%"
+                        value="${m.num_jueces ?? ''}">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Juicios correctos</label>
+                      <input type="number" id="ae-correctos-${m.muestra_id}" class="input" min="0" style="width:100%"
+                        value="${m.num_juicios_correctos ?? ''}">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Mín. requerido</label>
+                      <input type="number" id="ae-minjuicios-${m.muestra_id}" class="input" min="0" style="width:100%"
+                        value="${m.min_juicios_correctos ?? ''}">
+                    </div>
+                    <div style="grid-column:1/-1">
+                      <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Comentarios sensoriales</label>
+                      <textarea id="ae-comentarios-${m.muestra_id}" class="input" rows="2"
+                        style="width:100%;resize:vertical;font-size:13px">${escapeHtml(m.comentarios_sensorial || '')}</textarea>
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button class="btn ghost" data-cancel-analisis="${m.muestra_id}">Cancelar</button>
+                    <button class="btn primary" data-save-analisis="${m.muestra_id}">Guardar</button>
+                  </div>
+                </div>
+              </div>`;
+            })()}
+
             <div class="table-wrap" style="margin-top:12px">
               <table style="font-size:13px"><thead><tr>
                 <th>Parámetro</th><th>Valor</th><th>Método</th><th></th>
@@ -537,6 +620,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         const card = header.closest('.muestra-card');
         const isCollapsed = card.dataset.collapsed === 'true';
         setMuestraCollapsed(muestraId, !isCollapsed);
+      });
+    });
+
+    // ── Edición inline de datos del análisis por muestra ────
+    document.querySelectorAll('[data-edit-analisis]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mid = btn.dataset.editAnalisis;
+        document.getElementById(`analisis-view-${mid}`).style.display = 'none';
+        document.getElementById(`analisis-form-${mid}`).style.display = 'block';
+        btn.style.display = 'none';
+      });
+    });
+
+    document.querySelectorAll('[data-cancel-analisis]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mid = btn.dataset.cancelAnalisis;
+        document.getElementById(`analisis-form-${mid}`).style.display = 'none';
+        document.getElementById(`analisis-view-${mid}`).style.display = '';
+        const editBtn = document.querySelector(`[data-edit-analisis="${mid}"]`);
+        if (editBtn) editBtn.style.display = '';
+      });
+    });
+
+    document.querySelectorAll('[data-save-analisis]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const mid    = btn.dataset.saveAnalisis;
+        const inicio = document.getElementById(`ae-inicio-${mid}`)?.value   || null;
+        const termino= document.getElementById(`ae-termino-${mid}`)?.value  || null;
+        const jueces = document.getElementById(`ae-jueces-${mid}`)?.value;
+        const correctos = document.getElementById(`ae-correctos-${mid}`)?.value;
+        const minjuicios= document.getElementById(`ae-minjuicios-${mid}`)?.value;
+        const comentarios= document.getElementById(`ae-comentarios-${mid}`)?.value.trim() || null;
+
+        if (termino && inicio && termino < inicio) {
+          KoguApi.toast('La fecha de término no puede ser anterior al inicio del análisis', 'error');
+          return;
+        }
+        btn.disabled = true;
+        try {
+          await KoguApi.apiFetch(`${BASE}/muestras/${mid}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              fecha_inicio_analisis:  inicio   || null,
+              fecha_termino_analisis: termino  || null,
+              num_jueces:             jueces      ? parseInt(jueces)      : null,
+              num_juicios_correctos:  correctos   ? parseInt(correctos)   : null,
+              min_juicios_correctos:  minjuicios  ? parseInt(minjuicios)  : null,
+              comentarios_sensorial:  comentarios,
+            }),
+          });
+          KoguApi.toast('Datos del análisis guardados', 'success');
+          await loadLote();
+        } catch (err) {
+          KoguApi.toast(err.message, 'error');
+          btn.disabled = false;
+        }
       });
     });
 
