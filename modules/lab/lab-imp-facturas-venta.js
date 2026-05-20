@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th style="width:120px">Lote ERP</th>
         <th style="width:90px;text-align:right">Cantidad</th>
         <th style="width:110px">Lote en Lab</th>
+        <th style="width:110px">Liberación</th>
         <th style="width:100px">Estado</th>
         <th style="text-align:right;white-space:nowrap">Acciones</th>
       </tr></thead>
@@ -253,6 +254,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="font-family:monospace;font-size:12px">${escapeHtml(r.numero_lote || '—')}</td>
         <td style="text-align:right;font-size:13px;white-space:nowrap">${cant}</td>
         <td>${loteChip}</td>
+        <td style="font-size:12px;font-family:monospace">
+          ${r.folio_liberacion
+            ? `<a href="/modules/lab/lab-liberaciones.html?id=${r.liberacion_id}"
+                  style="color:var(--accent);text-decoration:none">${escapeHtml(r.folio_liberacion)}</a>`
+            : '<span class="muted">—</span>'}
+        </td>
         <td>${estadoChip}
           ${r.fecha_procesamiento ? `<div class="muted" style="font-size:10px;margin-top:2px">${fmtDate(r.fecha_procesamiento)}</div>` : ''}
         </td>
