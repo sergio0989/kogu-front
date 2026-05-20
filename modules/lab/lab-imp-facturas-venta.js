@@ -349,12 +349,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = KoguApi.unwrapData(res);
 
         oQ('#importProgress').style.display = 'none';
-        oQ('#importResult').style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#dcfce7;color:#166534';
+        const hayAdvertencias = (data?.sin_cliente?.length ?? 0) > 0 || (data?.sin_producto?.length ?? 0) > 0;
+        oQ('#importResult').style.cssText = hayAdvertencias
+          ? 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#fef9c3;color:#854d0e'
+          : 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#dcfce7;color:#166534';
         oQ('#importResult').innerHTML = `
-          <strong>✅ Import completado</strong><br>
+          <strong>${hayAdvertencias ? '⚠ Import completado con advertencias' : '✅ Import completado'}</strong><br>
           ${escapeHtml(data?.mensaje_resumen || `${data?.filas_validas ?? '?'} filas procesadas`)}
+          ${hayAdvertencias ? `<br><span style="font-size:12px">Las filas con cve_cte o cve_prod sin match importaron sin cliente/producto — vincúlalos desde los catálogos.</span>` : ''}
         `;
-        KoguApi.toast('Import completado', 'success');
+        KoguApi.toast(hayAdvertencias ? 'Import con advertencias' : 'Import completado',
+                      hayAdvertencias ? 'warning' : 'success');
         currentPage = 1;
         await load();
         oQ('#uploadBtn').textContent = 'Cerrar';
