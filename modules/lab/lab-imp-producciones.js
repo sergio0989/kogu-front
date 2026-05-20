@@ -230,9 +230,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       const data = KoguApi.unwrapData(res);
       if (data.creado) {
-        KoguApi.toast(`Lote ${data.lote_numero || ''} creado`, 'success');
+        KoguApi.toast(`Lote ${data.numero_lote || ''} creado`, 'success');
       } else {
-        KoguApi.toast(`Lote ${data.lote_numero || ''} ya existía — fila vinculada`, 'success');
+        KoguApi.toast(`Lote ${data.numero_lote || ''} ya existía — fila vinculada`, 'success');
       }
       await load();
     } catch (err) { KoguApi.toast(err.message, 'error'); }
