@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('loteHeader').innerHTML = `
       <div class="row">
         <div>
-          <div class="eyebrow">Lote #${escapeHtml(lote.numero_lote)}</div>
+          <div class="eyebrow" style="font-size:13px;font-weight:600;letter-spacing:.5px;color:var(--accent)">LOTE · ${escapeHtml(lote.numero_lote)}</div>
           <h2>${escapeHtml(lote.cve_prod || '')} — ${escapeHtml(lote.desc_prod || '')}</h2>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -222,18 +222,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><strong>Fecha del evento:</strong> ${fecha}</div>
         <div><strong>Cantidad:</strong> ${cantidad}</div>
         <div><strong>Referencia externa:</strong> ${escapeHtml(lote.referencia_externa || '—')}</div>
+        <div><strong>Fecha de elaboración:</strong>
+          ${puedeCambiarEstado
+            ? `<input type="date" id="fechaElabEdit" class="select" style="display:inline-block;width:auto;margin-left:6px"
+                value="${lote.fecha_elaboracion ? lote.fecha_elaboracion.slice(0,10) : ''}">`
+            : escapeHtml(lote.fecha_elaboracion ? new Date(lote.fecha_elaboracion).toLocaleDateString() : '—')}
+        </div>
+        <div><strong>Fecha de caducidad:</strong>
+          ${puedeCambiarEstado
+            ? `<input type="date" id="fechaCadEdit" class="select" style="display:inline-block;width:auto;margin-left:6px"
+                value="${lote.fecha_caducidad ? lote.fecha_caducidad.slice(0,10) : ''}">`
+            : escapeHtml(lote.fecha_caducidad ? new Date(lote.fecha_caducidad).toLocaleDateString() : '—')}
+        </div>
         ${lote.proveedor_nombre ? `<div><strong>Proveedor:</strong> ${escapeHtml(lote.proveedor_nombre)}</div>` : ''}
         ${puedeCambiarEstado ? `
-        <div>
-          <strong>Cambiar estado:</strong>
-          <select class="select" id="estadoEdit" style="display:inline-block;width:auto;margin-left:6px">
-            ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
-          </select>
+        <div style="grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <span><strong>Cambiar estado:</strong>
+            <select class="select" id="estadoEdit" style="display:inline-block;width:auto;margin-left:6px">
+              ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
+            </select>
+          </span>
+          <button class="btn ghost" id="guardarFechasBtn" style="font-size:12px">Guardar fechas</button>
         </div>` : ''}
       </div>
       ${lote.observaciones ? `<div style="margin-top:12px;padding:10px;background:var(--muted-bg, #f1f5f9);border-radius:6px;font-size:13px"><strong>Observaciones:</strong> ${escapeHtml(lote.observaciones)}</div>` : ''}
       ${bannerBloqueo}
     `;
+
+    // Guardar fechas de elaboración y caducidad
+    const guardarFechasBtn = document.getElementById('guardarFechasBtn');
+    if (guardarFechasBtn) {
+      guardarFechasBtn.addEventListener('click', async () => {
+        const elaboracion = document.getElementById('fechaElabEdit')?.value || null;
+        const caducidad   = document.getElementById('fechaCadEdit')?.value || null;
+        if (caducidad && elaboracion && caducidad < elaboracion) {
+          KoguApi.toast('La fecha de caducidad no puede ser anterior a la de elaboración', 'error');
+          return;
+        }
+        try {
+          await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              fecha_elaboracion: elaboracion || null,
+              fecha_caducidad:   caducidad   || null,
+            }),
+          });
+          KoguApi.toast('Fechas guardadas', 'success');
+          await loadLote();
+        } catch (err) {
+          KoguApi.toast(err.message, 'error');
+        }
+      });
+    }
 
     // Cambio de estado (solo si tiene permiso)
     const estadoEl = document.getElementById('estadoEdit');
@@ -338,10 +378,13 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
             </div>
             <div style="margin-top:6px;font-size:13px;color:var(--muted)">
-              ${escapeHtml(m.lugar_muestreo || '')} · ${fechaMuestreo}
+              ${m.lugar_muestreo ? escapeHtml(m.lugar_muestreo) + ' · ' : ''}${fechaMuestreo}
               ${m.persona_muestreo_nombre ? `· por ${escapeHtml(m.persona_muestreo_nombre)}` : ''}
               · ${resumen}
+              ${m.fecha_inicio_analisis ? ` · Análisis: ${new Date(m.fecha_inicio_analisis).toLocaleDateString()}${m.fecha_termino_analisis ? ' – ' + new Date(m.fecha_termino_analisis).toLocaleDateString() : ''}` : ''}
+              ${m.num_jueces ? ` · ${m.num_jueces} jueces${m.num_juicios_correctos != null ? ', ' + m.num_juicios_correctos + ' correctos' : ''}` : ''}
             </div>
+            ${m.comentarios_sensorial ? `<div style="margin-top:4px;font-size:12px;color:#92400e;font-style:italic">${escapeHtml(m.comentarios_sensorial)}</div>` : ''}
             ${m.motivo_anulacion ? `<div style="margin-top:6px;font-size:13px;color:var(--danger)"><strong>Anulación:</strong> ${escapeHtml(m.motivo_anulacion)}</div>` : ''}
           </div>
 
@@ -571,22 +614,101 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('toggleAllBtn').textContent = todasColapsadas ? 'Colapsar todas' : 'Expandir todas';
   });
 
-  $('addMuestraBtn').addEventListener('click', async () => {
-    const lugar = prompt('Lugar de muestreo (opcional):') || null;
-    try {
-      await KoguApi.apiFetch(`${BASE}/lotes/${loteId}/muestras`, {
-        method: 'POST',
-        body: JSON.stringify({
-          lugar_muestreo: lugar,
-          estado: 'pendiente',
-        }),
-      });
-      KoguApi.toast('Muestra creada', 'success');
-      await loadLote();
-    } catch (err) {
-      KoguApi.toast(err.message, 'error');
-    }
-  });
+  $('addMuestraBtn').addEventListener('click', () => abrirModalNuevaMuestra());
+
+  function abrirModalNuevaMuestra() {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 style="margin:0">Nueva muestra</h3>
+          <button id="closeMuestraModal" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">×</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px">
+          <div style="grid-column:1/-1">
+            <label style="display:block;font-weight:600;margin-bottom:4px">Lugar de muestreo</label>
+            <input id="nm_lugar" class="input" type="text" placeholder="ej. Almacén A, Línea 3…" style="width:100%">
+          </div>
+          <div>
+            <label style="display:block;font-weight:600;margin-bottom:4px">Fecha inicio de análisis</label>
+            <input id="nm_inicio" class="input" type="date" value="${hoy}" style="width:100%">
+          </div>
+          <div>
+            <label style="display:block;font-weight:600;margin-bottom:4px">Fecha término de análisis</label>
+            <input id="nm_termino" class="input" type="date" style="width:100%">
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:6px;font-size:13px">
+          <strong style="display:block;margin-bottom:10px;color:#475569">Análisis sensorial (opcional)</strong>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div>
+              <label style="display:block;font-weight:500;margin-bottom:3px">No. jueces</label>
+              <input id="nm_jueces" class="input" type="number" min="0" placeholder="0" style="width:100%">
+            </div>
+            <div>
+              <label style="display:block;font-weight:500;margin-bottom:3px">Juicios correctos</label>
+              <input id="nm_juicios" class="input" type="number" min="0" placeholder="0" style="width:100%">
+            </div>
+            <div>
+              <label style="display:block;font-weight:500;margin-bottom:3px">Mín. requerido</label>
+              <input id="nm_minjuicios" class="input" type="number" min="0" placeholder="0" style="width:100%">
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <label style="display:block;font-weight:500;margin-bottom:3px">Resultados / Comentarios</label>
+            <textarea id="nm_comentarios" class="input" rows="2" placeholder="Observaciones sensoriales…" style="width:100%;resize:vertical"></textarea>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+          <button id="cancelMuestraModal" class="btn ghost">Cancelar</button>
+          <button id="saveMuestraModal" class="btn primary">Crear muestra</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#closeMuestraModal').onclick  = close;
+    overlay.querySelector('#cancelMuestraModal').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    overlay.querySelector('#saveMuestraModal').addEventListener('click', async () => {
+      const inicio   = overlay.querySelector('#nm_inicio').value   || null;
+      const termino  = overlay.querySelector('#nm_termino').value  || null;
+      const jueces   = overlay.querySelector('#nm_jueces').value;
+      const juicios  = overlay.querySelector('#nm_juicios').value;
+      const minjuicios = overlay.querySelector('#nm_minjuicios').value;
+
+      if (termino && inicio && termino < inicio) {
+        KoguApi.toast('La fecha de término no puede ser anterior al inicio', 'error');
+        return;
+      }
+      try {
+        await KoguApi.apiFetch(`${BASE}/lotes/${loteId}/muestras`, {
+          method: 'POST',
+          body: JSON.stringify({
+            lugar_muestreo:         overlay.querySelector('#nm_lugar').value.trim() || null,
+            fecha_inicio_analisis:  inicio,
+            fecha_termino_analisis: termino,
+            num_jueces:             jueces     ? parseInt(jueces)     : null,
+            num_juicios_correctos:  juicios    ? parseInt(juicios)    : null,
+            min_juicios_correctos:  minjuicios ? parseInt(minjuicios) : null,
+            comentarios_sensorial:  overlay.querySelector('#nm_comentarios').value.trim() || null,
+            estado: 'pendiente',
+          }),
+        });
+        KoguApi.toast('Muestra creada', 'success');
+        close();
+        await loadLote();
+      } catch (err) {
+        KoguApi.toast(err.message, 'error');
+      }
+    });
+  }
 
   $('calcularBtn').addEventListener('click', async () => {
     const estrategia = $('estrategiaSel').value;
