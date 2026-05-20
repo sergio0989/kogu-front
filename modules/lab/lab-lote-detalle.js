@@ -117,6 +117,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div id="reporteInspBody" style="display:none;margin-top:16px"></div>
 </div>
 
+<!-- Sección de Liberaciones — colapsable, carga lazy -->
+<div class="card" style="margin-top:16px">
+  <div class="row" id="libHeader" style="cursor:pointer;user-select:none">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="libChevron" style="font-size:12px;color:#64748b;width:16px">▶</span>
+      <div>
+        <div class="eyebrow">Trazabilidad</div>
+        <h2 style="margin:0">Liberaciones</h2>
+      </div>
+    </div>
+    <div class="muted" style="font-size:12px" id="libResumen">Click para ver las liberaciones de este lote</div>
+  </div>
+  <div id="libBody" style="display:none;margin-top:16px"></div>
+</div>
+
 <!-- Sección de NCs asociadas — colapsable, carga lazy -->
 <div class="card" style="margin-top:16px">
   <div class="row" id="ncHeader" style="cursor:pointer;user-select:none">
@@ -329,23 +344,50 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const filasResultados = resultadosDeMuestra.length
         ? resultadosDeMuestra.map(r => {
-            const ev = EVALS[r.evaluacion] || EVALS.pendiente_eval;
-            const valor = r.valor_numerico != null
+            const sinValor = r.valor_numerico == null && (r.valor_texto == null || r.valor_texto === '');
+            const valorDisplay = r.valor_numerico != null
               ? `${parseFloat(r.valor_numerico).toLocaleString()} ${r.unidad_capturada_simbolo || ''}`
-              : (r.valor_texto || '—');
+              : (r.valor_texto || '');
+            const rowBg = sinValor ? 'background:#fffbeb' : '';
             return `
-              <tr>
-                <td><strong>${escapeHtml(r.parametro_clave || '')}</strong> <span class="muted">${escapeHtml(r.parametro_nombre || '')}</span></td>
-                <td>${escapeHtml(r.metodo_clave || '—')}</td>
-                <td>${escapeHtml(r.clave_equipo || '—')}</td>
-                <td>${valor}</td>
-                <td><span class="chip" style="background:${ev.bg};color:${ev.color}">${ev.label}</span></td>
+              <tr style="${rowBg}">
+                <td>
+                  <strong style="font-family:monospace;font-size:12px">${escapeHtml(r.parametro_clave || '')}</strong>
+                  <span class="muted" style="font-size:12px;margin-left:4px">${escapeHtml(r.parametro_nombre || '')}</span>
+                </td>
+                <td>
+                  <!-- Vista -->
+                  <div id="vr-display-${r.resultado_id}" style="display:flex;align-items:center;gap:8px">
+                    ${sinValor
+                      ? `<span style="color:#b45309;font-size:12px;font-style:italic">Sin valor</span>`
+                      : `<span style="font-size:13px">${escapeHtml(valorDisplay)}</span>`}
+                    <button class="btn ghost" style="font-size:11px;padding:2px 8px"
+                      data-editar-resultado="${r.resultado_id}"
+                      data-val-prev="${escapeHtml(valorDisplay)}"
+                      data-obs-prev="${escapeHtml(r.observaciones || '')}"
+                    >${sinValor ? '↳ Ingresar' : 'Editar'}</button>
+                  </div>
+                  <!-- Edición inline -->
+                  <div id="vr-edit-${r.resultado_id}" style="display:none;margin-top:6px;display:none">
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                      <input class="input" type="text" placeholder="Valor…" style="width:110px"
+                        id="vr-val-${r.resultado_id}" value="${escapeHtml(valorDisplay)}"/>
+                      <input class="input" type="text" placeholder="Observaciones…" style="width:150px"
+                        id="vr-obs-${r.resultado_id}" value="${escapeHtml(r.observaciones || '')}"/>
+                      <button class="btn primary" style="font-size:11px;padding:4px 10px"
+                        data-save-resultado-inline="${r.resultado_id}">✓</button>
+                      <button class="btn ghost" style="font-size:11px;padding:4px 10px"
+                        data-cancel-resultado-inline="${r.resultado_id}">✕</button>
+                    </div>
+                  </div>
+                </td>
+                <td style="font-size:12px;color:var(--muted)">${escapeHtml(r.metodo_clave || '—')}</td>
                 <td style="text-align:right">
-                  <button class="btn ghost danger" data-del-resultado="${r.resultado_id}" title="Eliminar">×</button>
+                  <button class="btn ghost danger" data-del-resultado="${r.resultado_id}" title="Eliminar" style="font-size:13px">×</button>
                 </td>
               </tr>`;
           }).join('')
-        : `<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--muted);font-size:13px">Sin resultados aún</td></tr>`;
+        : `<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--muted);font-size:13px">Sin resultados aún</td></tr>`;
 
       // Default expandido si la muestra está en trabajo activo;
       // colapsado si está completada o anulada.
@@ -392,7 +434,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="muestra-body" style="display:${colapsada ? 'none' : 'block'}">
             <div class="table-wrap" style="margin-top:12px">
               <table style="font-size:13px"><thead><tr>
-                <th>Parámetro</th><th>Método</th><th>Equipo</th><th>Valor</th><th>Evaluación</th><th></th>
+                <th>Parámetro</th><th>Valor</th><th>Método</th><th></th>
               </tr></thead><tbody>${filasResultados}</tbody></table>
             </div>
 
@@ -515,6 +557,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     });
+    // Edición inline por fila de resultado
+    document.querySelectorAll('[data-editar-resultado]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rid = btn.dataset.editarResultado;
+        document.getElementById(`vr-display-${rid}`).style.display = 'none';
+        const editDiv = document.getElementById(`vr-edit-${rid}`);
+        editDiv.style.display = 'flex';
+        editDiv.querySelector(`#vr-val-${rid}`)?.focus();
+      });
+    });
+
+    document.querySelectorAll('[data-cancel-resultado-inline]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rid = btn.dataset.cancelResultadoInline;
+        document.getElementById(`vr-display-${rid}`).style.display = 'flex';
+        document.getElementById(`vr-edit-${rid}`).style.display = 'none';
+      });
+    });
+
+    document.querySelectorAll('[data-save-resultado-inline]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const rid = btn.dataset.saveResultadoInline;
+        const valorRaw = document.getElementById(`vr-val-${rid}`)?.value.trim() || '';
+        const obs      = document.getElementById(`vr-obs-${rid}`)?.value.trim() || null;
+
+        if (!valorRaw) { KoguApi.toast('Ingresa un valor', 'error'); return; }
+
+        const payload = { observaciones: obs };
+        const num = parseFloat(valorRaw.replace(',', '.'));
+        if (isFinite(num) && /^-?\d+(\.\d+)?$/.test(valorRaw.replace(',', '.'))) {
+          payload.valor_numerico = num;
+        } else {
+          payload.valor_texto = valorRaw;
+        }
+
+        btn.disabled = true;
+        try {
+          await KoguApi.apiFetch(`${BASE}/resultados/${rid}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+          });
+          KoguApi.toast('Resultado actualizado', 'success');
+          await loadLote();
+        } catch (err) {
+          KoguApi.toast(err.message, 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+
     document.querySelectorAll('[data-del-resultado]').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -945,6 +1040,102 @@ document.addEventListener('DOMContentLoaded', async () => {
         </td>
       </tr>`;
   }
+
+  // ── Liberaciones del lote — lazy load ───────────────────
+  const LIB_STATUS = {
+    vigente:  { label: 'Vigente',  color: '#16a34a' },
+    anulada:  { label: 'Anulada',  color: '#dc2626' },
+  };
+  let libCargadas = false;
+
+  async function cargarLiberaciones() {
+    const body = $('libBody');
+    body.innerHTML = '<div class="muted" style="text-align:center;padding:20px">Cargando liberaciones…</div>';
+    try {
+      const qs = new URLSearchParams({ lote_id: loteId, pageSize: '50' });
+      const res = await KoguApi.apiFetch(`${BASE}/liberaciones?${qs.toString()}`);
+      const libs = KoguApi.unwrapData(res) || [];
+      libCargadas = true;
+
+      if (!libs.length) {
+        body.innerHTML = `
+          <div class="muted" style="text-align:center;padding:24px;font-size:13px">
+            No hay liberaciones registradas para este lote.<br>
+            <span style="font-size:12px">Las liberaciones se crean desde el módulo
+              <a href="/modules/lab/lab-liberaciones.html">Liberaciones</a>
+              o al procesar facturas de venta.
+            </span>
+          </div>`;
+        $('libResumen').textContent = 'Sin liberaciones';
+        return;
+      }
+
+      const vigentes = libs.filter(l => l.status === 'vigente').length;
+      $('libResumen').innerHTML = vigentes
+        ? `<strong style="color:#16a34a">${vigentes} vigente${vigentes !== 1 ? 's' : ''}</strong> · ${libs.length} total`
+        : `${libs.length} liberación${libs.length !== 1 ? 'es' : ''} (anuladas)`;
+
+      body.innerHTML = `
+        <div class="table-wrap">
+          <table style="font-size:13px">
+            <thead><tr>
+              <th>Folio</th>
+              <th>Cliente</th>
+              <th>Condición</th>
+              <th>Cantidad</th>
+              <th>Liberado por</th>
+              <th>Fecha</th>
+              <th>COA</th>
+              <th>Estado</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${libs.map(filaLib).join('')}</tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      body.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626">Error: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function filaLib(l) {
+    const st    = LIB_STATUS[l.status] || { label: l.status, color: '#64748b' };
+    const fecha = l.fecha_liberacion ? new Date(l.fecha_liberacion).toLocaleDateString() : '—';
+    const cant  = l.cantidad_liberada != null
+      ? `${parseFloat(l.cantidad_liberada).toLocaleString()} ${l.unidad_simbolo || ''}`
+      : '—';
+    const coaLink = l.folio_coa
+      ? `<a href="/modules/lab/lab-coa-detalle.html?id=${l.coa_id}"
+             style="font-family:monospace;color:var(--accent)">${escapeHtml(l.folio_coa)}</a>`
+      : '<span class="muted">—</span>';
+    return `
+      <tr>
+        <td><strong style="font-family:monospace">${escapeHtml(l.folio_liberacion || '—')}</strong></td>
+        <td style="font-size:12px">${escapeHtml(l.cliente_nombre || l.razon_social || '—')}</td>
+        <td style="font-size:12px">${escapeHtml(l.condicion || '—')}</td>
+        <td style="font-size:12px">${cant}</td>
+        <td style="font-size:12px">${escapeHtml(l.liberado_por_nombre || '—')}</td>
+        <td style="font-size:12px">${fecha}</td>
+        <td>${coaLink}</td>
+        <td><span class="chip" style="background:${st.color}22;color:${st.color}">${st.label}</span></td>
+        <td style="text-align:right">
+          <a class="btn ghost" href="/modules/lab/lab-liberaciones.html?id=${l.liberacion_id}">Ver</a>
+        </td>
+      </tr>`;
+  }
+
+  $('libHeader').addEventListener('click', async () => {
+    const body = $('libBody');
+    const chev = $('libChevron');
+    const expanded = body.style.display !== 'none';
+    if (expanded) {
+      body.style.display = 'none';
+      chev.textContent = '▶';
+    } else {
+      body.style.display = 'block';
+      chev.textContent = '▼';
+      if (!libCargadas) await cargarLiberaciones();
+    }
+  });
 
   $('ncHeader').addEventListener('click', async () => {
     const body = $('ncBody');
