@@ -25,10 +25,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!b) return;
 
   // ── Estado ──────────────────────────────────────
+  const STATE_KEY = 'kogu_lab_imp_facturas_state';
   let rows = [];
   let counts = { pendiente: 0, procesada: 0 };
   let currentTab = 'pendiente';
   let currentPage = 1, pageSize = 25, totalPages = 1, totalRows = 0;
+
+  // Restaurar estado previo (tab + pageSize) si existe
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || '{}');
+    if (saved.tab && TABS.some(t => t.code === saved.tab)) currentTab = saved.tab;
+    if (saved.pageSize && Number.isFinite(saved.pageSize))  pageSize   = saved.pageSize;
+  } catch (_) { /* ignorar */ }
 
   const $ = (id) => document.getElementById(id);
 
@@ -126,6 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function setTab(tab) {
     currentTab = tab;
     currentPage = 1;
+    try { sessionStorage.setItem(STATE_KEY, JSON.stringify({ tab: currentTab, pageSize })); } catch (_) {}
     renderTabs();
     load();
   }
@@ -457,7 +466,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('refreshBtn').addEventListener('click', () => load({ showToast: true }));
   $('importBtn').addEventListener('click', abrirModalImport);
   $('historyBtn').addEventListener('click', abrirModalHistorial);
-  $('pgSize').addEventListener('change', ev => { pageSize = parseInt(ev.target.value, 10) || 25; load({ resetPage: true }); });
+  $('pgSize').addEventListener('change', ev => {
+    pageSize = parseInt(ev.target.value, 10) || 25;
+    try { sessionStorage.setItem(STATE_KEY, JSON.stringify({ tab: currentTab, pageSize })); } catch (_) {}
+    load({ resetPage: true });
+  });
   $('pgFirst').addEventListener('click', () => { if (currentPage > 1) { currentPage = 1; load(); } });
   $('pgPrev').addEventListener('click',  () => { if (currentPage > 1) { currentPage--;    load(); } });
   $('pgNext').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage++; load(); } });
@@ -477,6 +490,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Arranque ────────────────────────────────────
+  // Sincronizar select con pageSize restaurado de sessionStorage
+  if ($('pgSize')) $('pgSize').value = String(pageSize);
   renderTabs();
   await load();
 });
