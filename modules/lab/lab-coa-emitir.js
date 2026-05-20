@@ -442,6 +442,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           await cargarLotesDisponibles();
           await cargarFacturasImportadas();
 
+          // Auto-poblar folio si todas las liberaciones comparten el mismo folio de factura.
+          const foliosUnicos = new Set(validas.map(v => v.folio_factura_externa).filter(Boolean));
+          if (foliosUnicos.size === 1) {
+            $('folioFactura').value = [...foliosUnicos][0];
+          }
+
           // Marcar checkboxes por liberacion_id directamente (el value del checkbox es liberacion_id)
           const libIdsAIncluir = new Set(preselectLibIds);
           lotesSeleccionados.clear();
