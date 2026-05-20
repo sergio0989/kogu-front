@@ -205,7 +205,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? `${parseFloat(lote.cantidad).toLocaleString()} ${lote.unidad_simbolo || ''}`
       : '—';
 
-    const puedeCambiarEstado = KoguShell.hasPerm(b, 'lab.lotes.cambiar_estado');
+    // Puede cambiar estado si tiene el permiso específico (V061) O el permiso general de update
+    const puedeCambiarEstado = KoguShell.hasPerm(b, 'lab.lotes.cambiar_estado')
+                            || KoguShell.hasPerm(b, 'lab.lotes.update');
     const estaLiberado       = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
 
     // Banner de bloqueo cuando el lote no está liberado
