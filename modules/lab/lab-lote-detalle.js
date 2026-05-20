@@ -95,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th>Estrategia</th>
       <th>Valor oficial</th>
       <th>Spec</th>
-      <th>Evaluación</th>
       <th>Calculado por</th>
       <th></th>
     </tr></thead><tbody id="rowsOficiales"></tbody></table>
@@ -647,7 +646,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tbody = $('rowsOficiales');
     const oficiales = lote.oficiales || [];
     if (!oficiales.length) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Sin resultados oficiales calculados. Haz click en "Calcular oficial".</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Sin resultados oficiales calculados. Haz click en "Calcular oficial".</td></tr>`;
       return;
     }
     tbody.innerHTML = oficiales.map(o => {
@@ -670,7 +669,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td>${escapeHtml(o.estrategia)}${congelado}</td>
           <td>${valor}</td>
           <td>${escapeHtml(spec)} <span class="muted" style="font-size:11px">${escapeHtml(o.unidad_simbolo || '')}</span></td>
-          <td><span class="chip" style="background:${ev.bg};color:${ev.color}">${ev.label}</span></td>
           <td style="font-size:12px">${escapeHtml(o.calculado_por_nombre || '—')}<br><span class="muted">${fecha}</span></td>
           <td style="text-align:right">
             ${o.congelado ? '' : `<button class="btn ghost" data-toggle-congelar="${o.resultado_oficial_id}" data-actual="${o.congelado}">Congelar</button>`}
