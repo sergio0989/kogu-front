@@ -443,6 +443,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <strong>Muestra #${m.numero_muestra}</strong>
                 <span class="chip" style="background:${estado.color}22;color:${estado.color}">${estado.label}</span>
                 ${m.identificador_envase ? `<span class="muted">${escapeHtml(m.identificador_envase)}</span>` : ''}
+                ${m.fecha_inicio_analisis ? (() => {
+                  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+                  const rango = m.fecha_termino_analisis
+                    ? `${fmt(m.fecha_inicio_analisis.slice(0,10))} – ${fmt(m.fecha_termino_analisis.slice(0,10))}`
+                    : `desde ${fmt(m.fecha_inicio_analisis.slice(0,10))}`;
+                  return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:12px;font-size:11px;font-weight:500">
+                    <span style="font-size:11px">📅</span>${rango}
+                  </span>`;
+                })() : ''}
+                ${m.num_jueces ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:12px;font-size:11px;font-weight:500">
+                    <span style="font-size:11px">◎</span>${m.num_jueces} jueces
+                  </span>` : ''}
               </div>
               <div style="display:flex;gap:6px" data-stop-toggle>
                 ${m.estado !== 'anulada' ? `
