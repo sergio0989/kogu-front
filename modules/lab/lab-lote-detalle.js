@@ -442,16 +442,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         id="vr-val-${r.resultado_id}" value="${escapeHtml(valorDisplay)}"/>
                       <input class="input" type="text" placeholder="Observaciones…" style="width:150px"
                         id="vr-obs-${r.resultado_id}" value="${escapeHtml(r.observaciones || '')}"/>
-                      <button class="btn primary" style="font-size:11px;padding:4px 10px"
+                      <button title="Guardar"
+                        style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;background:#16a34a;color:#fff;font-size:15px;line-height:1;flex-shrink:0"
                         data-save-resultado-inline="${r.resultado_id}">✓</button>
-                      <button class="btn ghost" style="font-size:11px;padding:4px 10px"
+                      <button title="Cancelar"
+                        style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);cursor:pointer;background:transparent;color:var(--muted);font-size:15px;line-height:1;flex-shrink:0"
                         data-cancel-resultado-inline="${r.resultado_id}">✕</button>
                     </div>
                   </div>
                 </td>
                 <td style="font-size:12px;color:var(--muted)">${escapeHtml(r.metodo_clave || '—')}</td>
                 <td style="text-align:right">
-                  <button class="btn ghost danger" data-del-resultado="${r.resultado_id}" title="Eliminar" style="font-size:13px">×</button>
+                  <button data-del-resultado="${r.resultado_id}" title="Eliminar"
+                    style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;border:1px solid #fca5a5;cursor:pointer;background:transparent;color:#dc2626;font-size:14px;line-height:1">×</button>
                 </td>
               </tr>`;
           }).join('')
