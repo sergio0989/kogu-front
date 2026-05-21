@@ -418,14 +418,13 @@ document.addEventListener('DOMContentLoaded', async () => {
               : (r.valor_texto || '');
             const rowBg = sinValor ? 'background:#fffbeb' : '';
             return `
-              <tr style="${rowBg}">
+              <tr id="vr-display-${r.resultado_id}" style="${rowBg}">
                 <td>
                   <strong style="font-family:monospace;font-size:12px">${escapeHtml(r.parametro_clave || '')}</strong>
                   <span class="muted" style="font-size:12px;margin-left:4px">${escapeHtml(r.parametro_nombre || '')}</span>
                 </td>
                 <td>
-                  <!-- Vista -->
-                  <div id="vr-display-${r.resultado_id}" style="display:flex;align-items:center;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px">
                     ${sinValor
                       ? `<span style="color:#b45309;font-size:12px;font-style:italic">Sin valor</span>`
                       : `<span style="font-size:13px">${escapeHtml(valorDisplay)}</span>`}
@@ -435,26 +434,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                       data-obs-prev="${escapeHtml(r.observaciones || '')}"
                     >${sinValor ? '↳ Ingresar' : 'Editar'}</button>
                   </div>
-                  <!-- Edición inline -->
-                  <div id="vr-edit-${r.resultado_id}" style="display:none;margin-top:6px;display:none">
-                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-                      <input class="input" type="text" placeholder="Valor…" style="width:90px;min-width:0"
-                        id="vr-val-${r.resultado_id}" value="${escapeHtml(valorDisplay)}"/>
-                      <input class="input" type="text" placeholder="Observaciones…" style="width:140px;min-width:0"
-                        id="vr-obs-${r.resultado_id}" value="${escapeHtml(r.observaciones || '')}"/>
-                      <button title="Guardar"
-                        style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;background:#16a34a;color:#fff;font-size:15px;line-height:1;flex-shrink:0"
-                        data-save-resultado-inline="${r.resultado_id}">✓</button>
-                      <button title="Cancelar"
-                        style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);cursor:pointer;background:transparent;color:var(--muted);font-size:15px;line-height:1;flex-shrink:0"
-                        data-cancel-resultado-inline="${r.resultado_id}">✕</button>
-                    </div>
-                  </div>
                 </td>
                 <td style="font-size:12px;color:var(--muted)">${escapeHtml(r.metodo_clave || '—')}</td>
                 <td style="text-align:right">
                   <button data-del-resultado="${r.resultado_id}" title="Eliminar"
                     style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;border:1px solid #fca5a5;cursor:pointer;background:transparent;color:#dc2626;font-size:14px;line-height:1">×</button>
+                </td>
+              </tr>
+              <tr id="vr-edit-${r.resultado_id}" style="display:none;background:#f0fdf4">
+                <td colspan="4" style="padding:10px 14px">
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <span style="font-family:monospace;font-size:12px;color:var(--muted);white-space:nowrap">${escapeHtml(r.parametro_clave || '')}</span>
+                    <input class="input" type="text" placeholder="Valor…" style="width:120px"
+                      id="vr-val-${r.resultado_id}" value="${escapeHtml(valorDisplay)}"/>
+                    <input class="input" type="text" placeholder="Observaciones…" style="flex:1"
+                      id="vr-obs-${r.resultado_id}" value="${escapeHtml(r.observaciones || '')}"/>
+                    <button title="Guardar"
+                      style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;background:#16a34a;color:#fff;font-size:15px;line-height:1;flex-shrink:0"
+                      data-save-resultado-inline="${r.resultado_id}">✓</button>
+                    <button title="Cancelar"
+                      style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);cursor:pointer;background:var(--bg);color:var(--muted);font-size:15px;line-height:1;flex-shrink:0"
+                      data-cancel-resultado-inline="${r.resultado_id}">✕</button>
+                  </div>
                 </td>
               </tr>`;
           }).join('')
@@ -631,9 +632,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.stopPropagation();
         const rid = btn.dataset.editarResultado;
         document.getElementById(`vr-display-${rid}`).style.display = 'none';
-        const editDiv = document.getElementById(`vr-edit-${rid}`);
-        editDiv.style.display = 'flex';
-        editDiv.querySelector(`#vr-val-${rid}`)?.focus();
+        const editRow = document.getElementById(`vr-edit-${rid}`);
+        editRow.style.display = 'table-row';
+        document.getElementById(`vr-val-${rid}`)?.focus();
       });
     });
 
@@ -641,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const rid = btn.dataset.cancelResultadoInline;
-        document.getElementById(`vr-display-${rid}`).style.display = 'flex';
+        document.getElementById(`vr-display-${rid}`).style.display = '';
         document.getElementById(`vr-edit-${rid}`).style.display = 'none';
       });
     });
