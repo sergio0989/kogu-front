@@ -201,43 +201,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Header del lote ──────────────────────────────────────
   function renderHeader() {
     if (!lote) return;
-    const estado   = ESTADOS_LOTE.find(s => s.code === lote.estado_calidad) || { label: lote.estado_calidad, color: '#64748b' };
-    const fecha    = lote.fecha_evento ? new Date(lote.fecha_evento).toLocaleDateString() : '—';
+    const estado  = ESTADOS_LOTE.find(s => s.code === lote.estado_calidad) || { label: lote.estado_calidad, color: '#64748b' };
+    const fecha   = lote.fecha_evento ? new Date(lote.fecha_evento).toLocaleDateString('es-MX') : '—';
     const cantidad = lote.cantidad
       ? `${parseFloat(lote.cantidad).toLocaleString()} ${lote.unidad_simbolo || ''}`
       : '—';
-
-    // Puede cambiar estado si tiene el permiso específico (V061) O el permiso general de update
     const puedeCambiarEstado = KoguShell.hasPerm(b, 'lab.lotes.cambiar_estado')
                             || KoguShell.hasPerm(b, 'lab.lotes.update');
-    const estaLiberado       = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
+    const estaLiberado = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
+    const origenLabel  = { compra: 'Compra / insumo', produccion: 'Producción propia', transferencia: 'Transferencia' }[lote.origen] || lote.origen;
 
-    // Banner de bloqueo cuando el lote no está liberado
-    const bannerBloqueo = !estaLiberado ? `
-      <div style="margin-top:14px;padding:12px 16px;background:#fff7ed;border-left:4px solid #f97316;
-                  border-radius:6px;font-size:13px;color:#7c2d12;display:flex;gap:10px;align-items:flex-start">
-        <span style="font-size:16px;flex-shrink:0">⚠</span>
-        <div>
-          <strong>Lote no liberado</strong> — No se pueden crear liberaciones ni emitir COAs hasta que el estado sea
-          <strong>Liberado</strong>${puedeCambiarEstado
-            ? '. Usa el selector de estado para cambiar el estado cuando el análisis esté completo.'
-            : '. Contacta a un <strong>Supervisor de Lab</strong> o al <strong>Gerente de Calidad</strong> para liberar este lote.'}
-        </div>
-      </div>` : '';
-
-    // ── Celdas de metadatos ──────────────────────────────
+    // Helper: celda de metadato read-only
     const cell = (label, value) => `
       <div style="display:flex;flex-direction:column;gap:3px">
         <div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">${label}</div>
         <div style="font-size:14px;color:var(--text)">${value}</div>
       </div>`;
 
-    const fechaElab = lote.fecha_elaboracion ? new Date(lote.fecha_elaboracion).toLocaleDateString('es-MX') : '—';
-    const fechaCad  = lote.fecha_caducidad   ? new Date(lote.fecha_caducidad).toLocaleDateString('es-MX')   : '—';
-    const origenLabel = { compra: 'Compra / insumo', produccion: 'Producción propia', transferencia: 'Transferencia' }[lote.origen] || lote.origen;
+    // Helper: campo editable con label
+    const field = (label, inputHtml) => `
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#64748b">${label}</label>
+        ${inputHtml}
+      </div>`;
+
+    const inp = (id, type, val, extra = '') =>
+      `<input type="${type}" id="${id}" class="select" style="font-size:13px;${extra}" value="${val}">`;
 
     $('loteHeader').innerHTML = `
-      <!-- ── Fila título ── -->
+      <!-- ── Título + badge ── -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);margin-bottom:4px">
@@ -248,102 +240,68 @@ document.addEventListener('DOMContentLoaded', async () => {
           </h2>
         </div>
         <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
-                     border-radius:20px;font-size:13px;font-weight:600;letter-spacing:.3px;
+                     border-radius:20px;font-size:13px;font-weight:600;
                      background:${estado.color}18;color:${estado.color};border:1.5px solid ${estado.color}44">
           <span style="width:7px;height:7px;border-radius:50%;background:${estado.color};display:inline-block"></span>
           ${estado.label}
         </span>
       </div>
 
-      <!-- ── Grid de metadatos ── -->
-      <div style="margin-top:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 20px;
+      <!-- ── Metadatos fijos (read-only) ── -->
+      <div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px 20px;
                   padding:14px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
         ${cell('Origen', escapeHtml(origenLabel))}
         ${cell('Fecha del evento', fecha)}
         ${cell('Cantidad', cantidad)}
         ${cell('Ref. externa', escapeHtml(lote.referencia_externa || '—'))}
-        ${cell('Elaboración', puedeCambiarEstado
-          ? `<input type="date" id="fechaElabEdit" class="select" style="width:auto;padding:3px 8px;font-size:13px;margin-top:2px" value="${lote.fecha_elaboracion ? lote.fecha_elaboracion.slice(0,10) : ''}">`
-          : fechaElab)}
-        ${cell('Caducidad', puedeCambiarEstado
-          ? `<input type="date" id="fechaCadEdit" class="select" style="width:auto;padding:3px 8px;font-size:13px;margin-top:2px" value="${lote.fecha_caducidad ? lote.fecha_caducidad.slice(0,10) : ''}">`
-          : fechaCad)}
         ${lote.proveedor_nombre ? cell('Proveedor', escapeHtml(lote.proveedor_nombre)) : ''}
       </div>
 
-      <!-- ── Barra de acciones (solo con permiso) ── -->
+      <!-- ── Sección editable unificada ── -->
       ${puedeCambiarEstado ? `
-      <div style="margin-top:12px;padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
-        <!-- Fila 1: estado + guardar fechas elaboración/caducidad -->
-        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Cambiar estado</label>
-            <select class="select" id="estadoEdit" style="width:auto;min-width:170px">
-              ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
-            </select>
-          </div>
-          <div style="height:36px;width:1px;background:#e2e8f0;align-self:flex-end"></div>
-          <button class="btn ghost" id="guardarFechasBtn" style="font-size:13px;height:36px;align-self:flex-end">
-            💾 Guardar fechas
-          </button>
+      <div style="margin-top:12px;padding:16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8;margin-bottom:12px">
+          Fechas y análisis
         </div>
-
-        <!-- Divisor -->
-        <div style="margin:12px 0;border-top:1px solid #f1f5f9"></div>
-
-        <!-- Fila 2: datos del período de análisis y sensorial -->
-        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Inicio análisis</label>
-            <input type="date" id="loteInicio" class="select" style="width:auto;font-size:13px"
-              value="${lote.fecha_inicio_analisis ? lote.fecha_inicio_analisis.slice(0,10) : ''}">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Término análisis</label>
-            <input type="date" id="loteTermino" class="select" style="width:auto;font-size:13px"
-              value="${lote.fecha_termino_analisis ? lote.fecha_termino_analisis.slice(0,10) : ''}">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Núm. jueces</label>
-            <input type="number" id="loteJueces" class="select" min="0" style="width:90px;font-size:13px"
-              value="${lote.num_jueces ?? ''}">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Correctos</label>
-            <input type="number" id="loteCorrectos" class="select" min="0" style="width:90px;font-size:13px"
-              value="${lote.num_juicios_correctos ?? ''}">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8">Mín. requerido</label>
-            <input type="number" id="loteMinJuicios" class="select" min="0" style="width:90px;font-size:13px"
-              value="${lote.min_juicios_correctos ?? ''}">
-          </div>
-          <button class="btn ghost" id="guardarAnalisisBtn" style="font-size:13px;height:36px;align-self:flex-end">
-            💾 Guardar análisis
-          </button>
+        <!-- Grid de campos -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+          ${field('Elaboración',    inp('loteElab',      'date',   lote.fecha_elaboracion      ? lote.fecha_elaboracion.slice(0,10)      : '', 'width:100%'))}
+          ${field('Caducidad',      inp('loteCad',       'date',   lote.fecha_caducidad        ? lote.fecha_caducidad.slice(0,10)        : '', 'width:100%'))}
+          ${field('Inicio análisis',inp('loteInicio',    'date',   lote.fecha_inicio_analisis  ? lote.fecha_inicio_analisis.slice(0,10)  : '', 'width:100%'))}
+          ${field('Término análisis',inp('loteTermino',  'date',   lote.fecha_termino_analisis ? lote.fecha_termino_analisis.slice(0,10) : '', 'width:100%'))}
+          ${field('Núm. jueces',    inp('loteJueces',    'number', lote.num_jueces             ?? '', 'width:100%;min-width:80px'))}
+          ${field('Correctos',      inp('loteCorrectos', 'number', lote.num_juicios_correctos  ?? '', 'width:100%;min-width:80px'))}
+          ${field('Mín. requerido', inp('loteMinJuicios','number', lote.min_juicios_correctos  ?? '', 'width:100%;min-width:80px'))}
         </div>
-        ${lote.comentarios_sensorial || puedeCambiarEstado ? `
-        <div style="margin-top:10px">
-          <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#94a3b8;display:block;margin-bottom:4px">Comentarios sensoriales</label>
+        <!-- Comentarios sensorial + botón guardar -->
+        <div style="margin-top:12px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:4px">Comentarios sensoriales</label>
           <textarea id="loteComentariosSensorial" class="input" rows="2"
             style="width:100%;resize:vertical;font-size:13px">${escapeHtml(lote.comentarios_sensorial || '')}</textarea>
-        </div>` : ''}
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <button class="btn primary" id="guardarLoteBtn">Guardar</button>
+        </div>
+      </div>
+
+      <!-- ── Cambiar estado (separado) ── -->
+      <div style="margin-top:10px;padding:12px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+                  display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#64748b">Cambiar estado</span>
+        <select class="select" id="estadoEdit" style="min-width:170px">
+          ${ESTADOS_LOTE.map(s => `<option value="${s.code}" ${s.code === lote.estado_calidad ? 'selected' : ''}>${s.label}</option>`).join('')}
+        </select>
       </div>` : `
-      <!-- Vista de solo lectura de datos del análisis -->
-      ${(lote.fecha_inicio_analisis || lote.num_jueces || lote.comentarios_sensorial) ? `
-      <div style="margin-top:12px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 20px">
-        ${lote.fecha_inicio_analisis ? `<div style="display:flex;flex-direction:column;gap:2px">
-          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Período análisis</div>
-          <div style="font-size:13px">${new Date(lote.fecha_inicio_analisis+'T12:00:00').toLocaleDateString('es-MX')}${lote.fecha_termino_analisis ? ' – '+new Date(lote.fecha_termino_analisis+'T12:00:00').toLocaleDateString('es-MX') : ''}</div>
-        </div>` : ''}
-        ${lote.num_jueces ? `<div style="display:flex;flex-direction:column;gap:2px">
-          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Panel sensorial</div>
-          <div style="font-size:13px">${lote.num_jueces} jueces — ${lote.num_juicios_correctos ?? '—'} correctos (mín. ${lote.min_juicios_correctos ?? '—'})</div>
-        </div>` : ''}
-        ${lote.comentarios_sensorial ? `<div style="grid-column:1/-1;display:flex;flex-direction:column;gap:2px">
-          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#94a3b8">Comentarios sensoriales</div>
-          <div style="font-size:13px;color:#78350f;font-style:italic">${escapeHtml(lote.comentarios_sensorial)}</div>
-        </div>` : ''}
+      <!-- Solo lectura -->
+      ${(lote.fecha_elaboracion || lote.fecha_inicio_analisis || lote.num_jueces || lote.comentarios_sensorial) ? `
+      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 20px;
+                  padding:14px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+        ${lote.fecha_elaboracion      ? cell('Elaboración',     new Date(lote.fecha_elaboracion+'T12:00:00').toLocaleDateString('es-MX')) : ''}
+        ${lote.fecha_caducidad        ? cell('Caducidad',       new Date(lote.fecha_caducidad+'T12:00:00').toLocaleDateString('es-MX'))   : ''}
+        ${lote.fecha_inicio_analisis  ? cell('Inicio análisis', new Date(lote.fecha_inicio_analisis+'T12:00:00').toLocaleDateString('es-MX'))  : ''}
+        ${lote.fecha_termino_analisis ? cell('Término análisis',new Date(lote.fecha_termino_analisis+'T12:00:00').toLocaleDateString('es-MX')) : ''}
+        ${lote.num_jueces ? cell('Panel sensorial', `${lote.num_jueces} jueces — ${lote.num_juicios_correctos ?? '—'} correctos (mín. ${lote.min_juicios_correctos ?? '—'})`) : ''}
+        ${lote.comentarios_sensorial ? `<div style="grid-column:1/-1">${cell('Comentarios sensoriales', `<span style="color:#78350f;font-style:italic">${escapeHtml(lote.comentarios_sensorial)}</span>`)}</div>` : ''}
       </div>` : ''}
       `}
 
@@ -354,94 +312,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span style="font-weight:600">Observaciones:</span> ${escapeHtml(lote.observaciones)}
       </div>` : ''}
 
-      <!-- ── Banner de bloqueo ── -->
-      ${bannerBloqueo}
+      <!-- ── Banner bloqueo ── -->
+      ${!estaLiberado ? `
+      <div style="margin-top:12px;padding:12px 16px;background:#fff7ed;border-left:4px solid #f97316;
+                  border-radius:6px;font-size:13px;color:#7c2d12;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:16px;flex-shrink:0">⚠</span>
+        <div><strong>Lote no liberado</strong> — No se pueden crear liberaciones ni emitir COAs hasta que el estado sea
+          <strong>Liberado</strong>${puedeCambiarEstado
+            ? '. Usa el selector de estado para cambiar el estado cuando el análisis esté completo.'
+            : '. Contacta a un <strong>Supervisor de Lab</strong> o al <strong>Gerente de Calidad</strong> para liberar este lote.'}</div>
+      </div>` : ''}
     `;
 
-    // Guardar fechas de elaboración y caducidad
-    const guardarFechasBtn = document.getElementById('guardarFechasBtn');
-    if (guardarFechasBtn) {
-      guardarFechasBtn.addEventListener('click', async () => {
-        const elaboracion = document.getElementById('fechaElabEdit')?.value || null;
-        const caducidad   = document.getElementById('fechaCadEdit')?.value || null;
-        if (caducidad && elaboracion && caducidad < elaboracion) {
-          KoguApi.toast('La fecha de caducidad no puede ser anterior a la de elaboración', 'error');
-          return;
-        }
-        try {
-          await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              fecha_elaboracion: elaboracion || null,
-              fecha_caducidad:   caducidad   || null,
-            }),
-          });
-          KoguApi.toast('Fechas guardadas', 'success');
-          await loadLote();
-        } catch (err) {
-          KoguApi.toast(err.message, 'error');
-        }
-      });
-    }
+    // ── Un solo guardado para todos los campos editables ──
+    document.getElementById('guardarLoteBtn')?.addEventListener('click', async () => {
+      const elab      = document.getElementById('loteElab')?.value       || null;
+      const cad       = document.getElementById('loteCad')?.value        || null;
+      const inicio    = document.getElementById('loteInicio')?.value     || null;
+      const termino   = document.getElementById('loteTermino')?.value    || null;
+      const jueces    = document.getElementById('loteJueces')?.value;
+      const correctos = document.getElementById('loteCorrectos')?.value;
+      const minJ      = document.getElementById('loteMinJuicios')?.value;
+      const comentarios = document.getElementById('loteComentariosSensorial')?.value.trim() || null;
 
-    // Guardar datos del período de análisis y sensorial
-    const guardarAnalisisBtn = document.getElementById('guardarAnalisisBtn');
-    if (guardarAnalisisBtn) {
-      guardarAnalisisBtn.addEventListener('click', async () => {
-        const inicio     = document.getElementById('loteInicio')?.value    || null;
-        const termino    = document.getElementById('loteTermino')?.value   || null;
-        const jueces     = document.getElementById('loteJueces')?.value;
-        const correctos  = document.getElementById('loteCorrectos')?.value;
-        const minJuicios = document.getElementById('loteMinJuicios')?.value;
-        const comentarios= document.getElementById('loteComentariosSensorial')?.value.trim() || null;
-        if (termino && inicio && termino < inicio) {
-          KoguApi.toast('El término del análisis no puede ser anterior al inicio', 'error');
-          return;
-        }
-        try {
-          await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              fecha_inicio_analisis:  inicio    || null,
-              fecha_termino_analisis: termino   || null,
-              num_jueces:             jueces     ? parseInt(jueces)     : null,
-              num_juicios_correctos:  correctos  ? parseInt(correctos)  : null,
-              min_juicios_correctos:  minJuicios ? parseInt(minJuicios) : null,
-              comentarios_sensorial:  comentarios,
-            }),
-          });
-          KoguApi.toast('Datos del análisis guardados', 'success');
-          await loadLote();
-        } catch (err) {
-          KoguApi.toast(err.message, 'error');
-        }
-      });
-    }
+      if (cad && elab && cad < elab) {
+        KoguApi.toast('La caducidad no puede ser anterior a la elaboración', 'error'); return;
+      }
+      if (termino && inicio && termino < inicio) {
+        KoguApi.toast('El término del análisis no puede ser anterior al inicio', 'error'); return;
+      }
+      try {
+        await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            fecha_elaboracion:      elab    || null,
+            fecha_caducidad:        cad     || null,
+            fecha_inicio_analisis:  inicio  || null,
+            fecha_termino_analisis: termino || null,
+            num_jueces:             jueces     ? parseInt(jueces)     : null,
+            num_juicios_correctos:  correctos  ? parseInt(correctos)  : null,
+            min_juicios_correctos:  minJ       ? parseInt(minJ)       : null,
+            comentarios_sensorial:  comentarios,
+          }),
+        });
+        KoguApi.toast('Lote actualizado', 'success');
+        await loadLote();
+      } catch (err) {
+        KoguApi.toast(err.message, 'error');
+      }
+    });
 
-    // Cambio de estado (solo si tiene permiso)
-    const estadoEl = document.getElementById('estadoEdit');
-    if (estadoEl) {
-      estadoEl.addEventListener('change', async (e) => {
-        const nuevoEstado = e.target.value;
-        if (nuevoEstado === lote.estado_calidad) return;
-        const estadoLabel = ESTADOS_LOTE.find(s => s.code === nuevoEstado)?.label || nuevoEstado;
-        if (!confirm(`¿Cambiar el estado del lote a "${estadoLabel}"?`)) {
-          e.target.value = lote.estado_calidad;
-          return;
-        }
-        try {
-          await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ estado_calidad: nuevoEstado }),
-          });
-          KoguApi.toast(`Estado cambiado a ${estadoLabel}`, 'success');
-          await loadLote();
-        } catch (err) {
-          KoguApi.toast(err.message, 'error');
-          e.target.value = lote.estado_calidad;
-        }
-      });
-    }
+    // ── Cambio de estado ──
+    document.getElementById('estadoEdit')?.addEventListener('change', async (e) => {
+      const nuevoEstado = e.target.value;
+      if (nuevoEstado === lote.estado_calidad) return;
+      const estadoLabel = ESTADOS_LOTE.find(s => s.code === nuevoEstado)?.label || nuevoEstado;
+      if (!confirm(`¿Cambiar el estado del lote a "${estadoLabel}"?`)) {
+        e.target.value = lote.estado_calidad; return;
+      }
+      try {
+        await KoguApi.apiFetch(`${BASE}/lotes/${loteId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ estado_calidad: nuevoEstado }),
+        });
+        KoguApi.toast(`Estado cambiado a ${estadoLabel}`, 'success');
+        await loadLote();
+      } catch (err) {
+        KoguApi.toast(err.message, 'error');
+        e.target.value = lote.estado_calidad;
+      }
+    });
   }
 
   // ── Muestras (acordeón) ──────────────────────────────────
