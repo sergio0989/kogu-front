@@ -437,10 +437,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </div>
                   <!-- Edición inline -->
                   <div id="vr-edit-${r.resultado_id}" style="display:none;margin-top:6px;display:none">
-                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                      <input class="input" type="text" placeholder="Valor…" style="width:110px"
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
+                      <input class="input" type="text" placeholder="Valor…" style="width:90px;min-width:0"
                         id="vr-val-${r.resultado_id}" value="${escapeHtml(valorDisplay)}"/>
-                      <input class="input" type="text" placeholder="Observaciones…" style="width:150px"
+                      <input class="input" type="text" placeholder="Observaciones…" style="width:140px;min-width:0"
                         id="vr-obs-${r.resultado_id}" value="${escapeHtml(r.observaciones || '')}"/>
                       <button title="Guardar"
                         style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;background:#16a34a;color:#fff;font-size:15px;line-height:1;flex-shrink:0"
