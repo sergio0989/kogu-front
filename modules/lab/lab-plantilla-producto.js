@@ -477,10 +477,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
       await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${paramSelModal.parametro_id}`,
         { method: 'PUT', body: JSON.stringify(body) });
-      modalParam.style.display = 'none';
       await cargarDetalle();
       await cargarLista(); // actualiza el contador
       showNotif('Parámetro agregado');
+      // Resetear el modal y dejarlo abierto para agregar más parámetros
+      paramSelModal = null;
+      paramSearch.value = '';
+      document.getElementById('modalOrden').value = plantilla.length;
+      document.getElementById('modalOblig').checked = true;
+      document.getElementById('modalCoa').checked   = true;
+      paramSelLabel.style.display = 'none';
+      guardarParam.disabled = true;
+      paramError.style.display = 'none';
+      renderParamLista('');
     } catch (err) {
       const msg = err.body?.message || err.message || 'Error al guardar';
       paramError.textContent = msg;
