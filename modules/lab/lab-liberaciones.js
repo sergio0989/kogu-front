@@ -989,12 +989,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
 
-  // ── Comparativo: dos tablas paralelas (resultados del lote vs
-  //    especificación del cliente). NO integradas: cada lado es su
-  //    propia tabla. Semáforo sutil → el valor del lote se tinta
-  //    verde/rojo según cumpla la spec, sin columna de veredicto.
-  //    El campo lib.comparacion lo arma el backend (getById); si no
-  //    viene (backend previo), la sección no se dibuja.
+  // ── Comparativo PLIEGO-DRIVEN: dos tablas paralelas (resultados
+  //    del lote vs especificación del cliente). La autoridad es el
+  //    PLIEGO del cliente: ambas tablas listan los parámetros del
+  //    pliego. Un parámetro exigido sin resultado en el lote se marca
+  //    "FALTA RESULTADO" (ámbar). Los oficiales del lote que el pliego
+  //    no exige van a un bloque informativo aparte. Semáforo sutil:
+  //    verde cumple · rojo no cumple · ámbar falta resultado.
+  //    lib.comparacion lo arma el backend (getById); si no viene
+  //    (backend previo), la sección no se dibuja.
   function buildComparativoHtml(lib) {
     const comp = lib.comparacion;
     if (!comp) return '';
@@ -1008,14 +1011,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (comp.motivo === 'error')
       return infoBox('No se pudo cargar el comparativo en este momento.');
 
-    // Fila unificada y ordenada por clave → ambas tablas quedan alineadas.
-    const filas = [
-      ...(comp.parametros || []).map(p => ({ ...p, _cumple: p.cumple === true })),
-      ...(comp.parametros_sin_spec || []).map(p => ({ ...p, _cumple: null, tipo_evaluacion: null })),
-    ].sort((a, b) => String(a.parametro_clave || '').localeCompare(String(b.parametro_clave || '')));
-
-    if (!filas.length)
-      return infoBox('El lote no tiene resultados oficiales registrados todavía.');
+    const evaluables   = comp.parametros || [];                      // pliego ∩ lote
+    const sinResultado = comp.parametros_pliego_sin_resultado || [];  // pliego − lote
+    const fueraPliego  = comp.parametros_sin_spec || [];             // lote − pliego
 
     const num = (v) => (v === null || v === undefined || v === '') ? '' : v;
     const fmtValorLote = (p) => {
@@ -1032,10 +1030,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         case 'igual':              return `${num(p.objetivo)} ± ${num(p.tolerancia) || 0}`;
         case 'cualitativo':
         case 'presencia_ausencia': return num(p.valor_cualitativo_esperado) || '—';
-        default:                   return '';
+        default:                   return '—';
       }
     };
-    const tint = (c) => {
+    const tintCumple = (c) => {
       if (c === true)  return 'background:#dcfce7;color:#166534;font-weight:600';
       if (c === false) return 'background:#fee2e2;color:#991b1b;font-weight:600';
       return '';
@@ -1043,30 +1041,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     const celdaParam = (p) =>
       `${escapeHtml(p.parametro_clave || '')} <span class="muted" style="font-size:11px">${escapeHtml(p.parametro_nombre || '')}</span>`;
 
-    const filasLote = filas.map(p => `
+    // Bloque informativo: oficiales del lote que el cliente no exige.
+    const bloqueFueraPliego = fueraPliego.length ? `
+      <div style="margin-top:14px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:4px">
+          Otros resultados del lote — no exigidos por este cliente
+        </div>
+        <div class="muted" style="font-size:11px;margin-bottom:4px">
+          El lote midió estos parámetros pero el pliego de ${escapeHtml(lib.cliente_nombre || 'este cliente')} no los pide; no se evalúan para esta liberación.
+        </div>
+        <table>
+          <thead><tr><th>Parámetro</th><th style="text-align:right">Valor</th></tr></thead>
+          <tbody>${
+            fueraPliego
+              .slice()
+              .sort((a, b) => String(a.parametro_clave || '').localeCompare(String(b.parametro_clave || '')))
+              .map(p => `
+                <tr>
+                  <td>${celdaParam(p)}</td>
+                  <td style="text-align:right">${escapeHtml(fmtValorLote(p))}</td>
+                </tr>`).join('')
+          }</tbody>
+        </table>
+      </div>` : '';
+
+    // Universo del pliego = evaluables + sin resultado, ordenado por clave.
+    const filasPliego = [
+      ...evaluables.map(p   => ({ ...p, _tipo: 'eval',  _cumple: p.cumple === true })),
+      ...sinResultado.map(p => ({ ...p, _tipo: 'falta', _cumple: null })),
+    ].sort((a, b) => String(a.parametro_clave || '').localeCompare(String(b.parametro_clave || '')));
+
+    // Sin parámetros de pliego: o no hay pliego vigente, o no hay oficiales.
+    if (!filasPliego.length) {
+      if (fueraPliego.length)
+        return `${h3}
+          <div style="background:#fef3c7;border-left:3px solid #f59e0b;color:#92400e;padding:8px 10px;border-radius:4px;font-size:12px;margin-bottom:8px">
+            ⚠ El cliente no tiene un pliego vigente para este producto. No hay especificación contra la cual evaluar el lote.
+          </div>
+          ${bloqueFueraPliego}`;
+      return infoBox('El lote no tiene resultados oficiales registrados todavía.');
+    }
+
+    const alertaFalta = sinResultado.length ? `
+      <div style="background:#fef3c7;border-left:3px solid #f59e0b;color:#92400e;padding:8px 10px;border-radius:4px;font-size:12px;margin-bottom:8px">
+        ⚠ El pliego del cliente exige ${sinResultado.length} parámetro(s) sin resultado en el lote
+        (${escapeHtml(sinResultado.map(p => p.parametro_clave).join(', '))}). La evaluación está incompleta.
+      </div>` : '';
+
+    const filasLote = filasPliego.map(p => `
       <tr>
         <td>${celdaParam(p)}</td>
-        <td style="text-align:right;${tint(p._cumple)}">${escapeHtml(fmtValorLote(p))}</td>
+        ${p._tipo === 'falta'
+          ? '<td style="text-align:right;background:#fef3c7;color:#92400e;font-weight:600">FALTA RESULTADO</td>'
+          : `<td style="text-align:right;${tintCumple(p._cumple)}">${escapeHtml(fmtValorLote(p))}</td>`}
         <td>${escapeHtml(p.unidad_simbolo || '')}</td>
       </tr>`).join('');
 
-    const filasSpec = filas.map(p => `
+    const filasSpec = filasPliego.map(p => `
       <tr>
         <td>${celdaParam(p)}</td>
-        <td style="text-align:right">${
-          p.tipo_evaluacion
-            ? escapeHtml(fmtCriterio(p))
-            : '<span class="muted">— sin especificación —</span>'
-        }</td>
+        <td style="text-align:right">${escapeHtml(fmtCriterio(p))}</td>
         <td>${escapeHtml(p.unidad_simbolo || '')}</td>
       </tr>`).join('');
 
     return `
       ${h3}
       <div class="muted" style="font-size:11px;margin-bottom:8px">
-        Evaluado contra el pliego vigente hoy del cliente. El valor del lote se resalta
-        en verde si cumple la especificación y en rojo si no la cumple.
+        Las dos tablas listan los parámetros del pliego vigente hoy del cliente.
+        El valor del lote se resalta en verde si cumple, rojo si no cumple y ámbar si falta el resultado.
       </div>
+      ${alertaFalta}
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         <div style="flex:1 1 330px;min-width:270px">
           <div style="font-weight:600;font-size:12px;margin-bottom:4px">
@@ -1087,6 +1131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </table>
         </div>
       </div>
+      ${bloqueFueraPliego}
     `;
   }
 
