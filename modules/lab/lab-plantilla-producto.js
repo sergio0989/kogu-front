@@ -30,61 +30,57 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Contenido inicial ─────────────────────────────────────────
   const c = document.getElementById('pageContent');
   c.innerHTML = `
-<div style="max-width:960px;margin:0 auto">
+<!-- Card principal — mismo patrón que lab-lotes -->
+<div class="card">
 
-  <!-- Selector de producto -->
-  <div class="card" style="margin-bottom:16px">
-    <div class="row">
-      <div>
-        <div class="eyebrow" style="color:var(--accent);font-weight:600">Lab QA · Configuración</div>
-        <h2 style="margin:0">Plantilla de parámetros por producto</h2>
-        <p style="color:var(--muted);font-size:13px;margin:4px 0 0">
-          Los parámetros aquí definidos se pre-cargan automáticamente al crear una nueva muestra de análisis.
-        </p>
-      </div>
+  <!-- Cabecera -->
+  <div class="row">
+    <div>
+      <div class="eyebrow">Lab QA</div>
+      <h2 style="margin:0">Plantilla de parámetros</h2>
     </div>
-    <div style="margin-top:16px;display:flex;gap:10px;align-items:flex-end">
-      <div style="flex:1">
-        <label class="label">Selecciona un producto</label>
-        <input class="input" id="prodSearch" placeholder="Buscar por clave o descripción…" autocomplete="off"/>
-        <div id="prodDropdown" style="display:none;position:absolute;z-index:200;background:var(--surface);border:1px solid var(--line);border-radius:8px;max-height:240px;overflow-y:auto;min-width:380px;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>
-      </div>
-    </div>
-    <div id="prodSelected" style="display:none;margin-top:12px;padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
-      <span id="prodSelectedLabel" style="font-size:14px;font-weight:600"></span>
-      <button class="btn ghost" id="clearProd" style="font-size:12px">Cambiar</button>
+    <button class="btn primary" id="agregarBtn" style="display:none">+ Agregar parámetro</button>
+  </div>
+
+  <!-- Filtro: selector de producto -->
+  <div style="margin-top:16px;display:flex;gap:10px;align-items:center;position:relative">
+    <div style="flex:1;position:relative">
+      <input class="input" id="prodSearch" placeholder="Buscar producto por clave o descripción…" autocomplete="off"/>
+      <div id="prodDropdown" style="display:none;position:absolute;top:100%;left:0;z-index:200;background:var(--surface);border:1px solid var(--line);border-radius:8px;max-height:240px;overflow-y:auto;width:100%;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>
     </div>
   </div>
 
-  <!-- Plantilla del producto -->
-  <div id="plantillaCard" class="card" style="display:none">
-    <div class="row">
-      <div>
-        <div class="eyebrow">Parámetros configurados</div>
-        <h3 style="margin:0" id="plantillaTitle">—</h3>
-      </div>
-      <button class="btn primary" id="agregarBtn">+ Agregar parámetro</button>
-    </div>
+  <!-- Chip de producto seleccionado -->
+  <div id="prodSelected" style="display:none;margin-top:12px;padding:8px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+    <span id="prodSelectedLabel" style="font-size:13px;font-weight:600"></span>
+    <button class="btn ghost" id="clearProd" style="font-size:12px">Cambiar</button>
+  </div>
 
-    <div id="plantillaEmpty" style="display:none;text-align:center;padding:40px;color:var(--muted);font-size:14px">
-      No hay parámetros configurados para este producto.<br>
-      <span style="font-size:12px">Agrega parámetros para que se pre-carguen automáticamente al crear muestras.</span>
-    </div>
+  <!-- Estado vacío inicial -->
+  <div id="plantillaInicio" style="text-align:center;padding:48px 0;color:var(--muted);font-size:14px">
+    Selecciona un producto para ver o configurar su plantilla de parámetros.
+  </div>
 
-    <div class="table-wrap" id="plantillaTblWrap" style="margin-top:16px;display:none">
-      <table>
-        <thead><tr>
-          <th style="width:56px">Orden</th>
-          <th>Clave</th>
-          <th>Parámetro</th>
-          <th>Tipo</th>
-          <th style="text-align:center">Obligatorio</th>
-          <th style="text-align:center">En COA</th>
-          <th style="width:100px"></th>
-        </tr></thead>
-        <tbody id="plantillaTbody"></tbody>
-      </table>
-    </div>
+  <!-- Estado vacío: producto sin parámetros -->
+  <div id="plantillaEmpty" style="display:none;text-align:center;padding:40px;color:var(--muted);font-size:14px">
+    Este producto no tiene parámetros configurados.<br>
+    <span style="font-size:12px">Usa "+ Agregar parámetro" para empezar.</span>
+  </div>
+
+  <!-- Tabla de parámetros -->
+  <div class="table-wrap" id="plantillaTblWrap" style="margin-top:16px;display:none">
+    <table>
+      <thead><tr>
+        <th style="width:64px">Orden</th>
+        <th>Clave</th>
+        <th>Parámetro</th>
+        <th>Tipo</th>
+        <th style="text-align:center">Obligatorio</th>
+        <th style="text-align:center">En COA</th>
+        <th style="width:80px"></th>
+      </tr></thead>
+      <tbody id="plantillaTbody"></tbody>
+    </table>
   </div>
 
 </div>
@@ -222,8 +218,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   clearProd.addEventListener('click', () => {
     productoSel = null;
+    plantilla   = [];
     prodSelected.style.display = 'none';
-    document.getElementById('plantillaCard').style.display = 'none';
+    document.getElementById('agregarBtn').style.display     = 'none';
+    document.getElementById('plantillaTblWrap').style.display = 'none';
+    document.getElementById('plantillaEmpty').style.display   = 'none';
+    document.getElementById('plantillaInicio').style.display  = '';
   });
 
   document.addEventListener('click', (e) => {
@@ -235,9 +235,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Cargar plantilla del producto seleccionado ───────────────
   async function cargarPlantilla() {
     if (!productoSel) return;
-    document.getElementById('plantillaCard').style.display = 'block';
-    document.getElementById('plantillaTitle').textContent =
-      `${productoSel.cve_prod} — ${productoSel.desc_prod}`;
+    // Mostrar botón agregar y ocultar estados vacíos mientras carga
+    document.getElementById('agregarBtn').style.display = '';
+    document.getElementById('plantillaInicio').style.display = 'none';
     document.getElementById('plantillaTblWrap').style.display = 'none';
     document.getElementById('plantillaEmpty').style.display = 'none';
 
