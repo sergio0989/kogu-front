@@ -400,6 +400,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     modalNueva.style.display = 'none';
     await cargarLista();
     await window.__abrirProducto(nuevaSelProd.producto_id, nuevaSelProd.producto_clave, nuevaSelProd.producto_nombre);
+    // Al crear plantilla nueva, abrir directo el modal de parámetros sin clic extra
+    document.getElementById('agregarParamBtn').click();
   });
 
   // ── Modal: Agregar parámetro ──────────────────────────────────
