@@ -37,8 +37,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }[t] || t || '—');
 
   function showNotif(msg, tipo = 'success') {
-    if (typeof KoguUI?.toast === 'function') { KoguUI.toast(msg, tipo); return; }
-    alert(msg);
+    if (typeof window.KoguUI?.toast === 'function') { window.KoguUI.toast(msg, tipo); return; }
+    // Sin alert — el cambio visual en la tabla confirma la acción
   }
 
   // ── Render HTML principal ────────────────────────────────────
