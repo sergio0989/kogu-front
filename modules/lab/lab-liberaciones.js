@@ -989,6 +989,107 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
 
+  // ── Comparativo: dos tablas paralelas (resultados del lote vs
+  //    especificación del cliente). NO integradas: cada lado es su
+  //    propia tabla. Semáforo sutil → el valor del lote se tinta
+  //    verde/rojo según cumpla la spec, sin columna de veredicto.
+  //    El campo lib.comparacion lo arma el backend (getById); si no
+  //    viene (backend previo), la sección no se dibuja.
+  function buildComparativoHtml(lib) {
+    const comp = lib.comparacion;
+    if (!comp) return '';
+
+    const h3 = '<h3 style="margin-top:20px;margin-bottom:6px;font-size:14px">Comparativo — Resultados del lote vs Especificación del cliente</h3>';
+    const infoBox = (txt) =>
+      `${h3}<div style="background:#f1f5f9;color:#475569;padding:10px;border-radius:6px;font-size:13px">${escapeHtml(txt)}</div>`;
+
+    if (comp.motivo === 'sin_lote')
+      return infoBox('Esta liberación no tiene un lote vinculado, así que no hay resultados de laboratorio que comparar.');
+    if (comp.motivo === 'error')
+      return infoBox('No se pudo cargar el comparativo en este momento.');
+
+    // Fila unificada y ordenada por clave → ambas tablas quedan alineadas.
+    const filas = [
+      ...(comp.parametros || []).map(p => ({ ...p, _cumple: p.cumple === true })),
+      ...(comp.parametros_sin_spec || []).map(p => ({ ...p, _cumple: null, tipo_evaluacion: null })),
+    ].sort((a, b) => String(a.parametro_clave || '').localeCompare(String(b.parametro_clave || '')));
+
+    if (!filas.length)
+      return infoBox('El lote no tiene resultados oficiales registrados todavía.');
+
+    const num = (v) => (v === null || v === undefined || v === '') ? '' : v;
+    const fmtValorLote = (p) => {
+      if (p.valor_oficial !== null && p.valor_oficial !== undefined && p.valor_oficial !== '')
+        return String(p.valor_oficial);
+      if (p.valor_texto) return String(p.valor_texto);
+      return '—';
+    };
+    const fmtCriterio = (p) => {
+      switch (p.tipo_evaluacion) {
+        case 'rango':              return `${num(p.lim_min)} – ${num(p.lim_max)}`;
+        case 'mayor_igual':        return `≥ ${num(p.lim_min)}`;
+        case 'menor_igual':        return `≤ ${num(p.lim_max)}`;
+        case 'igual':              return `${num(p.objetivo)} ± ${num(p.tolerancia) || 0}`;
+        case 'cualitativo':
+        case 'presencia_ausencia': return num(p.valor_cualitativo_esperado) || '—';
+        default:                   return '';
+      }
+    };
+    const tint = (c) => {
+      if (c === true)  return 'background:#dcfce7;color:#166534;font-weight:600';
+      if (c === false) return 'background:#fee2e2;color:#991b1b;font-weight:600';
+      return '';
+    };
+    const celdaParam = (p) =>
+      `${escapeHtml(p.parametro_clave || '')} <span class="muted" style="font-size:11px">${escapeHtml(p.parametro_nombre || '')}</span>`;
+
+    const filasLote = filas.map(p => `
+      <tr>
+        <td>${celdaParam(p)}</td>
+        <td style="text-align:right;${tint(p._cumple)}">${escapeHtml(fmtValorLote(p))}</td>
+        <td>${escapeHtml(p.unidad_simbolo || '')}</td>
+      </tr>`).join('');
+
+    const filasSpec = filas.map(p => `
+      <tr>
+        <td>${celdaParam(p)}</td>
+        <td style="text-align:right">${
+          p.tipo_evaluacion
+            ? escapeHtml(fmtCriterio(p))
+            : '<span class="muted">— sin especificación —</span>'
+        }</td>
+        <td>${escapeHtml(p.unidad_simbolo || '')}</td>
+      </tr>`).join('');
+
+    return `
+      ${h3}
+      <div class="muted" style="font-size:11px;margin-bottom:8px">
+        Evaluado contra el pliego vigente hoy del cliente. El valor del lote se resalta
+        en verde si cumple la especificación y en rojo si no la cumple.
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1 1 330px;min-width:270px">
+          <div style="font-weight:600;font-size:12px;margin-bottom:4px">
+            Resultados del lote · ${escapeHtml(lib.numero_lote || '—')}
+          </div>
+          <table>
+            <thead><tr><th>Parámetro</th><th style="text-align:right">Valor</th><th>Unidad</th></tr></thead>
+            <tbody>${filasLote}</tbody>
+          </table>
+        </div>
+        <div style="flex:1 1 330px;min-width:270px">
+          <div style="font-weight:600;font-size:12px;margin-bottom:4px">
+            Especificación · ${escapeHtml(lib.cliente_nombre || '—')}
+          </div>
+          <table>
+            <thead><tr><th>Parámetro</th><th style="text-align:right">Criterio</th><th>Unidad</th></tr></thead>
+            <tbody>${filasSpec}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   function mostrarModalDetalle(lib) {
     const cond  = CONDICIONES.find(c => c.code === lib.condicion) || { label: lib.condicion, color: '#64748b' };
     const st    = STATUS_LIB.find(s => s.code === lib.status)     || { label: lib.status,    color: '#64748b' };
@@ -1008,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
     overlay.innerHTML = `
-      <div style="background:white;border-radius:8px;max-width:780px;width:100%;max-height:90vh;overflow:auto;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+      <div style="background:white;border-radius:8px;max-width:960px;width:100%;max-height:90vh;overflow:auto;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
           <div>
             <div class="eyebrow">Liberación · ${escapeHtml(lib.numero_lote || '—')}</div>
@@ -1039,6 +1140,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="font-size:13px">${escapeHtml(lib.motivo_anulacion || '—')}</span>
             </div>` : ''}
         </div>
+
+        ${buildComparativoHtml(lib)}
 
         <h3 style="margin-top:20px;margin-bottom:8px;font-size:14px">COAs emitidos a partir de esta liberación</h3>
         <table>
