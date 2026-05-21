@@ -39,19 +39,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="eyebrow">Lab QA</div>
       <h2 style="margin:0">Plantilla de parámetros</h2>
     </div>
-    <button class="btn primary" id="agregarBtn" style="display:none">+ Agregar parámetro</button>
+    <button class="btn primary" id="agregarBtn" disabled title="Selecciona un producto primero">+ Agregar parámetro</button>
   </div>
 
   <!-- Filtro: selector de producto -->
-  <div style="margin-top:16px;display:flex;gap:10px;align-items:center;position:relative">
-    <div style="flex:1;position:relative">
-      <input class="input" id="prodSearch" placeholder="Buscar producto por clave o descripción…" autocomplete="off"/>
-      <div id="prodDropdown" style="display:none;position:absolute;top:100%;left:0;z-index:200;background:var(--surface);border:1px solid var(--line);border-radius:8px;max-height:240px;overflow-y:auto;width:100%;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>
-    </div>
+  <div style="margin-top:16px;position:relative">
+    <input class="input" id="prodSearch" placeholder="Buscar producto por clave o descripción…" autocomplete="off"/>
+    <div id="prodDropdown" style="display:none;position:absolute;top:100%;left:0;z-index:200;background:var(--surface);border:1px solid var(--line);border-radius:8px;max-height:240px;overflow-y:auto;width:100%;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>
   </div>
 
   <!-- Chip de producto seleccionado -->
-  <div id="prodSelected" style="display:none;margin-top:12px;padding:8px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+  <div id="prodSelected" style="display:none;margin-top:10px;padding:8px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--line);align-items:center;justify-content:space-between">
     <span id="prodSelectedLabel" style="font-size:13px;font-weight:600"></span>
     <button class="btn ghost" id="clearProd" style="font-size:12px">Cambiar</button>
   </div>
@@ -151,14 +149,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function cargarProductos() {
     try {
       const r = await KoguApi.apiFetch(`${BASE_PROD}?pageSize=500&status=activo`);
-      productos = r?.data ?? [];
+      productos = KoguApi.unwrapRows(r);
     } catch { productos = []; }
   }
 
   async function cargarParametros() {
     try {
       const r = await KoguApi.apiFetch(`${BASE_PARAM}?pageSize=500&status=activo`);
-      parametros = r?.data ?? [];
+      parametros = KoguApi.unwrapRows(r);
     } catch { parametros = []; }
   }
 
@@ -220,7 +218,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     productoSel = null;
     plantilla   = [];
     prodSelected.style.display = 'none';
-    document.getElementById('agregarBtn').style.display     = 'none';
+    const btn = document.getElementById('agregarBtn');
+    btn.disabled = true;
+    btn.title    = 'Selecciona un producto primero';
     document.getElementById('plantillaTblWrap').style.display = 'none';
     document.getElementById('plantillaEmpty').style.display   = 'none';
     document.getElementById('plantillaInicio').style.display  = '';
@@ -235,8 +235,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Cargar plantilla del producto seleccionado ───────────────
   async function cargarPlantilla() {
     if (!productoSel) return;
-    // Mostrar botón agregar y ocultar estados vacíos mientras carga
-    document.getElementById('agregarBtn').style.display = '';
+    document.getElementById('agregarBtn').disabled = false;
+    document.getElementById('agregarBtn').removeAttribute('title');
     document.getElementById('plantillaInicio').style.display = 'none';
     document.getElementById('plantillaTblWrap').style.display = 'none';
     document.getElementById('plantillaEmpty').style.display = 'none';
