@@ -174,6 +174,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="true">Solo con COA emitido</option>
           <option value="false">Solo sin COA</option>
         </select>
+        <select class="select" id="valFil">
+          <option value="">Cualquier validación</option>
+          <option value="validada">✓ Validada</option>
+          <option value="incompleta">⚠ Incompleta</option>
+          <option value="no_cumple">✕ No cumple</option>
+          <option value="sin_pliego">⚠ Sin pliego</option>
+          <option value="sin_lote">○ Sin lote</option>
+        </select>
         <div style="display:flex;gap:6px">
           <input class="input" type="date" id="desdeFil" title="Liberada desde"/>
           <input class="input" type="date" id="hastaFil" title="Liberada hasta"/>
@@ -190,6 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     $('condFil').addEventListener('change', () => load({ resetPage: true }));
     $('coaFil').addEventListener('change', () => load({ resetPage: true }));
+    $('valFil').addEventListener('change', () => load({ resetPage: true }));
     $('desdeFil').addEventListener('change', () => load({ resetPage: true }));
     $('hastaFil').addEventListener('change', () => load({ resetPage: true }));
   }
@@ -291,12 +300,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const cli = $('clienteIdFil')?.value || '';
       const cnd = $('condFil')?.value || '';
       const coa = $('coaFil')?.value || '';
+      const val = $('valFil')?.value || '';
       const d1  = $('desdeFil')?.value || '';
       const d2  = $('hastaFil')?.value || '';
       if (q)   params.set('q', q);
       if (cli) params.set('cliente_id', cli);
       if (cnd) params.set('condicion', cnd);
       if (coa) params.set('con_coa', coa);
+      if (val) params.set('validacion_status', val);
       if (d1)  params.set('fecha_desde', d1);
       if (d2)  params.set('fecha_hasta', d2);
 
@@ -419,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>
           <strong>${escapeHtml(lib.numero_lote || '—')}</strong>
           <div class="muted" style="font-size:12px">${escapeHtml(lib.cve_prod || '')} — ${escapeHtml(lib.desc_prod || '')}</div>
-          ${ncChip}
+          ${chipValidacion(lib)}${ncChip}
         </td>
         <td>
           ${escapeHtml(lib.cliente_nombre || '—')}
@@ -449,6 +460,23 @@ document.addEventListener('DOMContentLoaded', async () => {
          title="Ver no conformidades abiertas de este lote">⚠ ${n} NC abierta${plural}</a>`;
   }
 
+  // Chip del estado de validación pliego-driven (campo persistido
+  // lib.validacion_status). NULL = liberación previa sin evaluar.
+  function chipValidacion(lib) {
+    const s = lib?.validacion_status;
+    if (!s) return '';
+    const MAP = {
+      validada:   { label: '✓ Validada',   bg: '#dcfce7', fg: '#166534' },
+      incompleta: { label: '⚠ Incompleta', bg: '#fef3c7', fg: '#92400e' },
+      no_cumple:  { label: '✕ No cumple',  bg: '#fee2e2', fg: '#991b1b' },
+      sin_pliego: { label: '⚠ Sin pliego', bg: '#fef3c7', fg: '#92400e' },
+      sin_lote:   { label: '○ Sin lote',   bg: '#f1f5f9', fg: '#475569' },
+    };
+    const m = MAP[s];
+    if (!m) return '';
+    return `<span class="chip" style="background:${m.bg};color:${m.fg};font-size:11px;margin-top:4px;margin-right:4px;display:inline-block">${m.label}</span>`;
+  }
+
   function filaHistorico(lib) {
     const st  = STATUS_LIB.find(s => s.code === lib.status) || { label: lib.status, color: '#64748b' };
     const fa  = lib.fecha_anulacion ? new Date(lib.fecha_anulacion).toLocaleString() : '—';
@@ -461,7 +489,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>
           <strong>${escapeHtml(lib.numero_lote || '—')}</strong>
           <div class="muted" style="font-size:12px">${escapeHtml(lib.cve_prod || '')} — ${escapeHtml(lib.desc_prod || '')}</div>
-          ${ncChip}
+          ${chipValidacion(lib)}${ncChip}
         </td>
         <td>
           ${escapeHtml(lib.cliente_nombre || '—')}
@@ -583,6 +611,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (response.status === 422 && code === 'LOTE_NO_CUMPLE_SPEC_CLIENTE') {
       abrirModalNoCumple({ payload, details: det });
+      return { ok: false, handled: true };
+    }
+    if (response.status === 422 && code === 'LOTE_FALTA_RESULTADO_PLIEGO') {
+      abrirModalFaltaResultado({ payload, details: det });
       return { ok: false, handled: true };
     }
 
@@ -744,6 +776,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     overlay.querySelector('#opCancelar').addEventListener('click', close);
     overlay.querySelector('#opIrExcepcion').addEventListener('click', () => {
       // Redirige al wizard de excepción de la bandeja clásica (que sigue funcional)
+      window.location.href = `/modules/lab/lab-bandeja.html`;
+    });
+  }
+
+  // Modal — el pliego exige parámetros sin resultado en el lote
+  function abrirModalFaltaResultado({ payload, details }) {
+    const params = details?.parametros_falta_resultado || [];
+    const loteId = payload?.lote_id || details?.lote_id || '';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:8px;max-width:600px;width:100%;padding:24px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:24px">⚠️</span>
+          <h2 style="margin:0">Faltan resultados exigidos por el pliego</h2>
+        </div>
+        <div style="font-size:13px;line-height:1.5;color:#475569">
+          <p>El pliego del cliente exige parámetros que el lote no tiene medidos. No se puede certificar contra una especificación sin el resultado:</p>
+          <div style="margin:10px 0;padding:10px;background:#fef3c7;border-radius:6px;font-family:monospace;font-size:13px;color:#78350f">
+            ${escapeHtml(params.map(p => p.parametro_clave).join(', ') || '—')}
+          </div>
+          <p>Elige una acción:</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+          <button class="btn primary" id="opCapturarRes" style="text-align:left;padding:12px">
+            <strong>Capturar los resultados faltantes en el lote</strong><br>
+            <span style="font-weight:normal;font-size:12px;opacity:.9">Abre el detalle del lote para registrar muestras y resultados.</span>
+          </button>
+          <button class="btn ghost" id="opExcepcionFalta" style="text-align:left;padding:12px">
+            <strong>Crear excepción para que QA apruebe sin el resultado</strong><br>
+            <span style="font-weight:normal;font-size:12px;opacity:.8">Crea la excepción en la bandeja; al aprobarla, la liberación se genera con condición "excepción".</span>
+          </button>
+          <button class="btn ghost" id="opCancelarFalta" style="margin-top:6px">Cancelar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('#opCancelarFalta').addEventListener('click', close);
+    overlay.querySelector('#opCapturarRes').addEventListener('click', () => {
+      window.location.href = `/modules/lab/lab-lote-detalle.html?id=${encodeURIComponent(loteId)}`;
+    });
+    overlay.querySelector('#opExcepcionFalta').addEventListener('click', () => {
       window.location.href = `/modules/lab/lab-bandeja.html`;
     });
   }
@@ -1194,10 +1270,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           <tbody>${coasHtml}</tbody>
         </table>
 
-        ${lib.status === 'activo' ? `
-          <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
-            <button class="btn primary" id="emitirCoaUnoBtn">Emitir COA con esta liberación</button>
-          </div>` : ''}
+        <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn ghost" id="revalidarBtn">Revalidar estado</button>
+          ${lib.status === 'activo'
+            ? `<button class="btn primary" id="emitirCoaUnoBtn">Emitir COA con esta liberación</button>`
+            : ''}
+        </div>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -1207,6 +1285,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (emitir) {
       emitir.addEventListener('click', () => {
         window.location.href = `/modules/lab/lab-coa-emitir.html?liberacion_ids=${encodeURIComponent(lib.liberacion_id)}`;
+      });
+    }
+    const revalidarBtn = overlay.querySelector('#revalidarBtn');
+    if (revalidarBtn) {
+      revalidarBtn.addEventListener('click', async () => {
+        revalidarBtn.disabled = true;
+        try {
+          const res = await KoguApi.apiFetch(`${BASE}/liberaciones/${lib.liberacion_id}/revalidar`, { method: 'POST' });
+          const r = KoguApi.unwrapData(res);
+          KoguApi.toast(`Estado de validación recalculado: ${r?.validacion_status || '—'}`, 'success');
+          overlay.remove();
+          load();
+        } catch (err) {
+          revalidarBtn.disabled = false;
+          KoguApi.toast(err.message, 'error');
+        }
       });
     }
   }
