@@ -431,6 +431,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           Este pliego está en estado <strong>${escapeHtml(e.status)}</strong> y es de solo lectura. Para cambios, crea una nueva versión.
         </div>` : ''}
 
+        ${(isEdit && Array.isArray(e.advertencias_plantilla) && e.advertencias_plantilla.length) ? `
+          <div style="background:#fef3c7;border-left:3px solid #f59e0b;color:#92400e;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px">
+            ⚠ ${e.advertencias_plantilla.length} parámetro(s) de este pliego no están en la plantilla del producto
+            (<strong>${escapeHtml(e.advertencias_plantilla.map(p => p.parametro_clave).join(', '))}</strong>).
+            Los lotes nuevos de este producto no los medirán automáticamente; revisa la plantilla para que el comparativo de liberación quede completo.
+            <a href="/modules/lab/lab-plantilla-producto.html" style="color:#92400e;font-weight:600;text-decoration:underline">Configurar plantilla →</a>
+          </div>` : ''}
+
         <!-- Sección 1: Identidad -->
         <fieldset style="border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:14px" ${readonly ? 'disabled' : ''}>
           <legend style="padding:0 8px;font-size:12px;color:#64748b">Identidad del pliego</legend>
@@ -945,6 +953,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const bodyJson = await response.json().catch(() => null);
       if (response.ok) {
         KoguApi.toast(firmar ? 'Pliego firmado y vigente' : (cab?.cabecera_id ? 'Pliego actualizado' : 'Pliego creado'), 'success');
+        // Gobierno (Fase C): avisar si algún parámetro del pliego no
+        // está en la plantilla del producto.
+        const adv = bodyJson?.data?.advertencias_plantilla;
+        if (Array.isArray(adv) && adv.length) {
+          KoguApi.toast(
+            `Aviso: ${adv.length} parámetro(s) no están en la plantilla del producto (${adv.map(p => p.parametro_clave).join(', ')}). Los lotes nuevos no los medirán automáticamente.`,
+            'info'
+          );
+        }
         close();
         await load();
         return;
