@@ -1271,6 +1271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </table>
 
         <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+          ${!lib.lote_id ? `<button class="btn ghost" id="vincularLoteBtn">Vincular lote</button>` : ''}
           <button class="btn ghost" id="revalidarBtn">Revalidar estado</button>
           ${lib.status === 'activo'
             ? `<button class="btn primary" id="emitirCoaUnoBtn">Emitir COA con esta liberación</button>`
@@ -1303,6 +1304,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     }
+    const vincularLoteBtn = overlay.querySelector('#vincularLoteBtn');
+    if (vincularLoteBtn) {
+      vincularLoteBtn.addEventListener('click', () => {
+        abrirVincularLote(lib, () => {
+          overlay.remove();
+          load();
+          abrirDetalle(lib.liberacion_id);
+        });
+      });
+    }
+  }
+
+  // ── Vincular un lote a una liberación de factura-import sin lote ──
+  async function abrirVincularLote(lib, onDone) {
+    let lotes = [];
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/liberaciones/lotes-liberables?pageSize=200`);
+      lotes = KoguApi.unwrapData(res) || [];
+    } catch (err) {
+      return KoguApi.toast('No se pudieron cargar los lotes: ' + err.message, 'error');
+    }
+    if (!lotes.length) {
+      return KoguApi.toast('No hay lotes disponibles para vincular. El lote debe estar al menos en "Listo revisión".', 'info');
+    }
+    KoguUi.openSearchPicker({
+      title: 'Vincular lote a la liberación',
+      items: lotes,
+      placeholder: 'Buscar por número de lote o producto…',
+      columns: [
+        { key: 'numero_lote', label: 'Lote', primary: true },
+        { key: 'cve_prod',    label: 'cve_prod' },
+        { key: 'desc_prod',   label: 'Producto' },
+      ],
+      emptyText: 'Sin coincidencias',
+      onSelect: async (lote) => {
+        try {
+          const res = await KoguApi.apiFetch(`${BASE}/liberaciones/${lib.liberacion_id}/vincular-lote`, {
+            method: 'POST',
+            body: JSON.stringify({ lote_id: lote.lote_id }),
+          });
+          const r = KoguApi.unwrapData(res);
+          KoguApi.toast(`Lote ${r?.numero_lote || ''} vinculado. Validación: ${r?.validacion_status || '—'}.`, 'success');
+          if (typeof onDone === 'function') onDone();
+        } catch (err) {
+          KoguApi.toast(err.message, 'error');
+        }
+      },
+    });
   }
 
   // ── Emitir COA con selección (tab Activas) ──────────────
