@@ -11,29 +11,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(boot){
     const empresas = boot.empresas || boot.empresas_autorizadas || [];
+    const ea = boot.empresa_activa || {};
     c.innerHTML = `
       <div class="grid-2">
         <div class="card">
           <div class="eyebrow">Empresa activa</div>
-          <h2>Seleccionador</h2>
+          <h2 data-kogu-cambio-empresa-nombre>${ea.nombre_corto || ea.razon_social || 'Sin empresa'}</h2>
+          <div class="muted" style="margin-top:4px" data-kogu-cambio-empresa-rfc>${ea.rfc || ''}</div>
 
-          <div class="label-text" style="margin-top:16px">Empresa</div>
-          <select class="select" id="empresaSelect">
-            ${empresas.map(e => {
-              const isActiva = e.empresa_id === (boot.empresa_activa?.empresa_id);
-              return `<option value="${e.empresa_id}" ${isActiva ? 'selected' : ''}>
-                ${e.nombre_corto || e.razon_social} · ${e.rfc || ''}
-              </option>`;
-            }).join('')}
-          </select>
-
-          <div class="btns" style="margin-top:16px">
-            <button class="btn primary" id="applyBtn">Aplicar cambio</button>
+          <div class="btns" style="margin-top:18px">
+            <button class="btn primary" id="openModalBtn">Cambiar empresa activa…</button>
             <button class="btn" id="reloadBtn">Recargar bootstrap</button>
           </div>
 
           <div class="hero-note" style="margin-top:16px">
-            El cambio de empresa usa <code>/protected/core/context/empresa-activa</code> y refresca el bootstrap real del core.
+            El cambio de empresa usa <code>/protected/core/context/empresa-activa</code> y refresca el bootstrap real del core. El selector ahora se abre como modal desde aquí o desde el chip "EMPRESA" del topbar.
           </div>
         </div>
 
@@ -69,27 +61,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       </tr>
     `).join('');
 
-    document.getElementById('applyBtn').onclick = async () => {
-      const btn = document.getElementById('applyBtn');
-      try {
-        btn.disabled = true;
-        btn.textContent = 'Aplicando...';
-        const empresa_id = document.getElementById('empresaSelect').value;
-
-        await KoguApi.apiFetch('/protected/core/context/empresa-activa', {
-          method: 'POST',
-          body: JSON.stringify({ empresa_id })
-        });
-
-        bootstrap = await KoguShell.loadCoreBootstrap();
-        KoguShell.refreshChrome(bootstrap);
-        KoguApi.toast('Empresa activa actualizada', 'success');
-        render(bootstrap);
-      } catch (err) {
-        KoguApi.toast(err.message || 'No fue posible cambiar la empresa activa', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Aplicar cambio';
+    document.getElementById('openModalBtn').onclick = () => {
+      if (typeof KoguShell.openEmpresaModal === 'function') {
+        KoguShell.openEmpresaModal();
+      } else {
+        KoguApi.toast('El modal de empresas no está disponible.', 'error');
       }
     };
 
@@ -106,4 +82,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   render(bootstrap);
+
+  // Refresca la pantalla cuando el modal global cambia la empresa activa.
+  if (typeof KoguShell.subscribeEmpresaActivaChange === 'function') {
+    KoguShell.subscribeEmpresaActivaChange(async (newBoot) => {
+      bootstrap = newBoot || await KoguShell.loadCoreBootstrap();
+      render(bootstrap);
+    });
+  }
 });

@@ -305,32 +305,59 @@
     const empresa=bootstrap.empresa_activa||{};
     const userName = resolveUserName(bootstrap);
     const profile = resolveUserProfile(bootstrap);
-    return `<header class="topbar">
-      <button
-        class="menu-tab-toggle no-print"
-        id="sidebarToggleBtnTopbar"
-        type="button"
-        aria-label="Ocultar menú"
-        title="Ocultar menú"
-      >
-        <span class="menu-tab-toggle__icon">◀</span>
+    const kicker = _deriveTopbarKicker(_currentPagePath);
+    const empresaTxt = empresa.nombre_corto || empresa.razon_social || 'Sin empresa';
+    const empresaIni = _initialsFrom(empresaTxt);
+    const userIni = _initialsFrom(userName, 2);
+    return `<header class="topbar topbar-v2">
+      <button class="topbar-back" id="topbarBackBtn" type="button" aria-label="Atrás" title="Atrás">
+        <span class="topbar-back__icon">‹</span>
       </button>
-
-      <div class="topbar-leading">
-        <div>
-          <div class="eyebrow">KOGU multiempresa</div>
-          <h1>${title}</h1>
-          <p>${desc}</p>
-        </div>
+      <div class="topbar-heading">
+        <span class="topbar-heading__kicker" data-kogu-kicker>${kicker}</span>
+        <span class="topbar-heading__sep">/</span>
+        <h1 class="topbar-heading__title">${title || ''}</h1>
+        <p class="topbar-heading__desc">${desc || ''}</p>
       </div>
-
-      <div class="topbar-cards">
-        <div class="top-mini"><div class="k">Usuario</div><div class="v" data-kogu-user>${userName}</div></div>
-        <div class="top-mini"><div class="k">Empresa activa</div><div class="v" data-kogu-empresa>${empresa.nombre_corto||empresa.razon_social||'-'}</div></div>
-        <div class="top-mini"><div class="k">Perfil</div><div class="v" data-kogu-perfil>${profile}</div></div>
-      </div>
+      <button class="empresa-chip" id="empresaChipBtn" type="button" aria-label="Cambiar empresa">
+        <span class="empresa-chip__ini" data-kogu-empresa-ini>${empresaIni}</span>
+        <span class="empresa-chip__info">
+          <span class="empresa-chip__k">EMPRESA</span>
+          <span class="empresa-chip__v" data-kogu-empresa>${empresaTxt}</span>
+        </span>
+        <span class="empresa-chip__caret">▾</span>
+      </button>
+      <button class="user-avatar" id="userAvatarBtn" type="button" title="${userName}" aria-label="${userName}" data-kogu-user-ini>${userIni}</button>
     </header>`;
   }
+
+  // Deriva el kicker del topbar a partir del path de la pantalla activa.
+  function _deriveTopbarKicker(currentPage){
+    if (!currentPage) return 'KOGU';
+    const p = String(currentPage).toLowerCase();
+    if (p.includes('/modules/lab/'))     return 'LAB QA';
+    if (p.includes('/modules/act/'))     return 'ACTIVOS';
+    if (p.includes('/modules/cfdi/'))    return 'CFDI';
+    if (p.includes('/modules/erp/'))     return 'ERP';
+    if (p.includes('/modules/mat/') ||
+        p.includes('/modules/exp/'))     return 'MATERIALIDAD';
+    if (p.includes('/modules/cat/'))     return 'CATÁLOGOS';
+    if (p.includes('/modules/core/'))    return 'ADMINISTRADOR';
+    return 'KOGU';
+  }
+
+  // Iniciales legibles de un texto (empresa o usuario).
+  function _initialsFrom(text, max){
+    const limit = max || 2;
+    if (!text) return '·';
+    const parts = String(text).trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '·';
+    if (parts.length === 1) return parts[0].slice(0, limit).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  // Variable de módulo para que renderTopbar conozca el path actual al refrescar.
+  let _currentPagePath = '';
 
 
   function applySidebarState(hidden){
@@ -368,7 +395,9 @@
     const empresa = bootstrap?.empresa_activa || {};
     const userName = resolveUserName(bootstrap);
     const profile = resolveUserProfile(bootstrap);
+    const empresaTxt = empresa.nombre_corto || empresa.razon_social || '-';
 
+    // Selectores antiguos (compat con topbar v1).
     const userEl = document.querySelector('[data-kogu-user]');
     const empresaEl = document.querySelector('[data-kogu-empresa]');
     const perfilEl = document.querySelector('[data-kogu-perfil]');
@@ -376,12 +405,109 @@
     const sidebarRfcEl = document.querySelector('[data-kogu-sidebar-rfc]');
 
     if (userEl) userEl.textContent = userName;
-    if (empresaEl) empresaEl.textContent = empresa.nombre_corto || empresa.razon_social || '-';
+    if (empresaEl) empresaEl.textContent = empresaTxt;
     if (perfilEl) perfilEl.textContent = profile;
     if (sidebarEmpresaEl) sidebarEmpresaEl.textContent = empresa.nombre_corto || empresa.razon_social || 'Sin empresa';
     if (sidebarRfcEl) sidebarRfcEl.textContent = empresa.rfc || 'Sin RFC';
 
+    // Topbar v2 — chip de empresa y avatar de usuario.
+    const empresaIniEl = document.querySelector('[data-kogu-empresa-ini]');
+    const userIniEl    = document.querySelector('[data-kogu-user-ini]');
+    if (empresaIniEl) empresaIniEl.textContent = _initialsFrom(empresaTxt);
+    if (userIniEl)    userIniEl.textContent    = _initialsFrom(userName, 2);
+
     _bootstrap = bootstrap; // F-06: privado
+  }
+
+  // Liga el botón de back del topbar a history.back().
+  function bindTopbarBack(){
+    const btn = document.getElementById('topbarBackBtn');
+    if (!btn) return;
+    btn.onclick = () => {
+      if (window.history.length > 1) window.history.back();
+    };
+  }
+
+  // Liga el chip de empresa del topbar al modal de cambio de empresa.
+  function bindEmpresaChip(){
+    const btn = document.getElementById('empresaChipBtn');
+    if (!btn) return;
+    btn.onclick = () => openEmpresaModal();
+  }
+
+  // Modal global de cambio de empresa.
+  // Lo abre el chip del topbar y también cambio-empresa.html.
+  function openEmpresaModal(){
+    const boot = _bootstrap;
+    if (!boot) return;
+    const empresas = boot.empresas || boot.empresas_autorizadas || [];
+    const activaId = boot.empresa_activa?.empresa_id;
+
+    let overlay = document.getElementById('koguEmpresaModal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'koguEmpresaModal';
+      overlay.className = 'kogu-modal-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="kogu-modal kogu-modal--empresa" role="dialog" aria-modal="true" aria-label="Cambiar empresa activa">
+        <div class="kogu-modal__head">
+          <div>
+            <div class="kogu-modal__eyebrow">Empresa activa</div>
+            <h2>Cambiar empresa</h2>
+          </div>
+          <button class="kogu-modal__close" id="koguEmpresaModalClose" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <ul class="kogu-empresa-list">
+          ${empresas.length ? empresas.map(e => {
+            const isActiva = e.empresa_id === activaId;
+            const nombre = e.nombre_corto || e.razon_social || '—';
+            const ini = _initialsFrom(nombre);
+            return `
+              <li class="kogu-empresa-list__item${isActiva ? ' is-active' : ''}" data-empresa-id="${e.empresa_id}">
+                <span class="kogu-empresa-list__check">${isActiva ? '✓' : ''}</span>
+                <span class="kogu-empresa-list__ini">${ini}</span>
+                <span class="kogu-empresa-list__info">
+                  <span class="kogu-empresa-list__nombre">${nombre}</span>
+                  <span class="kogu-empresa-list__rfc">${e.rfc || ''}</span>
+                </span>
+              </li>
+            `;
+          }).join('') : '<li class="kogu-empresa-list__empty">Sin empresas disponibles.</li>'}
+        </ul>
+      </div>
+    `;
+    overlay.classList.add('is-open');
+
+    const closeBtn = document.getElementById('koguEmpresaModalClose');
+    if (closeBtn) closeBtn.onclick = closeEmpresaModal;
+    overlay.onclick = (ev) => { if (ev.target === overlay) closeEmpresaModal(); };
+
+    overlay.querySelectorAll('.kogu-empresa-list__item').forEach(li => {
+      li.onclick = async () => {
+        const empresaId = li.dataset.empresaId;
+        if (!empresaId || empresaId === activaId) { closeEmpresaModal(); return; }
+        try {
+          await KoguApi.apiFetch('/protected/core/context/empresa-activa', {
+            method: 'POST',
+            body: JSON.stringify({ empresa_id: empresaId })
+          });
+          const newBoot = await loadCoreBootstrap();
+          refreshChrome(newBoot);
+          window.dispatchEvent(new CustomEvent('kogu:empresa-activa-cambiada', { detail: newBoot }));
+          KoguApi.toast('Empresa activa actualizada', 'success');
+          closeEmpresaModal();
+        } catch (err) {
+          KoguApi.toast(err.message || 'No fue posible cambiar la empresa activa', 'error');
+        }
+      };
+    });
+  }
+
+  function closeEmpresaModal(){
+    const overlay = document.getElementById('koguEmpresaModal');
+    if (overlay) overlay.classList.remove('is-open');
   }
 
   async function initShell({currentPage,title,description,requiredPermission}){
@@ -391,10 +517,13 @@
       document.body.innerHTML=`<div style="padding:32px"><h1>Acceso denegado</h1><p>No tienes permiso para entrar a esta pantalla.</p><a href="/modules/core/dashboard/index.html">Volver</a></div>`;
       return null;
     }
+    _currentPagePath = currentPage || '';
     document.getElementById('app').innerHTML=`<div class="layout ${getSidebarHidden() ? 'sidebar-hidden' : ''}">${renderSidebar(currentPage,bootstrap)}<main class="main">${renderTopbar(title,description,bootstrap)}<section class="content" id="pageContent"></section></main></div>`;
     const btn=document.getElementById('logoutBtn'); if(btn) btn.onclick=()=>KoguAuth.logout();
     bindSidebarToggle();
     bindNavCollapse();
+    bindTopbarBack();
+    bindEmpresaChip();
 
     window.addEventListener('kogu:bootstrap-updated', (event) => {
       if (event?.detail) refreshChrome(event.detail);
@@ -411,5 +540,5 @@
     return () => window.removeEventListener('kogu:empresa-activa-cambiada', wrapped);
   }
 
-  window.KoguShell={initShell,loadBootstrap,loadCoreBootstrap,hasPerm,subscribeEmpresaActivaChange,refreshChrome};
+  window.KoguShell={initShell,loadBootstrap,loadCoreBootstrap,hasPerm,subscribeEmpresaActivaChange,refreshChrome,openEmpresaModal,closeEmpresaModal};
 })();
