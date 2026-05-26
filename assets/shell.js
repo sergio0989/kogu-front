@@ -310,7 +310,7 @@
     const empresaIni = _initialsFrom(empresaTxt);
     const userIni = _initialsFrom(userName, 2);
     return `<header class="topbar topbar-v2">
-      <button class="topbar-back" id="topbarBackBtn" type="button" aria-label="Atrás" title="Atrás">
+      <button class="topbar-back" id="sidebarToggleBtnTopbar" type="button" aria-label="Ocultar menú" title="Ocultar menú">
         <span class="topbar-back__icon">‹</span>
       </button>
       <div class="topbar-heading">
@@ -369,8 +369,13 @@
     }
 
     if (topbarBtn) {
-      const iconEl = topbarBtn.querySelector('.menu-tab-toggle__icon');
-      if (iconEl) iconEl.textContent = hidden ? '▶' : '◀';
+      // Soporta dos markups: el v1 (.menu-tab-toggle__icon con ◀/▶) y el v2
+      // del topbar (.topbar-back__icon con ‹/›). El ícono se invierte según
+      // si el sidebar está oculto.
+      const iconV1 = topbarBtn.querySelector('.menu-tab-toggle__icon');
+      const iconV2 = topbarBtn.querySelector('.topbar-back__icon');
+      if (iconV1) iconV1.textContent = hidden ? '▶' : '◀';
+      if (iconV2) iconV2.textContent = hidden ? '›' : '‹';
 
       topbarBtn.setAttribute('aria-label', hidden ? 'Mostrar menú' : 'Ocultar menú');
       topbarBtn.setAttribute('title', hidden ? 'Mostrar menú' : 'Ocultar menú');
@@ -417,15 +422,6 @@
     if (userIniEl)    userIniEl.textContent    = _initialsFrom(userName, 2);
 
     _bootstrap = bootstrap; // F-06: privado
-  }
-
-  // Liga el botón de back del topbar a history.back().
-  function bindTopbarBack(){
-    const btn = document.getElementById('topbarBackBtn');
-    if (!btn) return;
-    btn.onclick = () => {
-      if (window.history.length > 1) window.history.back();
-    };
   }
 
   // Liga el chip de empresa del topbar al modal de cambio de empresa.
@@ -522,7 +518,6 @@
     const btn=document.getElementById('logoutBtn'); if(btn) btn.onclick=()=>KoguAuth.logout();
     bindSidebarToggle();
     bindNavCollapse();
-    bindTopbarBack();
     bindEmpresaChip();
 
     window.addEventListener('kogu:bootstrap-updated', (event) => {
