@@ -64,6 +64,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card" style="margin-top:16px"><div class="eyebrow">Activos por ubicación</div><div style="margin-top:10px"><canvas id="chartUbi" height="200"></canvas></div></div>
 
 <div class="card" style="margin-top:16px">
+  <div class="row"><div><div class="eyebrow">Reparar vs. reemplazar</div><h3 style="margin:4px 0">Activos con mayor costo de mantenimiento</h3></div></div>
+  <div class="table-wrap" style="margin-top:10px">
+    <table><thead><tr>
+      <th>Activo</th><th style="text-align:right">Costo acumulado</th><th style="text-align:right">Adquisición</th><th style="text-align:right">Reposición</th><th style="text-align:right">% acum.</th><th></th>
+    </tr></thead><tbody id="costosRows"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody></table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
   <div class="row"><div><div class="eyebrow">Alertas</div><h3 style="margin:4px 0" id="alertTitle">Feed de alertas</h3></div></div>
   <div id="alertFeed" class="stack" style="margin-top:10px"><div class="empty">Cargando…</div></div>
 </div>`;
@@ -175,10 +184,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_e) {}
   }
 
-  async function reloadAll() { await Promise.all([loadKpis(), loadAlertas()]); }
+  // ── Top de costos (reparar vs. reemplazar, segmento 27.C) ───────────────────
+  async function loadCostos() {
+    const tbody = $('costosRows'); if (!tbody) return;
+    let data;
+    try { data = KoguApi.unwrapData(await KoguApi.apiFetch('/protected/act/dashboard/costos?' + KoguUi.queryParams({ categoria_id: $('fCategoria').value, ubicacion_id: $('fUbicacion').value, limit: 10 }))); }
+    catch (_err) { tbody.innerHTML = `<tr><td colspan="6" class="empty">No fue posible cargar el top de costos.</td></tr>`; return; }
+    const top = data.top_costo_mantenimiento || [];
+    const pctRegla = data.regla_costo_pct != null ? Number(data.regla_costo_pct) : 50;
+    const sobreUmbral = new Set((data.activos_sobre_umbral || []).map(x => x.activo_id));
+    if (!top.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin costos de mantenimiento registrados.</td></tr>`; return; }
+    tbody.innerHTML = top.map(r => {
+      const base = r.costo_reposicion_estimado != null ? Number(r.costo_reposicion_estimado) : (r.costo_adquisicion != null ? Number(r.costo_adquisicion) : null);
+      const acum = Number(r.costo_mant_acumulado || 0);
+      const pct = base && base > 0 ? (acum / base) * 100 : null;
+      const flag = sobreUmbral.has(r.activo_id);
+      const rojo = flag ? 'color:#dc2626;font-weight:700' : '';
+      return `<tr style="${flag ? 'background:#fef2f2' : ''}">
+        <td><a class="link" href="/modules/act/activo-detalle.html?id=${encodeURIComponent(r.activo_id)}"><strong>${esc(r.codigo || '')}</strong></a>${r.nombre ? ` · ${esc(r.nombre)}` : ''}</td>
+        <td style="text-align:right;${rojo}">${KoguUi.fmtMoney(acum)}</td>
+        <td style="text-align:right">${r.costo_adquisicion != null ? KoguUi.fmtMoney(r.costo_adquisicion) : '<span class="muted">—</span>'}</td>
+        <td style="text-align:right">${r.costo_reposicion_estimado != null ? KoguUi.fmtMoney(r.costo_reposicion_estimado) : '<span class="muted">—</span>'}</td>
+        <td style="text-align:right;${rojo}">${pct != null ? pct.toFixed(0) + '%' : '<span class="muted">—</span>'}</td>
+        <td>${flag ? `<span class="chip" style="background:#dc26261a;color:#dc2626;border:1px solid #dc262655">Evaluar reemplazo</span>` : ''}</td>
+      </tr>`;
+    }).join('');
+    const cap = $('costosRows').closest('.card').querySelector('h3');
+    if (cap) cap.title = `Umbral configurado: ${pctRegla}% del costo de reposición (o adquisición).`;
+  }
+
+  async function reloadAll() { await Promise.all([loadKpis(), loadAlertas(), loadCostos()]); }
 
   // ── Bindings ────────────────────────────────────────────────────────────────
-  $('aplicarBtn').onclick = loadKpis; // las alertas no dependen de filtros
+  $('aplicarBtn').onclick = async () => { await Promise.all([loadKpis(), loadCostos()]); }; // alertas no dependen de filtros
   $('refreshBtn').onclick = reloadAll;
   KoguShell.subscribeEmpresaActivaChange(async () => { await loadCatalogos(); await reloadAll(); });
 

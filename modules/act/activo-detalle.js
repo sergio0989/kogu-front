@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canPlanesManage = KoguShell.hasPerm(b, 'act.planes.manage');
   const canOrdenesRead  = KoguShell.hasPerm(b, 'act.ordenes.read');
   const canOrdenesCreate = KoguShell.hasPerm(b, 'act.ordenes.create');
+  const canComentariosRead  = KoguShell.hasPerm(b, 'act.comentarios.read');
+  const canComentariosWrite = KoguShell.hasPerm(b, 'act.comentarios.write');
+  const _meSession = (typeof KoguApi.getSession === 'function' ? (KoguApi.getSession() || {}) : {});
+  const myUserId = (b.user && (b.user.user_id || b.user.id)) || _meSession.user?.user_id || _meSession.user?.id || _meSession.user_id || null;
 
   const CRITICIDADES = ['baja', 'media', 'alta', 'critica'];
   const ESTADO_BADGE = { activo: 'success', en_mantenimiento: 'warn', en_reparacion: 'warn', en_resguardo: 'neutral', baja: 'danger' };
@@ -83,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <button class="tab" data-tab="expediente">Expediente</button>
     <button class="tab" data-tab="asignaciones">Asignaciones</button>
     <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
+    ${canComentariosRead ? '<button class="tab" data-tab="comentarios">Comentarios <span id="comCount"></span></button>' : ''}
   </div>
   <div id="tabBody"></div>
 </div>`;
@@ -96,6 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     paintTabs();
     renderTab();
+    if (canComentariosRead) refreshComentariosCount();
   }
 
   function paintTabs() {
@@ -112,6 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activeTab === 'expediente')    return renderExpediente(body);
     if (activeTab === 'asignaciones')  return renderAsignaciones(body);
     if (activeTab === 'mantenimiento') return renderMantenimiento(body);
+    if (activeTab === 'comentarios')   return renderComentarios(body);
   }
 
   function placeholder(nombre, seg) {
@@ -772,6 +779,120 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadPlanes();
       } catch (_err) { /* apiFetch toast */ }
     }, 'Guardando…');
+  }
+
+  // ── Tab Comentarios (segmento 27) ───────────────────────────────────────────
+  const COM_TIPO = {
+    nota:        { color: '#64748b', label: 'Nota' },
+    observacion: { color: '#ca8a04', label: 'Observación' },
+    incidencia:  { color: '#dc2626', label: 'Incidencia' },
+  };
+
+  async function refreshComentariosCount() {
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/comentarios');
+      const n = (KoguApi.unwrapRows(res, 'rows') || []).length;
+      const el = $('comCount'); if (el) el.textContent = n ? `(${n})` : '';
+    } catch (_e) {}
+  }
+
+  function renderComentarios(body) {
+    body.innerHTML = `
+      ${canComentariosWrite ? `
+      <div class="card" style="padding:14px">
+        <div class="grid-3">
+          <div><div class="label-text">Tipo</div><select class="select" id="com_tipo">
+            <option value="nota">Nota</option><option value="observacion">Observación</option><option value="incidencia">Incidencia</option>
+          </select></div>
+          <div style="grid-column:span 2"><div class="label-text">Comentario</div><input class="input" id="com_texto" placeholder="Escribe una nota, observación o incidencia…"/></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" id="com_fijado"/> <span>Fijar al inicio</span></label>
+        <div style="margin-top:10px;text-align:right"><button class="btn primary" id="com_add">Agregar comentario</button></div>
+      </div>` : ''}
+      <div id="comList" class="stack" style="margin-top:14px"><div class="empty">Cargando…</div></div>`;
+    if (canComentariosWrite) $('com_add').onclick = addComentario;
+    loadComentarios();
+  }
+
+  async function loadComentarios() {
+    const list = $('comList'); if (!list) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/comentarios');
+      const rows = KoguApi.unwrapRows(res, 'rows') || [];
+      const el = $('comCount'); if (el) el.textContent = rows.length ? `(${rows.length})` : '';
+      if (!rows.length) { list.innerHTML = `<div class="empty">Sin comentarios.</div>`; return; }
+      list.innerHTML = rows.map(c => {
+        const t = COM_TIPO[c.tipo] || COM_TIPO.nota;
+        const mine = c.created_by && myUserId && c.created_by === myUserId;
+        return `<div class="card" style="padding:12px;border-left:4px solid ${t.color}">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+            <div style="display:flex;gap:8px;align-items:center">
+              ${c.fijado ? '<span title="Fijado">📌</span>' : ''}
+              <span class="chip" style="background:${t.color}1a;color:${t.color};border:1px solid ${t.color}55">${esc(t.label)}</span>
+              <span class="muted" style="font-size:12px">${c.autor_nombre ? esc(c.autor_nombre) : '—'} · ${KoguUi.fmtDate(c.created_at)}</span>
+            </div>
+            ${(canComentariosWrite && mine) ? `<div class="actions-cell">
+              <button class="btn ghost" data-com-fijar="${c.comentario_id}" data-fij="${c.fijado ? '1' : '0'}">${c.fijado ? 'Desfijar' : 'Fijar'}</button>
+              <button class="btn ghost" data-com-edit="${c.comentario_id}">Editar</button>
+              <button class="btn ghost" data-com-del="${c.comentario_id}">Eliminar</button>
+            </div>` : ''}
+          </div>
+          <div style="margin-top:8px" data-com-text="${c.comentario_id}">${esc(c.texto)}</div>
+        </div>`;
+      }).join('');
+      if (canComentariosWrite) {
+        list.querySelectorAll('[data-com-fijar]').forEach(btn => btn.onclick = () => toggleFijar(btn.dataset.comFijar, btn.dataset.fij !== '1', rows));
+        list.querySelectorAll('[data-com-edit]').forEach(btn => btn.onclick = () => editComentario(btn.dataset.comEdit, rows));
+        list.querySelectorAll('[data-com-del]').forEach(btn => btn.onclick = () => delComentario(btn.dataset.comDel));
+      }
+    } catch (_err) { list.innerHTML = `<div class="empty">No fue posible cargar los comentarios.</div>`; }
+  }
+
+  async function addComentario() {
+    const texto = $('com_texto').value.trim();
+    if (!texto) { KoguApi.toast('Escribe el comentario.', 'error'); return; }
+    const payload = { texto, tipo: $('com_tipo').value, fijado: $('com_fijado').checked };
+    await KoguUi.withLoading($('com_add'), async () => {
+      try {
+        await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/comentarios', { method: 'POST', body: JSON.stringify(payload) });
+        KoguApi.toast('Comentario agregado', 'success');
+        $('com_texto').value = ''; $('com_fijado').checked = false; $('com_tipo').value = 'nota';
+        await loadComentarios();
+      } catch (_err) { /* apiFetch toast */ }
+    }, 'Guardando…');
+  }
+
+  async function toggleFijar(id, fijado, rows) {
+    const c = rows.find(x => x.comentario_id === id);
+    try {
+      await KoguApi.apiFetch('/protected/act/comentarios/' + encodeURIComponent(id), {
+        method: 'PUT', body: JSON.stringify({ fijado, tipo: c?.tipo, texto: c?.texto }),
+      });
+      await loadComentarios();
+    } catch (_err) { /* apiFetch toast (403 si no es propio) */ }
+  }
+
+  async function editComentario(id, rows) {
+    const c = rows.find(x => x.comentario_id === id);
+    if (!c) return;
+    const nuevo = window.prompt('Editar comentario:', c.texto || '');
+    if (nuevo == null) return;
+    const t = String(nuevo).trim();
+    if (!t) { KoguApi.toast('El comentario no puede quedar vacío.', 'error'); return; }
+    try {
+      await KoguApi.apiFetch('/protected/act/comentarios/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ texto: t, tipo: c.tipo, fijado: c.fijado }) });
+      KoguApi.toast('Comentario actualizado', 'success');
+      await loadComentarios();
+    } catch (_err) { /* apiFetch toast (403 si no es propio) */ }
+  }
+
+  async function delComentario(id) {
+    if (!window.confirm('¿Eliminar este comentario?')) return;
+    try {
+      await KoguApi.apiFetch('/protected/act/comentarios/' + encodeURIComponent(id), { method: 'DELETE' });
+      KoguApi.toast('Comentario eliminado', 'success');
+      await loadComentarios();
+    } catch (_err) { /* apiFetch toast (403 si no es propio) */ }
   }
 
   // ── Init ────────────────────────────────────────────────────────────────────
