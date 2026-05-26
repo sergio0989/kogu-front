@@ -2802,6 +2802,67 @@ thead th{
   font-size:12px;
 }
 
+/* Chip del usuario logueado (variante del empresa-chip, iniciales en cyan
+   para diferenciarlo del avatar oscuro de la empresa). */
+.user-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:5px 14px 5px 5px;
+  cursor:pointer;
+  flex:none;
+  transition:background .15s, border-color .15s;
+  font-family:inherit;
+}
+.user-chip:hover{
+  background:#f8fafc;
+  border-color:#cbd5e1;
+}
+.user-chip__ini{
+  width:34px;
+  height:34px;
+  border-radius:50%;
+  background:var(--primary);
+  color:#fff;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+  font-weight:700;
+  flex:none;
+}
+.user-chip__info{
+  display:flex;
+  flex-direction:column;
+  line-height:1.1;
+  text-align:left;
+  gap:1px;
+}
+.user-chip__k{
+  color:var(--primary);
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-weight:700;
+}
+.user-chip__v{
+  color:var(--text);
+  font-weight:700;
+  font-size:14px;
+  max-width:180px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+@media (max-width:980px){
+  .user-chip__info{display:none;}
+  .user-chip{padding:5px;}
+}
+
 /* Avatar del usuario en el topbar. */
 .user-avatar{
   width:38px;
