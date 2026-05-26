@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canUpload    = KoguShell.hasPerm(b, 'act.adjuntos.upload');
   const canDeleteAdj = KoguShell.hasPerm(b, 'act.adjuntos.delete');
   const canManageAsg = KoguShell.hasPerm(b, 'act.asignaciones.manage');
+  const canPlanesRead   = KoguShell.hasPerm(b, 'act.planes.read');
+  const canPlanesManage = KoguShell.hasPerm(b, 'act.planes.manage');
+  const canOrdenesRead  = KoguShell.hasPerm(b, 'act.ordenes.read');
+  const canOrdenesCreate = KoguShell.hasPerm(b, 'act.ordenes.create');
 
   const CRITICIDADES = ['baja', 'media', 'alta', 'critica'];
   const ESTADO_BADGE = { activo: 'success', en_mantenimiento: 'warn', en_reparacion: 'warn', en_resguardo: 'neutral', baja: 'danger' };
@@ -107,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activeTab === 'datos')         return renderDatos(body);
     if (activeTab === 'expediente')    return renderExpediente(body);
     if (activeTab === 'asignaciones')  return renderAsignaciones(body);
-    if (activeTab === 'mantenimiento') { body.innerHTML = placeholder('Mantenimiento', 20); return; }
+    if (activeTab === 'mantenimiento') return renderMantenimiento(body);
   }
 
   function placeholder(nombre, seg) {
@@ -625,10 +629,156 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 'Procesando…');
   }
 
+  // ── Tab Mantenimiento (segmento 20): planes + órdenes del activo ────────────
+  const ESTADO_ORDEN_COLOR = { abierta: '#ca8a04', en_proceso: '#2563eb', en_espera: '#7c3aed', cerrada: '#16a34a', cancelada: '#dc2626' };
+  const ordenEstadoBadge = e => { const c = ESTADO_ORDEN_COLOR[e] || '#64748b'; return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55">${esc((e || '').replace(/_/g, ' '))}</span>`; };
+
+  function renderMantenimiento(body) {
+    body.innerHTML = `
+      <div class="row">
+        <div><div class="eyebrow">Planes preventivos</div></div>
+        <div>${canPlanesManage ? '<button class="btn primary" id="newPlanBtn">+ Nuevo plan</button>' : ''}</div>
+      </div>
+      <div class="table-wrap" style="margin-top:10px">
+        <table><thead><tr><th>Nombre</th><th>Frecuencia</th><th>Próxima fecha</th><th>Activo</th><th>Acciones</th></tr></thead>
+        <tbody id="planRows">${canPlanesRead ? '<tr><td colspan="5" class="empty">Cargando…</td></tr>' : '<tr><td colspan="5" class="empty">Sin permiso para ver planes.</td></tr>'}</tbody></table>
+      </div>
+      <div class="eyebrow" style="margin-top:18px">Órdenes del activo</div>
+      <div class="table-wrap" style="margin-top:8px">
+        <table><thead><tr><th>Folio</th><th>Tipo</th><th>Estado</th><th>Prioridad</th><th>Apertura</th><th>Compromiso</th></tr></thead>
+        <tbody id="ordActivoRows">${canOrdenesRead ? '<tr><td colspan="6" class="empty">Cargando…</td></tr>' : '<tr><td colspan="6" class="empty">Sin permiso para ver órdenes.</td></tr>'}</tbody></table>
+      </div>`;
+    if (canPlanesManage) $('newPlanBtn').onclick = () => openPlan(null);
+    if (canPlanesRead) loadPlanes();
+    if (canOrdenesRead) loadOrdenesActivo();
+  }
+
+  let planesCache = [];
+  async function loadPlanes() {
+    const tbody = $('planRows'); if (!tbody) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/planes');
+      planesCache = KoguApi.unwrapRows(res, 'rows') || [];
+      if (!planesCache.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Sin planes preventivos.</td></tr>`; return; }
+      tbody.innerHTML = planesCache.map(p => `
+        <tr>
+          <td><strong>${esc(p.nombre)}</strong>${p.instrucciones ? `<div class="muted" style="font-size:12px">${esc(p.instrucciones)}</div>` : ''}</td>
+          <td>cada ${esc(String(p.frecuencia_valor))} ${esc(p.tipo_frecuencia)}</td>
+          <td>${esc(p.proxima_fecha)}</td>
+          <td>${p.activo !== false ? '<span class="badge success">Sí</span>' : '<span class="badge neutral">No</span>'}</td>
+          <td class="actions-cell">
+            ${canPlanesManage ? `<button class="btn ghost" data-plan-edit="${p.plan_id}">Editar</button>` : ''}
+            ${canOrdenesCreate ? `<button class="btn ghost" data-plan-gen="${p.plan_id}">Generar orden</button>` : ''}
+          </td>
+        </tr>`).join('');
+      tbody.querySelectorAll('[data-plan-edit]').forEach(btn => btn.onclick = () => openPlan(planesCache.find(p => p.plan_id === btn.dataset.planEdit)));
+      tbody.querySelectorAll('[data-plan-gen]').forEach(btn => btn.onclick = () => generarOrden(btn.dataset.planGen));
+    } catch (_err) { tbody.innerHTML = `<tr><td colspan="5" class="empty">No fue posible cargar los planes.</td></tr>`; }
+  }
+
+  async function loadOrdenesActivo() {
+    const tbody = $('ordActivoRows'); if (!tbody) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/ordenes?' + KoguUi.queryParams({ activo_id: activoId, page_size: 200 }));
+      const rows = KoguApi.unwrapData(res).datos || [];
+      if (!rows.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin órdenes para este activo.</td></tr>`; return; }
+      tbody.innerHTML = rows.map(o => `
+        <tr style="cursor:pointer" data-ord="${o.orden_id}">
+          <td><strong>#${esc(String(o.id_mov))}</strong></td>
+          <td><span class="chip">${esc(o.tipo)}</span></td>
+          <td>${ordenEstadoBadge(o.estado)}</td>
+          <td>${esc(o.prioridad || '')}</td>
+          <td>${KoguUi.fmtDate(o.fecha_apertura)}</td>
+          <td>${o.fecha_compromiso ? esc(o.fecha_compromiso) : '<span class="muted">—</span>'}</td>
+        </tr>`).join('');
+      tbody.querySelectorAll('[data-ord]').forEach(tr => tr.onclick = () => { window.location.href = '/modules/act/orden-detalle.html?id=' + encodeURIComponent(tr.dataset.ord); });
+    } catch (_err) { tbody.innerHTML = `<tr><td colspan="6" class="empty">No fue posible cargar las órdenes.</td></tr>`; }
+  }
+
+  async function generarOrden(planId) {
+    if (!window.confirm('¿Generar una orden de mantenimiento preventivo a partir de este plan?')) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/planes/' + encodeURIComponent(planId) + '/generar-orden', { method: 'POST', body: JSON.stringify({}) });
+      const created = KoguApi.unwrapData(res);
+      KoguApi.toast('Orden generada · #' + (created?.id_mov || ''), 'success');
+      if (created?.orden_id) window.location.href = '/modules/act/orden-detalle.html?id=' + encodeURIComponent(created.orden_id);
+      else await loadOrdenesActivo();
+    } catch (_err) { /* apiFetch toast */ }
+  }
+
+  function buildPlanModal() {
+    if (!canPlanesManage) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'planModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:520px;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#0f172a;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center">
+          <h2 id="planTitle" style="margin:0;font-size:18px">Nuevo plan</h2><button class="btn ghost" id="planClose" style="padding:6px 10px">✕</button>
+        </div>
+        <div style="padding:20px"><div class="stack">
+          <input type="hidden" id="plan_id"/>
+          <div><div class="label-text">Nombre</div><input class="input" id="plan_nombre" placeholder="Ej. Servicio mayor"/></div>
+          <div class="grid-3">
+            <div><div class="label-text">Frecuencia</div><select class="select" id="plan_tipo_frec"><option value="meses">meses</option><option value="dias">días</option></select></div>
+            <div><div class="label-text">Cada</div><input class="input" id="plan_valor" type="number" min="1" step="1" placeholder="6"/></div>
+            <div><div class="label-text">Próxima fecha <span class="muted" style="font-size:11px">(auto)</span></div><input class="input" id="plan_proxima" type="date"/></div>
+          </div>
+          <div><div class="label-text">Instrucciones <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="plan_instr"/></div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="plan_activo" checked/> <span>Activo</span></label>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" id="planCancel">Cancelar</button><button class="btn primary" id="planSave">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closePlan(); });
+    $('planClose').onclick = closePlan; $('planCancel').onclick = closePlan; $('planSave').onclick = savePlan;
+  }
+  function closePlan() { const m = $('planModal'); if (m) m.style.display = 'none'; }
+  function openPlan(plan) {
+    $('plan_id').value = plan ? plan.plan_id : '';
+    $('plan_nombre').value = plan ? plan.nombre : '';
+    $('plan_tipo_frec').value = plan ? plan.tipo_frecuencia : 'meses';
+    $('plan_valor').value = plan ? plan.frecuencia_valor : '';
+    $('plan_proxima').value = plan ? (plan.proxima_fecha || '').slice(0, 10) : '';
+    $('plan_instr').value = plan ? (plan.instrucciones || '') : '';
+    $('plan_activo').checked = plan ? plan.activo !== false : true;
+    $('planTitle').textContent = plan ? 'Editar plan' : 'Nuevo plan';
+    $('planModal').style.display = 'flex';
+  }
+  async function savePlan() {
+    const id = $('plan_id').value;
+    const nombre = $('plan_nombre').value.trim();
+    const valor = $('plan_valor').value;
+    if (!nombre) { KoguApi.toast('El nombre es obligatorio.', 'error'); return; }
+    if (!valor || Number(valor) <= 0) { KoguApi.toast('La frecuencia debe ser mayor que 0.', 'error'); return; }
+    const payload = {
+      nombre, tipo_frecuencia: $('plan_tipo_frec').value, frecuencia_valor: Number(valor),
+      proxima_fecha: $('plan_proxima').value || null,
+      instrucciones: $('plan_instr').value.trim() || null,
+      activo: $('plan_activo').checked,
+    };
+    await KoguUi.withLoading(this, async () => {
+      try {
+        if (id) {
+          await KoguApi.apiFetch('/protected/act/planes/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(payload) });
+          KoguApi.toast('Plan actualizado', 'success');
+        } else {
+          await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/planes', { method: 'POST', body: JSON.stringify(payload) });
+          KoguApi.toast('Plan creado', 'success');
+        }
+        closePlan();
+        await loadPlanes();
+      } catch (_err) { /* apiFetch toast */ }
+    }, 'Guardando…');
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────────
   buildUploadModal();
   buildEditModal();
   buildAsgModal();
+  buildPlanModal();
 
   KoguShell.subscribeEmpresaActivaChange(() => {
     // Un activo es de una empresa; al cambiar, vuelve a la bandeja para no
