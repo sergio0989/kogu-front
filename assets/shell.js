@@ -286,10 +286,8 @@
       <div class="sidebar-head">
         <div>
           <div class="brand-kicker">KOGU</div>
-          <div class="brand-title">Multiempresa</div>
         </div>
       </div>
-      <div class="brand-text">Core estable con contexto multiempresa y módulos administrativos/negocio sobre bootstrap real.</div>
       <div class="nav-group">${sections}</div>
       <div class="context-card">
         <div class="label">Empresa activa</div>
