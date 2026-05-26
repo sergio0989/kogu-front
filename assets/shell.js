@@ -70,6 +70,17 @@
       {href:'/modules/lab/lab-no-conformidades.html',    label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
       {href:'/modules/lab/lab-maestros.html',            label:'Maestros analíticos', perm:'screen.lab.maestros'},
       {href:'/modules/lab/lab-plantilla-producto.html',  label:'Plantilla productos', perm:'lab.plantilla_producto.manage'},
+    ]},
+    {section:'Activos',items:[
+      {href:'/modules/act/dashboard.html',     label:'Dashboard',     perm:'act.dashboard.read'},
+      {href:'/modules/act/activos.html',       label:'Activos',       perm:'act.activos.read'},
+      {href:'/modules/act/mantenimiento.html', label:'Mantenimiento', perm:'act.ordenes.read'},
+      {href:'/modules/act/reparaciones.html',  label:'Reparaciones',  perm:'act.ordenes.read'},
+      {href:'/modules/act/inventario.html',    label:'Inventario',    perm:'act.inventario.read'},
+    ]},
+    {section:'Activos · Catálogos',items:[
+      {href:'/modules/act/ubicaciones.html', label:'Ubicaciones', perm:'act.catalogos.read'},
+      {href:'/modules/act/categorias.html',  label:'Categorías',  perm:'act.catalogos.read'},
     ]}
   ];
 
