@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canUpdate    = KoguShell.hasPerm(b, 'act.activos.update');
   const canUpload    = KoguShell.hasPerm(b, 'act.adjuntos.upload');
   const canDeleteAdj = KoguShell.hasPerm(b, 'act.adjuntos.delete');
+  const canManageAsg = KoguShell.hasPerm(b, 'act.asignaciones.manage');
 
   const CRITICIDADES = ['baja', 'media', 'alta', 'critica'];
   const ESTADO_BADGE = { activo: 'success', en_mantenimiento: 'warn', en_reparacion: 'warn', en_resguardo: 'neutral', baja: 'danger' };
@@ -105,7 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const body = $('tabBody');
     if (activeTab === 'datos')         return renderDatos(body);
     if (activeTab === 'expediente')    return renderExpediente(body);
-    if (activeTab === 'asignaciones')  { body.innerHTML = placeholder('Asignaciones', 19); return; }
+    if (activeTab === 'asignaciones')  return renderAsignaciones(body);
     if (activeTab === 'mantenimiento') { body.innerHTML = placeholder('Mantenimiento', 20); return; }
   }
 
@@ -423,9 +424,211 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_err) { /* apiFetch toast: 422 con el mensaje de qué falta cerrar */ }
   }
 
+  // ── Tab Asignaciones (segmento 19) ──────────────────────────────────────────
+  let usuariosAsg = null;          // lista de usuarios (lazy)
+  let ubicacionesAsg = null;       // ubicaciones activas (lazy)
+  let asgMode = 'asignar';         // asignar | transferir | devolver
+  const asgSel = { custodioId: null, custodioNombre: '' };
+
+  async function ensureUsuarios() {
+    if (usuariosAsg) return usuariosAsg;
+    try { usuariosAsg = KoguApi.unwrapRows(await KoguApi.apiFetch('/protected/core/usuarios')) || []; }
+    catch (_e) { usuariosAsg = []; }
+    return usuariosAsg;
+  }
+  async function ensureUbicaciones() {
+    if (ubicacionesAsg) return ubicacionesAsg;
+    try {
+      const all = KoguApi.unwrapRows(await KoguApi.apiFetch('/protected/act/ubicaciones'), 'rows') || [];
+      ubicacionesAsg = all.filter(u => u.activo !== false);
+    } catch (_e) { ubicacionesAsg = []; }
+    return ubicacionesAsg;
+  }
+
+  // Mutaciones de asignación con fetch crudo: el 409 "ya asignado" no debe
+  // disparar el redirect genérico a cambio-empresa de apiFetch.
+  async function asgActionFetch(path, body) {
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + KoguApi.getToken() };
+    const emp = KoguApi.getEmpresaId(); if (emp) headers['X-Empresa-Id'] = emp;
+    const resp = await fetch(KoguApi.getBaseUrl() + path, { method: 'POST', headers, body: JSON.stringify(body || {}) });
+    let data = {}; try { data = await resp.json(); } catch (_e) {}
+    return { ok: resp.ok, status: resp.status, data };
+  }
+
+  function renderAsignaciones(body) {
+    const vig = ficha.asignacion_vigente;
+    let acciones = '';
+    if (canManageAsg) {
+      acciones = vig
+        ? `<button class="btn primary" id="asgTransferir">Transferir</button><button class="btn" id="asgDevolver">Devolver</button>`
+        : `<button class="btn primary" id="asgAsignar">Asignar</button>`;
+    }
+    body.innerHTML = `
+      <div class="row">
+        <div><div class="eyebrow">Estado actual</div></div>
+        <div style="display:flex;gap:8px">${acciones}</div>
+      </div>
+      <div class="card" style="margin-top:8px">
+        ${vig
+          ? `<div class="grid-2">
+               ${field('Custodio vigente', vig.custodio_nombre)}
+               ${field('Ubicación vigente', vig.ubicacion_clave ? (vig.ubicacion_clave + ' — ' + (vig.ubicacion_nombre || '')) : null)}
+               ${field('Motivo', (vig.motivo || '').replace(/_/g, ' '))}
+               ${field('Desde', KoguUi.fmtDate(vig.fecha_asignacion))}
+             </div>${vig.observaciones ? `<div style="margin-top:8px">${field('Observaciones', vig.observaciones)}</div>` : ''}`
+          : `<div class="empty">Sin asignación vigente.</div>`}
+      </div>
+      <div class="eyebrow" style="margin-top:16px">Historial</div>
+      <div class="table-wrap" style="margin-top:8px">
+        <table><thead><tr>
+          <th>Custodio</th><th>Ubicación</th><th>Motivo</th><th>Asignación</th><th>Devolución</th><th>Entregó / Recibió</th><th>Observaciones</th>
+        </tr></thead><tbody id="asgRows"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody></table>
+      </div>`;
+
+    if (canManageAsg) {
+      const a = $('asgAsignar'); if (a) a.onclick = () => openAsgModal('asignar');
+      const t = $('asgTransferir'); if (t) t.onclick = () => openAsgModal('transferir');
+      const d = $('asgDevolver'); if (d) d.onclick = () => openAsgModal('devolver');
+    }
+    loadAsignaciones();
+  }
+
+  async function loadAsignaciones() {
+    const tbody = $('asgRows');
+    if (!tbody) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/asignaciones');
+      const rows = KoguApi.unwrapRows(res, 'rows') || [];
+      if (!rows.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Sin movimientos de custodia.</td></tr>`; return; }
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${r.custodio_nombre ? esc(r.custodio_nombre) : '<span class="muted">—</span>'}</td>
+          <td>${r.ubicacion_clave ? esc(r.ubicacion_clave) + ' — ' + esc(r.ubicacion_nombre || '') : '<span class="muted">—</span>'}</td>
+          <td><span class="chip">${esc((r.motivo || '').replace(/_/g, ' '))}</span></td>
+          <td>${KoguUi.fmtDate(r.fecha_asignacion)}</td>
+          <td>${r.fecha_devolucion ? KoguUi.fmtDate(r.fecha_devolucion) : '<span class="badge success">Vigente</span>'}</td>
+          <td>${r.entregado_por_nombre ? esc(r.entregado_por_nombre) : '—'} / ${r.recibido_por_nombre ? esc(r.recibido_por_nombre) : '—'}</td>
+          <td>${r.observaciones ? esc(r.observaciones) : '<span class="muted">—</span>'}</td>
+        </tr>`).join('');
+    } catch (_err) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">No fue posible cargar el historial.</td></tr>`;
+    }
+  }
+
+  function buildAsgModal() {
+    if (!canManageAsg) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'asgModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:540px;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#0f172a;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center">
+          <h2 id="asgTitle" style="margin:0;font-size:18px">Asignar</h2>
+          <button class="btn ghost" id="asgClose" style="padding:6px 10px">✕</button>
+        </div>
+        <div style="padding:20px"><div class="stack">
+          <div id="asgCustodioWrap">
+            <div class="label-text">Custodio</div>
+            <div style="display:flex;gap:6px">
+              <input class="input" id="asg_custodio_label" readonly placeholder="— selecciona —" style="flex:1;cursor:pointer;background:#f8fafc" />
+              <button type="button" class="btn ghost" id="asg_custodio_pick">Buscar…</button>
+            </div>
+          </div>
+          <div id="asgUbicacionWrap">
+            <div class="label-text">Ubicación</div>
+            <select class="select" id="asg_ubicacion"><option value="">— selecciona —</option></select>
+          </div>
+          <div>
+            <div class="label-text">Observaciones <span class="muted" style="font-size:11px">(opcional)</span></div>
+            <input class="input" id="asg_obs" />
+          </div>
+          <div id="asgDevolverNota" class="muted" style="display:none;font-size:13px">Se cerrará la asignación vigente. El custodio quedará sin asignar; la ubicación se conserva.</div>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" id="asgCancel">Cancelar</button>
+          <button class="btn primary" id="asgSave">Confirmar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeAsg(); });
+    $('asgClose').onclick = closeAsg;
+    $('asgCancel').onclick = closeAsg;
+    $('asgSave').onclick = saveAsg;
+    const pick = async () => {
+      await ensureUsuarios();
+      KoguUi.openSearchPicker({
+        title: 'Selecciona el custodio', items: usuariosAsg,
+        placeholder: 'Buscar por nombre o email…',
+        columns: [{ key: 'nombre', label: 'Nombre', primary: true }, { key: 'email', label: 'Email' }],
+        emptyText: 'Sin usuarios.',
+        onSelect: (u) => { asgSel.custodioId = u.user_id; asgSel.custodioNombre = u.nombre || u.email || u.user_id; $('asg_custodio_label').value = asgSel.custodioNombre; },
+      });
+    };
+    $('asg_custodio_pick').onclick = pick;
+    $('asg_custodio_label').onclick = pick;
+  }
+  function closeAsg() { const m = $('asgModal'); if (m) m.style.display = 'none'; }
+
+  async function openAsgModal(mode) {
+    asgMode = mode;
+    asgSel.custodioId = null; asgSel.custodioNombre = '';
+    $('asg_custodio_label').value = '';
+    $('asg_obs').value = '';
+    const needsDestino = (mode !== 'devolver');
+    $('asgCustodioWrap').style.display = needsDestino ? '' : 'none';
+    $('asgUbicacionWrap').style.display = needsDestino ? '' : 'none';
+    $('asgDevolverNota').style.display = needsDestino ? 'none' : '';
+    $('asgTitle').textContent = mode === 'asignar' ? 'Asignar activo' : mode === 'transferir' ? 'Transferir activo' : 'Devolver activo';
+    if (needsDestino) {
+      await ensureUbicaciones();
+      $('asg_ubicacion').innerHTML = '<option value="">— selecciona —</option>' +
+        ubicacionesAsg.map(u => `<option value="${u.ubicacion_id}">${esc(u.clave)} — ${esc(u.nombre)}</option>`).join('');
+    }
+    $('asgModal').style.display = 'flex';
+  }
+
+  async function saveAsg() {
+    const obs = $('asg_obs').value.trim() || null;
+    let path, payload;
+    if (asgMode === 'devolver') {
+      path = '/protected/act/activos/' + encodeURIComponent(activoId) + '/devolver';
+      payload = { observaciones: obs };
+    } else {
+      const custodioId = asgSel.custodioId;
+      const ubicacionId = $('asg_ubicacion').value;
+      if (!custodioId)  { KoguApi.toast('Selecciona el custodio.', 'error'); return; }
+      if (!ubicacionId) { KoguApi.toast('Selecciona la ubicación.', 'error'); return; }
+      path = '/protected/act/activos/' + encodeURIComponent(activoId) + '/' + (asgMode === 'asignar' ? 'asignar' : 'transferir');
+      payload = { custodio_user_id: custodioId, ubicacion_id: ubicacionId, observaciones: obs };
+    }
+
+    await KoguUi.withLoading(this, async () => {
+      const r = await asgActionFetch(path, payload);
+      if (r.ok) {
+        KoguApi.toast(asgMode === 'asignar' ? 'Activo asignado' : asgMode === 'transferir' ? 'Activo transferido' : 'Activo devuelto', 'success');
+        closeAsg();
+        activeTab = 'asignaciones';
+        if (await loadFicha()) renderShell();
+        return;
+      }
+      const msg = r.data?.error?.message || 'No fue posible completar la operación.';
+      if (r.status === 401) { KoguApi.toast('Tu sesión expiró.', 'error'); setTimeout(() => window.location.href = '/login.html', 600); return; }
+      if (r.status === 409) {
+        // Carrera: el activo ya tiene asignación vigente. Toast + recarga para consistencia.
+        KoguApi.toast(msg, 'error');
+        closeAsg();
+        activeTab = 'asignaciones';
+        if (await loadFicha()) renderShell();
+        return;
+      }
+      KoguApi.toast(msg, 'error'); // 403/404/422/otros
+    }, 'Procesando…');
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────────
   buildUploadModal();
   buildEditModal();
+  buildAsgModal();
 
   KoguShell.subscribeEmpresaActivaChange(() => {
     // Un activo es de una empresa; al cambiar, vuelve a la bandeja para no
