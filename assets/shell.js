@@ -327,7 +327,6 @@
         </span>
         <span class="empresa-chip__caret">▾</span>
       </button>
-      <button class="user-avatar" id="userAvatarBtn" type="button" title="${userName}" aria-label="${userName}" data-kogu-user-ini>${userIni}</button>
     </header>`;
   }
 
