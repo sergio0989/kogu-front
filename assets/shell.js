@@ -319,20 +319,19 @@
         <h1 class="topbar-heading__title">${title || ''}</h1>
         <p class="topbar-heading__desc">${desc || ''}</p>
       </div>
-      <button class="user-chip" id="userChipBtn" type="button" aria-label="Usuario" title="${userName}">
-        <span class="user-chip__ini" data-kogu-user-ini>${userIni}</span>
-        <span class="user-chip__info">
-          <span class="user-chip__k">USUARIO</span>
-          <span class="user-chip__v" data-kogu-user>${userName}</span>
+      <button class="ctx-chip" id="ctxChipBtn" type="button" aria-label="Contexto · usuario y empresa" title="Cambiar empresa">
+        <span class="ctx-chip__ini" data-kogu-empresa-ini>${empresaIni}</span>
+        <span class="ctx-chip__info">
+          <span class="ctx-chip__row">
+            <span class="ctx-chip__k">USUARIO</span>
+            <span class="ctx-chip__v" data-kogu-user>${userName}</span>
+          </span>
+          <span class="ctx-chip__row">
+            <span class="ctx-chip__k">EMPRESA</span>
+            <span class="ctx-chip__v" data-kogu-empresa>${empresaTxt}</span>
+          </span>
         </span>
-      </button>
-      <button class="empresa-chip" id="empresaChipBtn" type="button" aria-label="Cambiar empresa">
-        <span class="empresa-chip__ini" data-kogu-empresa-ini>${empresaIni}</span>
-        <span class="empresa-chip__info">
-          <span class="empresa-chip__k">EMPRESA</span>
-          <span class="empresa-chip__v" data-kogu-empresa>${empresaTxt}</span>
-        </span>
-        <span class="empresa-chip__caret">▾</span>
+        <span class="ctx-chip__caret">▾</span>
       </button>
     </header>`;
   }
@@ -430,14 +429,11 @@
     _bootstrap = bootstrap; // F-06: privado
   }
 
-  // Liga los chips del topbar (empresa y usuario) al modal de cambio de
-  // empresa. Ambos abren el mismo modal: el de empresa cambia el contexto,
-  // el de usuario expone identidad + lista en una sola pantalla.
+  // Liga el chip de contexto (usuario + empresa) al modal de cambio de
+  // empresa. El mismo modal sirve para identidad y selección.
   function bindEmpresaChip(){
-    const empresaBtn = document.getElementById('empresaChipBtn');
-    if (empresaBtn) empresaBtn.onclick = () => openEmpresaModal();
-    const userBtn = document.getElementById('userChipBtn');
-    if (userBtn) userBtn.onclick = () => openEmpresaModal();
+    const ctxBtn = document.getElementById('ctxChipBtn');
+    if (ctxBtn) ctxBtn.onclick = () => openEmpresaModal();
   }
 
   // Modal global de cambio de empresa.

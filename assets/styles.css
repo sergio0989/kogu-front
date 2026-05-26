@@ -2727,7 +2727,10 @@ thead th{
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-  flex:none;
+  /* Permite que el título se encoja si la descripción + chips compiten por
+     espacio. Antes era flex:none y empujaba el chip fuera del viewport. */
+  flex:0 1 auto;
+  min-width:0;
   line-height:1.2;
 }
 .topbar-v2 .topbar-heading__desc{
@@ -2800,6 +2803,80 @@ thead th{
   color:var(--muted);
   margin-left:2px;
   font-size:12px;
+}
+
+/* ============================================================
+   Chip unificado de contexto (usuario + empresa en un solo chip)
+   ============================================================ */
+.ctx-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:6px 14px 6px 6px;
+  cursor:pointer;
+  flex:none;
+  transition:background .15s, border-color .15s;
+  font-family:inherit;
+}
+.ctx-chip:hover{
+  background:#f8fafc;
+  border-color:#cbd5e1;
+}
+.ctx-chip__ini{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  background:#0f172a;
+  color:#fff;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+  font-weight:700;
+  flex:none;
+}
+.ctx-chip__info{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  text-align:left;
+  min-width:0;
+}
+.ctx-chip__row{
+  display:grid;
+  grid-template-columns:64px 1fr;
+  gap:10px;
+  align-items:baseline;
+  line-height:1.15;
+}
+.ctx-chip__k{
+  color:var(--primary);
+  font-size:9px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-weight:700;
+}
+.ctx-chip__v{
+  color:var(--text);
+  font-weight:700;
+  font-size:13px;
+  max-width:180px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ctx-chip__caret{
+  color:var(--muted);
+  margin-left:2px;
+  font-size:12px;
+}
+
+@media (max-width:980px){
+  .ctx-chip__info{display:none;}
+  .ctx-chip{padding:6px;}
 }
 
 /* Chip del usuario logueado (variante del empresa-chip, iniciales en cyan
