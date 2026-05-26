@@ -1,0 +1,437 @@
+// ============================================================
+// activo-detalle.js
+// Pantalla: Ficha de activo (módulo de Activos).
+// Endpoints: GET /activos/:id/ficha, /activos/:id/adjuntos, etc.
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const b = await KoguShell.initShell({
+    currentPage:        '/modules/act/activos.html',
+    title:              'Ficha de activo',
+    description:        'Detalle del activo: datos, expediente, asignaciones y mantenimiento.',
+    requiredPermission: 'act.activos.read',
+  });
+  if (!b) return;
+
+  const esc = KoguUi.escapeHtml;
+  const canUpdate    = KoguShell.hasPerm(b, 'act.activos.update');
+  const canUpload    = KoguShell.hasPerm(b, 'act.adjuntos.upload');
+  const canDeleteAdj = KoguShell.hasPerm(b, 'act.adjuntos.delete');
+
+  const CRITICIDADES = ['baja', 'media', 'alta', 'critica'];
+  const ESTADO_BADGE = { activo: 'success', en_mantenimiento: 'warn', en_reparacion: 'warn', en_resguardo: 'neutral', baja: 'danger' };
+  const TIPOS_ADJ = ['factura', 'manual', 'garantia', 'poliza_seguro', 'contrato', 'foto', 'acta_entrega', 'otro'];
+  const estadoBadge = e => `<span class="badge ${ESTADO_BADGE[e] || 'neutral'}">${esc((e || '').replace(/_/g, ' '))}</span>`;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if ([...document.scripts].some(s => s.src === src)) return resolve();
+      const s = document.createElement('script');
+      s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('No se pudo cargar ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const activoId = params.get('id');
+  const pc = document.getElementById('pageContent');
+
+  if (!activoId) {
+    pc.innerHTML = `<div class="card"><div class="empty">Falta el parámetro del activo. <a class="link" href="/modules/act/activos.html">Volver a la bandeja</a></div></div>`;
+    return;
+  }
+
+  let ficha = null;       // { activo, adjuntos_count, asignacion_vigente, ordenes_abiertas, ultima_orden_cerrada }
+  let categorias = [], proveedores = null;
+  let activeTab = 'datos';
+
+  const $ = id => document.getElementById(id);
+
+  async function loadFicha() {
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/ficha');
+      ficha = KoguApi.unwrapData(res);
+      return true;
+    } catch (_err) {
+      pc.innerHTML = `<div class="card"><div class="empty">No se encontró el activo (o pertenece a otra empresa). <a class="link" href="/modules/act/activos.html">Volver a la bandeja</a></div></div>`;
+      return false;
+    }
+  }
+
+  function renderShell() {
+    const a = ficha.activo;
+    pc.innerHTML = `
+<div class="card">
+  <div class="row">
+    <div>
+      <div class="eyebrow"><a class="link" href="/modules/act/activos.html">← Activos</a></div>
+      <h2 style="margin:4px 0">${esc(a.codigo)} · ${esc(a.nombre)}</h2>
+      <div style="display:flex;gap:8px;align-items:center">${estadoBadge(a.estado)}<span class="chip">${esc(a.categoria_nombre || 'Sin categoría')}</span><span class="chip">Criticidad: ${esc(a.criticidad || '—')}</span></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      ${canUpdate ? '<button class="btn" id="editBtn">Editar</button>' : ''}
+      ${canUpdate && a.estado !== 'baja' ? '<button class="btn" id="bajaBtn">Dar de baja</button>' : ''}
+    </div>
+  </div>
+  <div class="tabs" style="margin-top:16px">
+    <button class="tab" data-tab="datos">Datos</button>
+    <button class="tab" data-tab="expediente">Expediente</button>
+    <button class="tab" data-tab="asignaciones">Asignaciones</button>
+    <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
+  </div>
+  <div id="tabBody"></div>
+</div>`;
+
+    pc.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.onclick = () => { activeTab = btn.dataset.tab; paintTabs(); renderTab(); };
+    });
+    if (canUpdate) {
+      $('editBtn').onclick = openEdit;
+      const bb = $('bajaBtn'); if (bb) bb.onclick = darDeBaja;
+    }
+    paintTabs();
+    renderTab();
+  }
+
+  function paintTabs() {
+    pc.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
+  }
+
+  function field(label, val) {
+    return `<div><div class="label-text">${esc(label)}</div><div>${val == null || val === '' ? '<span class="muted">—</span>' : esc(String(val))}</div></div>`;
+  }
+
+  function renderTab() {
+    const body = $('tabBody');
+    if (activeTab === 'datos')         return renderDatos(body);
+    if (activeTab === 'expediente')    return renderExpediente(body);
+    if (activeTab === 'asignaciones')  { body.innerHTML = placeholder('Asignaciones', 19); return; }
+    if (activeTab === 'mantenimiento') { body.innerHTML = placeholder('Mantenimiento', 20); return; }
+  }
+
+  function placeholder(nombre, seg) {
+    return `<div class="empty">📌 ${esc(nombre)} — Disponible en próximo segmento (${seg}).</div>`;
+  }
+
+  // ── Tab Datos + QR ──────────────────────────────────────────────────────────
+  function renderDatos(body) {
+    const a = ficha.activo;
+    body.innerHTML = `
+      <div class="split">
+        <div class="stack">
+          <div class="grid-2">
+            ${field('Código', a.codigo)}
+            ${field('Estado', (a.estado || '').replace(/_/g, ' '))}
+            ${field('Categoría', a.categoria_nombre)}
+            ${field('Criticidad', a.criticidad)}
+            ${field('Marca', a.marca)}
+            ${field('Modelo', a.modelo)}
+            ${field('Número de serie', a.numero_serie)}
+            ${field('Proveedor', a.proveedor_nombre)}
+            ${field('Fecha adquisición', a.fecha_adquisicion)}
+            ${field('Garantía hasta', a.garantia_hasta)}
+            ${field('Costo adquisición', a.costo_adquisicion != null ? KoguUi.fmtMoney(a.costo_adquisicion, a.moneda) : null)}
+            ${field('Costo reposición est.', a.costo_reposicion_estimado != null ? KoguUi.fmtMoney(a.costo_reposicion_estimado, a.moneda) : null)}
+            ${field('Custodio actual', a.custodio_nombre)}
+            ${field('Ubicación actual', a.ubicacion_nombre)}
+          </div>
+          ${a.descripcion ? `<div>${field('Descripción', a.descripcion)}</div>` : ''}
+        </div>
+        <div class="card" style="text-align:center">
+          <div class="eyebrow">Etiqueta QR</div>
+          <div id="qrBox" style="display:flex;justify-content:center;padding:12px"></div>
+          <div class="muted" style="font-size:12px;word-break:break-all">${a.qr_token ? esc(a.qr_token) : 'Sin token QR'}</div>
+          <div style="margin-top:12px"><button class="btn" id="printQrBtn" ${a.qr_token ? '' : 'disabled'}>Imprimir etiqueta</button></div>
+        </div>
+      </div>`;
+
+    if (a.qr_token) renderQr(a);
+  }
+
+  async function renderQr(a) {
+    try {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js');
+      const qr = new window.QRious({ value: a.qr_token, size: 200, level: 'M' });
+      const dataUrl = qr.toDataURL('image/png');
+      const box = $('qrBox');
+      if (box) box.innerHTML = `<img src="${dataUrl}" width="200" height="200" alt="QR ${esc(a.codigo)}"/>`;
+      const pbtn = $('printQrBtn');
+      if (pbtn) pbtn.onclick = () => printEtiqueta(a, dataUrl);
+    } catch (e) {
+      const box = $('qrBox'); if (box) box.innerHTML = `<span class="muted">No se pudo generar el QR.</span>`;
+    }
+  }
+
+  function printEtiqueta(a, dataUrl) {
+    const w = window.open('', '_blank', 'width=420,height=520');
+    if (!w) { KoguApi.toast('Permite las ventanas emergentes para imprimir.', 'error'); return; }
+    w.document.write(`<!DOCTYPE html><html><head><title>Etiqueta ${esc(a.codigo)}</title>
+      <style>body{font-family:system-ui,sans-serif;text-align:center;padding:24px}
+      .cod{font-size:20px;font-weight:700;margin-top:12px}.nom{font-size:14px;color:#334155}</style></head>
+      <body><img src="${dataUrl}" width="240" height="240"/><div class="cod">${esc(a.codigo)}</div><div class="nom">${esc(a.nombre)}</div>
+      <script>window.onload=function(){window.print();}<\/script></body></html>`);
+    w.document.close();
+  }
+
+  // ── Tab Expediente ──────────────────────────────────────────────────────────
+  function renderExpediente(body) {
+    const a = ficha.activo;
+    const expLink = a.expediente_proveedor_id
+      ? `<div class="chip" style="background:#ecfeff;color:#0e7490"><a class="link" href="/modules/exp/expediente-detalle.html?id=${encodeURIComponent(a.expediente_proveedor_id)}">Ver expediente del proveedor (exp) →</a></div>`
+      : '';
+    body.innerHTML = `
+      <div class="row">
+        <div><div class="eyebrow">Documentos del activo</div>${expLink}</div>
+        <div>${canUpload ? '<button class="btn primary" id="addAdjBtn">+ Subir documento</button>' : ''}</div>
+      </div>
+      <div class="table-wrap" style="margin-top:14px">
+        <table><thead><tr>
+          <th>Tipo</th><th style="min-width:200px">Archivo / Descripción</th><th>Vigencia</th><th>Status</th><th>Subido por</th><th>Acciones</th>
+        </tr></thead><tbody id="adjRows"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody></table>
+      </div>`;
+    if (canUpload) $('addAdjBtn').onclick = openUpload;
+    loadAdjuntos();
+  }
+
+  async function loadAdjuntos() {
+    const tbody = $('adjRows');
+    if (!tbody) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/adjuntos');
+      const rows = KoguApi.unwrapRows(res, 'rows') || [];
+      if (!rows.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin documentos en el expediente.</td></tr>`; return; }
+      tbody.innerHTML = rows.map(d => `
+        <tr>
+          <td><span class="chip">${esc(d.tipo_documento)}</span></td>
+          <td><div style="font-weight:600">${esc(d.nombre_archivo_original || '—')}</div>${d.descripcion ? `<div class="muted" style="font-size:12px">${esc(d.descripcion)}</div>` : ''}</td>
+          <td>${d.vigencia_hasta ? esc(d.vigencia_hasta) : '<span class="muted">—</span>'}</td>
+          <td>${KoguUi.statusBadge(d.status)}</td>
+          <td>${d.subido_por_nombre ? esc(d.subido_por_nombre) : '<span class="muted">—</span>'}</td>
+          <td class="actions-cell">
+            <button class="btn ghost" data-dl="${d.adjunto_id}" data-name="${esc(d.nombre_archivo_original || d.adjunto_id)}">Descargar</button>
+            ${canDeleteAdj ? `<button class="btn ghost" data-del="${d.adjunto_id}">Baja</button>` : ''}
+          </td>
+        </tr>`).join('');
+      tbody.querySelectorAll('[data-dl]').forEach(btn => btn.onclick = () => descargar(btn.dataset.dl, btn.dataset.name));
+      tbody.querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => bajaAdjunto(btn.dataset.del));
+    } catch (_err) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">No fue posible cargar el expediente.</td></tr>`;
+    }
+  }
+
+  async function descargar(adjuntoId, filename) {
+    try {
+      const resp = await KoguApi.authFetchRaw('/protected/act/adjuntos/' + encodeURIComponent(adjuntoId) + '/archivo', {
+        method: 'GET', headers: { Accept: 'application/octet-stream, */*' },
+      });
+      if (!resp.ok) {
+        let msg = 'No fue posible descargar el archivo';
+        try { const e = await resp.json(); msg = e?.error?.message || msg; } catch (_e) {}
+        throw new Error(msg);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename || 'adjunto';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  async function bajaAdjunto(adjuntoId) {
+    if (!window.confirm('¿Dar de baja este documento del expediente? (baja lógica, recuperable)')) return;
+    try {
+      await KoguApi.apiFetch('/protected/act/adjuntos/' + encodeURIComponent(adjuntoId), { method: 'DELETE' });
+      KoguApi.toast('Documento dado de baja', 'success');
+      await loadAdjuntos();
+    } catch (_err) { /* apiFetch toast */ }
+  }
+
+  // ── Modal de subida de adjunto ──────────────────────────────────────────────
+  function buildUploadModal() {
+    if (!canUpload) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'upModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:520px;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#0f172a;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0;font-size:18px">Subir documento</h2>
+          <button class="btn ghost" id="upClose" style="padding:6px 10px">✕</button>
+        </div>
+        <div style="padding:20px"><div class="stack">
+          <div><div class="label-text">Tipo de documento</div><select class="select" id="up_tipo"><option value="">Selecciona…</option>${TIPOS_ADJ.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('')}</select></div>
+          <div><div class="label-text">Descripción <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="up_desc" /></div>
+          <div class="grid-2">
+            <div><div class="label-text">Vigencia desde</div><input class="input" id="up_vd" type="date" /></div>
+            <div><div class="label-text">Vigencia hasta</div><input class="input" id="up_vh" type="date" /></div>
+          </div>
+          <div><div class="label-text">Archivo (máx. 25 MB)</div><input class="input" id="up_file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.docx,.doc,.csv,.txt" /></div>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" id="upCancel">Cancelar</button>
+          <button class="btn primary" id="upSubmit">Subir</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeUpload(); });
+    $('upClose').onclick = closeUpload;
+    $('upCancel').onclick = closeUpload;
+    $('upSubmit').onclick = submitUpload;
+  }
+  function openUpload() { ['up_tipo', 'up_desc', 'up_vd', 'up_vh', 'up_file'].forEach(id => { if ($(id)) $(id).value = ''; }); $('upModal').style.display = 'flex'; }
+  function closeUpload() { const m = $('upModal'); if (m) m.style.display = 'none'; }
+
+  async function submitUpload() {
+    const tipo = $('up_tipo').value;
+    const file = $('up_file').files[0];
+    if (!tipo) { KoguApi.toast('Selecciona el tipo de documento.', 'error'); return; }
+    if (!file) { KoguApi.toast('Selecciona un archivo.', 'error'); return; }
+    if (file.size > 25 * 1024 * 1024) { KoguApi.toast('El archivo supera 25 MB.', 'error'); return; }
+
+    await KoguUi.withLoading(this, async () => {
+      try {
+        const fd = new FormData();
+        fd.append('archivo', file);
+        fd.append('tipo_documento', tipo);
+        if ($('up_desc').value) fd.append('descripcion', $('up_desc').value);
+        if ($('up_vd').value)   fd.append('vigencia_desde', $('up_vd').value);
+        if ($('up_vh').value)   fd.append('vigencia_hasta', $('up_vh').value);
+        const token = KoguApi.getToken();
+        const empresaId = KoguApi.getEmpresaId();
+        const resp = await fetch(KoguApi.getBaseUrl() + '/protected/act/activos/' + encodeURIComponent(activoId) + '/adjuntos', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, ...(empresaId ? { 'X-Empresa-Id': empresaId } : {}) },
+          body: fd,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data?.ok === false) throw new Error(data?.error?.message || 'No fue posible subir el documento.');
+        KoguApi.toast('Documento subido', 'success');
+        closeUpload();
+        await loadAdjuntos();
+      } catch (e) { KoguApi.toast(e.message, 'error'); }
+    }, 'Subiendo…');
+  }
+
+  // ── Editar activo ───────────────────────────────────────────────────────────
+  function buildEditModal() {
+    if (!canUpdate) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'editModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:680px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+          <h2 style="margin:0;font-size:20px">Editar activo</h2>
+          <button class="btn ghost" id="edClose" style="padding:6px 10px;font-size:16px">✕</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:20px"><div class="stack">
+          <div class="grid-2">
+            <div><div class="label-text">Código</div><input class="input" id="ed_codigo" maxlength="40" /></div>
+            <div><div class="label-text">Categoría</div><select class="select" id="ed_categoria"></select></div>
+          </div>
+          <div><div class="label-text">Nombre</div><input class="input" id="ed_nombre" /></div>
+          <div><div class="label-text">Descripción</div><input class="input" id="ed_descripcion" /></div>
+          <div class="grid-3">
+            <div><div class="label-text">Marca</div><input class="input" id="ed_marca" /></div>
+            <div><div class="label-text">Modelo</div><input class="input" id="ed_modelo" /></div>
+            <div><div class="label-text">Número de serie</div><input class="input" id="ed_serie" /></div>
+          </div>
+          <div class="grid-3">
+            <div><div class="label-text">Criticidad</div><select class="select" id="ed_criticidad">${CRITICIDADES.map(c => `<option value="${c}">${c}</option>`).join('')}</select></div>
+            <div><div class="label-text">Fecha adquisición</div><input class="input" id="ed_fecha_adq" type="date" /></div>
+            <div><div class="label-text">Garantía hasta</div><input class="input" id="ed_garantia" type="date" /></div>
+          </div>
+          <div class="grid-3">
+            <div><div class="label-text">Costo adquisición</div><input class="input" id="ed_costo" type="number" min="0" step="0.01" /></div>
+            <div><div class="label-text">Moneda</div><input class="input" id="ed_moneda" maxlength="3" /></div>
+            <div><div class="label-text">Costo reposición est.</div><input class="input" id="ed_reposicion" type="number" min="0" step="0.01" /></div>
+          </div>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+          <button class="btn ghost" id="edCancel">Cancelar</button>
+          <button class="btn primary" id="edSave">Guardar cambios</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeEdit(); });
+    $('edClose').onclick = closeEdit;
+    $('edCancel').onclick = closeEdit;
+    $('edSave').onclick = saveEdit;
+  }
+  function closeEdit() { const m = $('editModal'); if (m) m.style.display = 'none'; }
+
+  async function openEdit() {
+    if (!categorias.length) {
+      try { categorias = KoguApi.unwrapRows(await KoguApi.apiFetch('/protected/act/categorias'), 'rows') || []; } catch (_e) {}
+    }
+    const a = ficha.activo;
+    $('ed_categoria').innerHTML = categorias.filter(c => c.activo !== false || c.categoria_id === a.categoria_id)
+      .map(c => `<option value="${c.categoria_id}">${esc(c.clave)} — ${esc(c.nombre)}</option>`).join('');
+    $('ed_codigo').value = a.codigo || '';
+    $('ed_categoria').value = a.categoria_id || '';
+    $('ed_nombre').value = a.nombre || '';
+    $('ed_descripcion').value = a.descripcion || '';
+    $('ed_marca').value = a.marca || '';
+    $('ed_modelo').value = a.modelo || '';
+    $('ed_serie').value = a.numero_serie || '';
+    $('ed_criticidad').value = a.criticidad || 'media';
+    $('ed_fecha_adq').value = (a.fecha_adquisicion || '').slice(0, 10);
+    $('ed_garantia').value = (a.garantia_hasta || '').slice(0, 10);
+    $('ed_costo').value = a.costo_adquisicion != null ? a.costo_adquisicion : '';
+    $('ed_moneda').value = a.moneda || '';
+    $('ed_reposicion').value = a.costo_reposicion_estimado != null ? a.costo_reposicion_estimado : '';
+    $('editModal').style.display = 'flex';
+  }
+
+  async function saveEdit() {
+    const payload = {
+      codigo: $('ed_codigo').value.trim(),
+      nombre: $('ed_nombre').value.trim(),
+      categoria_id: $('ed_categoria').value,
+      descripcion: $('ed_descripcion').value.trim() || null,
+      marca: $('ed_marca').value.trim() || null,
+      modelo: $('ed_modelo').value.trim() || null,
+      numero_serie: $('ed_serie').value.trim() || null,
+      criticidad: $('ed_criticidad').value,
+      fecha_adquisicion: $('ed_fecha_adq').value || null,
+      garantia_hasta: $('ed_garantia').value || null,
+      costo_adquisicion: $('ed_costo').value ? Number($('ed_costo').value) : null,
+      moneda: $('ed_moneda').value.trim() || null,
+      costo_reposicion_estimado: $('ed_reposicion').value ? Number($('ed_reposicion').value) : null,
+    };
+    if (!payload.codigo) { KoguApi.toast('El código es obligatorio.', 'error'); return; }
+    if (!payload.nombre) { KoguApi.toast('El nombre es obligatorio.', 'error'); return; }
+    if (!payload.categoria_id) { KoguApi.toast('La categoría es obligatoria.', 'error'); return; }
+
+    await KoguUi.withLoading(this, async () => {
+      try {
+        await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId), { method: 'PUT', body: JSON.stringify(payload) });
+        KoguApi.toast('Activo actualizado', 'success');
+        closeEdit();
+        if (await loadFicha()) renderShell();
+      } catch (_err) { /* apiFetch toast */ }
+    }, 'Guardando…');
+  }
+
+  async function darDeBaja() {
+    if (!window.confirm('¿Dar de baja este activo? No se puede si tiene órdenes abiertas o una asignación vigente.')) return;
+    try {
+      await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/baja', { method: 'POST' });
+      KoguApi.toast('Activo dado de baja', 'success');
+      if (await loadFicha()) renderShell();
+    } catch (_err) { /* apiFetch toast: 422 con el mensaje de qué falta cerrar */ }
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  buildUploadModal();
+  buildEditModal();
+
+  KoguShell.subscribeEmpresaActivaChange(() => {
+    // Un activo es de una empresa; al cambiar, vuelve a la bandeja para no
+    // mostrar datos residuales de la empresa anterior.
+    window.location.href = '/modules/act/activos.html';
+  });
+
+  if (await loadFicha()) renderShell();
+});
