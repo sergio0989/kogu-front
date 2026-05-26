@@ -438,6 +438,14 @@
     const empresas = boot.empresas || boot.empresas_autorizadas || [];
     const activaId = boot.empresa_activa?.empresa_id;
 
+    // Info del usuario para el bloque superior del modal.
+    const userName  = resolveUserName(boot);
+    const userPerf  = resolveUserProfile(boot);
+    const userEmail = boot?.user?.email || '';
+    const userIni   = _initialsFrom(userName, 2);
+    const userMeta  = [userPerf && userPerf !== '-' ? userPerf : '', userEmail]
+      .filter(Boolean).join(' · ');
+
     let overlay = document.getElementById('koguEmpresaModal');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -453,6 +461,13 @@
             <h2>Cambiar empresa</h2>
           </div>
           <button class="kogu-modal__close" id="koguEmpresaModalClose" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <div class="kogu-modal__user">
+          <span class="kogu-modal__user-ini">${userIni}</span>
+          <div class="kogu-modal__user-info">
+            <div class="kogu-modal__user-nombre">${userName}</div>
+            ${userMeta ? `<div class="kogu-modal__user-meta">${userMeta}</div>` : ''}
+          </div>
         </div>
         <ul class="kogu-empresa-list">
           ${empresas.length ? empresas.map(e => {
