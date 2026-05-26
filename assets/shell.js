@@ -314,10 +314,12 @@
         <span class="topbar-back__icon">‹</span>
       </button>
       <div class="topbar-heading">
-        <span class="topbar-heading__kicker" data-kogu-kicker>${kicker}</span>
-        <span class="topbar-heading__sep">/</span>
-        <h1 class="topbar-heading__title">${title || ''}</h1>
-        <p class="topbar-heading__desc">${desc || ''}</p>
+        <div class="topbar-heading__row1">
+          <span class="topbar-heading__kicker" data-kogu-kicker>${kicker}</span>
+          <span class="topbar-heading__sep">/</span>
+          <h1 class="topbar-heading__title">${title || ''}</h1>
+        </div>
+        ${desc ? `<p class="topbar-heading__desc">${desc}</p>` : ''}
       </div>
       <button class="ctx-chip" id="ctxChipBtn" type="button" aria-label="Contexto · usuario y empresa" title="Cambiar empresa">
         <span class="ctx-chip__ini" data-kogu-empresa-ini>${empresaIni}</span>
