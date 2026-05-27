@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="clearBtn">Limpiar filtros</button>
             <button class="btn" id="refreshSatTodosBtn">Actualizar SAT todos</button>
             <button class="btn" id="zipXmlPdfTodosBtn">ZIP XML + PDF todos</button>
-            <button class="btn" id="exportBtn">Exportar Excel</button>
+            <button class="btn" id="exportBtn" title="Elegir tipo de reporte">Exportar Excel ▾</button>
           </div>
         </div>
 
@@ -690,7 +690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadBandeja(), loadIncidencias()]);
   }
 
-  async function exportExcel() {
+  async function exportExcel(template = 'estandar') {
     const btn = document.getElementById('exportBtn');
     const original = btn.textContent;
 
@@ -708,7 +708,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         scope: filters.scope || '',
         docType: filters.tipo_comprobante || '',
         dateStart: filters.date_from || '',
-        dateEnd: filters.date_to || ''
+        dateEnd: filters.date_to || '',
+        template
       });
 
       const queryOld = KoguUi.queryParams({
@@ -719,7 +720,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         scope: filters.scope || '',
         tipo_comprobante: filters.tipo_comprobante || '',
         date_from: filters.date_from || '',
-        date_to: filters.date_to || ''
+        date_to: filters.date_to || '',
+        template
       });
 
       const candidatePaths = [
@@ -757,15 +759,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       const objectUrl = URL.createObjectURL(blob);
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
       const ext = contentType.includes('openxmlformats-officedocument.spreadsheetml.sheet') ? 'xlsx' : 'xls';
+      // Si el backend devuelve filename en Content-Disposition lo usamos; si no, lo armamos local con sufijo del template.
+      const dispo = response.headers.get('content-disposition') || '';
+      const dispoMatch = dispo.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i);
+      const tplSuffix = template && template !== 'estandar' ? `_${template}` : '';
+      const fallbackName = `bandeja_cfdi_${document.getElementById('date_from').value || 'inicio'}_${document.getElementById('date_to').value || 'fin'}${tplSuffix}.${ext}`;
       const a = document.createElement('a');
       a.href = objectUrl;
-      a.download = `bandeja_cfdi_${document.getElementById('date_from').value || 'inicio'}_${document.getElementById('date_to').value || 'fin'}.${ext}`;
+      a.download = dispoMatch ? decodeURIComponent(dispoMatch[1]) : fallbackName;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(objectUrl);
 
-      KoguApi.toast('Excel generado correctamente', 'success');
+      KoguApi.toast(`Excel generado correctamente (${template})`, 'success');
     } catch (err) {
       KoguApi.toast(err.message || 'No fue posible exportar el Excel', 'error');
     } finally {
@@ -791,7 +798,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
   };
 
-  document.getElementById('exportBtn').onclick = () => exportExcel();
+  // ---------------------------------------------------------------------------
+  // Modal de selección de plantilla de Excel.
+  //   Reusa el patrón visual del modal "Cambiar empresa" del shell (clases
+  //   kogu-modal-overlay / kogu-modal / kogu-empresa-list) para coherencia
+  //   visual y cero CSS nuevo. Cada plantilla es un <li> que al click dispara
+  //   exportExcel(template) y cierra el modal.
+  // ---------------------------------------------------------------------------
+  const EXPORT_TEMPLATES = [
+    {
+      key: 'estandar',
+      ini: 'ES',
+      nombre: 'Reporte Estándar',
+      descripcion: 'Excel completo auditable: bloque de metadatos, 35 columnas en 6 grupos, 2 hojas (CFDI + Resumen Ejecutivo con KPIs).'
+    },
+    {
+      key: 'personalizado',
+      ini: 'PE',
+      nombre: 'Reporte Personalizado',
+      descripcion: 'Layout solicitado por Finanzas: 34 columnas en 7 grupos, una sola hoja, orden operativo (receptor → emisor → importes → SAT).'
+    }
+  ];
+
+  function openExportTemplateModal() {
+    let overlay = document.getElementById('koguExportTemplateModal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'koguExportTemplateModal';
+      overlay.className = 'kogu-modal-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="kogu-modal kogu-modal--empresa" role="dialog" aria-modal="true" aria-label="Elegir tipo de reporte Excel">
+        <div class="kogu-modal__head">
+          <div>
+            <div class="kogu-modal__eyebrow">Exportar Excel</div>
+            <h2>Tipo de reporte</h2>
+          </div>
+          <button class="kogu-modal__close" id="koguExportTemplateModalClose" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <ul class="kogu-empresa-list">
+          ${EXPORT_TEMPLATES.map(t => `
+            <li class="kogu-empresa-list__item" data-template="${KoguUi.escapeHtml(t.key)}">
+              <span class="kogu-empresa-list__check"></span>
+              <span class="kogu-empresa-list__ini">${KoguUi.escapeHtml(t.ini)}</span>
+              <span class="kogu-empresa-list__info">
+                <span class="kogu-empresa-list__nombre">${KoguUi.escapeHtml(t.nombre)}</span>
+                <span class="kogu-empresa-list__rfc">${KoguUi.escapeHtml(t.descripcion)}</span>
+              </span>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+    overlay.classList.add('is-open');
+
+    const closeBtn = document.getElementById('koguExportTemplateModalClose');
+    if (closeBtn) closeBtn.onclick = closeExportTemplateModal;
+    overlay.onclick = (ev) => { if (ev.target === overlay) closeExportTemplateModal(); };
+
+    overlay.querySelectorAll('.kogu-empresa-list__item').forEach(li => {
+      li.onclick = async () => {
+        const template = li.dataset.template;
+        closeExportTemplateModal();
+        await exportExcel(template).catch(err => KoguApi.toast(err.message || 'No fue posible exportar', 'error'));
+      };
+    });
+  }
+
+  function closeExportTemplateModal() {
+    const overlay = document.getElementById('koguExportTemplateModal');
+    if (overlay) overlay.classList.remove('is-open');
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', () => openExportTemplateModal());
 
   document.getElementById('refreshSatTodosBtn').onclick = async () => {
     const btn = document.getElementById('refreshSatTodosBtn');
