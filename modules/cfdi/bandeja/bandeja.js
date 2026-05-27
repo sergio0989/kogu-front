@@ -826,20 +826,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  document.getElementById('prevBtn').onclick = async () => {
-    if (state.page > 1) {
-      state.page -= 1;
-      await loadBandeja().catch(err => KoguApi.toast(err.message, 'error'));
-    }
-  };
+  // ---------------------------------------------------------------------------
+  // Paginador defensivo
+  //   - Guard contra doble click mientras está navegando.
+  //   - Rollback de state.page si loadBandeja falla (timeout, 5xx, red).
+  //   - renderBandeja siempre tras error para mantener la UI consistente con
+  //     state.page real y no dejar el paginador "congelado" tras un error
+  //     intermitente.
+  //   - console.debug con offset solicitado para diagnóstico futuro.
+  // ---------------------------------------------------------------------------
+  let _paginating = false;
 
-  document.getElementById('nextBtn').onclick = async () => {
+  async function goToPage(newPage) {
+    if (_paginating) return;
+
     const totalPages = Math.max(1, Math.ceil((Number(state.total) || 0) / state.limit));
-    if (state.page < totalPages) {
-      state.page += 1;
-      await loadBandeja().catch(err => KoguApi.toast(err.message, 'error'));
+    const target = Math.max(1, Math.min(totalPages, Number(newPage) || 1));
+    if (target === state.page) return;
+
+    _paginating = true;
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
+
+    const oldPage = state.page;
+    state.page = target;
+
+    try {
+      console.debug('[bandeja-cfdi] goToPage', {
+        from: oldPage,
+        to: target,
+        limit: state.limit,
+        offset: (target - 1) * state.limit
+      });
+      await loadBandeja();
+    } catch (err) {
+      // Rollback: restauramos state.page y re-renderizamos para que el DOM
+      // refleje la página real (no la página intentada que falló).
+      state.page = oldPage;
+      renderBandeja();
+      KoguApi.toast(err?.message || 'No fue posible cargar la página solicitada', 'error');
+    } finally {
+      _paginating = false;
     }
-  };
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', () => {
+    if (state.page > 1) goToPage(state.page - 1);
+  });
+
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    const totalPages = Math.max(1, Math.ceil((Number(state.total) || 0) / state.limit));
+    if (state.page < totalPages) goToPage(state.page + 1);
+  });
 
   document.querySelectorAll('.inc-tab').forEach(btn => {
     btn.onclick = async () => {
