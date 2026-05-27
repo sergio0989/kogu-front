@@ -22,6 +22,7 @@
       {href:'/modules/cfdi/dashboard/resumen.html',label:'Resumen de negocio',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/bandeja/bandeja.html',label:'Bandeja CFDI',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/validador-xml/validador-xml.html',label:'Validador XML',perm:'screen.cfdi.sat_dm'},
+      {href:'/modules/cfdi/conciliacion/conciliacion-erp.html',label:'Conciliación CFDI',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/rep/resumen-rep.html',label:'Resumen REP',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/rep/bandeja-rep.html',label:'Bandeja REP',perm:'screen.cfdi.cfdi_facturas'},
     ]},
