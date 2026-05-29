@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- ── Alertas ── -->
   <div class="card">
     <div class="row">
-      <div><div class="eyebrow">Radar</div><h2>Alertas</h2></div>
+      <div><div class="eyebrow">Radar</div><h2>Clientes en riesgo</h2></div>
       <div style="display:flex;gap:10px">
         <select class="select" id="sevFil">
           <option value="">Toda severidad</option>
@@ -95,10 +95,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="alerta">Alerta</option>
           <option value="info">Info</option>
         </select>
-        <select class="select" id="reglaFil"><option value="">Todas las reglas</option></select>
+        <select class="select" id="agenteFil"><option value="">Todos los agentes</option></select>
       </div>
     </div>
-    <div id="alertas" style="margin-top:16px"></div>
+    <div id="alertasResumen" style="margin-top:14px"></div>
+    <div id="alertas" style="margin-top:12px"></div>
   </div>
 
 </div>`;
@@ -206,7 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderKpis();
     renderTrend();
     renderMezcla();
-    fillReglaFil();
+    fillAgenteFil();
     renderAlertas();
   }
 
@@ -263,70 +264,148 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('') || '<div class="empty">Sin datos</div>';
   }
 
-  // ── Alertas ─────────────────────────────────────────────────────────────────
-  function fillReglaFil() {
-    const reglas = [...new Set(alertas.map(a => a.regla_clave))].sort();
-    const cur = sel('reglaFil');
-    document.getElementById('reglaFil').innerHTML =
-      '<option value="">Todas las reglas</option>' + reglas.map(r => `<option value="${r}">${r}</option>`).join('');
-    document.getElementById('reglaFil').value = cur;
+  // ── Alertas: agrupadas por cliente, priorizadas por $ en riesgo ─────────────
+  const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
+
+  // $ en riesgo de una alerta = importe que dejó de comprar (P1 − P2).
+  function montoRiesgo(a) {
+    const d = a.detalle || {};
+    if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
+    if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));
+    if (d.prev_subt != null) return Math.max(0, Number(d.prev_subt) - Number(d.cur_subt)); // RC-003
+    return 0;
   }
 
-  // Banner del comparativo P1 vs P2 (lo lee de cualquier alerta que lo traiga).
+  function fillAgenteFil() {
+    const ags = [...new Set(alertas.map(a => a.agente_nombre).filter(Boolean))].sort();
+    const cur = sel('agenteFil');
+    document.getElementById('agenteFil').innerHTML =
+      '<option value="">Todos los agentes</option>' + ags.map(a => `<option value="${KoguUi.escapeHtml(a)}">${KoguUi.escapeHtml(a)}</option>`).join('');
+    document.getElementById('agenteFil').value = cur;
+  }
+
   function periodosBanner() {
     const conP = alertas.find(a => a.detalle && a.detalle.periodos);
     const p = conP?.detalle?.periodos;
     if (!p) return '';
-    return `<div class="hint" style="margin-bottom:12px;color:var(--muted);font-size:12px">
-      Comparativo P1 vs P2 (reglas RC-005/006): <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · variación = (P2−P1)/P1
+    return `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">
+      Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · prioridad por monto que dejó de comprar (P1−P2)
     </div>`;
   }
 
   function renderAlertas() {
-    const sv = sel('sevFil'), rg = sel('reglaFil');
+    const sv = sel('sevFil'), ag = sel('agenteFil');
     const filtered = alertas.filter(a =>
-      (!sv || a.severidad === sv) && (!rg || a.regla_clave === rg) && a.status !== 'descartada');
-    if (!filtered.length) { document.getElementById('alertas').innerHTML = periodosBanner() + '<div class="empty">Sin alertas para el filtro</div>'; return; }
-    document.getElementById('alertas').innerHTML = periodosBanner() + filtered.map(a => {
-      const quien = a.agente_nombre ? `Agente: ${KoguUi.escapeHtml(a.agente_nombre)}` :
-                    a.cliente_ref ? `Cliente: ${KoguUi.escapeHtml(a.cliente_ref)}` : 'Empresa';
-      const d = a.detalle || {};
-      // Subline P1→P2. RC-005 trae venta_p1/p2 (importe); RC-006 trae importe_* y cant_*.
-      let comparativo = '';
-      if (d.venta_p1 != null && d.venta_p2 != null) {
-        const negativo = Number(d.venta_p2) < 0;
-        comparativo = `<div style="font-size:12px;color:var(--muted);margin-top:4px">
-          P1 ${rangoP1(d.periodos)}: <b>${money(d.venta_p1)}</b> → P2 ${rangoP2(d.periodos)}: <b>${money(d.venta_p2)}</b>
-          ${negativo ? ' <span style="color:var(--danger,#dc2626);font-weight:600">· devoluciones netas en P2</span>' : ''}
+      (!sv || a.severidad === sv) && (!ag || a.agente_nombre === ag) && a.status !== 'descartada');
+
+    // Agrupar por cliente; el resto (empresa/agente) va a "otras".
+    const groups = new Map();
+    const otras = [];
+    filtered.forEach(a => {
+      if (a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto')) {
+        let g = groups.get(a.cliente_ref);
+        if (!g) { g = { cliente_ref: a.cliente_ref, nombre: null, agente: null, alertas: [], rc005: null, productos: [] }; groups.set(a.cliente_ref, g); }
+        g.alertas.push(a);
+        const d = a.detalle || {};
+        if (d.cliente_nombre && !g.nombre) g.nombre = d.cliente_nombre;
+        if (a.agente_nombre && !g.agente) g.agente = a.agente_nombre;
+        if (a.regla_clave === 'RC-005') g.rc005 = a;
+        if (a.regla_clave === 'RC-006') g.productos.push(a);
+      } else otras.push(a);
+    });
+
+    const grpRiesgo = g => g.rc005 ? montoRiesgo(g.rc005)
+      : g.productos.reduce((s, a) => s + montoRiesgo(a), 0);
+    const grpSev = g => g.alertas.reduce((m, a) => Math.min(m, SEV_RANK[a.severidad] ?? 2), 2);
+    const groupsArr = [...groups.values()].sort((a, b) => grpRiesgo(b) - grpRiesgo(a));
+
+    // Resumen
+    const totalRiesgo = groupsArr.reduce((s, g) => s + grpRiesgo(g), 0);
+    const nCriticas = groupsArr.filter(g => grpSev(g) === 0).length;
+    document.getElementById('alertasResumen').innerHTML = `
+      <div class="grid-4" style="gap:12px">
+        ${KoguUi.cardStat('Monto en riesgo', money(totalRiesgo), 'dejaron de comprar (P1−P2)')}
+        ${KoguUi.cardStat('Clientes en caída', String(groupsArr.length), `${nCriticas} críticos`)}
+        ${KoguUi.cardStat('Productos en caída', String(groupsArr.reduce((s, g) => s + g.productos.length, 0)), 'alertas RC-006')}
+        ${KoguUi.cardStat('Otras alertas', String(otras.length), 'empresa / agentes')}
+      </div>`;
+
+    if (!groupsArr.length && !otras.length) {
+      document.getElementById('alertas').innerHTML = periodosBanner() + '<div class="empty">Sin alertas para el filtro</div>';
+      return;
+    }
+
+    const sevWord = { 0: 'Crítica', 1: 'Alerta', 2: 'Info' };
+    const sevBg = { 0: 'var(--danger,#dc2626)', 1: 'var(--warning,#d97706)', 2: 'var(--muted,#64748b)' };
+
+    const cardCliente = g => {
+      const riesgo = grpRiesgo(g);
+      const sevN = grpSev(g);
+      const varTxt = g.rc005 ? fmtPctCap(g.rc005.detalle?.delta) : '';
+      const prods = g.productos.slice().sort((a, b) => montoRiesgo(b) - montoRiesgo(a));
+      const top = prods.slice(0, 6).map(a => {
+        const d = a.detalle || {};
+        return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
+          <span style="color:var(--muted)">${KoguUi.escapeHtml(d.desc_prod || a.producto_ref || '')}${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
+          <span>${money(d.importe_p1)} → ${money(d.importe_p2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(d.delta_importe)}</b></span>
         </div>`;
-      } else if (d.importe_p1 != null) {
-        const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
-        comparativo = `<div style="font-size:12px;color:var(--muted);margin-top:4px">
-          Importe: <b>${money(d.importe_p1)}</b> → <b>${money(d.importe_p2)}</b> ·
-          Cantidad: <b>${nf0.format(Number(d.cant_p1 || 0))}</b> → <b>${nf0.format(Number(d.cant_p2 || 0))}</b> kg
-          ${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">· abandonado</span>' : ''}
-        </div>`;
-      }
-      return `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px">
+      }).join('');
+      const masTxt = prods.length > 6 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">+${prods.length - 6} producto(s) más — ver Detalle</div>` : '';
+      return `<div style="border:1px solid var(--line);border-left:4px solid ${sevBg[sevN]};border-radius:12px;padding:14px;margin-bottom:10px">
         <div class="row" style="align-items:flex-start">
           <div style="flex:1">
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-              ${sevBadge(a.severidad)}
-              <span class="chip-compact">${KoguUi.escapeHtml(a.regla_clave)}</span>
-              ${a.status === 'vista' ? '<span class="badge neutral">vista</span>' : ''}
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${sevBg[sevN]}">${sevWord[sevN]}</span>
+              <span style="font-weight:700">${KoguUi.escapeHtml(g.nombre || g.cliente_ref)}</span>
+              <span style="font-size:12px;color:var(--muted)">· ${g.agente ? KoguUi.escapeHtml(g.agente) : 'sin agente'}</span>
             </div>
-            <div style="font-weight:600">${KoguUi.escapeHtml(tituloDe(a))}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${quien}</div>
-            ${comparativo}
+            ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${money(g.rc005.detalle?.venta_p1)} → ${money(g.rc005.detalle?.venta_p2)}</div>` : ''}
+            ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
           </div>
-          <div style="display:flex;gap:6px">
-            ${(a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto') && a.cliente_ref ? `<button class="btn primary" data-ficha="${a.alerta_id}" style="font-size:12px">Detalle</button>` : ''}
-            <button class="btn" data-act="vista" data-id="${a.alerta_id}" style="font-size:12px">Vista</button>
-            <button class="btn" data-act="descartada" data-id="${a.alerta_id}" style="font-size:12px">Descartar</button>
+          <div style="text-align:right;min-width:150px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
+            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${money(riesgo)}</div>
+            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+              <button class="btn primary" data-ficha-grp="${g.cliente_ref}" style="font-size:12px">Detalle</button>
+              <button class="btn" data-descgrp="${g.cliente_ref}" style="font-size:12px">Descartar</button>
+            </div>
           </div>
         </div>
       </div>`;
-    }).join('');
+    };
+
+    const cardOtra = a => `<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div class="row" style="align-items:center">
+          <div style="flex:1">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">${sevBadge(a.severidad)}<span class="chip-compact">${KoguUi.escapeHtml(a.regla_clave)}</span></div>
+            <div style="font-weight:600;font-size:14px">${KoguUi.escapeHtml(tituloDe(a))}</div>
+          </div>
+          <button class="btn" data-act="descartada" data-id="${a.alerta_id}" style="font-size:12px">Descartar</button>
+        </div>
+      </div>`;
+
+    const otrasHtml = otras.length
+      ? `<div class="eyebrow" style="margin:18px 0 8px">Otras alertas (empresa / agentes)</div>${otras.map(cardOtra).join('')}`
+      : '';
+
+    document.getElementById('alertas').innerHTML =
+      periodosBanner() + (groupsArr.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
+
+    // Wiring
+    document.querySelectorAll('#alertas .btn[data-ficha-grp]').forEach(x => x.onclick = () => {
+      const g = groups.get(x.dataset.fichaGrp);
+      const a = g && (g.rc005 || g.productos[0]);
+      if (a) openFicha(a);
+    });
+    document.querySelectorAll('#alertas .btn[data-descgrp]').forEach(x => x.onclick = async () => {
+      const g = groups.get(x.dataset.descgrp); if (!g) return;
+      try {
+        await Promise.all(g.alertas.map(a => KoguApi.apiFetch(`${BASE}/alertas/${a.alerta_id}/status`, { method: 'PUT', body: JSON.stringify({ status: 'descartada' }) })));
+        g.alertas.forEach(a => { const z = alertas.find(q => q.alerta_id === a.alerta_id); if (z) z.status = 'descartada'; });
+        KoguApi.toast('Caso descartado', 'success');
+        renderKpis(); renderAlertas();
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    });
     document.querySelectorAll('#alertas .btn[data-act]').forEach(x => x.onclick = async () => {
       try {
         await KoguApi.apiFetch(`${BASE}/alertas/${x.dataset.id}/status`, { method: 'PUT', body: JSON.stringify({ status: x.dataset.act }) });
@@ -334,10 +413,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const a = alertas.find(z => z.alerta_id === x.dataset.id); if (a) a.status = x.dataset.act;
         renderKpis(); renderAlertas();
       } catch (err) { KoguApi.toast(err.message, 'error'); }
-    });
-    document.querySelectorAll('#alertas .btn[data-ficha]').forEach(x => x.onclick = () => {
-      const a = alertas.find(z => z.alerta_id === x.dataset.ficha);
-      if (a) openFicha(a);
     });
   }
 
@@ -474,7 +549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderKpis(); renderTrend(); renderMezcla();
   };
   document.getElementById('sevFil').onchange = renderAlertas;
-  document.getElementById('reglaFil').onchange = renderAlertas;
+  document.getElementById('agenteFil').onchange = renderAlertas;
 
   KoguShell.subscribeEmpresaActivaChange(loadAll);
   await loadAll();
