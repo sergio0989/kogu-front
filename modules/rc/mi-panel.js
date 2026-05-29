@@ -122,12 +122,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     const semColor = SEM[r.semaforo] || SEM.sin_meta;
+    // Tarjetas propias: KoguUi.cardStat escapa el valor, así que no admite HTML.
+    const card = (lbl, val, hint = '', color = '') => `
+      <div style="border:1px solid var(--line);border-radius:12px;padding:14px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${KoguUi.escapeHtml(lbl)}</div>
+        <div style="font-size:22px;font-weight:800;margin-top:2px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
+        ${hint ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${KoguUi.escapeHtml(hint)}</div>` : ''}
+      </div>`;
     document.getElementById('cumplCard').innerHTML = `
       <div class="grid-4" style="gap:12px">
-        ${KoguUi.cardStat(`Meta ${panel.anio} (${r.base === 'kg' ? 'kg' : 'MXN'})`, fmtBase(r.meta, r.base), '')}
-        ${KoguUi.cardStat('Vendido', fmtBase(r.actual, r.base), `esperado ${fmtBase(r.esperado, r.base)}`)}
-        ${KoguUi.cardStat('Avance', `<span style="color:${semColor}">${pct(r.avance)}</span>`, SEM_TXT[r.semaforo] || '')}
-        ${KoguUi.cardStat('Faltante al ritmo', fmtBase(r.faltante_ritmo, r.base), `${fmtBase(r.faltante_anual, r.base)} a la meta anual`)}
+        ${card(`Meta ${panel.anio} (${r.base === 'kg' ? 'kg' : 'MXN'})`, fmtBase(r.meta, r.base))}
+        ${card('Vendido', fmtBase(r.actual, r.base), `esperado ${fmtBase(r.esperado, r.base)}`)}
+        ${card('Avance', pct(r.avance), SEM_TXT[r.semaforo] || '', semColor)}
+        ${card('Faltante al ritmo', fmtBase(r.faltante_ritmo, r.base), `${fmtBase(r.faltante_anual, r.base)} a la meta anual`)}
       </div>`;
   }
 
