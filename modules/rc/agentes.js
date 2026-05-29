@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="grid-2" style="gap:12px; margin-top:12px">
         <div>
           <div class="label-text">Meta importe (MXN)</div>
-          <input class="input" id="metaMonto" type="number" step="0.01" min="0" placeholder="0.00" />
+          <input class="input" id="metaMonto" type="text" inputmode="decimal" placeholder="0.00" style="text-align:right" />
         </div>
         <div>
           <div class="label-text">Meta cantidad</div>
@@ -169,6 +169,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Backend guarda fracción (0.01 = 1%); la UI trabaja en porcentaje.
   const fracToPct = f => (f === null || f === undefined || f === '') ? '' : String(+(Number(f) * 100).toFixed(4));
   const pctToFrac = p => (p === '' || p === null || p === undefined) ? null : Number(p) / 100;
+
+  // Importe: número plano para guardar, agrupado con miles para mostrar.
+  const parseMoney = s => {
+    if (s === '' || s === null || s === undefined) return null;
+    const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
+    return Number.isNaN(n) ? null : n;
+  };
+  const fmtMoneyInput = n =>
+    (n === null || n === '' || n === undefined)
+      ? ''
+      : new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n));
 
   function comisionResumen(r) {
     if (r.tipo_comision === 'por_kg_usd') {
@@ -334,7 +345,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res  = await KoguApi.apiFetch(`${BASE}/${agenteId}/presupuesto?anio=${anio}`);
       const rows = KoguApi.unwrapRows(res);
       const m    = rows[0];
-      setV('metaMonto',    m?.monto_objetivo ?? '');
+      setV('metaMonto',    fmtMoneyInput(m?.monto_objetivo));
       setV('metaCantidad', m?.cantidad_objetivo ?? '');
       setV('metaNotas',    m?.notas ?? '');
     } catch (_) { /* sin meta aún */ }
@@ -345,6 +356,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (id) loadMeta(id, Number(sel('metaAnio')) || new Date().getFullYear());
   };
 
+  // Importe: al enfocar muestra número plano (editable); al salir, agrupa miles.
+  const metaMontoEl = document.getElementById('metaMonto');
+  metaMontoEl.onfocus = () => { const n = parseMoney(metaMontoEl.value); metaMontoEl.value = (n === null ? '' : String(n)); };
+  metaMontoEl.onblur  = () => { metaMontoEl.value = fmtMoneyInput(parseMoney(metaMontoEl.value)); };
+
   document.getElementById('saveMetaBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {
       try {
@@ -354,7 +370,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!anio) throw new Error('Año es obligatorio.');
         const payload = {
           anio,
-          monto_objetivo:    val('metaMonto') || null,
+          monto_objetivo:    parseMoney(val('metaMonto')),
           cantidad_objetivo: val('metaCantidad') || null,
           notas:             val('metaNotas') || null,
         };
