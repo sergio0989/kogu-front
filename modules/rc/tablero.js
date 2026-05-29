@@ -113,8 +113,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sel = id => document.getElementById(id)?.value ?? '';
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
 
-  // ── Métrica activa: dinero (MXN) | cantidad (kg) ────────────────────────────
-  let metrica = localStorage.getItem('kogu:rc-metrica') || 'dinero';
+  // ── Métrica activa: cantidad (kg, primaria) | dinero (MXN, secundaria) ──────
+  // El Radar prioriza por kg: el importe MXN se distorsiona con el tipo de
+  // cambio y ~70% de la venta es USD. Default = cantidad.
+  let metrica = localStorage.getItem('kogu:rc-metrica') || 'cantidad';
   const esDinero = () => metrica === 'dinero';
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
   // Formatea un valor según la métrica activa.
@@ -267,12 +269,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Alertas: agrupadas por cliente, priorizadas por $ en riesgo ─────────────
   const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
 
-  // $ en riesgo de una alerta = importe que dejó de comprar (P1 − P2).
+  // "En riesgo" = lo que dejó de comprar (P1 − P2), en la métrica activa.
   function montoRiesgo(a) {
     const d = a.detalle || {};
-    if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
-    if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));
-    if (d.prev_subt != null) return Math.max(0, Number(d.prev_subt) - Number(d.cur_subt)); // RC-003
+    if (esDinero()) {
+      if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
+      if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));
+      return 0;
+    }
+    // cantidad (kg) — primaria
+    if (d.cant_p1 != null) return Math.max(0, Number(d.cant_p1) - Number(d.cant_p2));
+    if (d.prev_qty != null) return Math.max(0, Number(d.prev_qty) - Number(d.cur_qty)); // RC-003
     return 0;
   }
 
@@ -289,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const p = conP?.detalle?.periodos;
     if (!p) return '';
     return `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">
-      Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · prioridad por monto que dejó de comprar (P1−P2)
+      Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · prioridad por ${esDinero() ? 'monto' : 'volumen (kg)'} que dejó de comprar (P1−P2)
     </div>`;
   }
 
@@ -324,7 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nCriticas = groupsArr.filter(g => grpSev(g) === 0).length;
     document.getElementById('alertasResumen').innerHTML = `
       <div class="grid-4" style="gap:12px">
-        ${KoguUi.cardStat('Monto en riesgo', money(totalRiesgo), 'dejaron de comprar (P1−P2)')}
+        ${KoguUi.cardStat(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)')}
         ${KoguUi.cardStat('Clientes en caída', String(groupsArr.length), `${nCriticas} críticos`)}
         ${KoguUi.cardStat('Productos en caída', String(groupsArr.reduce((s, g) => s + g.productos.length, 0)), 'alertas RC-006')}
         ${KoguUi.cardStat('Otras alertas', String(otras.length), 'empresa / agentes')}
@@ -341,13 +348,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cardCliente = g => {
       const riesgo = grpRiesgo(g);
       const sevN = grpSev(g);
-      const varTxt = g.rc005 ? fmtPctCap(g.rc005.detalle?.delta) : '';
+      const varTxt = g.rc005 ? fmtPctCap(esDinero() ? g.rc005.detalle?.delta_importe : g.rc005.detalle?.delta_cantidad) : '';
       const prods = g.productos.slice().sort((a, b) => montoRiesgo(b) - montoRiesgo(a));
       const top = prods.slice(0, 6).map(a => {
         const d = a.detalle || {};
+        const v1 = esDinero() ? d.importe_p1 : d.cant_p1;
+        const v2 = esDinero() ? d.importe_p2 : d.cant_p2;
+        const dl = esDinero() ? d.delta_importe : d.delta_cantidad;
         return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
           <span style="color:var(--muted)">${KoguUi.escapeHtml(d.desc_prod || a.producto_ref || '')}${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
-          <span>${money(d.importe_p1)} → ${money(d.importe_p2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(d.delta_importe)}</b></span>
+          <span>${fmtVal(v1)} → ${fmtVal(v2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(dl)}</b></span>
         </div>`;
       }).join('');
       const masTxt = prods.length > 6 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">+${prods.length - 6} producto(s) más — ver Detalle</div>` : '';
@@ -359,7 +369,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="font-weight:700">${KoguUi.escapeHtml(g.nombre || g.cliente_ref)}</span>
               <span style="font-size:12px;color:var(--muted)">· ${g.agente ? KoguUi.escapeHtml(g.agente) : 'sin agente'}</span>
             </div>
-            ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${money(g.rc005.detalle?.venta_p1)} → ${money(g.rc005.detalle?.venta_p2)}</div>` : ''}
+            ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p1 : g.rc005.detalle?.cant_p1)} → ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p2 : g.rc005.detalle?.cant_p2)}</div>` : ''}
             ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">
@@ -546,7 +556,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('metricaFil').onchange = (e) => {
     metrica = e.target.value;
     localStorage.setItem('kogu:rc-metrica', metrica);
-    renderKpis(); renderTrend(); renderMezcla();
+    renderKpis(); renderTrend(); renderMezcla(); renderAlertas();
   };
   document.getElementById('sevFil').onchange = renderAlertas;
   document.getElementById('agenteFil').onchange = renderAlertas;
