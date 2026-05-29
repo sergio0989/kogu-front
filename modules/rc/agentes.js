@@ -112,6 +112,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           <select class="select" id="fEspejo"><option value="">— Ninguno —</option></select>
         </div>
       </div>
+      <div>
+        <div class="label-text">Usuario KOGU vinculado <span style="color:var(--muted);font-weight:400;font-size:11px">(para su "Mi panel")</span></div>
+        <select class="select" id="fUserId"><option value="">— Sin vincular —</option></select>
+      </div>
       <div class="grid-2" style="gap:12px">
         <div>
           <div class="label-text">Vigente desde</div>
@@ -158,6 +162,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Estado ────────────────────────────────────────────────────────────────
   let agentes = [];
+  let usuarios = [];
+
+  // Carga usuarios para el vínculo (requiere screen.catalogos.usuarios; si el
+  // usuario no tiene ese permiso, se deja el selector vacío sin romper).
+  async function loadUsuarios() {
+    try {
+      const res = await KoguApi.apiFetch('/protected/core/usuarios');
+      usuarios = KoguApi.unwrapRows(res);
+    } catch (_) { usuarios = []; }
+    const opts = '<option value="">— Sin vincular —</option>' + usuarios
+      .map(u => `<option value="${u.user_id}">${KoguUi.escapeHtml((u.nombre || u.email || u.user_id) + (u.email ? ` · ${u.email}` : ''))}</option>`)
+      .join('');
+    const el = document.getElementById('fUserId');
+    if (el) el.innerHTML = opts;
+  }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const val  = id => document.getElementById(id)?.value?.trim() ?? '';
@@ -257,7 +276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('fStatus', 'activo');
     setV('fTipoAgente', 'interno');
     setV('fTipoComision', 'importe_de_pago');
-    setV('fGerencia', ''); setV('fEspejo', '');
+    setV('fGerencia', ''); setV('fEspejo', ''); setV('fUserId', '');
     document.getElementById('formTitle').textContent = 'Nuevo agente';
     document.getElementById('formChip').textContent  = 'Alta';
     show('metaSection', false);
@@ -280,6 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     fillRefSelects();
     setV('fGerencia', r.gerencia_id || '');
     setV('fEspejo', r.agente_espejo_id || '');
+    setV('fUserId', r.user_id || '');
     document.getElementById('formTitle').textContent = `Editar: ${r.nombre}`;
     document.getElementById('formChip').textContent  = 'Edición';
     syncComisionVisibility();
@@ -301,6 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tipo_comision: tipoCom,
       comision_importe_pct: tipoCom === 'por_kg_usd' ? null : pctToFrac(val('fComImporte')),
       comision_kg_pct:      tipoCom === 'por_kg_usd' ? pctToFrac(val('fComKg')) : null,
+      user_id:           sel('fUserId') || null,
       gerencia_id:       sel('fGerencia') || null,
       agente_espejo_id:  tipoCom === 'espejo' ? (sel('fEspejo') || null) : null,
       vigente_desde: val('fVigDesde') || null,
@@ -391,8 +412,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('tipoFil').onchange        = renderRows;
   document.getElementById('fTipoComision').onchange  = syncComisionVisibility;
 
-  KoguShell.subscribeEmpresaActivaChange(async () => { resetForm(); await loadAgentes(true); });
+  KoguShell.subscribeEmpresaActivaChange(async () => { resetForm(); await loadUsuarios(); await loadAgentes(true); });
 
+  await loadUsuarios();
   resetForm();
   await loadAgentes();
 });
