@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="hint" id="metaInfo" style="margin-top:4px;color:var(--muted)">—</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
+        <select class="select" id="anioFil" style="max-width:110px"></select>
         <select class="select" id="agenteSel" style="max-width:240px" title="Ver cartera de un agente"><option value="">Mi cartera (mi usuario)</option></select>
         <select class="select" id="metricaFil" style="max-width:160px">
           <option value="dinero">$ Dinero (MXN)</option>
@@ -100,6 +101,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('metricaFil').value = metrica;
 
+  // Selector de año (calendario Ene–Dic; misma lógica que Cumplimiento).
+  const anioActual = new Date().getFullYear();
+  const anioFilEl = document.getElementById('anioFil');
+  anioFilEl.innerHTML = [anioActual, anioActual - 1, anioActual - 2].map(a => `<option value="${a}">${a}</option>`).join('');
+  anioFilEl.value = String(anioActual);
+
   // Selector de agente (para Dirección/Gerencia: previsualizar cualquier cartera).
   async function loadAgentesSel() {
     try {
@@ -113,9 +120,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_) { /* sin permiso de agentes: solo "Mi cartera" */ }
   }
 
+  function qsAgenteAnio() {
+    const ag = sel('agenteSel'), anio = sel('anioFil');
+    const p = new URLSearchParams();
+    if (ag) p.set('agente_id', ag);
+    if (anio) p.set('anio', anio);
+    const s = p.toString();
+    return s ? `?${s}` : '';
+  }
+
   async function load() {
-    const ag = sel('agenteSel');
-    const res = await KoguApi.apiFetch(`${BASE}/mi-panel${ag ? `?agente_id=${ag}` : ''}`);
+    const res = await KoguApi.apiFetch(`${BASE}/mi-panel${qsAgenteAnio()}`);
     panel = res?.data || res;
     if (!panel.agente) {
       document.getElementById('tituloPanel').textContent = 'Mi panel';
@@ -193,11 +208,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Vista "Ventas por mes": pivote cliente × mes (Cantidad o Importe según métrica).
   async function renderVentas() {
-    const ag = sel('agenteSel');
     document.getElementById('alertas').innerHTML = '<div class="empty">Cargando ventas…</div>';
     let d;
     try {
-      const res = await KoguApi.apiFetch(`${BASE}/ventas-mensuales${ag ? `?agente_id=${ag}` : ''}`);
+      const res = await KoguApi.apiFetch(`${BASE}/ventas-mensuales${qsAgenteAnio()}`);
       d = res?.data || res;
     } catch (err) { document.getElementById('alertas').innerHTML = `<div class="empty">${KoguUi.escapeHtml(err.message)}</div>`; return; }
     if (!d || !d.agente) { document.getElementById('alertas').innerHTML = '<div class="empty">Sin agente.</div>'; return; }
@@ -216,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function exportarAgente() {
     const ag = sel('agenteSel');
-    const anio = panel.anio || new Date().getFullYear();
+    const anio = sel('anioFil') || new Date().getFullYear();
     try {
       const res = await KoguApi.authFetchRaw(`${BASE}/reporte/agente?anio=${anio}${ag ? `&agente_id=${ag}` : ''}`);
       if (!res.ok) { KoguApi.toast('No se pudo generar el reporte (¿agente sin resolver?).', 'error'); return; }
@@ -433,6 +447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('sevFil').onchange = render;
   document.getElementById('vistaFil').onchange = render;
   document.getElementById('agenteSel').onchange = load;
+  document.getElementById('anioFil').onchange = load;
   document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, exportarAgente, 'Generando…');
   KoguShell.subscribeEmpresaActivaChange(async () => { await loadAgentesSel(); await load(); });
   await loadAgentesSel();
