@@ -26,6 +26,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="hint" id="metaInfo" style="margin-top:4px;color:var(--muted)">—</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
+        <select class="select" id="metricaFil" style="max-width:160px">
+          <option value="dinero">$ Dinero (MXN)</option>
+          <option value="cantidad">⚖ Cantidad (kg)</option>
+        </select>
         <select class="select" id="anioFil" style="max-width:120px"></select>
         <button class="btn" id="recalcBtn">↻ Recalcular</button>
       </div>
@@ -107,6 +111,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+
+  // ── Métrica activa: dinero (MXN) | cantidad (kg) ────────────────────────────
+  let metrica = localStorage.getItem('kogu:rc-metrica') || 'dinero';
+  const esDinero = () => metrica === 'dinero';
+  const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+  // Formatea un valor según la métrica activa.
+  const fmtVal = v => esDinero() ? money(v) : `${nf0.format(Number(v || 0))} kg`;
+  // Extrae la medida de una fila de KPI (subtotal_mxn o cantidad).
+  const measKpi = k => esDinero() ? Number(k.subtotal_mxn || 0) : Number(k.cantidad || 0);
+  // Para filas de ficha: {subt, cantidad} o {p1/p2, cant_p1/cant_p2}.
+  const measSubt = r => esDinero() ? Number(r.subt || 0) : Number(r.cantidad || 0);
+  const metricaLbl = () => esDinero() ? 'MXN-eq' : 'kg (aprox)';
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   // Etiquetas de periodo a partir de {p1d,p1h,p2d,p2h} (p?h de P1 es exclusivo).
@@ -172,6 +188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   anioFil.innerHTML = [anioActual, anioActual - 1, anioActual - 2]
     .map(a => `<option value="${a}">${a}</option>`).join('');
   anioFil.value = String(anioActual);
+  document.getElementById('metricaFil').value = metrica;
 
   // ── Carga ─────────────────────────────────────────────────────────────────
   async function loadAll() {
@@ -194,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
-  const sum = (arr, f = x => x.subtotal_mxn) => arr.reduce((a, x) => a + Number(f(x) || 0), 0);
+  const sum = (arr, f = measKpi) => arr.reduce((a, x) => a + Number(f(x) || 0), 0);
 
   function renderKpis() {
     const total = sum(kpis);
@@ -202,9 +219,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ext = sum(kpis.filter(k => k.mercado === 'EXT'));
     const pctExt = total ? (ext / total) : 0;
     document.getElementById('kpiCards').innerHTML = [
-      KoguUi.cardStat('Venta total (MXN-eq)', money(total), `${kpis.length} combinaciones`),
-      KoguUi.cardStat('Nacional', money(nal), `${total ? Math.round(100 * nal / total) : 0}% del total`),
-      KoguUi.cardStat('Exportación', money(ext), `${Math.round(100 * pctExt)}% del total`),
+      KoguUi.cardStat(`Venta total (${metricaLbl()})`, fmtVal(total), `${kpis.length} combinaciones`),
+      KoguUi.cardStat('Nacional', fmtVal(nal), `${total ? Math.round(100 * nal / total) : 0}% del total`),
+      KoguUi.cardStat('Exportación', fmtVal(ext), `${Math.round(100 * pctExt)}% del total`),
       KoguUi.cardStat('Alertas abiertas', String(alertas.filter(a => a.status === 'abierta').length), `${alertas.length} en total`),
     ].join('');
   }
@@ -212,7 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Tendencia mensual (barras simples) ──────────────────────────────────────
   function renderTrend() {
     const porMes = {};
-    kpis.forEach(k => { porMes[k.mes] = (porMes[k.mes] || 0) + Number(k.subtotal_mxn || 0); });
+    kpis.forEach(k => { porMes[k.mes] = (porMes[k.mes] || 0) + measKpi(k); });
     const meses = Object.keys(porMes).map(Number).sort((a, b) => a - b);
     if (!meses.length) { document.getElementById('trend').innerHTML = '<div class="empty">Sin datos</div>'; return; }
     const max = Math.max(...meses.map(m => porMes[m]));
@@ -223,7 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="flex:1;background:var(--panel2,#f1f5f9);border-radius:6px;overflow:hidden">
           <div style="width:${w}%;min-width:2px;height:18px;background:var(--brand,#2563eb)"></div>
         </div>
-        <div style="width:130px;text-align:right;font-size:12px">${money(v)}</div>
+        <div style="width:130px;text-align:right;font-size:12px">${fmtVal(v)}</div>
       </div>`;
     }).join('');
   }
@@ -241,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const v = sum(rows); if (!v) return '';
       return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">
         <span>${lbl}</span>
-        <span style="font-weight:600">${money(v)} <span style="color:var(--muted);font-weight:400">(${Math.round(100 * v / total)}%)</span></span>
+        <span style="font-weight:600">${fmtVal(v)} <span style="color:var(--muted);font-weight:400">(${Math.round(100 * v / total)}%)</span></span>
       </div>`;
     }).join('') || '<div class="empty">Sin datos</div>';
   }
@@ -334,6 +351,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const p = d.periodos || {};
     const r1 = rangoP1(p), r2 = rangoP2(p);
 
+    // Productos con medida activa (dinero o cantidad) + reordenar por caída.
+    const valP1 = pr => esDinero() ? Number(pr.p1 || 0) : Number(pr.cant_p1 || 0);
+    const valP2 = pr => esDinero() ? Number(pr.p2 || 0) : Number(pr.cant_p2 || 0);
+    const prods = (d.productos || []).slice().sort((a, b) => (valP2(a) - valP1(a)) - (valP2(b) - valP1(b)));
+
+    // Totales P1/P2 según métrica (cantidad se suma desde productos).
+    const totP1 = esDinero() ? Number(ind.p1_total || 0) : prods.reduce((s, x) => s + Number(x.cant_p1 || 0), 0);
+    const totP2 = esDinero() ? Number(ind.p2_total || 0) : prods.reduce((s, x) => s + Number(x.cant_p2 || 0), 0);
+    const deltaTot = totP1 ? (totP2 - totP1) / totP1 : null;
+    const ticketP1 = ind.facturas_p1 ? totP1 / ind.facturas_p1 : null;
+    const ticketP2 = ind.facturas_p2 ? totP2 / ind.facturas_p2 : null;
+
     const kpi = (lbl, val, hint = '') =>
       `<div style="border:1px solid var(--line);border-radius:10px;padding:10px">
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${lbl}</div>
@@ -343,47 +372,49 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const indicadores = `
       <div class="grid-4" style="gap:12px;margin-bottom:8px">
-        ${kpi(`Venta P1 (${r1})`, money(ind.p1_total), `${ind.facturas_p1} fac · ticket ${ind.ticket_prom_p1 != null ? money(ind.ticket_prom_p1) : '—'}`)}
-        ${kpi(`Venta P2 (${r2})`, money(ind.p2_total), `${ind.facturas_p2} fac · ticket ${ind.ticket_prom_p2 != null ? money(ind.ticket_prom_p2) : '—'}`)}
-        ${kpi('Variación', `<span style="color:${Number(ind.delta) < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)'}">${fmtPctCap(ind.delta)}</span>`, Number(ind.p2_total) < 0 ? 'P2 neto negativo (devoluciones)' : '')}
+        ${kpi(`P1 ${r1} (${metricaLbl()})`, fmtVal(totP1), `${ind.facturas_p1} fac · ticket ${ticketP1 != null ? fmtVal(ticketP1) : '—'}`)}
+        ${kpi(`P2 ${r2} (${metricaLbl()})`, fmtVal(totP2), `${ind.facturas_p2} fac · ticket ${ticketP2 != null ? fmtVal(ticketP2) : '—'}`)}
+        ${kpi('Variación', `<span style="color:${Number(deltaTot) < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)'}">${fmtPctCap(deltaTot)}</span>`, totP2 < 0 ? 'P2 neto negativo (devoluciones)' : '')}
         ${kpi('Última compra', KoguUi.fmtDate(ind.ultima_compra).split(',')[0] || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
       </div>`;
 
-    // Productos
-    const prods = (d.productos || []);
+    // Productos (medida activa)
     const filas = prods.slice(0, 40).map(pr => {
-      const dpct = pr.delta == null ? '—' : fmtPctCap(pr.delta);
-      const color = pr.p2 < pr.p1 ? 'var(--danger,#dc2626)' : 'var(--muted)';
+      const a = valP1(pr), bb = valP2(pr);
+      const dlt = a ? (bb - a) / a : null;
+      const dpct = dlt == null ? '—' : fmtPctCap(dlt);
+      const color = bb < a ? 'var(--danger,#dc2626)' : 'var(--muted)';
+      const abandono = a > 0 && bb === 0;
       return `<tr>
         <td><span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span></td>
-        <td>${KoguUi.escapeHtml(pr.desc_prod || '')}${pr.abandonado ? ' <span style="display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:var(--danger,#dc2626)">abandonado</span>' : ''}</td>
-        <td style="text-align:right">${money(pr.p1)}</td>
-        <td style="text-align:right">${money(pr.p2)}</td>
+        <td>${KoguUi.escapeHtml(pr.desc_prod || '')}${abandono ? ' <span style="display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:var(--danger,#dc2626)">abandonado</span>' : ''}</td>
+        <td style="text-align:right">${fmtVal(a)}</td>
+        <td style="text-align:right">${fmtVal(bb)}</td>
         <td style="text-align:right;color:${color};font-weight:600">${dpct}</td>
       </tr>`;
     }).join('');
     const tablaProd = `
-      <div class="eyebrow" style="margin:16px 0 8px">Productos (${prods.length}) · ordenados por mayor caída</div>
+      <div class="eyebrow" style="margin:16px 0 8px">Productos (${prods.length}) · ${metricaLbl()} · ordenados por mayor caída</div>
       <div class="table-wrap"><table><thead><tr>
         <th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th><th style="text-align:right">Var</th>
       </tr></thead><tbody>${filas || '<tr><td colspan="5" class="empty">Sin productos</td></tr>'}</tbody></table></div>`;
 
-    // Tendencia mensual
+    // Tendencia mensual (medida activa)
     const meses = d.meses || [];
-    const maxM = Math.max(1, ...meses.map(m => Number(m.subt || 0)));
+    const maxM = Math.max(1, ...meses.map(measSubt));
     const trend = meses.map(m => {
-      const v = Number(m.subt || 0); const w = Math.round(100 * v / maxM);
+      const v = measSubt(m); const w = Math.round(100 * v / maxM);
       return `<div style="display:flex;align-items:center;gap:10px;margin:5px 0">
         <div style="width:64px;font-size:12px;color:var(--muted)">${MESES[m.mes] || m.mes} ${String(m.anio).slice(2)}</div>
         <div style="flex:1;background:var(--panel2,#f1f5f9);border-radius:6px"><div style="width:${w}%;min-width:2px;height:16px;background:${v < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)'}"></div></div>
-        <div style="width:120px;text-align:right;font-size:12px">${money(v)}</div>
+        <div style="width:120px;text-align:right;font-size:12px">${fmtVal(v)}</div>
       </div>`;
     }).join('');
 
-    // Mezcla
+    // Mezcla (medida activa)
     const mezcla = (d.mezcla || []).map(m =>
       `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
-        <span>${m.mercado} · ${m.moneda}</span><span style="font-weight:600">${money(m.subt)}</span></div>`).join('');
+        <span>${m.mercado} · ${m.moneda}</span><span style="font-weight:600">${fmtVal(measSubt(m))}</span></div>`).join('');
 
     const html = `
       <div id="rcFichaModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
@@ -430,6 +461,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 'Recalculando...');
   };
   document.getElementById('anioFil').onchange = loadAll;
+  document.getElementById('metricaFil').onchange = (e) => {
+    metrica = e.target.value;
+    localStorage.setItem('kogu:rc-metrica', metrica);
+    renderKpis(); renderTrend(); renderMezcla();
+  };
   document.getElementById('sevFil').onchange = renderAlertas;
   document.getElementById('reglaFil').onchange = renderAlertas;
 
