@@ -46,6 +46,7 @@
     {section:'Radar Comercial',items:[
       {href:'/modules/rc/tablero.html',label:'Tablero (Dirección)',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
+      {href:'/modules/rc/asignacion.html',label:'Asignar clientes',perm:'screen.ventas.agentes'},
     ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
