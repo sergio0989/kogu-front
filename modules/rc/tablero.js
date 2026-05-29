@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const v2 = esDinero() ? d.importe_p2 : d.cant_p2;
         const dl = esDinero() ? d.delta_importe : d.delta_cantidad;
         return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
-          <span style="color:var(--muted)">${KoguUi.escapeHtml(d.desc_prod || a.producto_ref || '')}${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
+          <span style="color:var(--muted)">${a.producto_ref ? `<span class="chip-compact">${KoguUi.escapeHtml(a.producto_ref)}</span> ` : ''}${KoguUi.escapeHtml(d.desc_prod || '')}${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
           <span>${fmtVal(v1)} → ${fmtVal(v2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(dl)}</b></span>
         </div>`;
       }).join('');
@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div style="text-align:right;min-width:150px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
-            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${money(riesgo)}</div>
+            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgo)}</div>
             <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
               <button class="btn primary" data-ficha-grp="${g.cliente_ref}" style="font-size:12px">Detalle</button>
               <button class="btn" data-descgrp="${g.cliente_ref}" style="font-size:12px">Descartar</button>
