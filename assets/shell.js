@@ -43,6 +43,9 @@
       {href:'/modules/erp/cobranza/cobranza.html',label:'Cobranza',perm:'screen.erp.cobranza'},
       {href:'/modules/erp/pagos/pagos.html',label:'Pagos / Tesorería',perm:'screen.erp.pagos'},
     ]},
+    {section:'Radar Comercial',items:[
+      {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
+    ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
       // operación, al final el CFDI es la materialización fiscal.
