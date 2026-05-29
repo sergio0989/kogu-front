@@ -197,26 +197,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('alertas').innerHTML = `<div class="empty">${msg}</div>`;
       return;
     }
-    const rows = cartera.map(c => {
+    // Tarjetas homologadas con la vista "Solo en riesgo" (borde de color por estado).
+    document.getElementById('alertas').innerHTML = cartera.map(c => {
       const enR = riesgo.has(c.cliente_ref);
       const sinV = Number(c.venta_imp || 0) === 0;
-      const estado = enR
-        ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:var(--danger,#dc2626)">En riesgo</span>'
-        : (sinV ? '<span class="badge neutral">Sin compra</span>'
-                : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:var(--ok,#16a34a)">Sano</span>');
+      const color = enR ? 'var(--danger,#dc2626)' : (sinV ? 'var(--muted,#64748b)' : 'var(--ok,#16a34a)');
+      const estado = enR ? 'En riesgo' : (sinV ? 'Sin compra' : 'Sano');
       const venta = esDinero() ? Number(c.venta_imp || 0) : Number(c.venta_qty || 0);
-      return `<tr>
-        <td><span class="chip-compact">${KoguUi.escapeHtml(c.cliente_ref || '')}</span> ${KoguUi.escapeHtml(c.nombre || '')}</td>
-        <td style="text-align:right">${fmtVal(venta)}</td>
-        <td>${c.ultima_compra ? KoguUi.fmtDate(c.ultima_compra).split(',')[0] : '—'}${c.dias_sin_compra != null ? ` <span style="color:var(--muted);font-size:11px">(${c.dias_sin_compra}d)</span>` : ''}</td>
-        <td>${estado}</td>
-        <td><button class="btn btn-ficha" data-ref="${KoguUi.escapeHtml(c.cliente_ref || '')}" style="font-size:12px">Detalle</button></td>
-      </tr>`;
+      const ult = c.ultima_compra ? KoguUi.fmtDate(c.ultima_compra).split(',')[0] : '—';
+      return `<div style="border:1px solid var(--line);border-left:4px solid ${color};border-radius:12px;padding:12px 14px;margin-bottom:8px">
+        <div class="row" style="align-items:center">
+          <div style="flex:1">
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${color}">${estado}</span>
+              <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
+              <span style="font-size:11px;color:var(--muted)">· ${KoguUi.escapeHtml(c.cliente_ref || '')}</span>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">Última compra ${ult}${c.dias_sin_compra != null ? ` · hace ${c.dias_sin_compra} días` : ''}</div>
+          </div>
+          <div style="text-align:right;min-width:150px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase">Venta ${panel.anio}</div>
+            <div style="font-size:18px;font-weight:800">${fmtVal(venta)}</div>
+            <button class="btn primary btn-ficha" data-ref="${KoguUi.escapeHtml(c.cliente_ref || '')}" style="font-size:12px;margin-top:6px">Detalle</button>
+          </div>
+        </div>
+      </div>`;
     }).join('');
-    document.getElementById('alertas').innerHTML = `
-      <div class="table-wrap"><table><thead><tr>
-        <th>Cliente</th><th style="text-align:right">Venta ${panel.anio}</th><th>Última compra</th><th>Estado</th><th></th>
-      </tr></thead><tbody>${rows}</tbody></table></div>`;
     document.querySelectorAll('#alertas .btn-ficha').forEach(x => x.onclick = () => openFicha({ cliente_ref: x.dataset.ref, detalle: {} }));
   }
 
