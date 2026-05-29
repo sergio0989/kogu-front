@@ -296,6 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${comparativo}
           </div>
           <div style="display:flex;gap:6px">
+            ${a.entidad_tipo === 'cliente' && a.cliente_ref ? `<button class="btn primary" data-ficha="${a.alerta_id}" style="font-size:12px">Detalle</button>` : ''}
             <button class="btn" data-act="vista" data-id="${a.alerta_id}" style="font-size:12px">Vista</button>
             <button class="btn" data-act="descartada" data-id="${a.alerta_id}" style="font-size:12px">Descartar</button>
           </div>
@@ -310,6 +311,104 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderKpis(); renderAlertas();
       } catch (err) { KoguApi.toast(err.message, 'error'); }
     });
+    document.querySelectorAll('#alertas .btn[data-ficha]').forEach(x => x.onclick = () => {
+      const a = alertas.find(z => z.alerta_id === x.dataset.ficha);
+      if (a) openFicha(a);
+    });
+  }
+
+  // ── Ficha de detalle del cliente (modal) ────────────────────────────────────
+  async function openFicha(a) {
+    const p = a.detalle?.periodos;
+    const qs = p ? `?p1d=${p.p1d}&p1h=${p.p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/clientes/${encodeURIComponent(a.cliente_ref)}/comparativo${qs}`);
+      renderFicha(res?.data || res);
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  function closeFicha() { document.getElementById('rcFichaModal')?.remove(); }
+
+  function renderFicha(d) {
+    const ind = d.indicadores || {};
+    const p = d.periodos || {};
+    const r1 = rangoP1(p), r2 = rangoP2(p);
+
+    const kpi = (lbl, val, hint = '') =>
+      `<div style="border:1px solid var(--line);border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${lbl}</div>
+        <div style="font-size:18px;font-weight:700;margin-top:2px">${val}</div>
+        ${hint ? `<div style="font-size:11px;color:var(--muted)">${hint}</div>` : ''}
+      </div>`;
+
+    const indicadores = `
+      <div class="grid-4" style="gap:12px;margin-bottom:8px">
+        ${kpi(`Venta P1 (${r1})`, money(ind.p1_total), `${ind.facturas_p1} fac · ticket ${ind.ticket_prom_p1 != null ? money(ind.ticket_prom_p1) : '—'}`)}
+        ${kpi(`Venta P2 (${r2})`, money(ind.p2_total), `${ind.facturas_p2} fac · ticket ${ind.ticket_prom_p2 != null ? money(ind.ticket_prom_p2) : '—'}`)}
+        ${kpi('Variación', `<span style="color:${Number(ind.delta) < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)'}">${fmtPctCap(ind.delta)}</span>`, Number(ind.p2_total) < 0 ? 'P2 neto negativo (devoluciones)' : '')}
+        ${kpi('Última compra', KoguUi.fmtDate(ind.ultima_compra).split(',')[0] || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
+      </div>`;
+
+    // Productos
+    const prods = (d.productos || []);
+    const filas = prods.slice(0, 40).map(pr => {
+      const dpct = pr.delta == null ? '—' : fmtPctCap(pr.delta);
+      const color = pr.p2 < pr.p1 ? 'var(--danger,#dc2626)' : 'var(--muted)';
+      return `<tr>
+        <td><span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span></td>
+        <td>${KoguUi.escapeHtml(pr.desc_prod || '')}${pr.abandonado ? ' <span style="display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:var(--danger,#dc2626)">abandonado</span>' : ''}</td>
+        <td style="text-align:right">${money(pr.p1)}</td>
+        <td style="text-align:right">${money(pr.p2)}</td>
+        <td style="text-align:right;color:${color};font-weight:600">${dpct}</td>
+      </tr>`;
+    }).join('');
+    const tablaProd = `
+      <div class="eyebrow" style="margin:16px 0 8px">Productos (${prods.length}) · ordenados por mayor caída</div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th><th style="text-align:right">Var</th>
+      </tr></thead><tbody>${filas || '<tr><td colspan="5" class="empty">Sin productos</td></tr>'}</tbody></table></div>`;
+
+    // Tendencia mensual
+    const meses = d.meses || [];
+    const maxM = Math.max(1, ...meses.map(m => Number(m.subt || 0)));
+    const trend = meses.map(m => {
+      const v = Number(m.subt || 0); const w = Math.round(100 * v / maxM);
+      return `<div style="display:flex;align-items:center;gap:10px;margin:5px 0">
+        <div style="width:64px;font-size:12px;color:var(--muted)">${MESES[m.mes] || m.mes} ${String(m.anio).slice(2)}</div>
+        <div style="flex:1;background:var(--panel2,#f1f5f9);border-radius:6px"><div style="width:${w}%;min-width:2px;height:16px;background:${v < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)'}"></div></div>
+        <div style="width:120px;text-align:right;font-size:12px">${money(v)}</div>
+      </div>`;
+    }).join('');
+
+    // Mezcla
+    const mezcla = (d.mezcla || []).map(m =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
+        <span>${m.mercado} · ${m.moneda}</span><span style="font-weight:600">${money(m.subt)}</span></div>`).join('');
+
+    const html = `
+      <div id="rcFichaModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:920px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div class="eyebrow">Ficha de cliente · ${r1} vs ${r2}</div>
+              <h2 style="margin:4px 0 0">${KoguUi.escapeHtml(d.cliente_nombre || d.cliente_ref)}</h2>
+              <div style="font-size:12px;color:var(--muted)">Cliente ${KoguUi.escapeHtml(d.cliente_ref)}${d.agente_nombre ? ` · Agente: ${KoguUi.escapeHtml(d.agente_nombre)}` : ''}</div>
+            </div>
+            <button class="btn" id="rcFichaClose">Cerrar ✕</button>
+          </div>
+          ${indicadores}
+          ${tablaProd}
+          <div class="split" style="margin-top:16px">
+            <div><div class="eyebrow" style="margin-bottom:8px">Tendencia mensual</div>${trend || '<div class="empty">Sin datos</div>'}</div>
+            <div><div class="eyebrow" style="margin-bottom:8px">Mezcla P2 (mercado · moneda)</div>${mezcla || '<div class="empty">Sin datos</div>'}</div>
+          </div>
+        </div>
+      </div>`;
+    closeFicha();
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('rcFichaModal');
+    document.getElementById('rcFichaClose').onclick = closeFicha;
+    modal.onclick = e => { if (e.target === modal) closeFicha(); };
   }
 
   // ── Eventos ───────────────────────────────────────────────────────────────
