@@ -265,6 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sevBg = { 0: 'var(--danger,#dc2626)', 1: 'var(--warning,#d97706)', 2: 'var(--muted,#64748b)' };
     document.getElementById('alertas').innerHTML = arr.map(g => {
       const riesgo = grpRiesgo(g); const sevN = grpSev(g);
+      const varTxt = g.rc005 ? fmtPctCap(esDinero() ? g.rc005.detalle?.delta_importe : g.rc005.detalle?.delta_cantidad) : '';
       const prods = g.productos.slice().sort((a, b) => montoRiesgo(b) - montoRiesgo(a)).slice(0, 6).map(a => {
         const d = a.detalle || {};
         const v1 = esDinero() ? d.importe_p1 : d.cant_p1, v2 = esDinero() ? d.importe_p2 : d.cant_p2, dl = esDinero() ? d.delta_importe : d.delta_cantidad;
@@ -280,13 +281,17 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${sevBg[sevN]}">${sevWord[sevN]}</span>
               <span style="font-weight:700">${KoguUi.escapeHtml(g.nombre || g.cliente_ref)}</span>
             </div>
+            ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p1 : g.rc005.detalle?.cant_p1)} → ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p2 : g.rc005.detalle?.cant_p2)}</div>` : ''}
             ${g.rc004 ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${g.rc004.detalle?.dias_sin_compra} días · última ${KoguUi.fmtDate(g.rc004.detalle?.ultima_compra).split(',')[0]}</div>` : ''}
             ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
           </div>
-          <div style="text-align:right;min-width:140px">
+          <div style="text-align:right;min-width:150px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
             <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgo)}</div>
-            <button class="btn primary" data-ficha-grp="${g.cliente_ref}" style="font-size:12px;margin-top:8px">Detalle</button>
+            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+              <button class="btn primary" data-ficha-grp="${g.cliente_ref}" style="font-size:12px">Detalle</button>
+              <button class="btn" data-descgrp="${g.cliente_ref}" style="font-size:12px">Descartar</button>
+            </div>
           </div>
         </div>
       </div>`;
@@ -296,6 +301,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const g = groups.get(x.dataset.fichaGrp);
       const a = g && (g.rc005 || g.productos[0] || g.rc004);
       if (a) openFicha(a);
+    });
+    document.querySelectorAll('#alertas .btn[data-descgrp]').forEach(x => x.onclick = async () => {
+      const g = groups.get(x.dataset.descgrp); if (!g) return;
+      try {
+        await Promise.all(g.alertas.map(a => KoguApi.apiFetch(`${BASE}/alertas/${a.alerta_id}/status`, { method: 'PUT', body: JSON.stringify({ status: 'descartada' }) })));
+        g.alertas.forEach(a => { const z = (panel.alertas || []).find(q => q.alerta_id === a.alerta_id); if (z) z.status = 'descartada'; });
+        KoguApi.toast('Caso descartado', 'success');
+        render();
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
     });
   }
 
