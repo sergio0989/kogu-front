@@ -275,10 +275,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (esDinero()) {
       if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
       if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));
+      if (d.venta_anio != null) return Math.max(0, Number(d.venta_anio)); // RC-004 dormancia
       return 0;
     }
     // cantidad (kg) — primaria
     if (d.cant_p1 != null) return Math.max(0, Number(d.cant_p1) - Number(d.cant_p2));
+    if (d.qty_anio != null) return Math.max(0, Number(d.qty_anio)); // RC-004 dormancia
     if (d.prev_qty != null) return Math.max(0, Number(d.prev_qty) - Number(d.cur_qty)); // RC-003
     return 0;
   }
@@ -311,18 +313,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtered.forEach(a => {
       if (a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto')) {
         let g = groups.get(a.cliente_ref);
-        if (!g) { g = { cliente_ref: a.cliente_ref, nombre: null, agente: null, alertas: [], rc005: null, productos: [] }; groups.set(a.cliente_ref, g); }
+        if (!g) { g = { cliente_ref: a.cliente_ref, nombre: null, agente: null, alertas: [], rc005: null, rc004: null, productos: [] }; groups.set(a.cliente_ref, g); }
         g.alertas.push(a);
         const d = a.detalle || {};
         if (d.cliente_nombre && !g.nombre) g.nombre = d.cliente_nombre;
         if (a.agente_nombre && !g.agente) g.agente = a.agente_nombre;
         if (a.regla_clave === 'RC-005') g.rc005 = a;
+        if (a.regla_clave === 'RC-004') g.rc004 = a;
         if (a.regla_clave === 'RC-006') g.productos.push(a);
       } else otras.push(a);
     });
 
     const grpRiesgo = g => g.rc005 ? montoRiesgo(g.rc005)
-      : g.productos.reduce((s, a) => s + montoRiesgo(a), 0);
+      : Math.max(g.productos.reduce((s, a) => s + montoRiesgo(a), 0), g.rc004 ? montoRiesgo(g.rc004) : 0);
     const grpSev = g => g.alertas.reduce((m, a) => Math.min(m, SEV_RANK[a.severidad] ?? 2), 2);
     const groupsArr = [...groups.values()].sort((a, b) => grpRiesgo(b) - grpRiesgo(a));
 
@@ -370,6 +373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="font-size:12px;color:var(--muted)">· ${g.agente ? KoguUi.escapeHtml(g.agente) : 'sin agente'}</span>
             </div>
             ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p1 : g.rc005.detalle?.cant_p1)} → ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p2 : g.rc005.detalle?.cant_p2)}</div>` : ''}
+            ${g.rc004 ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${g.rc004.detalle?.dias_sin_compra} días · última ${KoguUi.fmtDate(g.rc004.detalle?.ultima_compra).split(',')[0]}</div>` : ''}
             ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">
