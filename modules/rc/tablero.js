@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card">
     <div class="row">
       <div>
-        <div class="eyebrow">Inteligencia comercial</div>
+        <div class="eyebrow">Radar · Dirección</div>
         <h2>Resumen de ventas</h2>
         <div class="hint" id="metaInfo" style="margin-top:4px;color:var(--muted)">—</div>
       </div>

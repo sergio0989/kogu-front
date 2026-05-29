@@ -16,9 +16,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="stack" style="gap:16px">
   <div class="card">
     <div class="row">
-      <div><div class="eyebrow">Radar Comercial</div><h2>Asignar agente a clientes</h2></div>
-      <div id="resumen" style="font-size:13px;color:var(--muted)">—</div>
+      <div><div class="eyebrow">Radar · Configuración</div><h2>Asignar agente a clientes</h2></div>
     </div>
+
+    <div id="resumen" style="margin-top:14px"></div>
 
     <div class="grid-2" style="gap:12px;margin-top:14px">
       <input class="input" id="q" placeholder="Buscar por nombre o clave de cliente" />
@@ -52,6 +53,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sel = id => document.getElementById(id)?.value ?? '';
   const money = v => KoguUi.money(Number(v || 0));
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+  // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
+  const miniCard = (lbl, valv, hint = '', color = '') => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(valv)}</div>
+      ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
 
   let clientes = [];
   let agentes = [];
@@ -77,8 +85,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = res?.data || res;
     clientes = (data.rows || []);
     const r = data.resumen || {};
-    document.getElementById('resumen').innerHTML =
-      `Con agente: <b>${r.con_agente ?? 0}</b> · Sin agente: <b style="color:var(--danger,#dc2626)">${r.sin_agente ?? 0}</b> · Total: ${r.total ?? 0}`;
+    const total = Number(r.total ?? 0), con = Number(r.con_agente ?? 0), sin = Number(r.sin_agente ?? 0);
+    document.getElementById('resumen').innerHTML = `
+      <div class="grid-4" style="gap:10px">
+        ${miniCard('Clientes', String(total), 'en el catálogo')}
+        ${miniCard('Con agente', String(con), `${total ? Math.round(100 * con / total) : 0}% asignado`, 'var(--ok,#16a34a)')}
+        ${miniCard('Sin agente', String(sin), 'por asignar', sin ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard('Mostrando', String(clientes.length), 'tope 500 por venta')}
+      </div>`;
     renderRows();
   }
 

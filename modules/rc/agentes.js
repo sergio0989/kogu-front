@@ -22,9 +22,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- ── Lista de agentes ── -->
   <div class="card">
     <div class="row">
-      <div><div class="eyebrow">Catálogo</div><h2>Agentes comerciales</h2></div>
+      <div><div class="eyebrow">Radar · Catálogo</div><h2>Agentes comerciales</h2></div>
       <button class="btn primary" id="refreshBtn">Actualizar</button>
     </div>
+    <div id="resumen" style="margin-top:14px"></div>
     <div class="grid-2" style="margin-top:16px">
       <input class="input" id="q" placeholder="Buscar por clave o nombre" />
       <select class="select" id="statusFil">
@@ -183,6 +184,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sel  = id => document.getElementById(id)?.value ?? '';
   const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
+  const miniCard = (lbl, valv, hint = '', color = '') => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(valv)}</div>
+      ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
+  function renderResumen() {
+    const total = agentes.length;
+    const activos = agentes.filter(a => a.status === 'activo').length;
+    const internos = agentes.filter(a => a.tipo_agente === 'interno').length;
+    const externos = agentes.filter(a => a.tipo_agente === 'externo').length;
+    document.getElementById('resumen').innerHTML = `
+      <div class="grid-4" style="gap:10px">
+        ${miniCard('Agentes', String(total), 'en el catálogo')}
+        ${miniCard('Activos', String(activos), `${total - activos} baja/suspendido`, 'var(--ok,#16a34a)')}
+        ${miniCard('Internos', String(internos), '')}
+        ${miniCard('Externos', String(externos), '')}
+      </div>`;
+  }
 
   const tipoComisionLabel = v => (TIPO_COMISION.find(([k]) => k === v) || [, v])[1];
   // Backend guarda fracción (0.01 = 1%); la UI trabaja en porcentaje.
@@ -219,6 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadAgentes(showToast = false) {
     const res = await KoguApi.apiFetch(BASE);
     agentes = KoguApi.unwrapRows(res);
+    renderResumen();
     renderRows();
     fillRefSelects();
     if (showToast) KoguApi.toast('Agentes actualizados', 'success');
