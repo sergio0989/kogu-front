@@ -142,6 +142,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let panel = { agente: null, alertas: [], cumplimiento: null };
+  let comp = { clientes: [], periodos: null };
+  let riskSet = new Set();
 
   document.getElementById('metricaFil').value = metrica;
 
@@ -187,13 +189,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('tituloPanel').textContent = panel.agente.agente_nombre;
     document.getElementById('metaInfo').textContent =
       `Agente cve ${panel.agente.cve_agente} · año ${panel.anio} · ${panel.meses_transcurridos} meses transcurridos`;
+    await loadComp();
     renderCumpl();
     render();
   }
 
-  const riskRefs = () => new Set((panel.alertas || [])
-    .filter(a => a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto') && a.status !== 'descartada')
-    .map(a => a.cliente_ref));
+  // Comparativo ON-DEMAND (clientes en riesgo con el periodo propio de Mi panel).
+  // Lo usan las TRES vistas para clasificar estado (riesgo/sano), no solo la de riesgo.
+  async function loadComp() {
+    comp = { clientes: [], periodos: null }; riskSet = new Set();
+    if (!panel.agente) return;
+    const ag = sel('agenteSel'); const per = computePeriodos();
+    const q = new URLSearchParams();
+    if (ag) q.set('agente_id', ag);
+    if (per) { q.set('p1d', per.p1d); q.set('p1h', per.p1h); q.set('p2d', per.p2d); q.set('p2h', per.p2h); }
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/mi-panel/comparativo${q.toString() ? `?${q}` : ''}`);
+      comp = res?.data || res;
+      riskSet = new Set((comp.clientes || []).map(c => c.cliente_ref));
+    } catch (_) { comp = { clientes: [], periodos: null }; riskSet = new Set(); }
+  }
+
+  const riskRefs = () => riskSet;
 
   function renderResumen() {
     const cartera = panel.cartera || [];
@@ -240,14 +257,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
   }
 
-  let comp = { clientes: [], periodos: null };
-
   function render() {
     const vista = sel('vistaFil');
     const titulos = { riesgo: 'Mis clientes en riesgo', sanos: 'Mis clientes sanos', cartera: 'Toda mi cartera', ventas: 'Ventas por mes' };
     document.getElementById('listaTitulo').textContent = titulos[vista] || titulos.riesgo;
     show('sevFil', vista === 'riesgo');
-    show('periodoBox', vista === 'riesgo');
+    show('periodoBox', vista !== 'ventas');   // el periodo clasifica riesgo en las 3 vistas de cartera
     if (vista === 'riesgo') renderRiesgo();
     else if (vista === 'ventas') { renderResumen(); renderVentas(); }
     else { renderResumen(); renderCartera(vista); }
@@ -263,19 +278,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
   };
 
-  async function renderRiesgo() {
-    const ag = sel('agenteSel');
-    const per = computePeriodos();
-    const q = new URLSearchParams();
-    if (ag) q.set('agente_id', ag);
-    if (per) { q.set('p1d', per.p1d); q.set('p1h', per.p1h); q.set('p2d', per.p2d); q.set('p2h', per.p2h); }
-    document.getElementById('alertas').innerHTML = '<div class="empty">Calculando…</div>';
-    try {
-      const res = await KoguApi.apiFetch(`${BASE}/mi-panel/comparativo${q.toString() ? `?${q}` : ''}`);
-      comp = res?.data || res;
-    } catch (err) { document.getElementById('alertas').innerHTML = `<div class="empty">${KoguUi.escapeHtml(err.message)}</div>`; return; }
+  function renderRiesgo() {
     if (!comp || !comp.agente) { document.getElementById('carteraResumen').innerHTML = ''; document.getElementById('alertas').innerHTML = '<div class="empty">Sin agente.</div>'; return; }
-
     const sv = sel('sevFil');
     const clientes = (comp.clientes || []).filter(c => !sv || c.severidad === sv).slice().sort((a, b) => riesgoCli(b) - riesgoCli(a));
 
@@ -571,11 +575,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   document.getElementById('sevFil').onchange = render;
   document.getElementById('vistaFil').onchange = render;
-  document.getElementById('presetFil').onchange = () => {
+  document.getElementById('presetFil').onchange = async () => {
     document.getElementById('customPeriodos').style.display = sel('presetFil') === 'custom' ? 'flex' : 'none';
-    if (sel('presetFil') !== 'custom') renderRiesgo();
+    if (sel('presetFil') !== 'custom') { await loadComp(); render(); }
   };
-  document.getElementById('aplicarPeriodo').onclick = (e) => KoguUi.withLoading(e.target, renderRiesgo, 'Calculando…');
+  document.getElementById('aplicarPeriodo').onclick = (e) => KoguUi.withLoading(e.target, async () => { await loadComp(); render(); }, 'Calculando…');
   document.getElementById('agenteSel').onchange = load;
   document.getElementById('anioFil').onchange = load;
   document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, exportarAgente, 'Generando…');
