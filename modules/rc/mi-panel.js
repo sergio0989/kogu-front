@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="dinero">$ Dinero (MXN)</option>
           <option value="cantidad">⚖ Cantidad (kg)</option>
         </select>
+        <button class="btn" id="exportBtn" title="Descargar Excel del agente">⬇ Exportar</button>
       </div>
     </div>
     <div id="cumplCard" style="margin-top:14px"></div>
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="riesgo">Solo en riesgo</option>
           <option value="sanos">Solo sanos</option>
           <option value="cartera">Toda la cartera</option>
+          <option value="ventas">Ventas por mes</option>
         </select>
         <select class="select" id="sevFil">
           <option value="">Toda severidad</option>
@@ -181,11 +183,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render() {
     const vista = sel('vistaFil');
-    const titulos = { riesgo: 'Mis clientes en riesgo', sanos: 'Mis clientes sanos', cartera: 'Toda mi cartera' };
+    const titulos = { riesgo: 'Mis clientes en riesgo', sanos: 'Mis clientes sanos', cartera: 'Toda mi cartera', ventas: 'Ventas por mes' };
     document.getElementById('listaTitulo').textContent = titulos[vista] || titulos.riesgo;
     show('sevFil', vista === 'riesgo');
     if (vista === 'riesgo') { renderResumenRiesgo(); renderAlertas(); }
+    else if (vista === 'ventas') { renderResumen(); renderVentas(); }
     else { renderResumen(); renderCartera(vista); }
+  }
+
+  // Vista "Ventas por mes": pivote cliente × mes (Cantidad o Importe según métrica).
+  async function renderVentas() {
+    const ag = sel('agenteSel');
+    document.getElementById('alertas').innerHTML = '<div class="empty">Cargando ventas…</div>';
+    let d;
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/ventas-mensuales${ag ? `?agente_id=${ag}` : ''}`);
+      d = res?.data || res;
+    } catch (err) { document.getElementById('alertas').innerHTML = `<div class="empty">${KoguUi.escapeHtml(err.message)}</div>`; return; }
+    if (!d || !d.agente) { document.getElementById('alertas').innerHTML = '<div class="empty">Sin agente.</div>'; return; }
+    const meses = d.meses || [], clientes = d.clientes || [];
+    if (!clientes.length) { document.getElementById('alertas').innerHTML = '<div class="empty">Sin ventas en el año.</div>'; return; }
+    const head = `<th>Cliente</th>${meses.map(m => `<th style="text-align:right">${MESES[m] || m}</th>`).join('')}<th style="text-align:right">Total</th>`;
+    const body = clientes.map(c => {
+      const cells = meses.map(m => { const cell = c.mes[m]; return `<td style="text-align:right">${cell ? fmtVal(esDinero() ? cell.imp : cell.cant) : '<span style="color:var(--muted)">—</span>'}</td>`; }).join('');
+      const tot = esDinero() ? c.tImp : c.tCant;
+      return `<tr><td>${KoguUi.escapeHtml(c.cliente || c.cref)}</td>${cells}<td style="text-align:right;font-weight:700">${fmtVal(tot)}</td></tr>`;
+    }).join('');
+    document.getElementById('alertas').innerHTML =
+      `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+       <div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">Métrica: ${esDinero() ? 'Importe (MXN)' : 'Cantidad (kg)'} · ${clientes.length} clientes · ${d.anio}</div>`;
+  }
+
+  async function exportarAgente() {
+    const ag = sel('agenteSel');
+    const anio = panel.anio || new Date().getFullYear();
+    try {
+      const res = await KoguApi.authFetchRaw(`${BASE}/reporte/agente?anio=${anio}${ag ? `&agente_id=${ag}` : ''}`);
+      if (!res.ok) { KoguApi.toast('No se pudo generar el reporte (¿agente sin resolver?).', 'error'); return; }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = m ? m[1] : `Reporte_Agente_${anio}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
 
   function renderCartera(mode = 'cartera') {
@@ -390,6 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('sevFil').onchange = render;
   document.getElementById('vistaFil').onchange = render;
   document.getElementById('agenteSel').onchange = load;
+  document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, exportarAgente, 'Generando…');
   KoguShell.subscribeEmpresaActivaChange(async () => { await loadAgentesSel(); await load(); });
   await loadAgentesSel();
   await load();

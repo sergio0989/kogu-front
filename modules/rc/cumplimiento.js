@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="venta">Ordenar: mayor venta</option>
           <option value="avance">Ordenar: menor avance</option>
         </select>
+        <button class="btn" id="exportBtn" title="Descargar Excel consolidado">⬇ Exportar todos</button>
       </div>
     </div>
     <div id="resumen" style="margin-top:14px"></div>
@@ -120,6 +121,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('anioFil').onchange = load;
   document.getElementById('ordenFil').onchange = render;
+  document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    try {
+      const res = await KoguApi.authFetchRaw(`${BASE}/reporte/agentes?anio=${sel('anioFil') || anioActual}`);
+      if (!res.ok) { KoguApi.toast('No se pudo generar el consolidado.', 'error'); return; }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = m ? m[1] : `Cumplimiento_Agentes_${sel('anioFil') || anioActual}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }, 'Generando…');
   KoguShell.subscribeEmpresaActivaChange(load);
   await load();
 });
