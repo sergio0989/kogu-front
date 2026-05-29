@@ -19,10 +19,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><div class="eyebrow">Radar · Vendedor</div><h2 id="tituloPanel">Mi panel</h2>
         <div class="hint" id="metaInfo" style="margin-top:4px;color:var(--muted)">—</div>
       </div>
-      <select class="select" id="metricaFil" style="max-width:160px">
-        <option value="dinero">$ Dinero (MXN)</option>
-        <option value="cantidad">⚖ Cantidad (kg)</option>
-      </select>
+      <div style="display:flex;gap:10px;align-items:center">
+        <select class="select" id="agenteSel" style="max-width:240px" title="Ver cartera de un agente"><option value="">Mi cartera (mi usuario)</option></select>
+        <select class="select" id="metricaFil" style="max-width:160px">
+          <option value="dinero">$ Dinero (MXN)</option>
+          <option value="cantidad">⚖ Cantidad (kg)</option>
+        </select>
+      </div>
     </div>
     <div id="cumplCard" style="margin-top:14px"></div>
   </div>
@@ -79,8 +82,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('metricaFil').value = metrica;
 
+  // Selector de agente (para Dirección/Gerencia: previsualizar cualquier cartera).
+  async function loadAgentesSel() {
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/agentes?activo=true`);
+      const ags = KoguApi.unwrapRows(res);
+      const cur = sel('agenteSel');
+      document.getElementById('agenteSel').innerHTML =
+        '<option value="">Mi cartera (mi usuario)</option>' +
+        ags.map(a => `<option value="${a.agente_id}">${KoguUi.escapeHtml(`${a.cve_agente} · ${a.nombre}`)}</option>`).join('');
+      document.getElementById('agenteSel').value = cur;
+    } catch (_) { /* sin permiso de agentes: solo "Mi cartera" */ }
+  }
+
   async function load() {
-    const res = await KoguApi.apiFetch(`${BASE}/mi-panel`);
+    const ag = sel('agenteSel');
+    const res = await KoguApi.apiFetch(`${BASE}/mi-panel${ag ? `?agente_id=${ag}` : ''}`);
     panel = res?.data || res;
     if (!panel.agente) {
       document.getElementById('tituloPanel').textContent = 'Mi panel';
@@ -245,6 +262,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCumpl(); renderAlertas();
   };
   document.getElementById('sevFil').onchange = renderAlertas;
-  KoguShell.subscribeEmpresaActivaChange(load);
+  document.getElementById('agenteSel').onchange = load;
+  KoguShell.subscribeEmpresaActivaChange(async () => { await loadAgentesSel(); await load(); });
+  await loadAgentesSel();
   await load();
 });
