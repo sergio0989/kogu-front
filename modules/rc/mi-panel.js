@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="display:flex;gap:10px">
         <select class="select" id="vistaFil">
           <option value="riesgo">Solo en riesgo</option>
+          <option value="sanos">Solo sanos</option>
           <option value="cartera">Toda la cartera</option>
         </select>
         <select class="select" id="sevFil">
@@ -54,6 +55,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  // Tarjeta KPI compacta (más eficiente en espacio que KoguUi.cardStat).
+  const miniCard = (lbl, val, hint = '', color = '') => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
+      ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
   let metrica = localStorage.getItem('kogu:rc-metrica') || 'cantidad';
   const esDinero = () => metrica === 'dinero';
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
@@ -136,26 +144,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ventaQty = cartera.reduce((s, c) => s + Number(c.venta_qty || 0), 0);
     const sinVenta = cartera.filter(c => Number(c.venta_imp || 0) === 0).length;
     document.getElementById('carteraResumen').innerHTML = `
-      <div class="grid-4" style="gap:12px">
-        ${KoguUi.cardStat('Clientes en cartera', String(total), `${sinVenta} sin compra ${panel.anio}`)}
-        ${KoguUi.cardStat('En riesgo', String(enRiesgo), `${total ? Math.round(100 * enRiesgo / total) : 0}% de la cartera`)}
-        ${KoguUi.cardStat(`Venta ${panel.anio}`, fmtVal(esDinero() ? ventaImp : ventaQty), 'cartera del agente')}
-        ${KoguUi.cardStat('Sanos', String(total - enRiesgo), 'sin alertas')}
+      <div class="grid-4" style="gap:10px">
+        ${miniCard('Clientes en cartera', String(total), `${sinVenta} sin compra ${panel.anio}`)}
+        ${miniCard('En riesgo', String(enRiesgo), `${total ? Math.round(100 * enRiesgo / total) : 0}% de la cartera`, enRiesgo ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard(`Venta ${panel.anio}`, fmtVal(esDinero() ? ventaImp : ventaQty), 'cartera del agente')}
+        ${miniCard('Sanos', String(total - enRiesgo), 'sin alertas', 'var(--ok,#16a34a)')}
       </div>`;
   }
 
   function render() {
     renderResumen();
     const vista = sel('vistaFil');
-    document.getElementById('listaTitulo').textContent = vista === 'cartera' ? 'Toda mi cartera' : 'Mis clientes en riesgo';
-    show('sevFil', vista !== 'cartera');
-    if (vista === 'cartera') renderCartera(); else renderAlertas();
+    const titulos = { riesgo: 'Mis clientes en riesgo', sanos: 'Mis clientes sanos', cartera: 'Toda mi cartera' };
+    document.getElementById('listaTitulo').textContent = titulos[vista] || titulos.riesgo;
+    show('sevFil', vista === 'riesgo');
+    if (vista === 'riesgo') renderAlertas(); else renderCartera(vista);
   }
 
-  function renderCartera() {
-    const cartera = (panel.cartera || []).slice();
-    if (!cartera.length) { document.getElementById('alertas').innerHTML = '<div class="empty">Este agente no tiene clientes asignados.</div>'; return; }
+  function renderCartera(mode = 'cartera') {
     const riesgo = riskRefs();
+    let cartera = (panel.cartera || []).slice();
+    if (mode === 'sanos') cartera = cartera.filter(c => !riesgo.has(c.cliente_ref));
+    if (!cartera.length) {
+      const msg = mode === 'sanos' ? 'No hay clientes sanos para mostrar.' : 'Este agente no tiene clientes asignados.';
+      document.getElementById('alertas').innerHTML = `<div class="empty">${msg}</div>`;
+      return;
+    }
     const rows = cartera.map(c => {
       const enR = riesgo.has(c.cliente_ref);
       const sinV = Number(c.venta_imp || 0) === 0;
@@ -187,19 +201,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     const semColor = SEM[r.semaforo] || SEM.sin_meta;
-    // Tarjetas propias: KoguUi.cardStat escapa el valor, así que no admite HTML.
-    const card = (lbl, val, hint = '', color = '') => `
-      <div style="border:1px solid var(--line);border-radius:12px;padding:14px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${KoguUi.escapeHtml(lbl)}</div>
-        <div style="font-size:22px;font-weight:800;margin-top:2px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
-        ${hint ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${KoguUi.escapeHtml(hint)}</div>` : ''}
-      </div>`;
     document.getElementById('cumplCard').innerHTML = `
-      <div class="grid-4" style="gap:12px">
-        ${card(`Meta ${panel.anio} (${r.base === 'kg' ? 'kg' : 'MXN'})`, fmtBase(r.meta, r.base))}
-        ${card('Vendido', fmtBase(r.actual, r.base), `esperado ${fmtBase(r.esperado, r.base)}`)}
-        ${card('Avance', pct(r.avance), SEM_TXT[r.semaforo] || '', semColor)}
-        ${card('Faltante al ritmo', fmtBase(r.faltante_ritmo, r.base), `${fmtBase(r.faltante_anual, r.base)} a la meta anual`)}
+      <div class="grid-4" style="gap:10px">
+        ${miniCard(`Meta ${panel.anio} (${r.base === 'kg' ? 'kg' : 'MXN'})`, fmtBase(r.meta, r.base))}
+        ${miniCard('Vendido', fmtBase(r.actual, r.base), `esperado ${fmtBase(r.esperado, r.base)}`)}
+        ${miniCard('Avance', pct(r.avance), SEM_TXT[r.semaforo] || '', semColor)}
+        ${miniCard('Faltante al ritmo', fmtBase(r.faltante_ritmo, r.base), `${fmtBase(r.faltante_anual, r.base)} a meta anual`)}
       </div>`;
   }
 
