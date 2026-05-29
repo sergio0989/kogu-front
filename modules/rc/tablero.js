@@ -291,13 +291,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       const quien = a.agente_nombre ? `Agente: ${KoguUi.escapeHtml(a.agente_nombre)}` :
                     a.cliente_ref ? `Cliente: ${KoguUi.escapeHtml(a.cliente_ref)}` : 'Empresa';
       const d = a.detalle || {};
-      // Detalle P1→P2 cuando la alerta lo trae (RC-005). Marca neto negativo.
+      // Subline P1→P2. RC-005 trae venta_p1/p2 (importe); RC-006 trae importe_* y cant_*.
       let comparativo = '';
       if (d.venta_p1 != null && d.venta_p2 != null) {
         const negativo = Number(d.venta_p2) < 0;
         comparativo = `<div style="font-size:12px;color:var(--muted);margin-top:4px">
           P1 ${rangoP1(d.periodos)}: <b>${money(d.venta_p1)}</b> → P2 ${rangoP2(d.periodos)}: <b>${money(d.venta_p2)}</b>
           ${negativo ? ' <span style="color:var(--danger,#dc2626);font-weight:600">· devoluciones netas en P2</span>' : ''}
+        </div>`;
+      } else if (d.importe_p1 != null) {
+        const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+        comparativo = `<div style="font-size:12px;color:var(--muted);margin-top:4px">
+          Importe: <b>${money(d.importe_p1)}</b> → <b>${money(d.importe_p2)}</b> ·
+          Cantidad: <b>${nf0.format(Number(d.cant_p1 || 0))}</b> → <b>${nf0.format(Number(d.cant_p2 || 0))}</b> kg
+          ${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">· abandonado</span>' : ''}
         </div>`;
       }
       return `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px">
@@ -313,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${comparativo}
           </div>
           <div style="display:flex;gap:6px">
-            ${a.entidad_tipo === 'cliente' && a.cliente_ref ? `<button class="btn primary" data-ficha="${a.alerta_id}" style="font-size:12px">Detalle</button>` : ''}
+            ${(a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto') && a.cliente_ref ? `<button class="btn primary" data-ficha="${a.alerta_id}" style="font-size:12px">Detalle</button>` : ''}
             <button class="btn" data-act="vista" data-id="${a.alerta_id}" style="font-size:12px">Vista</button>
             <button class="btn" data-act="descartada" data-id="${a.alerta_id}" style="font-size:12px">Descartar</button>
           </div>
