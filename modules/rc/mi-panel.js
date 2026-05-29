@@ -152,13 +152,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
   }
 
+  // Resumen estilo Bandeja (enfoque en el riesgo) para la vista "Solo en riesgo".
+  function renderResumenRiesgo() {
+    const groups = new Map();
+    let productos = 0, sinCompra = 0;
+    (panel.alertas || []).filter(a => a.status !== 'descartada' && a.cliente_ref &&
+      (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto')).forEach(a => {
+        let g = groups.get(a.cliente_ref);
+        if (!g) { g = { alertas: [], rc005: null, rc004: null, productos: [] }; groups.set(a.cliente_ref, g); }
+        g.alertas.push(a);
+        if (a.regla_clave === 'RC-005') g.rc005 = a;
+        if (a.regla_clave === 'RC-004') { g.rc004 = a; sinCompra++; }
+        if (a.regla_clave === 'RC-006') { g.productos.push(a); productos++; }
+      });
+    const grpRiesgo = g => g.rc005 ? montoRiesgo(g.rc005)
+      : Math.max(g.productos.reduce((s, a) => s + montoRiesgo(a), 0), g.rc004 ? montoRiesgo(g.rc004) : 0);
+    const arr = [...groups.values()];
+    const totalRiesgo = arr.reduce((s, g) => s + grpRiesgo(g), 0);
+    const nCriticas = arr.filter(g => g.alertas.some(a => a.severidad === 'critica')).length;
+    document.getElementById('carteraResumen').innerHTML = `
+      <div class="grid-4" style="gap:10px">
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
+        ${miniCard('Clientes en caída', String(arr.length), `${nCriticas} críticos`)}
+        ${miniCard('Productos en caída', String(productos), 'alertas RC-006')}
+        ${miniCard('Sin compra', String(sinCompra), 'clientes dormidos')}
+      </div>`;
+  }
+
   function render() {
-    renderResumen();
     const vista = sel('vistaFil');
     const titulos = { riesgo: 'Mis clientes en riesgo', sanos: 'Mis clientes sanos', cartera: 'Toda mi cartera' };
     document.getElementById('listaTitulo').textContent = titulos[vista] || titulos.riesgo;
     show('sevFil', vista === 'riesgo');
-    if (vista === 'riesgo') renderAlertas(); else renderCartera(vista);
+    if (vista === 'riesgo') { renderResumenRiesgo(); renderAlertas(); }
+    else { renderResumen(); renderCartera(vista); }
   }
 
   function renderCartera(mode = 'cartera') {
