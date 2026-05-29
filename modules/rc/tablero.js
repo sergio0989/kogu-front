@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn" id="recalcBtn">↻ Recalcular</button>
       </div>
     </div>
-    <div class="grid-2" style="margin-top:14px;gap:12px;align-items:end">
-      <div>
+    <div style="margin-top:14px">
+      <div style="max-width:340px">
         <div class="label-text">Periodo comparativo (reglas RC-005/006)</div>
         <select class="select" id="presetFil">
           <option value="auto">Automático (2 meses vs 2 meses)</option>
@@ -39,14 +39,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="custom">Personalizado</option>
         </select>
       </div>
-      <div id="customPeriodos" style="display:none">
-        <div class="label-text">P1 (desde–hasta) · P2 (desde–hasta) — fechas inclusivas</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <input class="input" id="p1d" type="date" title="P1 desde"/>
-          <input class="input" id="p1h" type="date" title="P1 hasta"/>
-          <span style="align-self:center;color:var(--muted)">vs</span>
-          <input class="input" id="p2d" type="date" title="P2 desde"/>
-          <input class="input" id="p2h" type="date" title="P2 hasta"/>
+      <div id="customPeriodos" style="display:none;margin-top:14px">
+        <div class="grid-2" style="gap:16px">
+          <div style="border:1px solid var(--line);border-radius:12px;padding:14px">
+            <div class="eyebrow" style="margin-bottom:10px">Periodo 1 (base)</div>
+            <div class="grid-2" style="gap:10px">
+              <div><div class="label-text">Desde</div><input class="input" id="p1d" type="date"/></div>
+              <div><div class="label-text">Hasta</div><input class="input" id="p1h" type="date"/></div>
+            </div>
+          </div>
+          <div style="border:1px solid var(--line);border-radius:12px;padding:14px">
+            <div class="eyebrow" style="margin-bottom:10px">Periodo 2 (comparado)</div>
+            <div class="grid-2" style="gap:10px">
+              <div><div class="label-text">Desde</div><input class="input" id="p2d" type="date"/></div>
+              <div><div class="label-text">Hasta</div><input class="input" id="p2h" type="date"/></div>
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">
+          Fechas inclusivas. La variación se calcula (P2 − P1) / P1.
         </div>
       </div>
     </div>
