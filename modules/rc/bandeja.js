@@ -94,6 +94,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtVal = v => esDinero() ? money(v) : `${nf0.format(Number(v || 0))} kg`;
   const measSubt = r => esDinero() ? Number(r.subt || 0) : Number(r.cantidad || 0);
   const metricaLbl = () => esDinero() ? 'MXN-eq' : 'kg (aprox)';
+  // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
+  const miniCard = (lbl, val, hint = '', color = '') => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
+      ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   const mesIni = iso => MESES[new Date(iso).getUTCMonth() + 1] || '';
@@ -214,11 +221,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const totalRiesgo = groupsArr.reduce((s, g) => s + grpRiesgo(g), 0);
     const nCriticas = groupsArr.filter(g => grpSev(g) === 0).length;
     document.getElementById('alertasResumen').innerHTML = `
-      <div class="grid-4" style="gap:12px">
-        ${KoguUi.cardStat(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)')}
-        ${KoguUi.cardStat('Clientes en caída', String(groupsArr.length), `${nCriticas} críticos`)}
-        ${KoguUi.cardStat('Productos en caída', String(groupsArr.reduce((s, g) => s + g.productos.length, 0)), 'alertas RC-006')}
-        ${KoguUi.cardStat('Otras alertas', String(otras.length), 'empresa / agentes')}
+      <div class="grid-4" style="gap:10px">
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
+        ${miniCard('Clientes en caída', String(groupsArr.length), `${nCriticas} críticos`)}
+        ${miniCard('Productos en caída', String(groupsArr.reduce((s, g) => s + g.productos.length, 0)), 'alertas RC-006')}
+        ${miniCard('Otras alertas', String(otras.length), 'empresa / agentes')}
       </div>`;
 
     if (!groupsArr.length && !otras.length) {

@@ -110,6 +110,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtVal = v => esDinero() ? money(v) : `${nf0.format(Number(v || 0))} kg`;
   const measKpi = k => esDinero() ? Number(k.subtotal_mxn || 0) : Number(k.cantidad || 0);
   const metricaLbl = () => esDinero() ? 'MXN-eq' : 'kg (aprox)';
+  // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
+  const miniCard = (lbl, val, hint = '', color = '') => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
+      ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   // ── Periodos / fechas (para Recalcular) ─────────────────────────────────────
@@ -188,10 +195,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ext = sum(kpis.filter(k => k.mercado === 'EXT'));
     const pctExt = total ? (ext / total) : 0;
     document.getElementById('kpiCards').innerHTML = [
-      KoguUi.cardStat(`Venta total (${metricaLbl()})`, fmtVal(total), `${kpis.length} combinaciones`),
-      KoguUi.cardStat('Nacional', fmtVal(nal), `${total ? Math.round(100 * nal / total) : 0}% del total`),
-      KoguUi.cardStat('Exportación', fmtVal(ext), `${Math.round(100 * pctExt)}% del total`),
-      KoguUi.cardStat('Alertas abiertas', String(alertas.filter(a => a.status === 'abierta').length), `${alertas.length} en total`),
+      miniCard(`Venta total (${metricaLbl()})`, fmtVal(total), `${kpis.length} combinaciones`),
+      miniCard('Nacional', fmtVal(nal), `${total ? Math.round(100 * nal / total) : 0}% del total`),
+      miniCard('Exportación', fmtVal(ext), `${Math.round(100 * pctExt)}% del total`),
+      miniCard('Alertas abiertas', String(alertas.filter(a => a.status === 'abierta').length), `${alertas.length} en total`),
     ].join('');
   }
 
@@ -252,11 +259,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const totalRiesgo = arr.reduce((s, g) => s + grpRiesgo(g), 0);
     const nCriticas = arr.filter(g => grpSev(g) === 0).length;
     document.getElementById('riesgoResumen').innerHTML = `
-      <div class="grid-4" style="gap:12px">
-        ${KoguUi.cardStat(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)')}
-        ${KoguUi.cardStat('Clientes en caída', String(arr.length), `${nCriticas} críticos`)}
-        ${KoguUi.cardStat('Productos en caída', String(productos), 'alertas RC-006')}
-        ${KoguUi.cardStat('Otras alertas', String(otras), 'empresa / agentes')}
+      <div class="grid-4" style="gap:10px">
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
+        ${miniCard('Clientes en caída', String(arr.length), `${nCriticas} críticos`)}
+        ${miniCard('Productos en caída', String(productos), 'alertas RC-006')}
+        ${miniCard('Otras alertas', String(otras), 'empresa / agentes')}
       </div>
       <div class="hint" style="margin-top:10px;color:var(--muted);font-size:12px">El detalle accionable, filtros y ficha por cliente están en la <a href="/modules/rc/bandeja.html">Bandeja de Riesgo</a>.</div>`;
   }

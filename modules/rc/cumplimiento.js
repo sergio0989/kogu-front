@@ -51,6 +51,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
   const fmtBase = (v, base) => base === 'kg' ? `${nf0.format(Number(v || 0))} kg` : money(v);
   const pct = v => v == null ? '—' : `${Math.round(Number(v) * 100)}%`;
+  // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
+  const miniCard = (lbl, val, hint = '', color = '') => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
+      ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
 
   const SEM = {
     verde:    { bg: 'var(--ok,#16a34a)',      txt: 'Al día' },
@@ -87,11 +94,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const enRiesgo = conMeta.filter(r => r.semaforo === 'rojo' || r.semaforo === 'naranja').length;
     const sinMeta = rows.filter(r => !r.tiene_meta).length;
     document.getElementById('resumen').innerHTML = `
-      <div class="grid-4" style="gap:12px">
-        ${KoguUi.cardStat('Agentes activos', String(rows.length), `${conMeta.length} con meta`)}
-        ${KoguUi.cardStat('En riesgo', String(enRiesgo), 'atrasados / críticos')}
-        ${KoguUi.cardStat('Sin meta', String(sinMeta), 'capturar presupuesto')}
-        ${KoguUi.cardStat('Al día', String(conMeta.filter(r => r.semaforo === 'verde').length), 'cumpliendo ritmo')}
+      <div class="grid-4" style="gap:10px">
+        ${miniCard('Agentes activos', String(rows.length), `${conMeta.length} con meta`)}
+        ${miniCard('En riesgo', String(enRiesgo), 'atrasados / críticos', enRiesgo ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard('Sin meta', String(sinMeta), 'capturar presupuesto')}
+        ${miniCard('Al día', String(conMeta.filter(r => r.semaforo === 'verde').length), 'cumpliendo ritmo', 'var(--ok,#16a34a)')}
       </div>`;
 
     document.getElementById('rows').innerHTML = rows.length ? rows.map(r => {
