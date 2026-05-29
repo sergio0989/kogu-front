@@ -50,6 +50,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
     </div>
+
+    <!-- Periodo propio de Mi panel (solo aplica a la vista "Solo en riesgo") -->
+    <div id="periodoBox" style="margin-top:12px">
+      <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+        <div style="max-width:260px">
+          <div class="label-text">Periodo comparativo (independiente)</div>
+          <select class="select" id="presetFil">
+            <option value="auto">Automático (2 meses vs 2 meses)</option>
+            <option value="mes">Mes vs mes anterior</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </div>
+        <div id="customPeriodos" style="display:none;gap:8px;align-items:end;flex-wrap:wrap">
+          <div><div class="label-text">P1 desde</div><input class="input" id="p1d" type="date"/></div>
+          <div><div class="label-text">P1 hasta</div><input class="input" id="p1h" type="date"/></div>
+          <span style="align-self:center;color:var(--muted)">vs</span>
+          <div><div class="label-text">P2 desde</div><input class="input" id="p2d" type="date"/></div>
+          <div><div class="label-text">P2 hasta</div><input class="input" id="p2h" type="date"/></div>
+          <button class="btn" id="aplicarPeriodo">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
     <div id="carteraResumen" style="margin-top:14px"></div>
     <div id="alertas" style="margin-top:14px"></div>
   </div>
@@ -78,6 +101,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mesPrev = iso => MESES[new Date(iso).getUTCMonth()] || MESES[12];
   const rangoP1 = p => p?.p1d ? `${mesIni(p.p1d)}–${mesPrev(p.p1h)}` : '';
   const rangoP2 = p => p?.p2d ? `${mesIni(p.p2d)}–${mesIni(p.p2h)}` : '';
+
+  // Periodos propios de Mi panel (independientes de Tablero/Bandeja).
+  const pad = n => String(n).padStart(2, '0');
+  const isoUTC = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+  const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const addDays = (iso, n) => { const d = new Date(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  function computePeriodos() {
+    const preset = sel('presetFil');
+    if (preset === 'mes') {
+      const y = Number(panel.anio) || new Date().getFullYear();
+      const m = Number(panel.meses_transcurridos) || 12;
+      const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+      return { p1d: isoUTC(py, pm, 1), p1h: isoUTC(y, m, 1), p2d: isoUTC(y, m, 1), p2h: isoUTC(y, m, lastDay(y, m)) };
+    }
+    if (preset === 'custom') {
+      const p1d = sel('p1d'), p1hIn = sel('p1h'), p2d = sel('p2d'), p2h = sel('p2h');
+      if (!p1d || !p1hIn || !p2d || !p2h) return null;
+      return { p1d, p1h: addDays(p1hIn, 1), p2d, p2h };
+    }
+    return null; // auto
+  }
   const fmtPctCap = d => { const n = Number(d); if (n <= -1) return '−100%+'; return `${(n * 100).toFixed(1)}%`; };
   const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
   const SEM = { verde: 'var(--ok,#16a34a)', amarillo: 'var(--warning,#d97706)', naranja: '#ea580c', rojo: 'var(--danger,#dc2626)', sin_meta: 'var(--muted,#64748b)' };
@@ -196,14 +240,95 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
   }
 
+  let comp = { clientes: [], periodos: null };
+
   function render() {
     const vista = sel('vistaFil');
     const titulos = { riesgo: 'Mis clientes en riesgo', sanos: 'Mis clientes sanos', cartera: 'Toda mi cartera', ventas: 'Ventas por mes' };
     document.getElementById('listaTitulo').textContent = titulos[vista] || titulos.riesgo;
     show('sevFil', vista === 'riesgo');
-    if (vista === 'riesgo') { renderResumenRiesgo(); renderAlertas(); }
+    show('periodoBox', vista === 'riesgo');
+    if (vista === 'riesgo') renderRiesgo();
     else if (vista === 'ventas') { renderResumen(); renderVentas(); }
     else { renderResumen(); renderCartera(vista); }
+  }
+
+  // "Solo en riesgo": comparativo ON-DEMAND con el periodo propio de Mi panel.
+  const riesgoCli = c => {
+    if (esDinero()) {
+      if (c.caida) return Math.max(0, Number(c.caida.venta_p1) - Number(c.caida.venta_p2));
+      return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.importe_p1) - Number(p.importe_p2)), 0);
+    }
+    if (c.caida) return Math.max(0, Number(c.caida.cant_p1) - Number(c.caida.cant_p2));
+    return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
+  };
+
+  async function renderRiesgo() {
+    const ag = sel('agenteSel');
+    const per = computePeriodos();
+    const q = new URLSearchParams();
+    if (ag) q.set('agente_id', ag);
+    if (per) { q.set('p1d', per.p1d); q.set('p1h', per.p1h); q.set('p2d', per.p2d); q.set('p2h', per.p2h); }
+    document.getElementById('alertas').innerHTML = '<div class="empty">Calculando…</div>';
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/mi-panel/comparativo${q.toString() ? `?${q}` : ''}`);
+      comp = res?.data || res;
+    } catch (err) { document.getElementById('alertas').innerHTML = `<div class="empty">${KoguUi.escapeHtml(err.message)}</div>`; return; }
+    if (!comp || !comp.agente) { document.getElementById('carteraResumen').innerHTML = ''; document.getElementById('alertas').innerHTML = '<div class="empty">Sin agente.</div>'; return; }
+
+    const sv = sel('sevFil');
+    const clientes = (comp.clientes || []).filter(c => !sv || c.severidad === sv).slice().sort((a, b) => riesgoCli(b) - riesgoCli(a));
+
+    // Resumen
+    const totalRiesgo = clientes.reduce((s, c) => s + riesgoCli(c), 0);
+    const nCrit = clientes.filter(c => c.severidad === 'critica').length;
+    const nProd = clientes.reduce((s, c) => s + (c.productos || []).length, 0);
+    const nDorm = clientes.filter(c => c.dormancia).length;
+    document.getElementById('carteraResumen').innerHTML = `
+      <div class="grid-4" style="gap:10px">
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
+        ${miniCard('Clientes en caída', String(clientes.length), `${nCrit} críticos`)}
+        ${miniCard('Productos en caída', String(nProd), 'cae el producto')}
+        ${miniCard('Sin compra', String(nDorm), 'clientes dormidos')}
+      </div>`;
+
+    const p = comp.periodos;
+    const banner = p ? `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · periodo propio de Mi panel</div>` : '';
+    if (!clientes.length) { document.getElementById('alertas').innerHTML = banner + '<div class="empty">Sin clientes en riesgo para el periodo. ¡Bien!</div>'; return; }
+
+    const sevBg = { critica: 'var(--danger,#dc2626)', alerta: 'var(--warning,#d97706)', info: 'var(--muted,#64748b)' };
+    const sevWord = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
+    document.getElementById('alertas').innerHTML = banner + clientes.map(c => {
+      const color = sevBg[c.severidad] || sevBg.info;
+      const varTxt = c.caida ? fmtPctCap(esDinero() ? c.caida.delta_importe : c.caida.delta_cantidad) : '';
+      const prods = (c.productos || []).slice(0, 6).map(pr => {
+        const v1 = esDinero() ? pr.importe_p1 : pr.cant_p1, v2 = esDinero() ? pr.importe_p2 : pr.cant_p2, dl = esDinero() ? pr.delta_importe : pr.delta_cantidad;
+        return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
+          <span style="color:var(--muted)">${pr.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(pr.desc_prod || '')}${pr.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
+          <span>${fmtVal(v1)} → ${fmtVal(v2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(dl)}</b></span>
+        </div>`;
+      }).join('');
+      return `<div style="border:1px solid var(--line);border-left:4px solid ${color};border-radius:12px;padding:14px;margin-bottom:10px">
+        <div class="row" style="align-items:flex-start">
+          <div style="flex:1">
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${color}">${sevWord[c.severidad] || 'Alerta'}</span>
+              <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
+            </div>
+            ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
+            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}</div>` : ''}
+            ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
+          </div>
+          <div style="text-align:right;min-width:150px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
+            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgoCli(c))}</div>
+            <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px;margin-top:8px">Detalle</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () =>
+      openFicha({ cliente_ref: x.dataset.fichaRef, detalle: { periodos: comp.periodos } }));
   }
 
   // Vista "Ventas por mes": pivote cliente × mes (Cantidad o Importe según métrica).
@@ -446,6 +571,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   document.getElementById('sevFil').onchange = render;
   document.getElementById('vistaFil').onchange = render;
+  document.getElementById('presetFil').onchange = () => {
+    document.getElementById('customPeriodos').style.display = sel('presetFil') === 'custom' ? 'flex' : 'none';
+    if (sel('presetFil') !== 'custom') renderRiesgo();
+  };
+  document.getElementById('aplicarPeriodo').onclick = (e) => KoguUi.withLoading(e.target, renderRiesgo, 'Calculando…');
   document.getElementById('agenteSel').onchange = load;
   document.getElementById('anioFil').onchange = load;
   document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, exportarAgente, 'Generando…');
