@@ -77,6 +77,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sel = id => document.getElementById(id)?.value ?? '';
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+  // Etiquetas de periodo a partir de {p1d,p1h,p2d,p2h} (p?h de P1 es exclusivo).
+  const mesIni = iso => MESES[new Date(iso).getUTCMonth() + 1] || '';
+  const mesPrev = iso => MESES[new Date(iso).getUTCMonth()] || MESES[12]; // mes anterior al exclusivo
+  const rangoP1 = p => p?.p1d ? `${mesIni(p.p1d)}–${mesPrev(p.p1h)}` : '';
+  const rangoP2 = p => p?.p2d ? `${mesIni(p.p2d)}–${mesIni(p.p2h)}` : '';
+
   const SEV = {
     critica: { txt: 'Crítica', bg: 'var(--danger,#dc2626)' },
     alerta:  { txt: 'Alerta',  bg: 'var(--warning,#d97706)' },
@@ -175,14 +181,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('reglaFil').value = cur;
   }
 
+  // Banner del comparativo P1 vs P2 (lo lee de cualquier alerta que lo traiga).
+  function periodosBanner() {
+    const conP = alertas.find(a => a.detalle && a.detalle.periodos);
+    const p = conP?.detalle?.periodos;
+    if (!p) return '';
+    return `<div class="hint" style="margin-bottom:12px;color:var(--muted);font-size:12px">
+      Comparativo P1 vs P2 (reglas RC-005/006): <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · variación = (P2−P1)/P1
+    </div>`;
+  }
+
   function renderAlertas() {
     const sv = sel('sevFil'), rg = sel('reglaFil');
     const filtered = alertas.filter(a =>
       (!sv || a.severidad === sv) && (!rg || a.regla_clave === rg) && a.status !== 'descartada');
-    if (!filtered.length) { document.getElementById('alertas').innerHTML = '<div class="empty">Sin alertas para el filtro</div>'; return; }
-    document.getElementById('alertas').innerHTML = filtered.map(a => {
+    if (!filtered.length) { document.getElementById('alertas').innerHTML = periodosBanner() + '<div class="empty">Sin alertas para el filtro</div>'; return; }
+    document.getElementById('alertas').innerHTML = periodosBanner() + filtered.map(a => {
       const quien = a.agente_nombre ? `Agente: ${KoguUi.escapeHtml(a.agente_nombre)}` :
                     a.cliente_ref ? `Cliente: ${KoguUi.escapeHtml(a.cliente_ref)}` : 'Empresa';
+      const d = a.detalle || {};
+      // Detalle P1→P2 cuando la alerta lo trae (RC-005). Marca neto negativo.
+      let comparativo = '';
+      if (d.venta_p1 != null && d.venta_p2 != null) {
+        const negativo = Number(d.venta_p2) < 0;
+        comparativo = `<div style="font-size:12px;color:var(--muted);margin-top:4px">
+          P1 ${rangoP1(d.periodos)}: <b>${money(d.venta_p1)}</b> → P2 ${rangoP2(d.periodos)}: <b>${money(d.venta_p2)}</b>
+          ${negativo ? ' <span style="color:var(--danger,#dc2626);font-weight:600">· devoluciones netas en P2</span>' : ''}
+        </div>`;
+      }
       return `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px">
         <div class="row" style="align-items:flex-start">
           <div style="flex:1">
@@ -193,6 +219,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             <div style="font-weight:600">${KoguUi.escapeHtml(a.titulo)}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">${quien}</div>
+            ${comparativo}
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn" data-act="vista" data-id="${a.alerta_id}" style="font-size:12px">Vista</button>
