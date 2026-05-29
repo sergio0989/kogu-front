@@ -44,6 +44,7 @@
       {href:'/modules/erp/pagos/pagos.html',label:'Pagos / Tesorería',perm:'screen.erp.pagos'},
     ]},
     {section:'Radar Comercial',items:[
+      {href:'/modules/rc/tablero.html',label:'Tablero (Dirección)',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
     ]},
     {section:'Materialidad',items:[
