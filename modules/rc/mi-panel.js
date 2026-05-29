@@ -32,20 +32,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <div class="card">
     <div class="row">
-      <div><div class="eyebrow">Acción</div><h2>Mis clientes en riesgo</h2></div>
-      <select class="select" id="sevFil">
-        <option value="">Toda severidad</option>
-        <option value="critica">Crítica</option>
-        <option value="alerta">Alerta</option>
-        <option value="info">Info</option>
-      </select>
+      <div><div class="eyebrow">Acción</div><h2 id="listaTitulo">Mis clientes en riesgo</h2></div>
+      <div style="display:flex;gap:10px">
+        <select class="select" id="vistaFil">
+          <option value="riesgo">Solo en riesgo</option>
+          <option value="cartera">Toda la cartera</option>
+        </select>
+        <select class="select" id="sevFil">
+          <option value="">Toda severidad</option>
+          <option value="critica">Crítica</option>
+          <option value="alerta">Alerta</option>
+          <option value="info">Info</option>
+        </select>
+      </div>
     </div>
+    <div id="carteraResumen" style="margin-top:14px"></div>
     <div id="alertas" style="margin-top:14px"></div>
   </div>
 </div>`;
 
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
+  const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
   let metrica = localStorage.getItem('kogu:rc-metrica') || 'cantidad';
   const esDinero = () => metrica === 'dinero';
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
@@ -111,7 +119,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('metaInfo').textContent =
       `Agente cve ${panel.agente.cve_agente} · año ${panel.anio} · ${panel.meses_transcurridos} meses transcurridos`;
     renderCumpl();
-    renderAlertas();
+    render();
+  }
+
+  const riskRefs = () => new Set((panel.alertas || [])
+    .filter(a => a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto') && a.status !== 'descartada')
+    .map(a => a.cliente_ref));
+
+  function renderResumen() {
+    const cartera = panel.cartera || [];
+    if (!panel.agente) { document.getElementById('carteraResumen').innerHTML = ''; return; }
+    const riesgo = riskRefs();
+    const total = cartera.length;
+    const enRiesgo = cartera.filter(c => riesgo.has(c.cliente_ref)).length;
+    const ventaImp = cartera.reduce((s, c) => s + Number(c.venta_imp || 0), 0);
+    const ventaQty = cartera.reduce((s, c) => s + Number(c.venta_qty || 0), 0);
+    const sinVenta = cartera.filter(c => Number(c.venta_imp || 0) === 0).length;
+    document.getElementById('carteraResumen').innerHTML = `
+      <div class="grid-4" style="gap:12px">
+        ${KoguUi.cardStat('Clientes en cartera', String(total), `${sinVenta} sin compra ${panel.anio}`)}
+        ${KoguUi.cardStat('En riesgo', String(enRiesgo), `${total ? Math.round(100 * enRiesgo / total) : 0}% de la cartera`)}
+        ${KoguUi.cardStat(`Venta ${panel.anio}`, fmtVal(esDinero() ? ventaImp : ventaQty), 'cartera del agente')}
+        ${KoguUi.cardStat('Sanos', String(total - enRiesgo), 'sin alertas')}
+      </div>`;
+  }
+
+  function render() {
+    renderResumen();
+    const vista = sel('vistaFil');
+    document.getElementById('listaTitulo').textContent = vista === 'cartera' ? 'Toda mi cartera' : 'Mis clientes en riesgo';
+    show('sevFil', vista !== 'cartera');
+    if (vista === 'cartera') renderCartera(); else renderAlertas();
+  }
+
+  function renderCartera() {
+    const cartera = (panel.cartera || []).slice();
+    if (!cartera.length) { document.getElementById('alertas').innerHTML = '<div class="empty">Este agente no tiene clientes asignados.</div>'; return; }
+    const riesgo = riskRefs();
+    const rows = cartera.map(c => {
+      const enR = riesgo.has(c.cliente_ref);
+      const sinV = Number(c.venta_imp || 0) === 0;
+      const estado = enR
+        ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:var(--danger,#dc2626)">En riesgo</span>'
+        : (sinV ? '<span class="badge neutral">Sin compra</span>'
+                : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:var(--ok,#16a34a)">Sano</span>');
+      const venta = esDinero() ? Number(c.venta_imp || 0) : Number(c.venta_qty || 0);
+      return `<tr>
+        <td><span class="chip-compact">${KoguUi.escapeHtml(c.cliente_ref || '')}</span> ${KoguUi.escapeHtml(c.nombre || '')}</td>
+        <td style="text-align:right">${fmtVal(venta)}</td>
+        <td>${c.ultima_compra ? KoguUi.fmtDate(c.ultima_compra).split(',')[0] : '—'}${c.dias_sin_compra != null ? ` <span style="color:var(--muted);font-size:11px">(${c.dias_sin_compra}d)</span>` : ''}</td>
+        <td>${estado}</td>
+        <td><button class="btn btn-ficha" data-ref="${KoguUi.escapeHtml(c.cliente_ref || '')}" style="font-size:12px">Detalle</button></td>
+      </tr>`;
+    }).join('');
+    document.getElementById('alertas').innerHTML = `
+      <div class="table-wrap"><table><thead><tr>
+        <th>Cliente</th><th style="text-align:right">Venta ${panel.anio}</th><th>Última compra</th><th>Estado</th><th></th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+    document.querySelectorAll('#alertas .btn-ficha').forEach(x => x.onclick = () => openFicha({ cliente_ref: x.dataset.ref, detalle: {} }));
   }
 
   function renderCumpl() {
@@ -266,9 +331,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('metricaFil').onchange = (e) => {
     metrica = e.target.value;
     localStorage.setItem('kogu:rc-metrica', metrica);
-    renderCumpl(); renderAlertas();
+    renderCumpl(); render();
   };
-  document.getElementById('sevFil').onchange = renderAlertas;
+  document.getElementById('sevFil').onchange = render;
+  document.getElementById('vistaFil').onchange = render;
   document.getElementById('agenteSel').onchange = load;
   KoguShell.subscribeEmpresaActivaChange(async () => { await loadAgentesSel(); await load(); });
   await loadAgentesSel();
