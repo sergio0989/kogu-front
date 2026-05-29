@@ -30,6 +30,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn" id="recalcBtn">↻ Recalcular</button>
       </div>
     </div>
+    <div class="grid-2" style="margin-top:14px;gap:12px;align-items:end">
+      <div>
+        <div class="label-text">Periodo comparativo (reglas RC-005/006)</div>
+        <select class="select" id="presetFil">
+          <option value="auto">Automático (2 meses vs 2 meses)</option>
+          <option value="mes">Mes vs mes anterior</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+      <div id="customPeriodos" style="display:none">
+        <div class="label-text">P1 (desde–hasta) · P2 (desde–hasta) — fechas inclusivas</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input class="input" id="p1d" type="date" title="P1 desde"/>
+          <input class="input" id="p1h" type="date" title="P1 hasta"/>
+          <span style="align-self:center;color:var(--muted)">vs</span>
+          <input class="input" id="p2d" type="date" title="P2 desde"/>
+          <input class="input" id="p2h" type="date" title="P2 hasta"/>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── KPIs ── -->
@@ -75,6 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
+  const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   // Etiquetas de periodo a partir de {p1d,p1h,p2d,p2h} (p?h de P1 es exclusivo).
@@ -82,6 +103,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mesPrev = iso => MESES[new Date(iso).getUTCMonth()] || MESES[12]; // mes anterior al exclusivo
   const rangoP1 = p => p?.p1d ? `${mesIni(p.p1d)}–${mesPrev(p.p1h)}` : '';
   const rangoP2 = p => p?.p2d ? `${mesIni(p.p2d)}–${mesIni(p.p2h)}` : '';
+
+  // ── Periodos / fechas ──────────────────────────────────────────────────────
+  const pad = n => String(n).padStart(2, '0');
+  const isoUTC = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+  const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m 1-based
+  const addDays = (iso, n) => { const d = new Date(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+  // Mes máximo presente en los KPIs (para preset "mes vs mes").
+  function maxMesKpis() {
+    let best = null;
+    kpis.forEach(k => { const key = k.anio * 12 + k.mes; if (!best || key > best.key) best = { key, y: k.anio, m: k.mes }; });
+    return best;
+  }
+
+  // Devuelve {p1d,p1h,p2d,p2h} (p1h exclusivo) o null para automático.
+  function computePeriodos() {
+    const preset = sel('presetFil');
+    if (preset === 'mes') {
+      const mx = maxMesKpis();
+      if (!mx) return null;
+      const py = mx.m === 1 ? mx.y - 1 : mx.y;
+      const pm = mx.m === 1 ? 12 : mx.m - 1;
+      return {
+        p1d: isoUTC(py, pm, 1), p1h: isoUTC(mx.y, mx.m, 1),
+        p2d: isoUTC(mx.y, mx.m, 1), p2h: isoUTC(mx.y, mx.m, lastDay(mx.y, mx.m)),
+      };
+    }
+    if (preset === 'custom') {
+      const p1d = sel('p1d'), p1hIn = sel('p1h'), p2d = sel('p2d'), p2h = sel('p2h');
+      if (!p1d || !p1hIn || !p2d || !p2h) return null; // incompleto → auto
+      return { p1d, p1h: addDays(p1hIn, 1), p2d, p2h }; // P1 hasta inclusivo → exclusivo +1
+    }
+    return null; // auto
+  }
+
+  const fmtPctCap = d => { const n = Number(d); if (n <= -1) return '−100%+'; return `${(n * 100).toFixed(1)}%`; };
+  function tituloDe(a) {
+    const d = a.detalle || {};
+    if (a.regla_clave === 'RC-005' && d.delta != null) return `Cliente compra ${fmtPctCap(d.delta)}: ${d.cliente_nombre || a.cliente_ref}`;
+    if (a.regla_clave === 'RC-003' && d.delta != null) { const who = a.entidad_tipo === 'empresa' ? 'Empresa' : 'Agente'; return `${who}: caída de venta ${fmtPctCap(d.delta)} mes vs mes`; }
+    return a.titulo;
+  }
 
   const SEV = {
     critica: { txt: 'Crítica', bg: 'var(--danger,#dc2626)' },
@@ -217,7 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span class="chip-compact">${KoguUi.escapeHtml(a.regla_clave)}</span>
               ${a.status === 'vista' ? '<span class="badge neutral">vista</span>' : ''}
             </div>
-            <div style="font-weight:600">${KoguUi.escapeHtml(a.titulo)}</div>
+            <div style="font-weight:600">${KoguUi.escapeHtml(tituloDe(a))}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">${quien}</div>
             ${comparativo}
           </div>
@@ -239,10 +302,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Eventos ───────────────────────────────────────────────────────────────
+  document.getElementById('presetFil').onchange = () => {
+    show('customPeriodos', sel('presetFil') === 'custom');
+  };
+
   document.getElementById('recalcBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {
       try {
-        const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: JSON.stringify({}) });
+        const periodos = computePeriodos();
+        const body = periodos ? { periodos } : {};
+        const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: JSON.stringify(body) });
         const d = res?.data || res;
         const tot = d?.total_alertas ?? 0;
         KoguApi.toast(`Recalculado: ${d?.kpi_filas ?? 0} filas KPI, ${tot} alertas`, 'success');
