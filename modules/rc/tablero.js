@@ -384,15 +384,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
     };
 
-    const cardOtra = a => `<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px">
+    const fmtBase = (v, base) => base === 'kg' ? `${nf0.format(Number(v || 0))} kg` : money(v);
+    const cardOtra = a => {
+      const d = a.detalle || {};
+      let sub = '';
+      if (a.regla_clave === 'RC-001') {
+        sub = `<div style="font-size:12px;color:var(--muted);margin-top:2px">Meta ${fmtBase(d.meta, d.base)} · Actual ${fmtBase(d.actual, d.base)} · faltan ${fmtBase(d.faltante_ritmo, d.base)} para el ritmo esperado</div>`;
+      }
+      return `<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px">
         <div class="row" style="align-items:center">
           <div style="flex:1">
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">${sevBadge(a.severidad)}<span class="chip-compact">${KoguUi.escapeHtml(a.regla_clave)}</span></div>
             <div style="font-weight:600;font-size:14px">${KoguUi.escapeHtml(tituloDe(a))}</div>
+            ${sub}
           </div>
           <button class="btn" data-act="descartada" data-id="${a.alerta_id}" style="font-size:12px">Descartar</button>
         </div>
       </div>`;
+    };
 
     const otrasHtml = otras.length
       ? `<div class="eyebrow" style="margin:18px 0 8px">Otras alertas (empresa / agentes)</div>${otras.map(cardOtra).join('')}`
