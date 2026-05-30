@@ -50,6 +50,7 @@
       {href:'/modules/rc/mi-panel.html',label:'Mi panel (Vendedor)',perm:'screen.ventas.vendedor'},
       {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion.html',label:'Asignar clientes',perm:'screen.ventas.agentes'},
+      {href:'/modules/rc/asignacion-pp.html',label:'Asignación PP',perm:'screen.ventas.direccion'},
     ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
