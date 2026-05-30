@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="dinero">$ Dinero (MXN)</option>
           <option value="cantidad">⚖ Cantidad (kg)</option>
         </select>
+        <button class="btn" id="reglasBtn" title="¿Cómo se calculan las alertas?">ℹ Reglas</button>
         <button class="btn" id="recalcBtn">↻ Recalcular</button>
       </div>
     </div>
@@ -419,7 +420,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     modal.onclick = e => { if (e.target === modal) closeFicha(); };
   }
 
+  // ── Modal: cómo se calculan las reglas ──────────────────────────────────────
+  function openReglas() {
+    const regla = (clave, titulo, detecta, calculo, umbral) => `
+      <div style="border:1px solid var(--line);border-left:4px solid var(--brand,#2563eb);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+          <span class="chip-compact">${clave}</span><span style="font-weight:700">${titulo}</span>
+        </div>
+        <div style="font-size:13px;margin-bottom:4px"><b>Detecta:</b> ${detecta}</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:4px"><b>Cómo se calcula:</b> ${calculo}</div>
+        <div style="font-size:12px;color:var(--muted)"><b>Umbral:</b> ${umbral}</div>
+      </div>`;
+    const html = `
+      <div id="rcReglasModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:860px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:10px">
+            <div><div class="eyebrow">Radar Comercial</div><h2 style="margin:4px 0 0">Cómo se calculan las alertas</h2></div>
+            <button class="btn" id="rcReglasClose">Cerrar ✕</button>
+          </div>
+          <div style="background:var(--panel2,#f1f5f9);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--muted)">
+            <b>Bases del cálculo.</b> La métrica primaria es <b>cantidad (kg)</b>: el importe en pesos se distorsiona con el tipo de cambio (~70% de la venta es USD), así que las caídas se miden en volumen. La venta se atribuye a un agente por el <b>cliente</b> (cat_clientes → agente vigente), nunca por la clave de agente del ERP. El comparativo <b>P1 vs P2</b> usa por defecto los <b>últimos 2 meses vs los 2 previos</b> (configurable). Las metas se comparan contra el <b>presupuesto anual</b> del agente.
+          </div>
+          ${regla('RC-001', 'Cumplimiento vs meta', 'Agentes que van por debajo del ritmo necesario para llegar a su meta anual.', 'Venta acumulada del año ÷ meta anual = % avance. El <i>ritmo esperado</i> = meta × (meses transcurridos ÷ 12). Se compara el avance real contra ese ritmo. Base kg si el agente tiene meta de cantidad; si no, en importe.', 'Alerta si el ritmo < 90% del esperado · Crítica si < 70%.')}
+          ${regla('RC-002', 'Concentración de cliente', 'Agentes que dependen demasiado de un solo cliente (riesgo si ese cliente se va).', 'Para cada agente, se calcula qué % de su venta (ventana de 12 meses) representa su cliente más grande.', 'Alerta si un cliente concentra ≥ 30% · Crítica si ≥ 50%. (En importe.)')}
+          ${regla('RC-003', 'Caída de volumen (mes vs mes)', 'Caída del volumen vendido del último mes contra el mes anterior, a nivel empresa y por agente.', 'Compara los kg del último mes con los del mes previo: (mes actual − mes anterior) ÷ mes anterior.', 'Alerta si cae ≥ 20% · Crítica si cae ≥ 40%. (En kg.)')}
+          ${regla('RC-004', 'Cliente sin compra (dormido)', 'Clientes con historial que dejaron de comprar.', 'Días entre la última compra del cliente y la fecha de la última venta de la empresa.', 'Alerta si lleva ≥ 60 días sin comprar · Crítica si ≥ 120 días.')}
+          ${regla('RC-005', 'Cliente comprando menos (P1 vs P2)', 'Clientes cuyo volumen de compra cayó entre dos periodos.', 'Suma de kg del cliente en P2 vs P1: (P2 − P1) ÷ P1.', 'Alerta si cae ≥ 25% · Crítica si cae ≥ 50%. (En kg.)')}
+          ${regla('RC-006', 'Producto que el cliente compra menos (P1 vs P2)', 'A nivel cliente×producto: qué producto específico dejó de comprar o redujo un cliente.', 'Por cada cliente y producto, compara P1 vs P2 en importe y en cantidad; basta que caiga en cualquiera de las dos. Se filtran productos chicos (mínimo de venta en P1) para evitar ruido.', 'Alerta si cae ≥ 30% (importe o kg) y la venta de P1 ≥ $5,000. "Abandonado" = cayó a 0.')}
+          <div style="font-size:12px;color:var(--muted);margin-top:8px">El <b>"monto/volumen en riesgo"</b> de cada cliente es lo que dejó de comprar (P1 − P2). Los umbrales son configurables en el catálogo de reglas.</div>
+        </div>
+      </div>`;
+    document.getElementById('rcReglasModal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('rcReglasModal');
+    document.getElementById('rcReglasClose').onclick = () => modal.remove();
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  }
+
   // ── Eventos ───────────────────────────────────────────────────────────────
+  document.getElementById('reglasBtn').onclick = openReglas;
   document.getElementById('presetFil').onchange = () => show('customPeriodos', sel('presetFil') === 'custom');
   document.getElementById('metricaFil').value = metrica;
   document.getElementById('metricaFil').onchange = (e) => {
