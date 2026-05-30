@@ -364,7 +364,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mesesRest = Math.max(1, Math.round(12 * (1 - ritmo)));
     const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
     const proyBlock = `
-      <div class="eyebrow" style="margin:16px 0 8px">Proyección a fin de año · a ritmo actual</div>
+      <div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px">
+        <div class="eyebrow" style="margin:0">Proyección a fin de año · a ritmo actual</div>
+        <button class="btn" id="proyInfoBtn" title="¿Cómo se calcula la proyección?" style="padding:2px 9px;font-size:12px">ℹ ¿Cómo se calcula?</button>
+      </div>
       <div class="grid-4" style="gap:10px">
         ${miniCard('Proyección de cierre', fmtVal(proy), `vs PP ${fmtVal(ppA)}`, proyCol)}
         ${miniCard('% del PP proyectado', pct0(proyPct), proyPct != null && proyPct < 1 ? 'cerraría por debajo' : 'cerraría en meta', proyCol)}
@@ -390,6 +393,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${ppTablaOpen ? cuerpo : ''}`;
 
     el.innerHTML = head + cards + bar + proyBlock + tabla;
+    const proyBtn = el.querySelector('#proyInfoBtn');
+    if (proyBtn) proyBtn.onclick = openProyeccion;
     const catHead = el.querySelector('#ppCatHead');
     if (catHead) catHead.onclick = () => { ppTablaOpen = !ppTablaOpen; renderPp(); };
     el.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
@@ -489,6 +494,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard('Otras alertas', String(otras), 'empresa / agentes')}
       </div>
       <div class="hint" style="margin-top:10px;color:var(--muted);font-size:12px">El detalle accionable, filtros y ficha por cliente están en la <a href="/modules/rc/bandeja.html">Bandeja de Riesgo</a>.</div>`;
+  }
+
+  // ── Modal: cómo se calcula la proyección de cierre ──────────────────────────
+  function openProyeccion() {
+    if (!pp || !pp.totales) return;
+    const t = pp.totales, ritmo = Number(t.ritmo_esperado || 0);
+    const realA = realVal(t), ppA = ppVal(t);
+    const proy = ritmo > 0 ? realA / ritmo : null;
+    const proyPct = (proy != null && ppA) ? proy / ppA : null;
+    const faltante = proy != null ? Math.max(0, ppA - proy) : null;
+    const mesesRest = Math.max(1, Math.round(12 * (1 - ritmo)));
+    const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
+    const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
+    const uni = esDinero() ? 'venta (MXN)' : 'volumen (kg)';
+
+    const paso = (n, titulo, formula, resultado) => `
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div style="flex:none;width:24px;height:24px;border-radius:50%;background:var(--brand,#2563eb);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">${n}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px">${titulo}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">${formula}</div>
+          <div style="font-size:14px;font-weight:700;margin-top:4px">${resultado}</div>
+        </div>
+      </div>`;
+
+    const html = `
+      <div id="rcProyModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:720px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:8px">
+            <div><div class="eyebrow">Radar · Presupuesto</div><h2 style="margin:4px 0 0">Cómo se calcula la proyección de cierre</h2></div>
+            <button class="btn" id="rcProyClose">Cerrar ✕</button>
+          </div>
+          <div style="background:var(--panel2,#f1f5f9);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--muted)">
+            <b>Idea.</b> Suponemos que el resto del año mantiene el <b>mismo ritmo de venta</b> observado hasta el corte (run-rate). Métrica activa: <b>${uni}</b> · corte al <b>${ultv}</b> · PP ${pp.anio} = <b>${fmtVal(ppA)}</b>.
+          </div>
+          ${paso(1, 'Fracción del año transcurrida', 'Días del año hasta el corte ÷ días del año. Es el “ritmo esperado”.', `= <b>${pct0(ritmo)}</b> del año (al ${ultv})`)}
+          ${paso(2, 'Proyección de cierre', 'Real a la fecha ÷ fracción transcurrida (si vendiste X en esa fracción, en el año entero venderías X ÷ fracción).', `${fmtVal(realA)} ÷ ${pct0(ritmo)} = <b>${fmtVal(proy)}</b>`)}
+          ${paso(3, '% del PP proyectado', 'Proyección de cierre ÷ PP anual.', `${fmtVal(proy)} ÷ ${fmtVal(ppA)} = <b>${pct0(proyPct)}</b>`)}
+          ${paso(4, 'Faltante proyectado', 'PP anual − Proyección de cierre (cuánto quedaría sin alcanzar si nada cambia).', `${fmtVal(ppA)} − ${fmtVal(proy)} = <b>${faltante ? fmtVal(faltante) : '—'}</b>`)}
+          ${paso(5, 'Ritmo mensual requerido', 'Lo que falta del PP ÷ meses restantes del año (cuánto deberías vender por mes para sí llegar al PP).', `(${fmtVal(ppA)} − ${fmtVal(realA)}) ÷ ${mesesRest} meses = <b>${fmtVal(necesarioMes)}/mes</b>`)}
+          <div style="font-size:12px;color:var(--muted);margin-top:10px">
+            <b>Límites.</b> Es una proyección <b>lineal</b>: no modela estacionalidad ni pedidos puntuales. El toggle <b>$ / kg</b> cambia la métrica de todo el cálculo. El corte usa la <b>última fecha de venta cargada</b> (${ultv}), no la fecha de hoy.
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('rcProyModal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('rcProyModal');
+    document.getElementById('rcProyClose').onclick = () => modal.remove();
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
   }
 
   // ── Modal: cómo se calculan las reglas ──────────────────────────────────────
