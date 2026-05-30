@@ -69,7 +69,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 
   <!-- ── KPIs ── -->
-  <div id="kpiCards" class="grid-4" style="gap:16px"></div>
+  <div class="card">
+    <div id="kpiCards" class="grid-4" style="gap:16px"></div>
+  </div>
 
   <!-- ── Presupuesto anual (PP) vs real ── -->
   <div class="card" id="ppCard"></div>
