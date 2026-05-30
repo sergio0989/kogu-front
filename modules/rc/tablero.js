@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!pp) { el.innerHTML = ''; return; }
     if (pp.sin_pp) {
       el.innerHTML = `
-        <div class="row"><div><div class="eyebrow">Radar · Presupuesto</div><h2>Avance vs PP ${pp.anio}</h2></div></div>
+        <div class="row"><div><div class="eyebrow">Radar · Presupuesto</div><h2>Cumplimiento vs PP ${pp.anio}</h2></div></div>
         <div class="empty" style="margin-top:10px">No hay presupuesto (PP) cargado para ${pp.anio}.${pp.anios?.length ? ` Disponibles: ${pp.anios.join(', ')}.` : ''}</div>`;
       return;
     }
@@ -235,12 +235,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
     const sc = pp.sin_cruce || { kg_real: 0, ventas_real: 0 };
     const scVal = esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0);
+    const cob = esDinero() ? t.cobertura_ventas : t.cobertura_kg;   // 0..1 atribuido a sublíneas
 
     const head = `
       <div class="row" style="align-items:flex-start">
         <div>
           <div class="eyebrow">Radar · Presupuesto</div>
-          <h2>Avance vs PP ${pp.anio}</h2>
+          <h2>Cumplimiento vs PP ${pp.anio}</h2>
           <div class="hint" style="margin-top:4px;color:var(--muted);font-size:12px">
             Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} · ritmo esperado <b>${pct0(ritmo)}</b> del año
           </div>
@@ -255,7 +256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard('Ritmo esperado', pct0(ritmo), `del año al ${ultv}`)}
         ${miniCard('Brecha vs ritmo', pct0(av == null ? null : av - ritmo), av != null && av < ritmo ? 'por debajo' : 'en/above línea', col)}
       </div>
-      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--warning,#d97706);font-size:12px">⚠ Venta sin mapear a sublínea: <b>${fmtVal(scVal)}</b> — completa el puente sub_cse→sublínea (rc_pp_map) para atribuirla.</div>` : ''}`;
+      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtVal(scVal)}</b> — se atribuye al cargar el puente sub_cse→sublínea (rc_pp_map).</div>` : ''}`;
 
     // Barra avance vs ritmo
     const barW = Math.min(100, Math.round((av || 0) * 100));
@@ -291,8 +292,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right;font-weight:700;color:${cc}">${pct0(a)}</td>
         </tr>${subs}`;
     };
+    const sinMapeo = !cob || cob < 0.001;
+    const bannerCat = sinMapeo
+      ? `<div class="hint" style="margin:10px 0 0;padding:10px 12px;background:var(--panel2,#f1f5f9);border-radius:10px;color:var(--muted);font-size:12px">El <b>desglose por categoría</b> requiere el puente <b>sub_cse→sublínea</b> (<code>rc_pp_map</code>), aún pendiente. Por ahora la columna Real aparece en cero por categoría; el <b>total al corte ya es correcto</b> arriba.</div>`
+      : '';
     const tabla = `
       <div class="eyebrow" style="margin:18px 0 8px">Avance por categoría (${esDinero() ? 'MXN' : 'kg'}) · clic para ver sublíneas</div>
+      ${bannerCat}
       <div class="table-wrap"><table><thead><tr>
         <th>Categoría</th><th style="text-align:right">PP ${pp.anio}</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>
       </tr></thead><tbody>${pp.categorias.map(filaCat).join('')}</tbody></table></div>`;
