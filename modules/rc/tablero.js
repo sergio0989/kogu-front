@@ -106,6 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let alertas = [];
   let pp = null;                 // presupuesto anual vs real { anio, totales, categorias, sin_cruce }
   const ppOpen = new Set();      // categorías expandidas (cat)
+  let ppTablaOpen = false;       // sección "Avance por categoría" colapsable (arranca comprimida)
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const money = v => KoguUi.money(Number(v || 0));
@@ -298,14 +299,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const bannerCat = sinMapeo
       ? `<div class="hint" style="margin:10px 0 0;padding:10px 12px;background:var(--panel2,#f1f5f9);border-radius:10px;color:var(--muted);font-size:12px">El <b>desglose por categoría</b> requiere el puente <b>sub_cse→sublínea</b> (<code>rc_pp_map</code>), aún pendiente. Por ahora la columna Real aparece en cero por categoría; el <b>total al corte ya es correcto</b> arriba.</div>`
       : '';
-    const tabla = `
-      <div class="eyebrow" style="margin:18px 0 8px">Avance por categoría (${esDinero() ? 'MXN' : 'kg'}) · clic para ver sublíneas</div>
+    const cuerpo = `
       ${bannerCat}
-      <div class="table-wrap"><table><thead><tr>
+      <div class="table-wrap" style="margin-top:8px"><table><thead><tr>
         <th>Categoría</th><th style="text-align:right">PP ${pp.anio}</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>
       </tr></thead><tbody>${pp.categorias.map(filaCat).join('')}</tbody></table></div>`;
+    const tabla = `
+      <div id="ppCatHead" class="eyebrow" style="margin:18px 0 0;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none">
+        <span style="display:inline-block;width:12px">${ppTablaOpen ? '▾' : '▸'}</span>
+        Avance por categoría (${esDinero() ? 'MXN' : 'kg'})
+        <span style="color:var(--muted);font-weight:400;font-size:11px;text-transform:none">· ${pp.categorias.length} categorías · ${ppTablaOpen ? 'clic para ocultar' : 'clic para mostrar'}</span>
+      </div>
+      ${ppTablaOpen ? cuerpo : ''}`;
 
     el.innerHTML = head + cards + bar + tabla;
+    const catHead = el.querySelector('#ppCatHead');
+    if (catHead) catHead.onclick = () => { ppTablaOpen = !ppTablaOpen; renderPp(); };
     el.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
       const cat = Number(tr.dataset.cat);
       if (ppOpen.has(cat)) ppOpen.delete(cat); else ppOpen.add(cat);
