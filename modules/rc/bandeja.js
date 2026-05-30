@@ -83,7 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Estado / helpers ────────────────────────────────────────────────────────
   let kpis = [];
-  let alertas = [];
+  let alertas = [];        // materializadas (otras alertas: RC-001/002/003 empresa/agente)
+  let comp = null;         // comparativo on-demand a nivel empresa { periodos, clientes }
 
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
@@ -145,35 +146,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const SEV = { critica: { txt: 'Crítica', bg: 'var(--danger,#dc2626)' }, alerta: { txt: 'Alerta', bg: 'var(--warning,#d97706)' }, info: { txt: 'Info', bg: 'var(--muted,#64748b)' } };
   const sevBadge = s => { const m = SEV[s] || SEV.info; return `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${m.bg}">${m.txt}</span>`; };
-  const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
-
-  function montoRiesgo(a) {
-    const d = a.detalle || {};
-    if (esDinero()) {
-      if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
-      if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));
-      if (d.venta_anio != null) return Math.max(0, Number(d.venta_anio));
-      return 0;
-    }
-    if (d.cant_p1 != null) return Math.max(0, Number(d.cant_p1) - Number(d.cant_p2));
-    if (d.qty_anio != null) return Math.max(0, Number(d.qty_anio));
-    if (d.prev_qty != null) return Math.max(0, Number(d.prev_qty) - Number(d.cur_qty));
-    return 0;
-  }
 
   function fillAgenteFil() {
-    const ags = [...new Set(alertas.map(a => a.agente_nombre).filter(Boolean))].sort();
+    const ags = [...new Set([
+      ...alertas.map(a => a.agente_nombre),
+      ...(comp?.clientes || []).map(c => c.agente_nombre),
+    ].filter(Boolean))].sort();
     const cur = sel('agenteFil');
     document.getElementById('agenteFil').innerHTML =
       '<option value="">Todos los agentes</option>' + ags.map(a => `<option value="${KoguUi.escapeHtml(a)}">${KoguUi.escapeHtml(a)}</option>`).join('');
     document.getElementById('agenteFil').value = cur;
   }
   function periodosBanner() {
-    const conP = alertas.find(a => a.detalle && a.detalle.periodos);
-    const p = conP?.detalle?.periodos;
+    const p = comp?.periodos;
     if (!p) return '';
     return `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">
-      Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · prioridad por ${esDinero() ? 'monto' : 'volumen (kg)'} que dejó de comprar (P1−P2)
+      Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · prioridad por ${esDinero() ? 'monto' : 'volumen (kg)'} que dejó de comprar (P1−P2) · cálculo on-demand (no depende de Recalcular)
     </div>`;
   }
 
@@ -189,88 +177,104 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('metaInfo').textContent = calc
       ? `Última actualización: ${KoguUi.fmtDate(calc)}`
       : 'Sin cálculo aún — presiona Recalcular.';
+    await loadComp();
     fillAgenteFil();
     renderAlertas();
   }
 
+  // Comparativo on-demand a nivel empresa: clientes en riesgo según el periodo
+  // seleccionado, SIN depender del Recalcular global (que sólo materializa KPIs
+  // y las "otras alertas" de empresa/agente).
+  async function loadComp() {
+    const periodos = computePeriodos();
+    const qs = periodos
+      ? `?p1d=${periodos.p1d}&p1h=${periodos.p1h}&p2d=${periodos.p2d}&p2h=${periodos.p2h}`
+      : '';
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/comparativo${qs}`);
+      comp = res?.data || res;
+    } catch (err) {
+      comp = { periodos: null, clientes: [] };
+      KoguApi.toast(err.message, 'error');
+    }
+  }
+
+  // Riesgo (P1−P2) de un cliente del comparativo on-demand, según la métrica activa.
+  function riesgoCli(c) {
+    if (c.caida) {
+      return esDinero()
+        ? Math.max(0, Number(c.caida.venta_p1) - Number(c.caida.venta_p2))
+        : Math.max(0, Number(c.caida.cant_p1) - Number(c.caida.cant_p2));
+    }
+    return (c.productos || []).reduce((s, p) => s + Math.max(0,
+      esDinero() ? Number(p.importe_p1) - Number(p.importe_p2) : Number(p.cant_p1) - Number(p.cant_p2)), 0);
+  }
+
   function renderAlertas() {
     const sv = sel('sevFil'), ag = sel('agenteFil');
-    const filtered = alertas.filter(a =>
-      (!sv || a.severidad === sv) && (!ag || a.agente_nombre === ag) && a.status !== 'descartada');
 
-    const groups = new Map();
-    const otras = [];
-    filtered.forEach(a => {
-      if (a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto')) {
-        let g = groups.get(a.cliente_ref);
-        if (!g) { g = { cliente_ref: a.cliente_ref, nombre: null, agente: null, alertas: [], rc005: null, rc004: null, productos: [] }; groups.set(a.cliente_ref, g); }
-        g.alertas.push(a);
-        const d = a.detalle || {};
-        if (d.cliente_nombre && !g.nombre) g.nombre = d.cliente_nombre;
-        if (a.agente_nombre && !g.agente) g.agente = a.agente_nombre;
-        if (a.regla_clave === 'RC-005') g.rc005 = a;
-        if (a.regla_clave === 'RC-004') g.rc004 = a;
-        if (a.regla_clave === 'RC-006') g.productos.push(a);
-      } else otras.push(a);
-    });
+    // Clientes en riesgo: comparativo on-demand (independiente del Recalcular).
+    const clientes = (comp?.clientes || [])
+      .filter(c => (!sv || c.severidad === sv) && (!ag || (c.agente_nombre || '') === ag))
+      .map(c => ({ ...c, _riesgo: riesgoCli(c) }))
+      .sort((a, b) => b._riesgo - a._riesgo);
 
-    const grpRiesgo = g => g.rc005 ? montoRiesgo(g.rc005)
-      : Math.max(g.productos.reduce((s, a) => s + montoRiesgo(a), 0), g.rc004 ? montoRiesgo(g.rc004) : 0);
-    const grpSev = g => g.alertas.reduce((m, a) => Math.min(m, SEV_RANK[a.severidad] ?? 2), 2);
-    const groupsArr = [...groups.values()].sort((a, b) => grpRiesgo(b) - grpRiesgo(a));
+    // Otras alertas (empresa / agentes): materializadas, NO de cliente.
+    const otras = alertas.filter(a =>
+      !(a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto'))
+      && (!sv || a.severidad === sv) && (!ag || a.agente_nombre === ag) && a.status !== 'descartada');
 
-    const totalRiesgo = groupsArr.reduce((s, g) => s + grpRiesgo(g), 0);
-    const nCriticas = groupsArr.filter(g => grpSev(g) === 0).length;
+    const totalRiesgo = clientes.reduce((s, c) => s + c._riesgo, 0);
+    const nCriticas = clientes.filter(c => c.severidad === 'critica').length;
+    const nProds = clientes.reduce((s, c) => s + (c.productos?.length || 0), 0);
     document.getElementById('alertasResumen').innerHTML = `
       <div class="grid-4" style="gap:10px">
         ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes en caída', String(groupsArr.length), `${nCriticas} críticos`)}
-        ${miniCard('Productos en caída', String(groupsArr.reduce((s, g) => s + g.productos.length, 0)), 'alertas RC-006')}
+        ${miniCard('Clientes en caída', String(clientes.length), `${nCriticas} críticos`)}
+        ${miniCard('Productos en caída', String(nProds), 'alertas RC-006')}
         ${miniCard('Otras alertas', String(otras.length), 'empresa / agentes')}
       </div>`;
 
-    if (!groupsArr.length && !otras.length) {
+    if (!clientes.length && !otras.length) {
       document.getElementById('alertas').innerHTML = periodosBanner() + '<div class="empty">Sin alertas para el filtro</div>';
       return;
     }
 
-    const sevWord = { 0: 'Crítica', 1: 'Alerta', 2: 'Info' };
-    const sevBg = { 0: 'var(--danger,#dc2626)', 1: 'var(--warning,#d97706)', 2: 'var(--muted,#64748b)' };
+    const sevBg = { critica: 'var(--danger,#dc2626)', alerta: 'var(--warning,#d97706)', info: 'var(--muted,#64748b)' };
+    const sevWordC = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
 
-    const cardCliente = g => {
-      const riesgo = grpRiesgo(g);
-      const sevN = grpSev(g);
-      const varTxt = g.rc005 ? fmtPctCap(esDinero() ? g.rc005.detalle?.delta_importe : g.rc005.detalle?.delta_cantidad) : '';
-      const prods = g.productos.slice().sort((a, b) => montoRiesgo(b) - montoRiesgo(a));
-      const top = prods.slice(0, 6).map(a => {
-        const d = a.detalle || {};
-        const v1 = esDinero() ? d.importe_p1 : d.cant_p1;
-        const v2 = esDinero() ? d.importe_p2 : d.cant_p2;
-        const dl = esDinero() ? d.delta_importe : d.delta_cantidad;
+    const cardCliente = c => {
+      const bg = sevBg[c.severidad] || sevBg.info;
+      const varTxt = c.caida ? fmtPctCap(esDinero() ? c.caida.delta_importe : c.caida.delta_cantidad) : '';
+      const prods = (c.productos || []).slice().sort((a, b) =>
+        (esDinero() ? (b.importe_p1 - b.importe_p2) - (a.importe_p1 - a.importe_p2) : (b.cant_p1 - b.cant_p2) - (a.cant_p1 - a.cant_p2)));
+      const top = prods.slice(0, 6).map(p => {
+        const v1 = esDinero() ? p.importe_p1 : p.cant_p1;
+        const v2 = esDinero() ? p.importe_p2 : p.cant_p2;
+        const dl = esDinero() ? p.delta_importe : p.delta_cantidad;
         return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
-          <span style="color:var(--muted)">${a.producto_ref ? `<span class="chip-compact">${KoguUi.escapeHtml(a.producto_ref)}</span> ` : ''}${KoguUi.escapeHtml(d.desc_prod || '')}${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
+          <span style="color:var(--muted)">${p.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(p.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(p.desc_prod || '')}${p.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
           <span>${fmtVal(v1)} → ${fmtVal(v2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(dl)}</b></span>
         </div>`;
       }).join('');
       const masTxt = prods.length > 6 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">+${prods.length - 6} producto(s) más — ver Detalle</div>` : '';
-      return `<div style="border:1px solid var(--line);border-left:4px solid ${sevBg[sevN]};border-radius:12px;padding:14px;margin-bottom:10px">
+      return `<div style="border:1px solid var(--line);border-left:4px solid ${bg};border-radius:12px;padding:14px;margin-bottom:10px">
         <div class="row" style="align-items:flex-start">
           <div style="flex:1">
             <div style="display:flex;gap:8px;align-items:center">
-              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${sevBg[sevN]}">${sevWord[sevN]}</span>
-              <span style="font-weight:700">${KoguUi.escapeHtml(g.nombre || g.cliente_ref)}</span>
-              <span style="font-size:12px;color:var(--muted)">· ${g.agente ? KoguUi.escapeHtml(g.agente) : 'sin agente'}</span>
+              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${bg}">${sevWordC[c.severidad] || 'Info'}</span>
+              <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
+              <span style="font-size:12px;color:var(--muted)">· ${c.agente_nombre ? KoguUi.escapeHtml(c.agente_nombre) : 'sin agente'}</span>
             </div>
-            ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p1 : g.rc005.detalle?.cant_p1)} → ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p2 : g.rc005.detalle?.cant_p2)}</div>` : ''}
-            ${g.rc004 ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${g.rc004.detalle?.dias_sin_compra} días · última ${KoguUi.fmtDate(g.rc004.detalle?.ultima_compra).split(',')[0]}</div>` : ''}
+            ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
+            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}</div>` : ''}
             ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
-            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgo)}</div>
+            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(c._riesgo)}</div>
             <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
-              <button class="btn primary" data-ficha-grp="${g.cliente_ref}" style="font-size:12px">Detalle</button>
-              <button class="btn" data-descgrp="${g.cliente_ref}" style="font-size:12px">Descartar</button>
+              <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px">Detalle</button>
             </div>
           </div>
         </div>
@@ -301,22 +305,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '';
 
     document.getElementById('alertas').innerHTML =
-      periodosBanner() + (groupsArr.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
+      periodosBanner() + (clientes.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
 
-    document.querySelectorAll('#alertas .btn[data-ficha-grp]').forEach(x => x.onclick = () => {
-      const g = groups.get(x.dataset.fichaGrp);
-      const a = g && (g.rc005 || g.productos[0] || g.rc004);
-      if (a) openFicha(a);
-    });
-    document.querySelectorAll('#alertas .btn[data-descgrp]').forEach(x => x.onclick = async () => {
-      const g = groups.get(x.dataset.descgrp); if (!g) return;
-      try {
-        await Promise.all(g.alertas.map(a => KoguApi.apiFetch(`${BASE}/alertas/${a.alerta_id}/status`, { method: 'PUT', body: JSON.stringify({ status: 'descartada' }) })));
-        g.alertas.forEach(a => { const z = alertas.find(q => q.alerta_id === a.alerta_id); if (z) z.status = 'descartada'; });
-        KoguApi.toast('Caso descartado', 'success');
-        renderAlertas();
-      } catch (err) { KoguApi.toast(err.message, 'error'); }
-    });
+    document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () => openFicha(x.dataset.fichaRef));
     document.querySelectorAll('#alertas .btn[data-act]').forEach(x => x.onclick = async () => {
       try {
         await KoguApi.apiFetch(`${BASE}/alertas/${x.dataset.id}/status`, { method: 'PUT', body: JSON.stringify({ status: x.dataset.act }) });
@@ -328,11 +319,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Ficha de detalle (modal) ────────────────────────────────────────────────
-  async function openFicha(a) {
-    const p = a.detalle?.periodos;
+  async function openFicha(clienteRef) {
+    const p = comp?.periodos;
     const qs = p ? `?p1d=${p.p1d}&p1h=${p.p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
     try {
-      const res = await KoguApi.apiFetch(`${BASE}/clientes/${encodeURIComponent(a.cliente_ref)}/comparativo${qs}`);
+      const res = await KoguApi.apiFetch(`${BASE}/clientes/${encodeURIComponent(clienteRef)}/comparativo${qs}`);
       renderFicha(res?.data || res);
     } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
@@ -458,8 +449,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Eventos ───────────────────────────────────────────────────────────────
+  // Recarga el comparativo on-demand al cambiar el periodo (sin Recalcular global).
+  async function reloadComp(btn) {
+    const run = async () => { await loadComp(); fillAgenteFil(); renderAlertas(); };
+    if (btn) await KoguUi.withLoading(btn, run, 'Calculando...'); else await run();
+  }
+
   document.getElementById('reglasBtn').onclick = openReglas;
-  document.getElementById('presetFil').onchange = () => show('customPeriodos', sel('presetFil') === 'custom');
+  document.getElementById('presetFil').onchange = async () => {
+    const custom = sel('presetFil') === 'custom';
+    show('customPeriodos', custom);
+    if (!custom) await reloadComp();   // custom espera a que se completen las fechas
+  };
+  ['p1d', 'p1h', 'p2d', 'p2h'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.onchange = () => { if (computePeriodos()) reloadComp(); };
+  });
   document.getElementById('metricaFil').value = metrica;
   document.getElementById('metricaFil').onchange = (e) => {
     metrica = e.target.value;
