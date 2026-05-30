@@ -66,11 +66,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ── KPIs ── -->
-  <div class="card">
-    <div id="kpiCards" class="grid-4" style="gap:16px"></div>
+    <!-- KPIs enriquecidos -->
+    <div id="kpiCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,1fr));gap:10px;margin-top:16px"></div>
+
+    <!-- Tendencia mensual + Mezcla -->
+    <div class="split" style="margin-top:16px">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--panel,#fff)">
+        <div class="eyebrow">Tendencia mensual</div>
+        <h3 style="margin:4px 0 12px">Venta por mes</h3>
+        <div id="trend"></div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--panel,#fff)">
+        <div class="eyebrow">Mezcla</div>
+        <h3 style="margin:4px 0 12px">Mercado y moneda</h3>
+        <div id="mezcla"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ── Presupuesto anual (PP) vs real ── -->
@@ -78,20 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <!-- ── Cumplimiento de agentes (resumen) ── -->
   <div class="card" id="cumplCard"></div>
-
-  <!-- ── Tendencia mensual + mezcla ── -->
-  <div class="split">
-    <div class="card">
-      <div class="eyebrow">Tendencia mensual</div>
-      <h3 style="margin:4px 0 12px">Venta por mes</h3>
-      <div id="trend"></div>
-    </div>
-    <div class="card">
-      <div class="eyebrow">Mezcla</div>
-      <h3 style="margin:4px 0 12px">Mercado y moneda</h3>
-      <div id="mezcla"></div>
-    </div>
-  </div>
 
   <!-- ── Resumen de riesgo (enlace a Bandeja) ── -->
   <div class="card">
@@ -129,6 +127,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
       <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
       ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
+    </div>`;
+  // Tarjeta KPI con acento de color (resumen de ventas, menos gris).
+  const statCard = (lbl, val, hint = '', accent = 'var(--brand,#2563eb)') => `
+    <div style="border:1px solid var(--line);border-left:4px solid ${accent};border-radius:12px;padding:12px 14px;background:var(--panel,#fff)">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${KoguUi.escapeHtml(lbl)}</div>
+      <div style="font-size:21px;font-weight:800;line-height:1.1;margin-top:3px;color:${accent}">${KoguUi.escapeHtml(val)}</div>
+      ${hint ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">${KoguUi.escapeHtml(hint)}</div>` : ''}
     </div>`;
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -418,15 +423,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sum = (arr, f = measKpi) => arr.reduce((a, x) => a + Number(f(x) || 0), 0);
 
   function renderKpis() {
-    const total = sum(kpis);
+    const totMet = sum(kpis);                                   // métrica activa
+    const totMXN = sum(kpis, k => Number(k.subtotal_mxn || 0)); // siempre MXN
+    const totKg = sum(kpis, k => Number(k.cantidad || 0));      // siempre kg
     const nal = sum(kpis.filter(k => k.mercado === 'NAL'));
     const ext = sum(kpis.filter(k => k.mercado === 'EXT'));
-    const pctExt = total ? (ext / total) : 0;
+    const usd = sum(kpis.filter(k => k.moneda === 'USD'));
+    const pc = v => totMet ? Math.round(100 * v / totMet) : 0;
+    const abiertas = alertas.filter(a => a.status === 'abierta').length;
+    // Tarjeta cruzada: muestra siempre la OTRA unidad (kg si estás en $, y viceversa).
+    const cruzada = esDinero()
+      ? statCard('Volumen total (kg)', `${nf0.format(totKg)} kg`, 'cantidad surtida', '#7c3aed')
+      : statCard('Venta total (MXN)', money(totMXN), 'MXN-eq', '#7c3aed');
     document.getElementById('kpiCards').innerHTML = [
-      miniCard(`Venta total (${metricaLbl()})`, fmtVal(total), `${kpis.length} combinaciones`),
-      miniCard('Nacional', fmtVal(nal), `${total ? Math.round(100 * nal / total) : 0}% del total`),
-      miniCard('Exportación', fmtVal(ext), `${Math.round(100 * pctExt)}% del total`),
-      miniCard('Alertas abiertas', String(alertas.filter(a => a.status === 'abierta').length), `${alertas.length} en total`),
+      statCard(`Venta total (${metricaLbl()})`, fmtVal(totMet), `${kpis.length} combinaciones`, 'var(--brand,#2563eb)'),
+      cruzada,
+      statCard('Nacional', fmtVal(nal), `${pc(nal)}% del total`, '#059669'),
+      statCard('Exportación', fmtVal(ext), `${pc(ext)}% del total`, '#4f46e5'),
+      statCard('% en USD', `${pc(usd)}%`, 'exposición a tipo de cambio', '#d97706'),
+      statCard('Alertas abiertas', String(abiertas), `${alertas.length} en total`, 'var(--danger,#dc2626)'),
     ].join('');
   }
 
@@ -462,16 +477,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderMezcla() {
     const total = sum(kpis) || 1;
     const grupos = [
-      ['Nacional MXN', kpis.filter(k => k.mercado === 'NAL' && k.moneda === 'MXN')],
-      ['Nacional USD', kpis.filter(k => k.mercado === 'NAL' && k.moneda === 'USD')],
-      ['Exportación MXN', kpis.filter(k => k.mercado === 'EXT' && k.moneda === 'MXN')],
-      ['Exportación USD', kpis.filter(k => k.mercado === 'EXT' && k.moneda === 'USD')],
+      ['Nacional MXN', 'NAL', 'MXN', '#059669'],
+      ['Nacional USD', 'NAL', 'USD', '#10b981'],
+      ['Exportación MXN', 'EXT', 'MXN', '#4f46e5'],
+      ['Exportación USD', 'EXT', 'USD', '#6366f1'],
     ];
-    document.getElementById('mezcla').innerHTML = grupos.map(([lbl, rows]) => {
-      const v = sum(rows); if (!v) return '';
-      return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">
-        <span>${lbl}</span>
-        <span style="font-weight:600">${fmtVal(v)} <span style="color:var(--muted);font-weight:400">(${Math.round(100 * v / total)}%)</span></span>
+    document.getElementById('mezcla').innerHTML = grupos.map(([lbl, merc, mon, col]) => {
+      const v = sum(kpis.filter(k => k.mercado === merc && k.moneda === mon)); if (!v) return '';
+      const p = Math.round(100 * v / total);
+      return `<div style="padding:8px 0">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-weight:600">${lbl}</span>
+          <span style="font-weight:700">${fmtVal(v)} <span style="color:var(--muted);font-weight:400">(${p}%)</span></span>
+        </div>
+        <div style="background:var(--panel2,#f1f5f9);border-radius:6px;height:8px;overflow:hidden"><div style="width:${p}%;height:100%;background:${col}"></div></div>
       </div>`;
     }).join('') || '<div class="empty">Sin datos</div>';
   }
