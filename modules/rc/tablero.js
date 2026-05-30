@@ -71,6 +71,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- ── KPIs ── -->
   <div id="kpiCards" class="grid-4" style="gap:16px"></div>
 
+  <!-- ── Presupuesto anual (PP) vs real ── -->
+  <div class="card" id="ppCard"></div>
+
   <!-- ── Tendencia mensual + mezcla ── -->
   <div class="split">
     <div class="card">
@@ -99,6 +102,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Estado ────────────────────────────────────────────────────────────────
   let kpis = [];
   let alertas = [];
+  let pp = null;                 // presupuesto anual vs real { anio, totales, categorias, sin_cruce }
+  const ppOpen = new Set();      // categorías expandidas (cat)
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const money = v => KoguUi.money(Number(v || 0));
@@ -186,6 +191,118 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTrend();
     renderMezcla();
     renderRiesgoResumen();
+    await loadPp();
+  }
+
+  // ── Presupuesto anual (PP) vs real ──────────────────────────────────────────
+  async function loadPp() {
+    const anio = sel('anioFil') || anioActual;
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/pp?anio=${anio}`);
+      pp = res?.data || res;
+    } catch (err) {
+      pp = null;
+      document.getElementById('ppCard').innerHTML =
+        `<div class="eyebrow">Radar · Presupuesto</div><div class="empty">No se pudo cargar el PP: ${KoguUi.escapeHtml(err.message)}</div>`;
+      return;
+    }
+    renderPp();
+  }
+
+  const pct0 = v => (v == null ? '—' : `${(Number(v) * 100).toFixed(0)}%`);
+  const ppVal = o => esDinero() ? Number(o.ventas_pp || 0) : Number(o.kg_pp || 0);
+  const realVal = o => esDinero() ? Number(o.ventas_real || 0) : Number(o.kg_real || 0);
+  const avVal = o => { const p = ppVal(o); return p ? realVal(o) / p : null; };
+  // Semáforo: avance real contra el ritmo esperado del año.
+  function semColor(av, ritmo) {
+    if (av == null || !ritmo) return 'var(--muted,#64748b)';
+    const r = av / ritmo;
+    return r >= 0.95 ? 'var(--success,#16a34a)' : r >= 0.8 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)';
+  }
+
+  function renderPp() {
+    const el = document.getElementById('ppCard');
+    if (!pp) { el.innerHTML = ''; return; }
+    if (pp.sin_pp) {
+      el.innerHTML = `
+        <div class="row"><div><div class="eyebrow">Radar · Presupuesto</div><h2>Avance vs PP ${pp.anio}</h2></div></div>
+        <div class="empty" style="margin-top:10px">No hay presupuesto (PP) cargado para ${pp.anio}.${pp.anios?.length ? ` Disponibles: ${pp.anios.join(', ')}.` : ''}</div>`;
+      return;
+    }
+    const t = pp.totales, ritmo = Number(t.ritmo_esperado || 0);
+    const av = avVal(t);
+    const col = semColor(av, ritmo);
+    const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
+    const sc = pp.sin_cruce || { kg_real: 0, ventas_real: 0 };
+    const scVal = esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0);
+
+    const head = `
+      <div class="row" style="align-items:flex-start">
+        <div>
+          <div class="eyebrow">Radar · Presupuesto</div>
+          <h2>Avance vs PP ${pp.anio}</h2>
+          <div class="hint" style="margin-top:4px;color:var(--muted);font-size:12px">
+            Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} · ritmo esperado <b>${pct0(ritmo)}</b> del año
+          </div>
+        </div>
+        <span style="display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff;background:${col}">${pct0(av)} del PP</span>
+      </div>`;
+
+    const cards = `
+      <div class="grid-4" style="gap:10px;margin-top:14px">
+        ${miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtVal(ppVal(t)), 'presupuesto anual')}
+        ${miniCard('Real a la fecha', fmtVal(realVal(t)), `${pct0(av)} del PP`, col)}
+        ${miniCard('Ritmo esperado', pct0(ritmo), `del año al ${ultv}`)}
+        ${miniCard('Brecha vs ritmo', pct0(av == null ? null : av - ritmo), av != null && av < ritmo ? 'por debajo' : 'en/above línea', col)}
+      </div>
+      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--warning,#d97706);font-size:12px">⚠ Venta sin mapear a sublínea: <b>${fmtVal(scVal)}</b> — completa el puente sub_cse→sublínea (rc_pp_map) para atribuirla.</div>` : ''}`;
+
+    // Barra avance vs ritmo
+    const barW = Math.min(100, Math.round((av || 0) * 100));
+    const ritW = Math.min(100, Math.round(ritmo * 100));
+    const bar = `
+      <div style="margin-top:14px">
+        <div style="position:relative;background:var(--panel2,#f1f5f9);border-radius:8px;height:22px;overflow:hidden">
+          <div style="width:${barW}%;height:100%;background:${col};transition:width .3s"></div>
+          <div title="Ritmo esperado ${pct0(ritmo)}" style="position:absolute;top:-2px;left:${ritW}%;width:2px;height:26px;background:var(--ink,#0f172a)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px">
+          <span>Avance ${pct0(av)}</span><span>Marcador = ritmo esperado ${pct0(ritmo)}</span><span>PP 100%</span>
+        </div>
+      </div>`;
+
+    // Tabla por categoría (expandible a sublínea)
+    const filaCat = c => {
+      const a = avVal(c), cc = semColor(a, ritmo);
+      const open = ppOpen.has(c.cat);
+      const subs = open ? c.sublineas.map(s => {
+        const sa = avVal(s), scol = semColor(sa, ritmo);
+        return `<tr style="background:var(--panel2,#f8fafc)">
+          <td style="padding-left:26px"><span class="chip-compact">${KoguUi.escapeHtml(s.cve_sublinea)}</span> ${KoguUi.escapeHtml(s.sublinea_nombre)}${s.mapeado ? '' : ' <span style="color:var(--warning,#d97706);font-size:11px">·sin cruce</span>'}</td>
+          <td style="text-align:right">${fmtVal(ppVal(s))}</td>
+          <td style="text-align:right">${fmtVal(realVal(s))}</td>
+          <td style="text-align:right;font-weight:600;color:${scol}">${pct0(sa)}</td>
+        </tr>`;
+      }).join('') : '';
+      return `<tr data-cat="${c.cat}" style="cursor:pointer">
+          <td><span style="display:inline-block;width:14px;color:var(--muted)">${open ? '▾' : '▸'}</span><b>${KoguUi.escapeHtml(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
+          <td style="text-align:right">${fmtVal(ppVal(c))}</td>
+          <td style="text-align:right">${fmtVal(realVal(c))}</td>
+          <td style="text-align:right;font-weight:700;color:${cc}">${pct0(a)}</td>
+        </tr>${subs}`;
+    };
+    const tabla = `
+      <div class="eyebrow" style="margin:18px 0 8px">Avance por categoría (${esDinero() ? 'MXN' : 'kg'}) · clic para ver sublíneas</div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Categoría</th><th style="text-align:right">PP ${pp.anio}</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>
+      </tr></thead><tbody>${pp.categorias.map(filaCat).join('')}</tbody></table></div>`;
+
+    el.innerHTML = head + cards + bar + tabla;
+    el.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
+      const cat = Number(tr.dataset.cat);
+      if (ppOpen.has(cat)) ppOpen.delete(cat); else ppOpen.add(cat);
+      renderPp();
+    });
   }
 
   const sum = (arr, f = measKpi) => arr.reduce((a, x) => a + Number(f(x) || 0), 0);
@@ -329,7 +446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('metricaFil').onchange = (e) => {
     metrica = e.target.value;
     localStorage.setItem('kogu:rc-metrica', metrica);
-    renderKpis(); renderTrend(); renderMezcla(); renderRiesgoResumen();
+    renderKpis(); renderTrend(); renderMezcla(); renderRiesgoResumen(); renderPp();
   };
 
   KoguShell.subscribeEmpresaActivaChange(loadAll);
