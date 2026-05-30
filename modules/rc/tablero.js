@@ -76,6 +76,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- ── Presupuesto anual (PP) vs real ── -->
   <div class="card" id="ppCard"></div>
 
+  <!-- ── Cumplimiento de agentes (resumen) ── -->
+  <div class="card" id="cumplCard"></div>
+
   <!-- ── Tendencia mensual + mezcla ── -->
   <div class="split">
     <div class="card">
@@ -107,6 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let pp = null;                 // presupuesto anual vs real { anio, totales, categorias, sin_cruce }
   const ppOpen = new Set();      // categorías expandidas (cat)
   let ppTablaOpen = false;       // sección "Avance por categoría" colapsable (arranca comprimida)
+  let cumpl = null;              // ranking de cumplimiento de agentes { rows, elapsed_pct }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const money = v => KoguUi.money(Number(v || 0));
@@ -180,12 +184,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Carga ─────────────────────────────────────────────────────────────────
   async function loadAll() {
     const anio = sel('anioFil') || anioActual;
-    const [kRes, aRes] = await Promise.all([
+    const [kRes, aRes, cRes] = await Promise.all([
       KoguApi.apiFetch(`${BASE}/kpis?anio=${anio}`),
       KoguApi.apiFetch(`${BASE}/alertas`),
+      KoguApi.apiFetch(`${BASE}/cumplimiento?anio=${anio}`).catch(() => null),
     ]);
     kpis = KoguApi.unwrapRows(kRes);
     alertas = KoguApi.unwrapRows(aRes);
+    cumpl = cRes ? (cRes.data || cRes) : null;
     const calc = (kRes?.data?.calculado_at) || null;
     document.getElementById('metaInfo').textContent = calc
       ? `Última actualización: ${KoguUi.fmtDate(calc)} · ${kpis.length} filas KPI`
@@ -194,7 +200,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTrend();
     renderMezcla();
     renderRiesgoResumen();
+    renderCumpl();
     await loadPp();
+  }
+
+  // ── Cumplimiento de agentes (resumen ejecutivo, enlace a la pantalla) ────────
+  const SEM = {
+    verde:   'var(--ok,#16a34a)', amarillo: 'var(--warning,#d97706)',
+    naranja: '#ea580c', rojo: 'var(--danger,#dc2626)', sin_meta: 'var(--muted,#64748b)',
+  };
+  const SEM_RANK_C = { rojo: 0, naranja: 1, amarillo: 2, verde: 3, sin_meta: 4 };
+  function renderCumpl() {
+    const el = document.getElementById('cumplCard');
+    if (!el) return;
+    const rows = (cumpl?.rows || []).filter(r => r.tiene_meta);
+    const head = `
+      <div class="row" style="align-items:flex-start">
+        <div><div class="eyebrow">Radar · Dirección</div><h2>Cumplimiento de agentes</h2></div>
+        <a class="btn primary" href="/modules/rc/cumplimiento.html">Abrir Cumplimiento →</a>
+      </div>`;
+    if (!rows.length) {
+      el.innerHTML = head + '<div class="empty" style="margin-top:12px">Sin agentes con meta cargada para el año.</div>';
+      return;
+    }
+    const alDia = rows.filter(r => r.semaforo === 'verde').length;
+    const atrasados = rows.filter(r => r.semaforo === 'rojo' || r.semaforo === 'naranja').length;
+    const resumen = `
+      <div class="grid-4" style="gap:10px;margin-top:12px">
+        ${miniCard('Agentes con meta', String(rows.length), `de ${cumpl?.rows?.length || rows.length} activos`)}
+        ${miniCard('Al día', String(alDia), 'cumpliendo ritmo', 'var(--ok,#16a34a)')}
+        ${miniCard('Requieren atención', String(atrasados), 'por debajo del ritmo', 'var(--danger,#dc2626)')}
+        ${miniCard('Ritmo del año', pct0(cumpl?.elapsed_pct), 'transcurrido')}
+      </div>`;
+    const fmtMeta = r => r.base === 'kg' ? `${nf0.format(Number(r.actual || 0))}/${nf0.format(Number(r.meta || 0))} kg` : `${money(r.actual)} / ${money(r.meta)}`;
+    const item = r => {
+      const col = SEM[r.semaforo] || SEM.sin_meta;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">
+          <span style="width:8px;height:8px;border-radius:50%;background:${col};flex:none"></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${KoguUi.escapeHtml(r.agente_nombre || r.cve_agente)}</div>
+            <div style="font-size:11px;color:var(--muted)">${fmtMeta(r)}</div>
+          </div>
+          <div style="font-weight:800;color:${col}">${pct0(r.avance)}</div>
+        </div>`;
+    };
+    const top = rows.slice().sort((a, b) => (b.ritmo ?? -1) - (a.ritmo ?? -1)).slice(0, 4);
+    const bottom = rows.slice().sort((a, b) => (SEM_RANK_C[a.semaforo] - SEM_RANK_C[b.semaforo]) || ((a.ritmo ?? 9) - (b.ritmo ?? 9))).slice(0, 4);
+    const cols = `
+      <div class="split" style="margin-top:14px">
+        <div><div class="eyebrow" style="margin-bottom:6px">Top cumplimiento</div>${top.map(item).join('')}</div>
+        <div><div class="eyebrow" style="margin-bottom:6px">Requieren atención</div>${bottom.map(item).join('')}</div>
+      </div>`;
+    el.innerHTML = head + resumen + cols;
   }
 
   // ── Presupuesto anual (PP) vs real ──────────────────────────────────────────
@@ -210,6 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     renderPp();
+    renderTrend();   // la tendencia necesita el PP para dibujar la meta mensual
   }
 
   const pct0 = v => (v == null ? '—' : `${(Number(v) * 100).toFixed(0)}%`);
@@ -295,6 +353,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right;font-weight:700;color:${cc}">${pct0(a)}</td>
         </tr>${subs}`;
     };
+    // Proyección de cierre por run-rate: real ÷ fracción del año transcurrida.
+    const realA = realVal(t), ppA = ppVal(t);
+    const proy = ritmo > 0 ? realA / ritmo : null;
+    const proyPct = (proy != null && ppA) ? proy / ppA : null;
+    const faltante = (proy != null) ? Math.max(0, ppA - proy) : null;
+    const proyCol = proyPct == null ? 'var(--muted,#64748b)'
+      : (proyPct >= 0.98 ? 'var(--success,#16a34a)' : proyPct >= 0.9 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
+    // Ritmo mensual requerido para cerrar el PP con lo que falta del año.
+    const mesesRest = Math.max(1, Math.round(12 * (1 - ritmo)));
+    const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
+    const proyBlock = `
+      <div class="eyebrow" style="margin:16px 0 8px">Proyección a fin de año · a ritmo actual</div>
+      <div class="grid-4" style="gap:10px">
+        ${miniCard('Proyección de cierre', fmtVal(proy), `vs PP ${fmtVal(ppA)}`, proyCol)}
+        ${miniCard('% del PP proyectado', pct0(proyPct), proyPct != null && proyPct < 1 ? 'cerraría por debajo' : 'cerraría en meta', proyCol)}
+        ${miniCard('Faltante proyectado', faltante ? fmtVal(faltante) : '—', 'para alcanzar el PP', faltante > 0 ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard('Ritmo mensual requerido', fmtVal(necesarioMes), `para cerrar el PP (~${mesesRest} meses)`)}
+      </div>`;
+
     const sinMapeo = !cob || cob < 0.001;
     const bannerCat = sinMapeo
       ? `<div class="hint" style="margin:10px 0 0;padding:10px 12px;background:var(--panel2,#f1f5f9);border-radius:10px;color:var(--muted);font-size:12px">El <b>desglose por categoría</b> requiere el puente <b>sub_cse→sublínea</b> (<code>rc_pp_map</code>), aún pendiente. Por ahora la columna Real aparece en cero por categoría; el <b>total al corte ya es correcto</b> arriba.</div>`
@@ -312,7 +389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       ${ppTablaOpen ? cuerpo : ''}`;
 
-    el.innerHTML = head + cards + bar + tabla;
+    el.innerHTML = head + cards + bar + proyBlock + tabla;
     const catHead = el.querySelector('#ppCatHead');
     if (catHead) catHead.onclick = () => { ppTablaOpen = !ppTablaOpen; renderPp(); };
     el.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
@@ -341,18 +418,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const porMes = {};
     kpis.forEach(k => { porMes[k.mes] = (porMes[k.mes] || 0) + measKpi(k); });
     const meses = Object.keys(porMes).map(Number).sort((a, b) => a - b);
-    if (!meses.length) { document.getElementById('trend').innerHTML = '<div class="empty">Sin datos</div>'; return; }
-    const max = Math.max(...meses.map(m => porMes[m]));
-    document.getElementById('trend').innerHTML = meses.map(m => {
+    const cont = document.getElementById('trend');
+    if (!meses.length) { cont.innerHTML = '<div class="empty">Sin datos</div>'; return; }
+    // Meta mensual lineal del PP (PP anual ÷ 12) para comparar mes a mes.
+    const metaMes = pp && pp.totales ? ppVal(pp.totales) / 12 : null;
+    const max = Math.max(...meses.map(m => porMes[m]), metaMes || 0);
+    const wMeta = (metaMes != null && max) ? Math.round(100 * metaMes / max) : null;
+    const rows = meses.map(m => {
       const v = porMes[m]; const w = max ? Math.round(100 * v / max) : 0;
+      const cumple = metaMes != null && v >= metaMes;
+      const barCol = metaMes == null ? 'var(--brand,#2563eb)' : (cumple ? 'var(--success,#16a34a)' : 'var(--brand,#2563eb)');
       return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0">
         <div style="width:34px;font-size:12px;color:var(--muted)">${MESES[m] || m}</div>
-        <div style="flex:1;background:var(--panel2,#f1f5f9);border-radius:6px;overflow:hidden">
-          <div style="width:${w}%;min-width:2px;height:18px;background:var(--brand,#2563eb)"></div>
+        <div style="position:relative;flex:1;background:var(--panel2,#f1f5f9);border-radius:6px;height:18px">
+          <div style="width:${w}%;min-width:2px;height:100%;background:${barCol};border-radius:6px"></div>
+          ${wMeta != null ? `<div title="Meta mensual ${fmtVal(metaMes)}" style="position:absolute;top:-2px;left:${wMeta}%;width:2px;height:22px;background:var(--ink,#0f172a)"></div>` : ''}
         </div>
         <div style="width:130px;text-align:right;font-size:12px">${fmtVal(v)}</div>
       </div>`;
     }).join('');
+    const legend = metaMes != null
+      ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:11px">▎Marcador = meta mensual (PP ÷ 12 = ${fmtVal(metaMes)}). Verde = el mes alcanza la meta.</div>`
+      : '';
+    cont.innerHTML = rows + legend;
   }
 
   function renderMezcla() {
@@ -463,7 +551,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('metricaFil').onchange = (e) => {
     metrica = e.target.value;
     localStorage.setItem('kogu:rc-metrica', metrica);
-    renderKpis(); renderTrend(); renderMezcla(); renderRiesgoResumen(); renderPp();
+    renderKpis(); renderTrend(); renderMezcla(); renderRiesgoResumen(); renderPp(); renderCumpl();
   };
 
   KoguShell.subscribeEmpresaActivaChange(loadAll);
