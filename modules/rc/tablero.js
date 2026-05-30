@@ -244,8 +244,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div style="font-weight:800;color:${col}">${pct0(r.avance)}</div>
         </div>`;
     };
-    const top = rows.slice().sort((a, b) => (b.ritmo ?? -1) - (a.ritmo ?? -1)).slice(0, 4);
-    const bottom = rows.slice().sort((a, b) => (SEM_RANK_C[a.semaforo] - SEM_RANK_C[b.semaforo]) || ((a.ritmo ?? 9) - (b.ritmo ?? 9))).slice(0, 4);
+    // Partimos el ranking por la mitad para que Top y "Requieren atención" no
+    // se traslapen cuando hay pocos agentes.
+    const ranked = rows.slice().sort((a, b) => (b.ritmo ?? -1) - (a.ritmo ?? -1));
+    const nTop = Math.min(4, Math.ceil(ranked.length / 2));
+    const top = ranked.slice(0, nTop);
+    const bottom = ranked.slice(nTop).slice(-4).reverse();   // peores primero, sin repetir
     const cols = `
       <div class="split" style="margin-top:14px">
         <div><div class="eyebrow" style="margin-bottom:6px">Top cumplimiento</div>${top.map(item).join('')}</div>
