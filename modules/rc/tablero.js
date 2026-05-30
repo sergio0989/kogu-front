@@ -310,12 +310,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span style="display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff;background:${col}">${pct0(av)} del PP</span>
       </div>`;
 
+    // Cumplimiento al corte = real ÷ meta lineal a la fecha (PP ÷ 12 × meses
+    // transcurridos). Mide qué tan al día vas contra el ritmo mensual del PP.
+    const mesesTrans = t.ult_venta ? (new Date(t.ult_venta).getUTCMonth() + 1) : null;
+    const metaCorte = mesesTrans ? ppVal(t) / 12 * mesesTrans : null;
+    const cumplCorte = metaCorte ? realVal(t) / metaCorte : null;
+    const cumplCol = cumplCorte == null ? 'var(--muted,#64748b)'
+      : (cumplCorte >= 1 ? 'var(--success,#16a34a)' : cumplCorte >= 0.9 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
     const cards = `
       <div class="grid-4" style="gap:10px;margin-top:14px">
         ${miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtVal(ppVal(t)), 'presupuesto anual')}
-        ${miniCard('Real a la fecha', fmtVal(realVal(t)), `${pct0(av)} del PP`, col)}
-        ${miniCard('Ritmo esperado', pct0(ritmo), `del año al ${ultv}`)}
-        ${miniCard('Brecha vs ritmo', pct0(av == null ? null : av - ritmo), av != null && av < ritmo ? 'por debajo' : 'en/above línea', col)}
+        ${miniCard('Real a la fecha', fmtVal(realVal(t)), `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col)}
+        ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, metaCorte != null ? fmtVal(metaCorte) : '—', `PP ÷ 12 × ${mesesTrans || 0} meses`)}
+        ${miniCard('Cumplimiento al corte', pct0(cumplCorte), 'real ÷ meta al corte', cumplCol)}
       </div>
       ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtVal(scVal)}</b> — se atribuye al cargar el puente sub_cse→sublínea (rc_pp_map).</div>` : ''}`;
 
