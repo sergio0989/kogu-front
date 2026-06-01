@@ -16,6 +16,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const ESQUEMA = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD' };
   const ESQ_BADGE = { porcentaje: 'primary', espejo: 'warn', por_kg_usd: 'neutral' };
+  const MOTIVO = {
+    tipo_pago_no_valido: 'Tipo de pago no válido', base_no_positiva: 'Base ≤ 0',
+    cliente_excluido: 'Cliente excluido', producto_excluido: 'Producto excluido',
+    agente_baja: 'Agente en baja', tipocom_no_soportado: 'Tipo de comisión no soportado',
+    cliente_sin_agente: 'Cliente sin agente', agente_sin_porcom: 'Agente sin %',
+  };
+  const motLabel = m => MOTIVO[m] || m;
 
   const money = v => KoguUi.money(Number(v || 0));
   const pct = f => (f === null || f === undefined || f === '') ? '—' : `${(Number(f) * 100).toFixed(2)}%`;
@@ -37,6 +44,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let corridaActual = null;   // cabecera com_corridas
   let resumen = [];           // resumen por agente
   let detalle = [];           // renglones (lazy)
+  let excluidos = [];         // excluidos (lazy)
+  let nomapeados = [];        // no mapeados (lazy)
 
   // ── Layout ─────────────────────────────────────────────────────────────
   const now = new Date();
@@ -142,6 +151,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
+  <!-- ── Excluidos y no mapeados ── -->
+  <div class="card" id="exclCard" style="display:none">
+    <div class="row">
+      <div><div class="eyebrow">Auditoría</div><h2>Excluidos y no mapeados</h2></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="exclBtn">Ver</button>
+        <button class="btn" id="csvExclBtn" style="display:none">CSV excluidos</button>
+        <button class="btn" id="csvNomapBtn" style="display:none">CSV no mapeados</button>
+      </div>
+    </div>
+    <div id="exclBody" style="display:none;margin-top:14px">
+      <div class="grid-2" style="gap:10px">
+        <select class="select" id="exclMotivo"><option value="">Todos los motivos</option></select>
+        <input class="input" id="exclQ" placeholder="Buscar cliente / factura" />
+      </div>
+      <div style="font-weight:700;margin-top:16px">Excluidos <span id="exclCount" style="color:var(--muted);font-weight:400;font-size:13px"></span></div>
+      <div class="table-wrap" style="margin-top:8px">
+        <table><thead><tr><th>Motivo</th><th>Factura</th><th>Cliente</th><th>Fecha</th><th style="text-align:right">Base</th><th>Detalle</th></tr></thead><tbody id="exclRows"></tbody></table>
+      </div>
+      <div style="font-weight:700;margin-top:20px">No mapeados <span id="nomapCount" style="color:var(--muted);font-weight:400;font-size:13px"></span></div>
+      <div class="table-wrap" style="margin-top:8px">
+        <table><thead><tr><th>Motivo</th><th>Factura</th><th>Cliente</th><th>Fecha</th><th style="text-align:right">Base</th><th>Detalle</th></tr></thead><tbody id="nomapRows"></tbody></table>
+      </div>
+    </div>
+  </div>
+
 </div>`;
 
   const empA = KoguApi.getEmpresaActiva() || {};
@@ -153,8 +188,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       elById('kpiCard').style.display = 'none';
       elById('resumenCard').style.display = 'none';
       elById('detalleCard').style.display = 'none';
+      elById('exclCard').style.display = 'none';
       return;
     }
+    elById('exclCard').style.display = '';
     const k = corridaActual;
     elById('kpiCard').style.display = '';
     elById('resumenCard').style.display = '';
@@ -249,10 +286,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = KoguApi.unwrapData(res);
       corridaActual = data.corrida || null;
       resumen = data.resumen || [];
-      detalle = [];
+      detalle = []; excluidos = []; nomapeados = [];
       elById('detFilters').style.display = 'none';
       elById('csvDetBtn').style.display = 'none';
       elById('detRows').innerHTML = '';
+      elById('exclBody').style.display = 'none';
+      elById('csvExclBtn').style.display = 'none';
+      elById('csvNomapBtn').style.display = 'none';
+      elById('exclRows').innerHTML = '';
+      elById('nomapRows').innerHTML = '';
       elById('statusLine').innerHTML = '';
       renderCorrida();
       renderResumen();
@@ -293,6 +335,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDetalle();
   }
 
+  // ── Excluidos / No mapeados ──────────────────────────────────────────────
+  async function loadExcl() {
+    if (!corridaActual) return;
+    const id = corridaActual.corrida_id;
+    const [ex, no] = await Promise.all([
+      KoguApi.apiFetch(`${BASE}/corridas/${id}/excluidos`),
+      KoguApi.apiFetch(`${BASE}/corridas/${id}/nomapeados`),
+    ]);
+    excluidos = KoguApi.unwrapRows(ex);
+    nomapeados = KoguApi.unwrapRows(no);
+    elById('exclBody').style.display = '';
+    elById('csvExclBtn').style.display = '';
+    elById('csvNomapBtn').style.display = '';
+    const motivos = [...new Set(excluidos.map(e => e.motivo))];
+    elById('exclMotivo').innerHTML = '<option value="">Todos los motivos</option>' +
+      motivos.map(m => `<option value="${m}">${esc(motLabel(m))}</option>`).join('');
+    renderExcl();
+    renderNomap();
+  }
+  function renderExcl() {
+    const q = val('exclQ').toLowerCase();
+    const mf = sel('exclMotivo');
+    const rows = excluidos.filter(e =>
+      (!mf || e.motivo === mf) &&
+      (!q || `${e.cliente_nombre || ''} ${e.no_fac || ''} ${e.cve_cte || ''}`.toLowerCase().includes(q)));
+    elById('exclCount').textContent = `(${rows.length} de ${excluidos.length})`;
+    elById('exclRows').innerHTML = rows.length ? rows.map(e => `
+      <tr><td><span class="badge neutral">${esc(motLabel(e.motivo))}</span></td>
+      <td>${esc(String(e.no_fac ?? '—'))}</td><td>${esc(e.cliente_nombre || e.cve_cte || '—')}</td>
+      <td>${esc(fmtDate(e.fecha))}</td><td style="text-align:right">${money(e.subtot)}</td>
+      <td>${esc(e.motivo_detalle || '')}</td></tr>`).join('') : empty6('Sin excluidos para el filtro');
+  }
+  function renderNomap() {
+    elById('nomapCount').textContent = `(${nomapeados.length})`;
+    elById('nomapRows').innerHTML = nomapeados.length ? nomapeados.map(n => `
+      <tr><td><span class="badge warn">${esc(motLabel(n.motivo))}</span></td>
+      <td>${esc(String(n.no_fac ?? '—'))}</td><td>${esc(n.cve_cte || '—')}</td>
+      <td>${esc(fmtDate(n.fecha))}</td><td style="text-align:right">${money(n.subtot)}</td>
+      <td>${esc(n.motivo_detalle || '')}</td></tr>`).join('') : empty6('Sin no mapeados');
+  }
+  const empty6 = msg => `<tr><td colspan="6" class="empty">${esc(msg)}</td></tr>`;
+
   // ── Export CSV ─────────────────────────────────────────────────────────
   function downloadCsv(filename, headers, rows) {
     const escCsv = v => {
@@ -323,6 +407,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       ['Esquema', 'Fecha', 'Num', 'Factura', 'Cliente', 'CveCte', 'Base', 'PorCom', 'Comision', 'CveAgente', 'Agente', 'Producto'],
       detalle.map(d => [ESQUEMA[d.esquema] || d.esquema, fmtDate(d.fecha), d.num, d.no_fac, d.cliente_nombre,
         d.cve_cte, d.subtot, d.porcom, d.comision, d.cve_agente, d.agente_nombre, d.cve_prod]));
+  }
+
+  function exportExcluidos() {
+    if (!excluidos.length) return KoguApi.toast('Nada que exportar', 'error');
+    const per = `${corridaActual.anio}-${String(corridaActual.mes).padStart(2, '0')}`;
+    downloadCsv(`comisiones_excluidos_${per}.csv`,
+      ['Motivo', 'Num', 'Factura', 'CveCte', 'Cliente', 'Fecha', 'Base', 'Detalle'],
+      excluidos.map(e => [motLabel(e.motivo), e.num, e.no_fac, e.cve_cte, e.cliente_nombre, fmtDate(e.fecha), e.subtot, e.motivo_detalle]));
+  }
+  function exportNomapeados() {
+    if (!nomapeados.length) return KoguApi.toast('Nada que exportar', 'error');
+    const per = `${corridaActual.anio}-${String(corridaActual.mes).padStart(2, '0')}`;
+    downloadCsv(`comisiones_nomapeados_${per}.csv`,
+      ['Motivo', 'Num', 'Factura', 'CveCte', 'Fecha', 'Base', 'Detalle'],
+      nomapeados.map(n => [motLabel(n.motivo), n.num, n.no_fac, n.cve_cte, fmtDate(n.fecha), n.subtot, n.motivo_detalle]));
   }
 
   // Reporte de pago oficial (Excel/PDF) — binario vía authFetchRaw.
@@ -379,6 +478,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   elById('detQ').oninput = renderDetalle;
   elById('detEsq').onchange = renderDetalle;
   elById('detAgente').onchange = renderDetalle;
+  elById('exclBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    try { await loadExcl(); } catch (_) { KoguApi.toast('No se pudo cargar', 'error'); }
+  }, 'Cargando...');
+  elById('exclMotivo').onchange = renderExcl;
+  elById('exclQ').oninput = renderExcl;
+  elById('csvExclBtn').onclick = exportExcluidos;
+  elById('csvNomapBtn').onclick = exportNomapeados;
 
   KoguShell.subscribeEmpresaActivaChange(async () => {
     const empB = KoguApi.getEmpresaActiva() || {};
