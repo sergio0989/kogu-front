@@ -84,6 +84,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Agente</th><th>Producto</th><th style="text-align:right">%</th><th>Motivo</th><th></th></tr></thead><tbody id="ovRows"></tbody></table></div>
   </div>
 
+  <!-- ── Clientes con comisión kg-USD ── -->
+  <div class="card">
+    <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Clientes con comisión kg-USD</h2></div></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">Estos clientes generan comisión por kilogramo (USD) para el agente kg, <b>además</b> del % de su agente primario. El agente kg y su tasa por kg se configuran en Radar Comercial → Agentes comerciales.</div>
+    <div class="grid-4" style="margin-top:12px;gap:10px;align-items:end">
+      <div><div class="label-text">Clave cliente</div><input class="input" id="kgCte" placeholder="Ej: 42" /></div>
+      <div style="grid-column:span 2"><div class="label-text">Agente kg-USD</div><select class="select" id="kgAge"><option value="">—</option></select></div>
+      <div><button class="btn primary" id="kgAdd" style="width:100%">Agregar</button></div>
+    </div>
+    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Nombre</th><th>Agente kg-USD</th><th></th></tr></thead><tbody id="kgRows"></tbody></table></div>
+  </div>
+
 </div>`;
 
   const empA = KoguApi.getEmpresaActiva() || {};
@@ -116,7 +128,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td><span class="chip-compact">${esc(r.cve_prod)}</span></td><td style="text-align:right;font-weight:700">${fracToPct(r.porcom_override)}</td>
       <td>${esc(r.motivo || '')}</td><td>${delCell('ov:' + r.override_id)}</td></tr>`).join('') : empty(6, 'Sin excepciones por producto');
   }
-  async function loadAll() { await Promise.all([loadTc(), loadEc(), loadEp(), loadOv()]); }
+  async function loadKgAgentes() {
+    const rows = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/kg-agentes`)) || [];
+    document.getElementById('kgAge').innerHTML = '<option value="">—</option>' +
+      rows.map(a => `<option value="${a.cve_agente}">${esc(`${a.cve_agente} · ${a.nombre}`)}</option>`).join('');
+  }
+  async function loadKg() {
+    const rows = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/kg-clientes`)) || [];
+    document.getElementById('kgRows').innerHTML = rows.length ? rows.map(r => `
+      <tr><td><span class="chip-compact">${esc(r.cve_cte)}</span></td><td>${esc(r.nombre || '')}</td>
+      <td>${esc(`${r.kg_cve_agente} · ${r.kg_agente_nombre}`)}</td><td>${delCell('kg:' + r.cliente_id)}</td></tr>`).join('') : empty(4, 'Sin clientes con comisión kg-USD');
+  }
+  async function loadAll() { await Promise.all([loadTc(), loadEc(), loadEp(), loadOv(), loadKgAgentes(), loadKg()]); }
 
   // ── Alta ────────────────────────────────────────────────────────────────
   async function post(path, body, reload, okMsg) {
@@ -154,10 +177,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('ovCte', ''); setV('ovAge', ''); setV('ovProd', ''); setV('ovPct', ''); setV('ovMot', '');
   }, 'Guardando...');
 
+  document.getElementById('kgAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    if (!val('kgCte') || !sel('kgAge')) return KoguApi.toast('Captura cliente y selecciona el agente kg', 'error');
+    await post('/kg-clientes', { cve_cte: val('kgCte'), cve_age: Number(sel('kgAge')) }, loadKg, 'Cliente kg-USD agregado');
+    setV('kgCte', '');
+  }, 'Guardando...');
+
   // ── Eliminar (delegado) ─────────────────────────────────────────────────
   const DEL = {
     tc: { path: '/tc', reload: loadTc }, ec: { path: '/exclusion-clientes', reload: loadEc },
     ep: { path: '/exclusion-productos', reload: loadEp }, ov: { path: '/comision-producto', reload: loadOv },
+    kg: { path: '/kg-clientes', reload: loadKg },
   };
   c.addEventListener('click', async (ev) => {
     const btn = ev.target.closest('[data-del]');
