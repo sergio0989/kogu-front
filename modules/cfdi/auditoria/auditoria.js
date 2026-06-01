@@ -192,9 +192,24 @@
   }
 
   function badgeDelta(estado) {
-    if (estado === 'OK') return '<span style="background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700">✅ OK</span>';
+    if (estado === 'OK') {
+      return '<span style="background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700">✅ OK</span>';
+    }
+    if (estado === 'SIN_TRAZA_SAT') {
+      // KOGU tiene facturas sin solicitud SAT terminada vinculada. Normal si
+      // hay carga histórica o flujos manuales. No es pérdida, es gap de
+      // trazabilidad auditable.
+      return '<span style="background:#fef3c7;color:#92400e;border:1px solid #fbbf24;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700" title="Hay CFDIs sin trazabilidad por solicitud SAT (carga histórica o manual)">⚠ SIN TRAZA SAT</span>';
+    }
+    if (estado === 'ANOMALIA') {
+      // Caso no esperado: SAT cuenta más que KOGU. Sucede solo si la query
+      // tiene un bug o si hubo borrados parciales de facturas.
+      return '<span style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700" title="SAT > KOGU: revisar datos">❌ ANOMALÍA</span>';
+    }
+    // Compatibilidad con snapshots viejos del histórico
     if (estado === 'FALTAN') return '<span style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700">❌ FALTAN</span>';
-    return '<span style="background:#fef3c7;color:#92400e;border:1px solid #fbbf24;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700">⚠ KOGU EXCEDE</span>';
+    if (estado === 'KOGU_EXCEDE') return '<span style="background:#fef3c7;color:#92400e;border:1px solid #fbbf24;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700">⚠ KOGU EXCEDE</span>';
+    return '<span style="background:#e2e8f0;color:#475569;padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700">' + esc(estado) + '</span>';
   }
 
   function renderCapa5(r) {
