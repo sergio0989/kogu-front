@@ -55,6 +55,7 @@
     ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
+      {href:'/modules/com/configuracion.html',label:'Configuración',perm:'screen.comisiones'},
     ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
