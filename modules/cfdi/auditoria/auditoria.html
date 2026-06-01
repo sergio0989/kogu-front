@@ -12,10 +12,13 @@
   <!-- SheetJS para export Excel -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 
-  <script src="/assets/auth.js"></script>
+  <!-- Orden estándar de scripts KOGU. config.js define window.KOGU_ENVIRONMENTS
+       que api.js necesita en getBaseUrl(). -->
+  <script src="/assets/config.js"></script>
   <script src="/assets/api.js"></script>
   <script src="/assets/ui.js"></script>
+  <script src="/assets/auth.js"></script>
   <script src="/assets/shell.js"></script>
-  <script src="/modules/cfdi/auditoria/auditoria.js"></script>
+  <script src="./auditoria.js"></script>
 </body>
 </html>
