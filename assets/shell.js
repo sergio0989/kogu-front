@@ -53,6 +53,9 @@
       {href:'/modules/rc/asignacion.html',label:'Asignar clientes',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion-pp.html',label:'Asignación PP',perm:'screen.ventas.direccion'},
     ]},
+    {section:'Comisiones',items:[
+      {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
+    ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
       // operación, al final el CFDI es la materialización fiscal.
