@@ -97,7 +97,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card" id="resumenCard" style="display:none">
     <div class="row">
       <div><div class="eyebrow">Pago</div><h2>Resumen por agente</h2></div>
-      <button class="btn" id="csvResumenBtn">Exportar CSV</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn primary" id="xlsxBtn">Excel de pago</button>
+        <button class="btn" id="pdfBtn">PDF de pago</button>
+        <button class="btn" id="csvResumenBtn">CSV</button>
+      </div>
     </div>
     <div class="table-wrap" style="margin-top:14px">
       <table><thead><tr>
@@ -321,6 +325,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         d.cve_cte, d.subtot, d.porcom, d.comision, d.cve_agente, d.agente_nombre, d.cve_prod]));
   }
 
+  // Reporte de pago oficial (Excel/PDF) — binario vía authFetchRaw.
+  async function exportReporte(format) {
+    if (!corridaActual) return KoguApi.toast('No hay corrida cargada', 'error');
+    const res = await KoguApi.authFetchRaw(`${BASE}/corridas/${corridaActual.corrida_id}/export?format=${format}`);
+    if (!res.ok) return KoguApi.toast('No se pudo generar el reporte', 'error');
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^"]+)"?/);
+    const per = `${corridaActual.anio}-${String(corridaActual.mes).padStart(2, '0')}`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = m ? m[1] : `comisiones_pago_${per}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   // ── Eventos ────────────────────────────────────────────────────────────
   elById('loadBtn').onclick = () => loadVigente(false);
   elById('calcBtn').onclick = async (e) => {
@@ -350,6 +370,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 'Cargando...');
   elById('csvResumenBtn').onclick = exportResumen;
   elById('csvDetBtn').onclick = exportDetalle;
+  elById('xlsxBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    try { await exportReporte('xlsx'); } catch (_) { KoguApi.toast('No se pudo generar el Excel', 'error'); }
+  }, 'Generando...');
+  elById('pdfBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    try { await exportReporte('pdf'); } catch (_) { KoguApi.toast('No se pudo generar el PDF', 'error'); }
+  }, 'Generando...');
   elById('detQ').oninput = renderDetalle;
   elById('detEsq').onchange = renderDetalle;
   elById('detAgente').onchange = renderDetalle;
