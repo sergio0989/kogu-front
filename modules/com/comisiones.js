@@ -72,6 +72,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn primary" id="calcBtn" style="width:100%">Calcular y guardar</button>
       </div>
     </div>
+    <details style="margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--bg-soft,#f8fafc)">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)">¿Qué hace cada botón?</summary>
+      <div style="margin-top:10px;font-size:13px;color:var(--muted);line-height:1.55">
+        <div style="margin-bottom:6px"><b style="color:var(--text,#0f172a)">Cargar corrida</b> · Muestra la corrida ya guardada del periodo. Es lectura pura: no toca la cobranza ni vuelve a correr el motor. Si no hay corrida guardada, te invita a calcularla.</div>
+        <div><b style="color:var(--text,#0f172a)">Calcular y guardar</b> · Vuelve a correr el motor sobre la cobranza actual y guarda el resultado. Si ya existe una corrida del periodo, pide confirmación antes de sobrescribir; la anterior se conserva como histórico.</div>
+      </div>
+    </details>
     <div id="statusLine" style="margin-top:12px"></div>
   </div>
 
@@ -316,9 +323,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Eventos ────────────────────────────────────────────────────────────
   elById('loadBtn').onclick = () => loadVigente(false);
-  elById('calcBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
-    try { await calcular(); } catch (_) { /* apiFetch ya notificó */ }
-  }, 'Calculando...');
+  elById('calcBtn').onclick = async (e) => {
+    const anio = Number(sel('fAnio'));
+    const mes = Number(sel('fMes'));
+    // ¿Ya existe una corrida vigente para este periodo? Si sí, confirmar
+    // antes de recalcular (la anterior se conserva como histórico).
+    let existe = false;
+    try {
+      const chk = await KoguApi.apiFetch(`${BASE}/corridas/vigente?anio=${anio}&mes=${mes}`);
+      existe = !!(KoguApi.unwrapData(chk)?.corrida);
+    } catch (_) { existe = false; } // 404 = no hay corrida → seguir directo
+    if (existe) {
+      const ok = window.confirm(
+        `Ya existe una corrida calculada para ${MESES[mes]} ${anio}.\n\n` +
+        `Aceptar = recalcular y sobrescribir (la corrida anterior se conserva como histórico).\n` +
+        `Cancelar = solo consultar la corrida existente.`
+      );
+      if (!ok) { await loadVigente(false); return; }
+    }
+    await KoguUi.withLoading(e.target, async () => {
+      try { await calcular(); } catch (_) { /* apiFetch ya notificó */ }
+    }, 'Calculando...');
+  };
   elById('detBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     try { await loadDetalle(); } catch (_) { /* apiFetch ya notificó */ }
   }, 'Cargando...');
