@@ -40,6 +40,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="tab" data-tipo="cobranza">Cobranza</button>
     </div>
 
+    <!-- Modo de carga (solo Ventas) -->
+    <div id="modoVentasBox" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--bg-soft,#f8fafc)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Modo de carga (Ventas)</div>
+      <label style="margin-right:18px;font-size:13px;cursor:pointer">
+        <input type="radio" name="modoVentas" value="reemplazar" checked /> Reemplazar — reemplaza la factura completa (carga total del periodo)
+      </label>
+      <label style="font-size:13px;cursor:pointer">
+        <input type="radio" name="modoVentas" value="agregar" /> Agregar — no destructivo: solo añade líneas nuevas (re-imports parciales)
+      </label>
+    </div>
+
     <!-- Zona de arrastre / selección -->
     <div id="dropZone" style="
       border:2px dashed var(--line);
@@ -156,9 +167,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       tipoActivo = btn.dataset.tipo;
       resetFile();
       updateColumnasInfo();
+      updateModoBox();
       loadHistorial();
     };
   });
+
+  function updateModoBox() {
+    const box = document.getElementById('modoVentasBox');
+    if (box) box.style.display = tipoActivo === 'ventas' ? '' : 'none';
+  }
+  updateModoBox();
 
   function updateColumnasInfo() {
     const el = document.getElementById('columnasTexto');
@@ -292,6 +310,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         archivo_nombre: archivoNombre,
         rows: parsedRows
       };
+      // Modo solo aplica a ventas: 'reemplazar' (reemplaza factura completa)
+      // o 'agregar' (no destructivo: solo agrega líneas nuevas).
+      if (tipoActivo === 'ventas') {
+        const modoEl = document.querySelector('input[name="modoVentas"]:checked');
+        payload.modo = modoEl ? modoEl.value : 'reemplazar';
+      }
 
       setProgress(30, 'Procesando en servidor…',
         `${totalLineas.toLocaleString()} filas`);
@@ -305,7 +329,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const d   = res?.data || res;
       const tip = tipoActivo.charAt(0).toUpperCase() + tipoActivo.slice(1);
-      const msg = `Filas: ${d?.filas_procesadas ?? '?'} | Omitidas: ${d?.filas_omitidas ?? 0} | Errores: ${d?.filas_error ?? 0}`;
+      const dup = (d?.duplicadas ?? 0) > 0 ? ` | Duplicadas: ${d.duplicadas}` : '';
+      const msg = `Filas: ${d?.filas_procesadas ?? d?.procesadas ?? '?'} | Omitidas: ${d?.filas_omitidas ?? d?.omitidas ?? 0} | Errores: ${d?.filas_error ?? d?.errores ?? 0}${dup}`;
       KoguApi.toast(`${tip} importadas. ${msg}`, d?.filas_error > 0 ? 'warning' : 'success');
 
       setTimeout(() => {
