@@ -148,6 +148,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const $ = (id) => document.getElementById(id);
 
+  // ── Validación pliego-driven (espejo del gate backend) ──────
+  // Un lote no_cumple / incompleta / sin_pliego sólo se certifica si la
+  // liberación es condicion='excepcion' (excepción aprobada). Si no, se
+  // bloquea su selección y el backend lo rechaza con COA_REQUIERE_EXCEPCION.
+  const VAL_MAP = {
+    validada:   { label: '✓ Validada',   bg: '#dcfce7', fg: '#166534' },
+    incompleta: { label: '⚠ Incompleta', bg: '#fef3c7', fg: '#92400e' },
+    no_cumple:  { label: '✕ No cumple',  bg: '#fee2e2', fg: '#991b1b' },
+    sin_pliego: { label: '⚠ Sin pliego', bg: '#fef3c7', fg: '#92400e' },
+    sin_lote:   { label: '○ Sin lote',   bg: '#f1f5f9', fg: '#475569' },
+  };
+  const VAL_BLOQUEANTE = ['no_cumple', 'incompleta', 'sin_pliego'];
+  function esBloqueada(l) {
+    return VAL_BLOQUEANTE.includes(l.validacion_status) && l.condicion !== 'excepcion';
+  }
+  function chipValidacion(l) {
+    const m = VAL_MAP[l.validacion_status];
+    if (!m) return '';
+    const exc = l.condicion === 'excepcion'
+      ? ' <span class="muted" style="font-size:11px">· excepción</span>' : '';
+    return `<span class="chip" style="background:${m.bg};color:${m.fg};font-size:11px">${m.label}</span>${exc}`;
+  }
+
   // ── Carga inicial: clientes ────────────────────────────
   async function loadClientes() {
     try {
@@ -210,14 +233,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const matchLote = preselectLoteId
         ? lotesDisponibles.find(l => l.lote_id === preselectLoteId)
         : null;
-      if (matchLote) {
+      if (matchLote && !esBloqueada(matchLote)) {
         lotesSeleccionados.add(matchLote.liberacion_id);
+      } else if (matchLote && esBloqueada(matchLote)) {
+        KoguApi.toast('El lote preseleccionado requiere excepción aprobada para certificar.', 'warning');
       }
       renderLotes();
-      if (matchLote) {
+      if (matchLote && lotesSeleccionados.has(matchLote.liberacion_id)) {
         // Marca el checkbox tras render (el value ahora es liberacion_id)
         const cb = document.querySelector(`input[data-lote-pick][value="${matchLote.liberacion_id}"]`);
-        if (cb) cb.checked = true;
+        if (cb && !cb.disabled) cb.checked = true;
         actualizarResumen();
         actualizarBotonEmitir();
       }
@@ -257,18 +282,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           const bg = ok ? '#dcfce7' : '#fef3c7';
           const fg = ok ? '#166534' : '#92400e';
           const sem = ok ? '✓ Cumple' : '⚠ Verificar';
+          const bloq = esBloqueada(l);
           const fechaLib = l.fecha_liberacion ? new Date(l.fecha_liberacion).toLocaleDateString() : '—';
           const cant = l.cantidad ? `${parseFloat(l.cantidad).toLocaleString()} ${l.unidad_simbolo || ''}` : '—';
           return `
-            <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:white">
-              <input type="checkbox" data-lote-pick="${idx}" value="${l.liberacion_id}" />
+            <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid ${bloq ? '#fecaca' : 'var(--line)'};border-left:${bloq ? '3px solid #dc2626' : '1px solid var(--line)'};border-radius:6px;cursor:${bloq ? 'not-allowed' : 'pointer'};background:${bloq ? '#fef2f2' : 'white'};opacity:${bloq ? '.85' : '1'}">
+              <input type="checkbox" data-lote-pick="${idx}" value="${l.liberacion_id}" ${bloq ? 'disabled' : ''} />
               <div style="flex:1">
                 <div><strong>${escapeHtml(l.numero_lote)}</strong> <span class="muted">·</span> ${escapeHtml(l.cve_prod || '')} — ${escapeHtml(l.desc_prod || '')}</div>
                 <div class="muted" style="font-size:12px;margin-top:2px">
                   Liberado ${fechaLib} · ${cant}
-                  ${l.condicion === 'excepcion' ? ' · <span style="color:#92400e">con excepción</span>' : ''}
                   ${l.folio_factura_externa ? ' · ref liberación: ' + escapeHtml(l.folio_factura_externa) : ''}
                 </div>
+                <div style="margin-top:4px">${chipValidacion(l)}</div>
+                ${bloq ? `<div style="margin-top:4px;color:#991b1b;font-size:12px">⛔ Requiere excepción aprobada para certificar. Crea/aprueba la excepción o corrige y revalida la liberación.</div>` : ''}
               </div>
               <span class="chip" style="background:${bg};color:${fg}">${sem}</span>
               <span class="muted" style="font-size:12px">${l.oficiales_cumplen || 0}/${l.oficiales_total || 0}</span>
@@ -453,25 +480,38 @@ document.addEventListener('DOMContentLoaded', async () => {
           const libIdsAIncluir = new Set(preselectLibIds);
           lotesDisponibles = lotesDisponibles.filter(l => libIdsAIncluir.has(l.liberacion_id));
 
-          // Marcar todas como seleccionadas (ya son exactamente las del parámetro)
+          // Marcar como seleccionadas SOLO las certificables; las bloqueadas
+          // (no_cumple / incompleta / sin_pliego sin excepción) quedan visibles
+          // pero deshabilitadas — el backend también las rechazaría.
           lotesSeleccionados.clear();
-          lotesDisponibles.forEach(l => lotesSeleccionados.add(l.liberacion_id));
+          let bloqueadasPre = 0;
+          lotesDisponibles.forEach(l => {
+            if (esBloqueada(l)) { bloqueadasPre++; return; }
+            lotesSeleccionados.add(l.liberacion_id);
+          });
           renderLotes();
           // Marcar visualmente los checkboxes tras render
           document.querySelectorAll('input[data-lote-pick]').forEach(cb => {
-            cb.checked = lotesSeleccionados.has(cb.value);
+            if (!cb.disabled) cb.checked = lotesSeleccionados.has(cb.value);
           });
           actualizarResumen();
           actualizarBotonEmitir();
 
-          // Si alguna liberación no aparece en lotes-disponibles, avisar
-          const noEncontrados = preselectLibIds.length - lotesSeleccionados.size;
+          // Avisos: faltantes (inactivas/otro cliente) y bloqueadas por validación.
+          const noEncontrados = preselectLibIds.length - lotesDisponibles.length;
+          if (bloqueadasPre > 0) {
+            KoguApi.toast(
+              `${bloqueadasPre} lote(s) requieren excepción aprobada para certificar y no se seleccionaron.`,
+              'warning',
+            );
+          }
           if (noEncontrados > 0) {
             KoguApi.toast(
               `${noEncontrados} lote(s) de la selección no están disponibles para este cliente (puede que la liberación esté inactiva).`,
               'warning',
             );
-          } else {
+          }
+          if (bloqueadasPre === 0 && noEncontrados === 0) {
             KoguApi.toast(
               `${validas.length} liberación(es) precargadas. Captura folio de factura y emite.`,
               'success',
