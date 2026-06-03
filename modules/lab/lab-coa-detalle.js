@@ -47,6 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       numJueces: 'Núm. jueces', correctos: 'Correctos', minRequerido: 'Mín. requerido',
       comentariosSensoriales: 'Comentarios sensoriales',
       qrMetodologias: 'Metodologías de laboratorio', qrVerificacion: 'Verificación del certificado',
+      lotesIncluidos: 'Lotes incluidos',
+      estEmitido: 'Emitido', estAnulado: 'Anulado', estSustituido: 'Sustituido',
     },
     en: {
       titulo: 'Certificate of Analysis (COA)',
@@ -68,6 +70,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       numJueces: 'Panelists', correctos: 'Correct', minRequerido: 'Min. required',
       comentariosSensoriales: 'Sensory comments',
       qrMetodologias: 'Lab methodologies', qrVerificacion: 'Certificate verification',
+      lotesIncluidos: 'Included batches',
+      estEmitido: 'Issued', estAnulado: 'Voided', estSustituido: 'Replaced',
     },
     pt: {
       titulo: 'Certificado de Análise (COA)',
@@ -193,6 +197,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `<h2>${escapeHtml(tL('fechasAnalisis'))}</h2><div class="coa-grid">${grid}${sensorial}</div>`;
     };
 
+    // Estado del COA como pill (emitido / anulado / sustituido).
+    const estCls = ['emitido', 'anulado', 'sustituido'].includes(coa.estado) ? coa.estado : 'emitido';
+    const estLabelMap = { emitido: tL('estEmitido'), anulado: tL('estAnulado'), sustituido: tL('estSustituido') };
+    const estLabel = estLabelMap[estCls] || coa.estado;
+
     // Helper para una fila de parámetro
     const filaParam = (p) => {
       let evalLabel = t.obs, evalCls = '';
@@ -236,6 +245,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Detectar si es consolidado multi-lote (V032+) o single-lote (legacy)
     const esMultiLote = Array.isArray(coa.lotes) && coa.lotes.length > 0;
+
+    // Chips de "Lotes incluidos" — resumen visual antes de las tablas.
+    const buildLotesChips = () => {
+      let chips = '';
+      if (esMultiLote) {
+        chips = coa.lotes.map(l => {
+          const cant = l.cantidad ? `${parseFloat(l.cantidad).toLocaleString()} ${l.unidad || ''}`.trim() : '';
+          return `<span class="coa-chip">${escapeHtml(l.numero_lote)}${cant ? ` · ${escapeHtml(cant)}` : ''}</span>`;
+        }).join('');
+      } else if (coa.numero_lote) {
+        chips = `<span class="coa-chip">${escapeHtml(coa.numero_lote)}</span>`;
+      }
+      if (!chips) return '';
+      return `<h2>${escapeHtml(tL('lotesIncluidos'))}</h2><div class="coa-chips">${chips}</div>`;
+    };
 
     let secParams = '';
     if (esMultiLote) {
@@ -297,6 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="text-align:right">
           <div style="font-size:11px;text-transform:uppercase;color:#64748b;letter-spacing:.5px">${escapeHtml(t.folio)}</div>
           <div style="font-size:18px;font-weight:700">${escapeHtml(coa.folio_coa)}</div>
+          <div><span class="coa-status ${estCls}">${escapeHtml(estLabel)}</span></div>
           <div class="muted">${escapeHtml(t.emitido)}: ${fechaEmi}</div>
           <div class="muted">${escapeHtml(t.idioma)}: ${coa.idioma.toUpperCase()}</div>
         </div>
@@ -353,6 +378,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${coa.tiene_excepcion
         ? `<div class="coa-leyenda">${escapeHtml(coa.leyenda_excepcion || t.leyenda_excep)}${coa.excepcion_motivo ? ' · ' + escapeHtml(coa.excepcion_motivo) : ''}</div>`
         : ''}
+
+      ${buildLotesChips()}
 
       ${secParams}
 
