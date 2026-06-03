@@ -376,12 +376,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function aprobarConfirm(excId) {
-    if (!confirm('¿Aprobar esta excepción?\n\nAl aprobar:\n- Se firma técnicamente la excepción.\n- Se crea automáticamente la liberación del lote al cliente destino.\n- Se genera una NC (no conformidad) para trazabilidad.\n\nLa acción no se puede deshacer.')) return;
+    if (!confirm('¿Aprobar esta excepción?\n\nAl aprobar:\n- Se firma técnicamente la excepción.\n- Se crea o actualiza la liberación del lote al cliente destino con condición «excepción».\n- Se genera una NC (no conformidad) para trazabilidad.\n\nLa acción no se puede deshacer.')) return;
     try {
       const res = await KoguApi.apiFetch(`${BASE}/${excId}/aprobar`, { method: 'POST', body: JSON.stringify({}) });
       const data = KoguApi.unwrapData(res);
       let msg = 'Excepción aprobada';
-      if (data?.liberacion_auto_id) msg += '. Liberación creada automáticamente.';
+      // El backend distingue si creó una liberación nueva o subió la existente.
+      if (data?.liberacion_auto_id) {
+        msg += data?.liberacion_upgraded
+          ? '. La liberación existente quedó con condición «excepción».'
+          : '. Liberación creada automáticamente.';
+      }
       if (data?.folio_nc) msg += ` NC: ${data.folio_nc}.`;
       KoguApi.toast(msg, 'success');
       await load();
