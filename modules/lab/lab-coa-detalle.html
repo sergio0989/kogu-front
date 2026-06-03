@@ -25,6 +25,13 @@
     .coa-firma  { margin-top: 32px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 13px; }
     .coa-verify { margin-top: 24px; padding: 12px; background: #f8fafc; border-radius: 6px;
                   font-size: 11px; color: #64748b; word-break: break-all; }
+    /* Cabecera con logo de la empresa activa */
+    .coa-header { display: flex; align-items: center; gap: 14px; }
+    .coa-logo { max-height: 64px; max-width: 200px; object-fit: contain; }
+    /* Bloque QR (metodologías / verificación) */
+    .coa-qr-wrap { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 24px; }
+    .coa-qr { text-align: center; font-size: 11px; color: #64748b; }
+    .coa-qr img, .coa-qr canvas { display: block; margin: 0 auto 6px; }
 
     /* Estilos para imprimir — oculta navegación, sidebar, headers */
     @media print {
@@ -42,5 +49,7 @@
   <script src="/assets/ui.js"></script>
   <script src="/assets/auth.js"></script>
   <script src="/assets/shell.js"></script>
+  <!-- Generador de QR (metodologías de laboratorio + verificación pública) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="./lab-coa-detalle.js"></script>
 </body></html>

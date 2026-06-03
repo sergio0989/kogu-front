@@ -41,6 +41,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       firma: 'Firmado por',
       verifyTitulo: 'Verificación pública',
       verifyTexto: 'Este certificado puede verificarse en línea con la siguiente URL:',
+      fechasAnalisis: 'Fechas y análisis',
+      elaboracion: 'Elaboración', caducidad: 'Caducidad',
+      inicioAnalisis: 'Inicio análisis', terminoAnalisis: 'Término análisis',
+      numJueces: 'Núm. jueces', correctos: 'Correctos', minRequerido: 'Mín. requerido',
+      comentariosSensoriales: 'Comentarios sensoriales',
+      qrMetodologias: 'Metodologías de laboratorio', qrVerificacion: 'Verificación del certificado',
     },
     en: {
       titulo: 'Certificate of Analysis (COA)',
@@ -56,6 +62,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       firma: 'Signed by',
       verifyTitulo: 'Public verification',
       verifyTexto: 'This certificate can be verified online at the following URL:',
+      fechasAnalisis: 'Dates & analysis',
+      elaboracion: 'Manufacture', caducidad: 'Best before',
+      inicioAnalisis: 'Analysis start', terminoAnalisis: 'Analysis end',
+      numJueces: 'Panelists', correctos: 'Correct', minRequerido: 'Min. required',
+      comentariosSensoriales: 'Sensory comments',
+      qrMetodologias: 'Lab methodologies', qrVerificacion: 'Certificate verification',
     },
     pt: {
       titulo: 'Certificado de Análise (COA)',
@@ -151,6 +163,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     const t = I18N[coa.idioma] || I18N.es;
     const fechaEmi = coa.fecha_emision ? new Date(coa.fecha_emision).toLocaleString() : '—';
 
+    // Etiqueta con fallback a ES (las claves de análisis/QR sólo están
+    // traducidas en es/en; el resto cae a español).
+    const tL = (k) => t[k] || I18N.es[k] || '';
+    const fmtFecha = (d) => d ? new Date(d).toLocaleDateString() : '';
+
+    // Bloque "Fechas y análisis" — lee los campos lote_* (en vivo). `src`
+    // es el COA (single-lote) o cada fila de coa.lotes (multi-lote). Sólo
+    // dibuja los campos presentes; si no hay ninguno, devuelve ''.
+    const buildAnalisisBlock = (src) => {
+      if (!src) return '';
+      const cell = (label, val) =>
+        (val !== null && val !== undefined && val !== '')
+          ? `<div class="coa-block"><strong>${escapeHtml(label)}</strong>${escapeHtml(val)}</div>`
+          : '';
+      const grid = [
+        cell(tL('elaboracion'),     fmtFecha(src.lote_fecha_elaboracion)),
+        cell(tL('caducidad'),       fmtFecha(src.lote_fecha_caducidad)),
+        cell(tL('inicioAnalisis'),  fmtFecha(src.lote_fecha_inicio_analisis)),
+        cell(tL('terminoAnalisis'), fmtFecha(src.lote_fecha_termino_analisis)),
+        cell(tL('numJueces'),       src.lote_num_jueces),
+        cell(tL('correctos'),       src.lote_num_juicios_correctos),
+        cell(tL('minRequerido'),    src.lote_min_juicios_correctos),
+      ].filter(Boolean).join('');
+      const sensorial = src.lote_comentarios_sensorial
+        ? `<div class="coa-block" style="grid-column:1/-1"><strong>${escapeHtml(tL('comentariosSensoriales'))}</strong>${escapeHtml(src.lote_comentarios_sensorial)}</div>`
+        : '';
+      if (!grid && !sensorial) return '';
+      return `<h2>${escapeHtml(tL('fechasAnalisis'))}</h2><div class="coa-grid">${grid}${sensorial}</div>`;
+    };
+
     // Helper para una fila de parámetro
     const filaParam = (p) => {
       let evalLabel = t.obs, evalCls = '';
@@ -212,6 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             ${cant ? `<div class="coa-block"><strong>Cant.</strong>${escapeHtml(cant)}</div>` : ''}
           </div>
+          ${buildAnalisisBlock(lote)}
           <table style="margin-top:8px">
             <thead><tr>
               <th>${escapeHtml(t.param)}</th>
@@ -244,9 +287,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('coaDoc').innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <h1>${escapeHtml(t.titulo)}</h1>
-          <div class="muted">${escapeHtml(coa.empresa_razon_social || coa.empresa_nombre_corto || '')} ${coa.empresa_rfc ? '· ' + escapeHtml(coa.empresa_rfc) : ''}</div>
+        <div class="coa-header">
+          ${coa.empresa_logo_url ? `<img class="coa-logo" src="${escapeHtml(coa.empresa_logo_url)}" alt="${escapeHtml(coa.empresa_razon_social || 'logo')}" onerror="this.style.display='none'"/>` : ''}
+          <div>
+            <h1>${escapeHtml(t.titulo)}</h1>
+            <div class="muted">${escapeHtml(coa.empresa_razon_social || coa.empresa_nombre_corto || '')} ${coa.empresa_rfc ? '· ' + escapeHtml(coa.empresa_rfc) : ''}</div>
+          </div>
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;text-transform:uppercase;color:#64748b;letter-spacing:.5px">${escapeHtml(t.folio)}</div>
@@ -301,6 +347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${escapeHtml(coa.numero_lote || '—')}
           </div>
         </div>
+        ${buildAnalisisBlock(coa)}
       `}
 
       ${coa.tiene_excepcion
@@ -314,6 +361,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${coa.emisor_email ? '<span class="muted"> · ' + escapeHtml(coa.emisor_email) + '</span>' : ''}
       </div>
 
+      ${(coa.empresa_metodologias_url || verifyUrl) ? `
+      <div class="coa-qr-wrap">
+        ${coa.empresa_metodologias_url ? `<div class="coa-qr"><div id="qrMetod"></div>${escapeHtml(tL('qrMetodologias'))}</div>` : ''}
+        ${verifyUrl ? `<div class="coa-qr"><div id="qrVerify"></div>${escapeHtml(tL('qrVerificacion'))}</div>` : ''}
+      </div>` : ''}
+
       ${verifyUrl ? `
       <div class="coa-verify">
         <div style="font-weight:600;color:#0f172a;margin-bottom:4px">${escapeHtml(t.verifyTitulo)}</div>
@@ -322,6 +375,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${coa.pdf_hash ? `<div style="margin-top:4px">SHA-256: <span style="font-family:monospace">${escapeHtml(coa.pdf_hash)}</span></div>` : ''}
       </div>` : ''}
     `;
+
+    // Generar los QR tras inyectar el HTML (la librería qrcodejs dibuja
+    // dentro de un contenedor existente). Si la lib no cargó, se omite.
+    try {
+      if (window.QRCode) {
+        if (coa.empresa_metodologias_url) {
+          const elM = document.getElementById('qrMetod');
+          if (elM) new QRCode(elM, { text: coa.empresa_metodologias_url, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M });
+        }
+        if (verifyUrl) {
+          const elV = document.getElementById('qrVerify');
+          if (elV) new QRCode(elV, { text: verifyUrl, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M });
+        }
+      }
+    } catch (e) { /* QR best-effort: nunca rompe el render del COA */ }
   }
 
   function buildVerifyUrl(token) {
