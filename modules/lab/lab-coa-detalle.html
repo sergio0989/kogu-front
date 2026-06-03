@@ -6,31 +6,40 @@
   <link rel="stylesheet" href="/assets/styles.css"/>
   <style>
     /* Layout específico del COA */
+    /* Paleta verde ADEGERMEX (escala derivada del verde de marca) */
     .coa-doc { background: white; max-width: 850px; margin: 0 auto; padding: 32px;
-               border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08); color: #0f172a; }
-    .coa-doc h1 { margin: 0 0 4px; font-size: 22px; }
-    .coa-doc h2 { margin: 24px 0 8px; font-size: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 4px; }
+               border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08); color: #1a2e1a;
+               --coa-green-900:#1f4d22; --coa-green-700:#2e6b34; --coa-green-500:#4a8a3d;
+               --coa-green-100:#e7f1df; --coa-green-50:#f3f8ef; --coa-green-border:#cfe3c2; }
+    .coa-doc h1 { margin: 0 0 4px; font-size: 22px; color: var(--coa-green-900); }
+    .coa-doc h2 { margin: 24px 0 8px; font-size: 16px; color: var(--coa-green-900);
+                  border-bottom: 2px solid var(--coa-green-700); padding-bottom: 4px; }
     .coa-doc table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-    .coa-doc th { text-align: left; padding: 8px; background: #f1f5f9; border-bottom: 2px solid #cbd5e1; font-weight: 600; }
-    .coa-doc td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .coa-doc th { text-align: left; padding: 8px; background: var(--coa-green-100);
+                  color: var(--coa-green-900); border-bottom: 2px solid var(--coa-green-500); font-weight: 600; }
+    .coa-doc td { padding: 8px; border-bottom: 1px solid var(--coa-green-border); vertical-align: top; }
     .coa-doc .ok { color: #166534; font-weight: 600; }
     .coa-doc .nok { color: #991b1b; font-weight: 600; }
-    .coa-doc .muted { color: #64748b; font-size: 12px; }
+    .coa-doc .muted { color: #5b6b57; font-size: 12px; }
     .coa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
-    .coa-block strong { display: block; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: .5px; margin-bottom: 4px; }
+    .coa-block strong { display: block; font-size: 11px; text-transform: uppercase; color: var(--coa-green-700); letter-spacing: .5px; margin-bottom: 4px; }
     .coa-leyenda { background: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b;
                    padding: 12px 14px; margin-top: 16px; border-radius: 4px; font-size: 13px; }
     .coa-anulado { background: #fee2e2; color: #991b1b; padding: 12px 14px; margin-top: 16px;
                    border-radius: 4px; font-weight: 600; text-align: center; font-size: 14px; }
-    .coa-firma  { margin-top: 32px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 13px; }
-    .coa-verify { margin-top: 24px; padding: 12px; background: #f8fafc; border-radius: 6px;
-                  font-size: 11px; color: #64748b; word-break: break-all; }
+    .coa-firma  { margin-top: 32px; padding-top: 16px; border-top: 1px dashed var(--coa-green-border); font-size: 13px; }
+    .coa-verify { margin-top: 24px; padding: 12px; background: var(--coa-green-50); border-radius: 6px;
+                  border-left: 4px solid var(--coa-green-500);
+                  font-size: 11px; color: #5b6b57; word-break: break-all; }
     /* Cabecera con logo de la empresa activa */
     .coa-header { display: flex; align-items: center; gap: 14px; }
     .coa-logo { max-height: 64px; max-width: 200px; object-fit: contain; }
-    /* Bloque QR (metodologías / verificación) */
-    .coa-qr-wrap { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 24px; }
-    .coa-qr { text-align: center; font-size: 11px; color: #64748b; }
+    /* Bloque QR — uno en cada extremo, en caja, para escanear sin interferencia */
+    .coa-qr-wrap { display: flex; justify-content: space-between; gap: 48px; flex-wrap: wrap;
+                   margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--coa-green-border); }
+    .coa-qr { flex: 0 0 auto; text-align: center; font-size: 11px; color: var(--coa-green-700);
+              padding: 12px 18px; border: 1px solid var(--coa-green-border); border-radius: 8px;
+              background: var(--coa-green-50); }
     .coa-qr img, .coa-qr canvas { display: block; margin: 0 auto 6px; }
 
     /* Estilos para imprimir — oculta navegación, sidebar, headers */
