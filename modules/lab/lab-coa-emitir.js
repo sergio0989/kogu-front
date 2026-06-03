@@ -295,7 +295,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                   ${l.folio_factura_externa ? ' · ref liberación: ' + escapeHtml(l.folio_factura_externa) : ''}
                 </div>
                 <div style="margin-top:4px">${chipValidacion(l)}</div>
-                ${bloq ? `<div style="margin-top:4px;color:#991b1b;font-size:12px">⛔ Requiere excepción aprobada para certificar. Crea/aprueba la excepción o corrige y revalida la liberación.</div>` : ''}
+                ${bloq ? `
+                  <div style="margin-top:4px;color:#991b1b;font-size:12px">⛔ Requiere excepción aprobada para certificar.</div>
+                  <button type="button" class="btn ghost" data-solicitar-exc="${idx}" style="margin-top:6px;font-size:12px;padding:4px 10px">Solicitar excepción</button>
+                ` : ''}
               </div>
               <span class="chip" style="background:${bg};color:${fg}">${sem}</span>
               <span class="muted" style="font-size:12px">${l.oficiales_cumplen || 0}/${l.oficiales_total || 0}</span>
@@ -315,6 +318,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         actualizarBotonEmitir();
       });
     });
+
+    // Botón "Solicitar excepción" en lotes bloqueados por validación.
+    list.querySelectorAll('button[data-solicitar-exc]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.solicitarExc, 10);
+        solicitarExcepcion(lotesDisponibles[idx], btn);
+      });
+    });
+  }
+
+  // ── Solicitar excepción para un lote bloqueado ─────────
+  // Crea la excepción borrador (backend) ligada a lote+cliente y dispara
+  // el correo a gerencia QA. El lote sigue bloqueado hasta que la aprueben.
+  async function solicitarExcepcion(l, btn) {
+    const clienteId = $('clienteId').value;
+    if (!l || !clienteId) return;
+    if (!confirm(`¿Solicitar excepción para el lote ${l.numero_lote}?\n\nSe creará una excepción en borrador ligada al lote y al cliente, y se notificará a gerencia QA por correo para su aprobación.`)) return;
+    btn.disabled = true;
+    btn.textContent = 'Solicitando…';
+    try {
+      const res = await KoguApi.apiFetch(`${BASE.replace('/coa', '')}/excepciones/solicitar`, {
+        method: 'POST',
+        body: JSON.stringify({
+          lote_id:       l.lote_id,
+          cliente_id:    clienteId,
+          liberacion_id: l.liberacion_id,
+        }),
+      });
+      const data  = KoguApi.unwrapData(res);
+      const notif = data?.notificacion || {};
+      const okFlow = notif.ok || data?.ya_existia;
+      const msg = data?.ya_existia
+        ? 'Ya había una excepción abierta para este lote/cliente. Pendiente de aprobación.'
+        : (notif.ok
+            ? 'Excepción solicitada. Gerencia QA notificada por correo.'
+            : 'Excepción solicitada (correo no enviado: revisa la config de correo). Pendiente de aprobación.');
+      KoguApi.toast(msg, okFlow ? 'success' : 'warning');
+      btn.textContent = 'Excepción solicitada ✓';
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Solicitar excepción';
+      KoguApi.toast(err.message, 'error');
+    }
   }
 
   function actualizarResumen() {
