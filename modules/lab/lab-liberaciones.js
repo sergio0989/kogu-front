@@ -1285,6 +1285,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const emitir = overlay.querySelector('#emitirCoaUnoBtn');
     if (emitir) {
       emitir.addEventListener('click', () => {
+        // Pre-validación anti-duplicado (espejo del guard del backend): si la
+        // liberación ya tiene COA(s) emitido(s), avisamos antes de ir al emisor.
+        // No bloqueamos del todo porque puede querer emitir en otro idioma/formato.
+        const activos = (lib.coas || []).filter(c => c.estado === 'emitido');
+        if (activos.length) {
+          const detalle = activos
+            .map(c => `${c.folio_coa} (${(c.idioma || 'es').toUpperCase()}/${c.formato || 'estandar'})`)
+            .join(', ');
+          const ok = confirm(
+            `Esta liberación ya tiene COA(s) emitido(s): ${detalle}.\n\n` +
+            `No puedes emitir otro con el mismo idioma y formato (se rechazará). ` +
+            `Procede solo si vas a emitir en un idioma/formato distinto, o anula el COA vigente primero.\n\n` +
+            `¿Continuar al emisor de COA?`
+          );
+          if (!ok) return;
+        }
         window.location.href = `/modules/lab/lab-coa-emitir.html?liberacion_ids=${encodeURIComponent(lib.liberacion_id)}`;
       });
     }
