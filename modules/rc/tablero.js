@@ -119,6 +119,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const esDinero = () => metrica === 'dinero';
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
   const fmtVal = v => esDinero() ? money(v) : `${nf0.format(Number(v || 0))} kg`;
+  // Formato compacto para cifras grandes de la proyección: 395,875,579.71 → "$395.875 M".
+  // Trunca a 3 decimales de millón (no redondea) para casar con la lectura ejecutiva.
+  const moneyC = v => {
+    const n = Number(v || 0), abs = Math.abs(n);
+    if (abs >= 1e6) {
+      const m = Math.trunc(n / 1e3) / 1e3;
+      return `$${m.toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} M`;
+    }
+    return money(n);
+  };
+  // Compacto solo para dinero; en kg se conserva el formato normal.
+  const fmtValC = v => esDinero() ? moneyC(v) : `${nf0.format(Number(v || 0))} kg`;
   const measKpi = k => esDinero() ? Number(k.subtotal_mxn || 0) : Number(k.cantidad || 0);
   const metricaLbl = () => esDinero() ? 'MXN-eq' : 'kg (aprox)';
   // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
@@ -369,9 +381,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right;font-weight:700;color:${cc}">${pct0(a)}</td>
         </tr>${subs}`;
     };
-    // Proyección de cierre por run-rate: real ÷ fracción del año transcurrida.
+    // Proyección de cierre por promedio mensual × 12.
     const realA = realVal(t), ppA = ppVal(t);
-    const proy = ritmo > 0 ? realA / ritmo : null;
+    // Meses transcurridos: del backend; fallback al mes de la última venta.
+    const mesesT = Number(t.meses_transcurridos) || (t.ult_venta ? new Date(t.ult_venta).getUTCMonth() + 1 : 0);
+    // Promedio de ventas mensual = real al corte ÷ meses transcurridos (backend, con fallback).
+    const promBack = esDinero() ? t.promedio_mensual_ventas : t.promedio_mensual_kg;
+    const promMes = promBack != null ? Number(promBack) : (mesesT ? realA / mesesT : 0);
+    // Proyección de cierre = promedio mensual × 12 (backend, con fallback).
+    const proyBack = esDinero() ? t.proyeccion_cierre_ventas : t.proyeccion_cierre_kg;
+    const proy = proyBack != null ? Number(proyBack) : promMes * 12;
     const proyPct = (proy != null && ppA) ? proy / ppA : null;
     const faltante = (proy != null) ? Math.max(0, ppA - proy) : null;
     const proyCol = proyPct == null ? 'var(--muted,#64748b)'
@@ -381,14 +400,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
     const proyBlock = `
       <div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px">
-        <div class="eyebrow" style="margin:0">Proyección a fin de año · a ritmo actual</div>
+        <div class="eyebrow" style="margin:0">Proyección a fin de año · promedio mensual × 12</div>
         <button class="btn" id="proyInfoBtn" title="¿Cómo se calcula la proyección?" style="padding:2px 9px;font-size:12px">ℹ ¿Cómo se calcula?</button>
       </div>
-      <div class="grid-4" style="gap:10px">
-        ${miniCard('Proyección de cierre', fmtVal(proy), `vs PP ${fmtVal(ppA)}`, proyCol)}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+        ${miniCard('Promedio de ventas mensual', fmtValC(promMes), `real ÷ ${mesesT || 0} meses`)}
+        ${miniCard('Proyección de cierre', fmtValC(proy), `vs PP ${fmtValC(ppA)}`, proyCol)}
         ${miniCard('% del PP proyectado', pct0(proyPct), proyPct != null && proyPct < 1 ? 'cerraría por debajo' : 'cerraría en meta', proyCol)}
-        ${miniCard('Faltante proyectado', faltante ? fmtVal(faltante) : '—', 'para alcanzar el PP', faltante > 0 ? 'var(--danger,#dc2626)' : '')}
-        ${miniCard('Ritmo mensual requerido', fmtVal(necesarioMes), `para cerrar el PP (~${mesesRest} meses)`)}
+        ${miniCard('Faltante proyectado', faltante ? fmtValC(faltante) : '—', 'para alcanzar el PP', faltante > 0 ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard('Ritmo mensual requerido', fmtValC(necesarioMes), `para cerrar el PP (~${mesesRest} meses)`)}
       </div>`;
 
     const sinMapeo = !cob || cob < 0.001;
@@ -531,7 +551,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!pp || !pp.totales) return;
     const t = pp.totales, ritmo = Number(t.ritmo_esperado || 0);
     const realA = realVal(t), ppA = ppVal(t);
-    const proy = ritmo > 0 ? realA / ritmo : null;
+    const mesesT = Number(t.meses_transcurridos) || (t.ult_venta ? new Date(t.ult_venta).getUTCMonth() + 1 : 0);
+    const promBack = esDinero() ? t.promedio_mensual_ventas : t.promedio_mensual_kg;
+    const promMes = promBack != null ? Number(promBack) : (mesesT ? realA / mesesT : 0);
+    const proyBack = esDinero() ? t.proyeccion_cierre_ventas : t.proyeccion_cierre_kg;
+    const proy = proyBack != null ? Number(proyBack) : promMes * 12;
     const proyPct = (proy != null && ppA) ? proy / ppA : null;
     const faltante = proy != null ? Math.max(0, ppA - proy) : null;
     const mesesRest = Math.max(1, Math.round(12 * (1 - ritmo)));
@@ -557,15 +581,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="rcProyClose">Cerrar ✕</button>
           </div>
           <div style="background:var(--panel2,#f1f5f9);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--muted)">
-            <b>Idea.</b> Suponemos que el resto del año mantiene el <b>mismo ritmo de venta</b> observado hasta el corte (run-rate). Métrica activa: <b>${uni}</b> · corte al <b>${ultv}</b> · PP ${pp.anio} = <b>${fmtVal(ppA)}</b>.
+            <b>Idea.</b> Sacamos el <b>promedio de venta por mes</b> observado hasta el corte y lo extrapolamos a los 12 meses del año. Métrica activa: <b>${uni}</b> · corte al <b>${ultv}</b> · PP ${pp.anio} = <b>${fmtVal(ppA)}</b>.
           </div>
-          ${paso(1, 'Fracción del año transcurrida', 'Días del año hasta el corte ÷ días del año. Es el “ritmo esperado”.', `= <b>${pct0(ritmo)}</b> del año (al ${ultv})`)}
-          ${paso(2, 'Proyección de cierre', 'Real a la fecha ÷ fracción transcurrida (si vendiste X en esa fracción, en el año entero venderías X ÷ fracción).', `${fmtVal(realA)} ÷ ${pct0(ritmo)} = <b>${fmtVal(proy)}</b>`)}
-          ${paso(3, '% del PP proyectado', 'Proyección de cierre ÷ PP anual.', `${fmtVal(proy)} ÷ ${fmtVal(ppA)} = <b>${pct0(proyPct)}</b>`)}
-          ${paso(4, 'Faltante proyectado', 'PP anual − Proyección de cierre (cuánto quedaría sin alcanzar si nada cambia).', `${fmtVal(ppA)} − ${fmtVal(proy)} = <b>${faltante ? fmtVal(faltante) : '—'}</b>`)}
-          ${paso(5, 'Ritmo mensual requerido', 'Lo que falta del PP ÷ meses restantes del año (cuánto deberías vender por mes para sí llegar al PP).', `(${fmtVal(ppA)} − ${fmtVal(realA)}) ÷ ${mesesRest} meses = <b>${fmtVal(necesarioMes)}/mes</b>`)}
+          ${paso(1, 'Meses transcurridos', 'Mes del año al que corresponde la última venta cargada (Ene = 1 … Dic = 12).', `= <b>${mesesT || 0} meses</b> (al ${ultv})`)}
+          ${paso(2, 'Promedio de ventas mensual', 'Real a la fecha ÷ meses transcurridos.', `${fmtVal(realA)} ÷ ${mesesT || 0} = <b>${fmtVal(promMes)}/mes</b>`)}
+          ${paso(3, 'Proyección de cierre', 'Promedio mensual × 12 (lo que se vendería en el año completo manteniendo ese promedio).', `${fmtVal(promMes)} × 12 = <b>${fmtVal(proy)}</b>`)}
+          ${paso(4, '% del PP proyectado', 'Proyección de cierre ÷ PP anual.', `${fmtVal(proy)} ÷ ${fmtVal(ppA)} = <b>${pct0(proyPct)}</b>`)}
+          ${paso(5, 'Faltante proyectado', 'PP anual − Proyección de cierre (cuánto quedaría sin alcanzar si nada cambia).', `${fmtVal(ppA)} − ${fmtVal(proy)} = <b>${faltante ? fmtVal(faltante) : '—'}</b>`)}
+          ${paso(6, 'Ritmo mensual requerido', 'Lo que falta del PP ÷ meses restantes del año (cuánto deberías vender por mes para sí llegar al PP).', `(${fmtVal(ppA)} − ${fmtVal(realA)}) ÷ ${mesesRest} meses = <b>${fmtVal(necesarioMes)}/mes</b>`)}
           <div style="font-size:12px;color:var(--muted);margin-top:10px">
-            <b>Límites.</b> Es una proyección <b>lineal</b>: no modela estacionalidad ni pedidos puntuales. El toggle <b>$ / kg</b> cambia la métrica de todo el cálculo. El corte usa la <b>última fecha de venta cargada</b> (${ultv}), no la fecha de hoy.
+            <b>Límites.</b> Es una proyección <b>lineal</b>: el mes en curso cuenta como mes completo y no modela estacionalidad ni pedidos puntuales. El toggle <b>$ / kg</b> cambia la métrica de todo el cálculo. El corte usa la <b>última fecha de venta cargada</b> (${ultv}), no la fecha de hoy.
           </div>
         </div>
       </div>`;
