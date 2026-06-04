@@ -340,12 +340,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       : (cumplCorte >= 1 ? 'var(--success,#16a34a)' : cumplCorte >= 0.9 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
     const cards = `
       <div class="grid-4" style="gap:10px;margin-top:14px">
-        ${miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtVal(ppVal(t)), 'presupuesto anual')}
-        ${miniCard('Real a la fecha', fmtVal(realVal(t)), `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col)}
-        ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, metaCorte != null ? fmtVal(metaCorte) : '—', `PP ÷ 12 × ${mesesTrans || 0} meses`)}
+        ${miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtValC(ppVal(t)), 'presupuesto anual')}
+        ${miniCard('Real a la fecha', fmtValC(realVal(t)), `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col)}
+        ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, metaCorte != null ? fmtValC(metaCorte) : '—', `PP ÷ 12 × ${mesesTrans || 0} meses`)}
         ${miniCard('Cumplimiento al corte', pct0(cumplCorte), 'real ÷ meta al corte', cumplCol)}
       </div>
-      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtVal(scVal)}</b> — se atribuye al cargar el puente sub_cse→sublínea (rc_pp_map).</div>` : ''}`;
+      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtValC(scVal)}</b> — se atribuye al cargar el puente sub_cse→sublínea (rc_pp_map).</div>` : ''}`;
 
     // Barra avance vs ritmo
     const barW = Math.min(100, Math.round((av || 0) * 100));
