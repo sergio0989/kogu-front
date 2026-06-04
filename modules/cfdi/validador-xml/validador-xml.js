@@ -31,9 +31,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
 
         <div class="valxml-upload-box" style="margin-top:16px">
-          <div class="label-text">Archivos XML</div>
-          <input class="input" id="xmlFiles" type="file" accept=".xml,text/xml,application/xml" multiple>
-          <div class="hero-note" id="selectedInfo" style="margin-top:12px">Sin archivos seleccionados.</div>
+          <div class="label-text">Carpeta con XMLs</div>
+          <input class="input" id="xmlFiles" type="file" webkitdirectory directory multiple>
+          <div class="muted" style="margin-top:6px; font-size:12px">Selecciona la carpeta (ej. <em>junio26</em>). Se incluyen automáticamente todos los <strong>.xml</strong> de subcarpetas.</div>
+          <div class="hero-note" id="selectedInfo" style="margin-top:12px">Sin carpeta seleccionada.</div>
         </div>
       </div>
 
@@ -521,6 +522,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('resultMessage').textContent = `Resultados generados: ${KoguUi.int((data.resumen || {}).total_archivos || 0)} archivo(s).`;
       if (state.resultados.length) openDetail(0);
       KoguApi.toast('Validación terminada.', 'success');
+
+      // Auto-descarga del Excel tras validación exitosa (defensivo: si falla, no rompe el flujo)
+      if (state.resultados.length) {
+        try {
+          await exportExcel();
+        } catch (autoErr) {
+          // Silencioso: el usuario aún tiene el botón manual "Exportar Excel" como respaldo
+          console.warn('[validador-xml] auto-descarga Excel falló:', autoErr);
+        }
+      }
     } catch (err) {
       KoguApi.toast(err.message || 'No fue posible validar los XML.', 'error');
       document.getElementById('resultMessage').textContent = err.message || 'No fue posible validar los XML.';
@@ -534,12 +545,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.getElementById('xmlFiles').onchange = (e) => {
-    state.files = Array.from(e.target.files || []);
+    const all = Array.from(e.target.files || []);
+    // Filtrar solo .xml (webkitdirectory ignora el atributo accept en varios browsers)
+    const xmls = all.filter(f => /\.xml$/i.test(f.name));
+    state.files = xmls;
     state.payloadFiles = [];
     setExportButtons(false);
-    document.getElementById('selectedInfo').textContent = state.files.length
-      ? `${state.files.length} archivo(s) seleccionados.`
-      : 'Sin archivos seleccionados.';
+
+    const info = document.getElementById('selectedInfo');
+    if (!xmls.length) {
+      info.textContent = all.length
+        ? `La carpeta no contiene archivos .xml (${all.length} archivo[s] revisado[s]).`
+        : 'Sin carpeta seleccionada.';
+      return;
+    }
+
+    // webkitRelativePath: "junio26/subcarpeta/archivo.xml"
+    const firstRel = xmls[0].webkitRelativePath || xmls[0].name;
+    const rootFolder = firstRel.split('/')[0] || '(raíz)';
+    const subFolders = new Set();
+    for (const f of xmls) {
+      const parts = (f.webkitRelativePath || '').split('/');
+      if (parts.length > 2) subFolders.add(parts.slice(1, -1).join('/'));
+    }
+    const subTxt = subFolders.size
+      ? ` · ${subFolders.size} subcarpeta(s)`
+      : '';
+    info.textContent = `Carpeta: ${rootFolder} · ${xmls.length} XML${subTxt}.`;
   };
 
   document.getElementById('validateBtn').onclick = validate;
