@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const proyCol = proyPct == null ? 'var(--muted,#64748b)'
       : (proyPct >= 0.98 ? 'var(--success,#16a34a)' : proyPct >= 0.9 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
     // Ritmo mensual requerido para cerrar el PP con lo que falta del año.
-    const mesesRest = Math.max(1, Math.round(12 * (1 - ritmo)));
+    const mesesRest = Math.max(1, 12 - mesesT);
     const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
     const proyBlock = `
       <div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px">
@@ -558,7 +558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const proy = proyBack != null ? Number(proyBack) : promMes * 12;
     const proyPct = (proy != null && ppA) ? proy / ppA : null;
     const faltante = proy != null ? Math.max(0, ppA - proy) : null;
-    const mesesRest = Math.max(1, Math.round(12 * (1 - ritmo)));
+    const mesesRest = Math.max(1, 12 - mesesT);
     const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
     const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
     const uni = esDinero() ? 'venta (MXN)' : 'volumen (kg)';
