@@ -39,6 +39,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const n = typeof v === 'number' ? v : Number(String(v).replace(/[$,\s]/g, ''));
     return Number.isFinite(n) ? n : 0;
   };
+  // ¿Valor numérico válido? (vacío cuenta como 0 = válido). Acepta $ y miles.
+  const isNumStr = v => {
+    if (v == null) return true;
+    const t = String(v).trim();
+    if (t === '') return true;
+    return Number.isFinite(Number(t.replace(/[$,\s]/g, '')));
+  };
+  // Formato con separador de miles (es-MX), hasta `dec` decimales.
+  const fmtNum = (v, dec = 2) => num(v).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: dec });
+  // Marca/desmarca un input como inválido (borde rojo + clase para el guard de Guardar).
+  const marcar = (inp, ok) => {
+    if (ok) { inp.classList.remove('pp-invalid'); inp.style.borderColor = ''; }
+    else { inp.classList.add('pp-invalid'); inp.style.borderColor = 'var(--danger,#dc2626)'; }
+  };
   // Formato compacto en millones para los totales (coherente con el Tablero).
   const moneyC = v => {
     const n = Number(v || 0), abs = Math.abs(n);
@@ -134,12 +148,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Tabla editable ────────────────────────────────────────────────────────
+  // Celda de texto libre (categoría, código, sublínea).
   function cellInput(i, field, value, opts = {}) {
-    const type = opts.type || 'text';
     const align = opts.align ? `text-align:${opts.align}` : '';
     const ph = opts.ph ? `placeholder="${esc(opts.ph)}"` : '';
-    return `<input class="input" data-i="${i}" data-f="${field}" type="${type}" ${ph}
+    return `<input class="input pp-text" data-i="${i}" data-f="${field}" type="text" ${ph}
               value="${esc(value ?? '')}" style="width:100%;padding:6px 8px;${align}"/>`;
+  }
+  // Celda entera (Cat).
+  function intCell(i, field, value) {
+    return `<input class="input pp-int" data-i="${i}" data-f="${field}" inputmode="numeric"
+              value="${esc(value ?? '')}" style="width:100%;padding:6px 8px;text-align:center"/>`;
+  }
+  // Celda numérica con formato de miles (kg / ventas / utilidad).
+  function numCell(i, field, value, dec) {
+    const n = num(value);
+    return `<input class="input pp-num" data-i="${i}" data-f="${field}" data-dec="${dec}" inputmode="decimal"
+              value="${n === 0 ? '' : esc(fmtNum(n, dec))}" style="width:100%;padding:6px 8px;text-align:right"/>`;
   }
 
   function renderRows() {
@@ -150,13 +175,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       tb.innerHTML = items.map((it, i) => `
         <tr>
-          <td>${cellInput(i, 'cat', it.cat, { type: 'number', align: 'center' })}</td>
+          <td>${intCell(i, 'cat', it.cat)}</td>
           <td>${cellInput(i, 'cat_nombre', it.cat_nombre, { ph: 'Nombre categoría' })}</td>
           <td>${cellInput(i, 'cve_sublinea', it.cve_sublinea, { ph: '1A' })}</td>
           <td>${cellInput(i, 'sublinea_nombre', it.sublinea_nombre, { ph: 'Nombre sublínea' })}</td>
-          <td>${cellInput(i, 'kg_pp', it.kg_pp, { type: 'number', align: 'right' })}</td>
-          <td>${cellInput(i, 'ventas_pp', it.ventas_pp, { type: 'number', align: 'right' })}</td>
-          <td>${cellInput(i, 'utilidad_pp', it.utilidad_pp, { type: 'number', align: 'right' })}</td>
+          <td>${numCell(i, 'kg_pp', it.kg_pp, 3)}</td>
+          <td>${numCell(i, 'ventas_pp', it.ventas_pp, 2)}</td>
+          <td>${numCell(i, 'utilidad_pp', it.utilidad_pp, 2)}</td>
           <td style="text-align:center">
             <button class="btn ghost danger" data-del="${i}" title="Eliminar renglón" style="padding:4px 8px">✕</button>
           </td>
@@ -172,15 +197,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td></td>
       </tr>` : '';
 
-    tb.querySelectorAll('input[data-i]').forEach(inp => {
+    // Texto libre: actualiza modelo directo.
+    tb.querySelectorAll('input.pp-text').forEach(inp => {
       inp.addEventListener('input', e => {
-        const i = Number(e.target.dataset.i), f = e.target.dataset.f;
-        items[i][f] = e.target.value;
-        dirty = true;
-        // Solo refrescamos totales (no re-render para no perder el foco del input).
-        renderTotales();
-        $('foot').querySelector('tr') && refreshFootTotals();
-        setEstado();
+        items[Number(e.target.dataset.i)][e.target.dataset.f] = e.target.value;
+        dirty = true; setEstado();
+      });
+    });
+    // Cat: valida entero positivo.
+    tb.querySelectorAll('input.pp-int').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const v = e.target.value.trim();
+        items[Number(e.target.dataset.i)].cat = v;
+        marcar(e.target, v === '' || /^\d+$/.test(v));
+        dirty = true; setEstado();
+      });
+    });
+    // Numéricos: edición en crudo al enfocar, validación al teclear, formato al salir.
+    tb.querySelectorAll('input.pp-num').forEach(inp => {
+      inp.addEventListener('focus', e => {
+        const n = num(items[Number(e.target.dataset.i)][e.target.dataset.f]);
+        e.target.value = n === 0 ? '' : String(n);
+        e.target.select();
+      });
+      inp.addEventListener('input', e => { marcar(e.target, isNumStr(e.target.value)); dirty = true; });
+      inp.addEventListener('blur', e => {
+        const i = Number(e.target.dataset.i), f = e.target.dataset.f, dec = Number(e.target.dataset.dec) || 2;
+        if (isNumStr(e.target.value)) {
+          items[i][f] = num(e.target.value);
+          e.target.value = items[i][f] === 0 ? '' : fmtNum(items[i][f], dec);
+          marcar(e.target, true);
+        } else {
+          marcar(e.target, false);   // deja el texto inválido visible para corregir
+        }
+        renderTotales(); refreshFootTotals(); setEstado();
       });
     });
     tb.querySelectorAll('button[data-del]').forEach(btn => {
@@ -334,8 +384,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Guardar (upsert por sublínea) ─────────────────────────────────────────
   async function guardar(btn) {
-    const payload = items
-      .filter(it => String(it.cve_sublinea ?? '').trim() && String(it.cat ?? '').trim() !== '')
+    if ($('rows').querySelector('.pp-invalid')) {
+      return KoguApi.toast('Hay valores inválidos (en rojo). Corrígelos antes de guardar.', 'error');
+    }
+    const conCodigo = items.filter(it => String(it.cve_sublinea ?? '').trim());
+    const catMala = conCodigo.find(it => !Number.isInteger(Number(it.cat)));
+    if (catMala) {
+      return KoguApi.toast(`La sublínea ${catMala.cve_sublinea} no tiene una Cat (categoría) entera válida.`, 'error');
+    }
+    const payload = conCodigo
+      .filter(it => Number.isInteger(Number(it.cat)))
       .map(it => ({
         cve_sublinea: String(it.cve_sublinea).trim(),
         sublinea_nombre: String(it.sublinea_nombre || '').trim(),
