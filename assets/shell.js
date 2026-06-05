@@ -52,6 +52,7 @@
       {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion.html',label:'Asignar clientes',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion-pp.html',label:'Asignación PP',perm:'screen.ventas.direccion'},
+      {href:'/modules/rc/pp-carga.html',label:'Carga de PP',perm:'rc.pp.manage'},
     ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
