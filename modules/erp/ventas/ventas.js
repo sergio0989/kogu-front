@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="eyebrow">RESUMEN EJECUTIVO</div>
         <h2 style="margin:0">Ventas por mes — <span id="resAño">${defAño}</span></h2>
       </div>
-      <div style="font-size:12px;color:var(--muted)">Cantidad = unidades vendidas · Subtotal excluye notas de crédito</div>
+      <div style="font-size:12px;color:var(--muted)">Cantidad = unidades vendidas · Subtotal neto (notas de crédito ya restadas)</div>
     </div>
     <style>
       .res-card { background:var(--panel2); border-radius:12px; padding:12px; min-width:0 }
@@ -244,10 +244,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderResumen(rows, añoSel) {
     document.getElementById('resAño').textContent = añoSel;
 
+    // Subtotal NETO = bruto (líneas positivas) + Imp. NC (negativo) → resta las NC.
     const renderRow = (r, suf) => `<tr>
       <td>${MES_LBL[r.mes] || r.mes}</td>
       <td class="num">${num(r['cantidad_'+suf])}</td>
-      <td class="num">${fmt(r['subtotal_'+suf])}</td>
+      <td class="num">${fmt(Number(r['subtotal_'+suf]||0) + Number(r['importe_nc_'+suf]||0))}</td>
       <td class="num">${Number(r['nc_count_'+suf]||0)}</td>
       <td class="num"${Number(r['importe_nc_'+suf]||0)<0?' style="color:#dc2626"':''}>${fmt(r['importe_nc_'+suf])}</td>
     </tr>`;
@@ -262,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `<tr>
         <td>Total</td>
         <td class="num">${num(t.cantidad)}</td>
-        <td class="num">${fmt(t.subtotal)}</td>
+        <td class="num">${fmt(t.subtotal + t.imp_nc)}</td>
         <td class="num">${t.nc.toLocaleString()}</td>
         <td class="num"${t.imp_nc<0?' style="color:#dc2626"':''}>${fmt(t.imp_nc)}</td>
       </tr>`;
