@@ -84,6 +84,8 @@
     render({ expediente, documentos, reqs, envios, nAprob, nRev, nRech, bancarios });
   }
 
+  let activeTab = 'exp';  // exp | banca | hist — persiste entre recargas
+
   function render({ documentos, reqs, envios, nAprob, nRev, nRech, bancarios = [] }) {
     const BANCO_BADGE = {
       validada:    '<span class="chip" style="background:#dcfce7;color:#15803d">Validada</span>',
@@ -133,6 +135,13 @@
         <div class="pp-kpi"><div class="v" style="color:#dc2626">${nRech}</div><div class="l">Rechazados</div></div>
       </div>
 
+      <div class="pp-tabs">
+        <button class="pp-tab${activeTab === 'exp' ? ' on' : ''}"   data-tab="exp">📁 Mi expediente</button>
+        <button class="pp-tab${activeTab === 'banca' ? ' on' : ''}" data-tab="banca">🏦 Datos bancarios ${bancoEstado}</button>
+        <button class="pp-tab${activeTab === 'hist' ? ' on' : ''}"  data-tab="hist">🕘 Historial</button>
+      </div>
+
+      <div class="pp-panel" data-panel="exp" style="${activeTab === 'exp' ? '' : 'display:none'}">
       <div class="card">
         <div class="row"><div><div class="eyebrow">Mi expediente</div><h2>Documentos requeridos</h2></div></div>
         <div class="table-wrap" style="margin-top:14px">
@@ -161,8 +170,10 @@
         </div>
         <button class="btn primary" id="upBtn" style="margin-top:12px">Enviar a revisión</button>
       </div>
+      </div><!-- /panel exp -->
 
-      <div class="card" style="margin-top:16px">
+      <div class="pp-panel" data-panel="banca" style="${activeTab === 'banca' ? '' : 'display:none'}">
+      <div class="card">
         <div class="row"><div><div class="eyebrow">Información financiera</div><h2>Datos bancarios</h2></div><div>${bancoEstado}</div></div>
         ${cuentaActiva ? `
         <div class="table-wrap" style="margin-top:12px">
@@ -211,8 +222,10 @@
         <button class="btn primary" id="bkBtn" style="margin-top:12px">Guardar cuenta bancaria</button>
         <p class="muted" style="font-size:11px;margin-top:6px">KOGU valida la CLABE (18 dígitos) antes de guardar. Tus datos bancarios se muestran enmascarados.</p>
       </div>
+      </div><!-- /panel banca -->
 
-      <div class="card" style="margin-top:16px">
+      <div class="pp-panel" data-panel="hist" style="${activeTab === 'hist' ? '' : 'display:none'}">
+      <div class="card">
         <div class="eyebrow">Historial</div>
         <h2 style="margin-bottom:6px">Mis envíos</h2>
         <div class="table-wrap" style="margin-top:10px">
@@ -226,7 +239,15 @@
             </tr>`).join('') : '<tr><td colspan="4" class="empty">Aún no has enviado documentos.</td></tr>'}
           </tbody></table>
         </div>
-      </div>`;
+      </div>
+      </div><!-- /panel hist -->`;
+
+    // Conmutación de pestañas (sin recargar datos)
+    document.querySelectorAll('.pp-tab').forEach(btn => btn.onclick = () => {
+      activeTab = btn.dataset.tab;
+      document.querySelectorAll('.pp-tab').forEach(t => t.classList.toggle('on', t.dataset.tab === activeTab));
+      document.querySelectorAll('.pp-panel').forEach(p => { p.style.display = (p.dataset.panel === activeTab) ? '' : 'none'; });
+    });
 
     document.querySelectorAll('.btn-up').forEach(b => b.onclick = () => {
       $('upTipo').value = b.dataset.tipo;
