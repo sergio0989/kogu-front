@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>Mi expediente · Portal de Proveedores KOGU</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    .pp-top{display:flex;align-items:center;gap:16px;padding:14px 26px;background:#0f172a;color:#fff;flex-wrap:wrap}
+    .pp-top .mk{background:#0891b2;color:#fff;font-weight:800;border-radius:6px;padding:5px 9px;font-size:14px}
+    .pp-top .bs{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#67e8f9;font-weight:700}
+    .pp-top .spacer{flex:1}
+    .pp-top select{background:#1e293b;color:#fff;border:1px solid #334155;border-radius:8px;padding:7px 10px;font-size:13px}
+    .pp-wrap{max-width:1040px;margin:0 auto;padding:22px 22px 70px}
+    .pp-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:6px 0 18px}
+    .pp-kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px}
+    .pp-kpi .v{font-size:26px;font-weight:800}
+    .pp-kpi .l{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-top:4px}
+    @media(max-width:720px){.pp-kpis{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="pp-top">
+    <span class="mk">KOGU</span><span class="bs">Portal de Proveedores</span>
+    <span class="spacer"></span>
+    <select id="empSelect" title="Empresa"></select>
+    <span id="provName" style="font-size:13px"></span>
+    <button class="btn sm" id="logoutBtn" style="background:#1e293b;color:#fff;border-color:#334155">Salir</button>
+  </div>
+  <div class="pp-wrap" id="app"><div class="muted" style="padding:40px;text-align:center">Cargando tu expediente…</div></div>
+
+  <script src="/assets/config.js"></script>
+  <script src="/assets/api.js"></script>
+  <script src="/portal/portal-api.js"></script>
+  <script src="/portal/portal.js"></script>
+</body>
+</html>

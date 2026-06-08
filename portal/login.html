@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>Portal de Proveedores · KOGU</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="login-shell">
+    <section class="login-hero">
+      <div>
+        <div class="brand-kicker">KOGU</div>
+        <div class="brand-title">Portal de Proveedores</div>
+        <p class="brand-text" style="max-width:620px; margin-top:16px;">
+          Mantén tu expediente al día.
+        </p>
+        <p class="brand-text" style="max-width:620px; margin-top:12px;">
+          Sube y conserva tus documentos para operar con las empresas que te invitaron.
+          Tú defines tu contraseña — KOGU nunca te la envía.
+        </p>
+      </div>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-box">
+        <div class="eyebrow">Acceso de proveedor</div>
+        <h1 style="font-size:30px; margin:8px 0 10px;">Iniciar sesión</h1>
+        <p style="color:#64748b; margin-top:0;">Accede para ver tu expediente y subir documentos.</p>
+
+        <form id="loginForm" class="form-grid" style="margin-top:20px;">
+          <div>
+            <div class="label-text">Correo</div>
+            <input class="input" id="email" type="email" placeholder="tu-correo@empresa.com" autocomplete="username" />
+          </div>
+          <div>
+            <div class="label-text">Contraseña</div>
+            <input class="input" id="password" type="password" placeholder="Tu contraseña" autocomplete="current-password" />
+          </div>
+
+          <div id="msg" style="display:none;margin-top:4px;padding:10px 12px;border-radius:8px;font-size:13px"></div>
+
+          <button class="btn primary" id="submitBtn" type="submit" style="margin-top:6px">Entrar al portal</button>
+        </form>
+
+        <p style="margin-top:16px;font-size:13px;color:#64748b">
+          ¿Recibiste una invitación? Abre el enlace del correo para crear tu acceso.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/assets/config.js"></script>
+  <script src="/assets/api.js"></script>
+  <script src="/portal/portal-api.js"></script>
+  <script src="/portal/login.js"></script>
+</body>
+</html>

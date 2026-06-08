@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>Activar acceso · Portal de Proveedores KOGU</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="login-shell">
+    <section class="login-hero">
+      <div>
+        <div class="brand-kicker">KOGU</div>
+        <div class="brand-title">Portal de Proveedores</div>
+        <p class="brand-text" style="max-width:620px; margin-top:16px;">
+          Te invitaron a mantener tu expediente.
+        </p>
+        <p class="brand-text" style="max-width:620px; margin-top:12px;">
+          Crea tu acceso definiendo tu propia contraseña. Por seguridad, KOGU nunca
+          envía contraseñas por correo y este enlace es de un solo uso.
+        </p>
+      </div>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-box">
+        <div class="eyebrow">Crear acceso</div>
+        <h1 style="font-size:30px; margin:8px 0 10px;">Activa tu cuenta</h1>
+        <p id="introText" style="color:#64748b; margin-top:0;">Define tu contraseña para entrar al portal.</p>
+
+        <form id="inviteForm" class="form-grid" style="margin-top:20px;">
+          <div>
+            <div class="label-text">Nombre de contacto (opcional)</div>
+            <input class="input" id="nombre" type="text" placeholder="Tu nombre" autocomplete="name" />
+          </div>
+          <div>
+            <div class="label-text">Nueva contraseña</div>
+            <input class="input" id="newPassword" type="password" placeholder="Mínimo 8 caracteres y un símbolo" autocomplete="new-password" />
+          </div>
+          <div>
+            <div class="label-text">Confirmar contraseña</div>
+            <input class="input" id="confirmPassword" type="password" placeholder="Repite la contraseña" autocomplete="new-password" />
+          </div>
+
+          <div id="msg" style="display:none;margin-top:4px;padding:10px 12px;border-radius:8px;font-size:13px"></div>
+
+          <button class="btn primary" id="submitBtn" type="submit" style="margin-top:6px">Crear mi acceso</button>
+        </form>
+
+        <p style="margin-top:16px;font-size:13px;color:#64748b">
+          ¿Ya tienes acceso? <a href="/portal/login.html">Inicia sesión</a>.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/assets/config.js"></script>
+  <script src="/assets/api.js"></script>
+  <script src="/portal/portal-api.js"></script>
+  <script src="/portal/aceptar-invitacion.js"></script>
+</body>
+</html>
