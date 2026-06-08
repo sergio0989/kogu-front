@@ -144,19 +144,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btn = $('inviteBtn'); btn.disabled = true; btn.textContent = 'Enviando…';
     try {
-      const body = { proveedor_id: provId, email };
+      // La invitación lleva los requisitos; el backend crea/asegura el expediente
+      // y los guarda (aunque el proveedor aún no tuviera expediente).
+      const body = { proveedor_id: provId, email, requisitos: reqs };
       if (expedienteId) body.expediente_id = expedienteId;
       await KoguApi.apiFetch('/protected/prov/invitaciones', { method: 'POST', body: JSON.stringify(body) });
 
-      // Requisitos (solo si hay expediente)
-      if (expedienteId && reqs.length) {
-        await KoguApi.apiFetch('/protected/prov/expedientes/' + expedienteId + '/requisitos', {
-          method: 'PUT',
-          body: JSON.stringify({ requisitos: reqs.map(t => ({ tipo_documento: t, obligatorio: true })) }),
-        });
-      }
-
-      KoguApi.toast('Invitación enviada' + (expedienteId && reqs.length ? ' · requisitos guardados' : ''), 'success');
+      KoguApi.toast('Invitación enviada' + (reqs.length ? ' · requisitos guardados' : ''), 'success');
       $('email').value = '';
       document.querySelectorAll('.req-chk:checked').forEach(c => c.checked = false);
       await loadInvitaciones();
