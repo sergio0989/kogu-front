@@ -88,6 +88,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
+  <!-- ── Modal datos bancarios ── -->
+  <div id="bancoModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.5);z-index:60;align-items:center;justify-content:center;padding:20px">
+    <div class="card" style="max-width:600px;width:100%;margin:0">
+      <div class="row">
+        <div><div class="eyebrow">Información financiera</div><h2 id="bancoTitle">Datos bancarios</h2></div>
+        <button class="btn" id="bancoClose">Cerrar</button>
+      </div>
+      <div id="bancoBody" style="margin-top:14px"></div>
+    </div>
+  </div>
+
 </div>`;
 
   // ── Estado ────────────────────────────────────────────────────────────────
@@ -172,7 +183,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               : '<span class="muted" style="font-size:11px">— sin clave —</span>'}</td>
             <td>${KoguUi.statusBadge(r.status || '-')}</td>
             <td>${KoguUi.statusBadge(r.activo ? 'activo' : 'inactivo')}</td>
-            <td><button class="btn btn-edit" data-id="${mapId(r)}">Editar</button></td>
+            <td class="actions-cell">
+              <button class="btn sm btn-edit" data-id="${mapId(r)}">Editar</button>
+              <button class="btn sm btn-banco" data-id="${mapId(r)}" data-name="${KoguUi.escapeHtml(mapName(r))}">Banco</button>
+            </td>
           </tr>`).join('')
       : '<tr><td colspan="6" class="empty">Sin registros</td></tr>';
 
@@ -180,8 +194,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       const row = rows.find(r => String(mapId(r)) === x.dataset.id);
       if (row) fill(row);
     });
+    document.querySelectorAll('.btn-banco').forEach(x => x.onclick = () => verBanco(x.dataset.id, x.dataset.name));
 
     renderPagination(filtered.length);
+  }
+
+  async function verBanco(proveedorId, nombre) {
+    const modal = document.getElementById('bancoModal');
+    document.getElementById('bancoTitle').textContent = 'Datos bancarios · ' + (nombre || '');
+    document.getElementById('bancoBody').innerHTML = '<p class="muted">Cargando…</p>';
+    modal.style.display = 'flex';
+    try {
+      const res  = await KoguApi.apiFetch('/protected/prov/bancarios/' + proveedorId);
+      const data = KoguApi.unwrapData(res) || {};
+      const list = data.rows || [];
+      document.getElementById('bancoBody').innerHTML = list.length
+        ? `<div class="table-wrap"><table><thead><tr><th>Banco</th><th>CLABE</th><th>Titular</th><th>Moneda</th><th>Estatus</th></tr></thead><tbody>${list.map(c => `
+            <tr>
+              <td>${KoguUi.escapeHtml(c.banco_nombre || c.banco_codigo || '—')}</td>
+              <td style="font-family:monospace;font-size:12px">${KoguUi.escapeHtml(c.clabe || c.cuenta_15 || '—')}</td>
+              <td>${KoguUi.escapeHtml(c.titular || '—')}</td>
+              <td>${KoguUi.escapeHtml(c.moneda || 'MXN')}</td>
+              <td>${KoguUi.statusBadge(c.autorizacion_status || c.cuenta_status || '-')}${c.version > 1 ? ` <span class="muted" style="font-size:10px">v${c.version}</span>` : ''}</td>
+            </tr>`).join('')}</tbody></table></div>`
+        : '<p class="muted">Este proveedor no tiene cuentas bancarias registradas.</p>';
+    } catch (e) {
+      document.getElementById('bancoBody').innerHTML = `<p style="color:#dc2626">${e.status === 403
+        ? 'No tienes permiso para ver datos bancarios (prov_banco.ver).'
+        : KoguUi.escapeHtml(e.message)}</p>`;
+    }
   }
 
   // ── Guardar ───────────────────────────────────────────────────────────────
@@ -228,6 +269,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('newBtn').onclick         = reset;
   document.getElementById('q').oninput             = () => { currentPage = 1; render(); };
   document.getElementById('activoFiltro').onchange = () => { currentPage = 1; render(); };
+  document.getElementById('bancoClose').onclick    = () => { document.getElementById('bancoModal').style.display = 'none'; };
+  document.getElementById('bancoModal').onclick    = (e) => { if (e.target.id === 'bancoModal') e.currentTarget.style.display = 'none'; };
 
   KoguShell.subscribeEmpresaActivaChange(async () => { await load(true); });
   await load(false);
