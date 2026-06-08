@@ -38,9 +38,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row"><div><div class="eyebrow">Proveedores</div><h2>Invitar al portal</h2></div></div>
 
   <div class="grid-2" style="margin-top:14px;gap:10px">
-    <div>
+    <div style="position:relative">
       <div class="label-text">Proveedor</div>
-      <select class="select" id="prov"><option value="">Cargando…</option></select>
+      <input class="input" id="provSearch" placeholder="Buscar por nombre o RFC…" autocomplete="off"/>
+      <input type="hidden" id="provId"/>
+      <div id="provList" style="display:none;position:absolute;z-index:30;left:0;right:0;top:64px;max-height:280px;overflow:auto;background:#fff;border:1px solid var(--line,#e2e8f0);border-radius:10px;box-shadow:0 10px 25px rgba(15,23,42,.12)"></div>
       <div class="muted" id="provInfo" style="font-size:11px;margin-top:4px"></div>
     </div>
     <div>
@@ -97,26 +99,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       rows.forEach(r => { if (r.proveedor_id) expByProv[r.proveedor_id] = r.expediente_id; });
     } catch (e) { expByProv = {}; }
 
-    $('prov').innerHTML = '<option value="">Selecciona un proveedor…</option>' +
-      proveedores.map(p => `<option value="${KoguUi.escapeHtml(p.proveedor_id)}" data-email="${KoguUi.escapeHtml(p.email_contacto || '')}" data-rfc="${KoguUi.escapeHtml(p.rfc || '')}">${KoguUi.escapeHtml(p.nombre || p.nombre_proveedor || '')} ${p.rfc ? '· ' + KoguUi.escapeHtml(p.rfc) : ''}</option>`).join('');
+    $('provSearch').placeholder = `Buscar entre ${proveedores.length} proveedores por nombre o RFC…`;
   }
 
-  $('prov').onchange = () => {
-    const opt = $('prov').selectedOptions[0];
-    if (!opt || !opt.value) { $('provInfo').textContent = ''; return; }
-    const provId = opt.value;
-    const email = opt.dataset.email;
-    if (email && !$('email').value) $('email').value = email;
-    const exp = expByProv[provId];
-    $('provInfo').innerHTML = exp
-      ? '✅ Tiene expediente — los requisitos se guardarán.'
-      : '⚠️ Sin expediente: la invitación se envía igual, pero los requisitos no se guardarán hasta crear su expediente.';
-  };
+  // ── Buscador con filtro (reemplaza el <select> con miles de opciones) ──
+  const mapNom = p => p.nombre || p.nombre_proveedor || p.razon_social || '';
+  function seleccionarProv(p) {
+    $('provId').value = p.proveedor_id;
+    $('provSearch').value = mapNom(p) + (p.rfc ? ' · ' + p.rfc : '');
+    $('provList').style.display = 'none';
+    if (p.email_contacto && !$('email').value) $('email').value = p.email_contacto;
+    $('provInfo').innerHTML = expByProv[p.proveedor_id]
+      ? '✅ Ya tiene expediente.'
+      : 'ℹ️ Se creará su expediente al invitar.';
+  }
+  function filtrar() {
+    const q = $('provSearch').value.trim().toLowerCase();
+    $('provId').value = '';  // se invalida hasta elegir de la lista
+    if (q.length < 2) { $('provList').style.display = 'none'; return; }
+    const res = proveedores.filter(p =>
+      mapNom(p).toLowerCase().includes(q) || String(p.rfc || '').toLowerCase().includes(q)
+    ).slice(0, 30);
+    $('provList').innerHTML = res.length ? res.map((p, i) => `
+      <div class="prov-opt" data-i="${proveedores.indexOf(p)}" style="padding:9px 12px;cursor:pointer;border-top:${i ? '1px solid var(--line,#eef2f7)' : 'none'};font-size:13px">
+        <strong>${KoguUi.escapeHtml(mapNom(p))}</strong>
+        ${p.rfc ? `<span style="font-family:monospace;font-size:11px;color:var(--muted,#64748b);margin-left:6px">${KoguUi.escapeHtml(p.rfc)}</span>` : ''}
+      </div>`).join('') : '<div style="padding:10px 12px;color:#64748b;font-size:13px">Sin coincidencias</div>';
+    $('provList').style.display = 'block';
+    $('provList').querySelectorAll('.prov-opt').forEach(el => el.onclick = () => seleccionarProv(proveedores[Number(el.dataset.i)]));
+  }
+  $('provSearch').addEventListener('input', filtrar);
+  $('provSearch').addEventListener('focus', () => { if ($('provSearch').value.trim().length >= 2) filtrar(); });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#provList') && e.target.id !== 'provSearch') $('provList').style.display = 'none';
+  });
 
   async function invitar() {
-    const provId = $('prov').value;
+    const provId = $('provId').value;
     const email = $('email').value.trim();
-    if (!provId) { KoguApi.toast('Selecciona un proveedor.', 'error'); return; }
+    if (!provId) { KoguApi.toast('Selecciona un proveedor de la lista.', 'error'); return; }
     if (!email)  { KoguApi.toast('Captura el correo del proveedor.', 'error'); return; }
     const expedienteId = expByProv[provId] || null;
     const reqs = Array.from(document.querySelectorAll('.req-chk:checked')).map(c => c.value);
