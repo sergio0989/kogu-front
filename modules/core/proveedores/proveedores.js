@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
-<div class="split">
+<div class="stack">
 
   <!-- ── Lista ── -->
   <div class="card">
