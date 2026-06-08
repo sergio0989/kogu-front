@@ -46,7 +46,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div class="table-wrap" style="margin-top:16px">
       <table><thead><tr>
-        <th>Nombre</th><th>RFC</th><th>Clave SAI</th><th>Status</th><th>Activo</th><th>Acciones</th>
+        <th>Nombre</th>
+        <th style="width:150px">RFC</th>
+        <th style="width:110px">Clave SAI</th>
+        <th style="width:90px">Status</th>
+        <th style="width:90px">Activo</th>
+        <th style="width:170px">Acciones</th>
       </tr></thead><tbody id="rows"></tbody></table>
     </div>
     <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
