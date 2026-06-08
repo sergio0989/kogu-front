@@ -58,14 +58,16 @@
 
   async function loadAll() {
     $('app').innerHTML = '<div class="muted" style="padding:40px;text-align:center">Cargando…</div>';
-    let exp = {}, reqs = [], envios = [];
+    let exp = {}, reqs = [], envios = [], bancarios = [];
     try {
-      const [e, r, s] = await Promise.all([
+      const [e, r, s, bk] = await Promise.all([
         PortalApi.call('/portal/me/expediente', { withEmpresa: true }),
         PortalApi.call('/portal/me/requisitos', { withEmpresa: true }),
         PortalApi.call('/portal/me/documentos', { withEmpresa: true }),
+        PortalApi.call('/portal/me/bancarios',  { withEmpresa: true }).catch(() => ({ cuentas: [] })),
       ]);
       exp = e || {}; reqs = (r && r.rows) || []; envios = (s && s.rows) || [];
+      bancarios = (bk && bk.cuentas) || [];
     } catch (err) {
       $('app').innerHTML = `<div class="card"><p style="color:#dc2626">No se pudo cargar tu expediente: ${esc(err.message)}</p></div>`;
       return;
@@ -79,10 +81,21 @@
     const nRev   = envios.filter(e => e.status === 'en_revision').length;
     const nRech  = envios.filter(e => e.status === 'rechazado').length;
 
-    render({ expediente, documentos, reqs, envios, nAprob, nRev, nRech });
+    render({ expediente, documentos, reqs, envios, nAprob, nRev, nRech, bancarios });
   }
 
-  function render({ documentos, reqs, envios, nAprob, nRev, nRech }) {
+  function render({ documentos, reqs, envios, nAprob, nRev, nRech, bancarios = [] }) {
+    const BANCO_BADGE = {
+      validada:    '<span class="chip" style="background:#dcfce7;color:#15803d">Validada</span>',
+      pendiente:   '<span class="chip" style="background:#fef3c7;color:#92600c">Pendiente</span>',
+      en_revision: '<span class="chip" style="background:#fef3c7;color:#92600c">En revisión</span>',
+      rechazada:   '<span class="chip" style="background:#fee2e2;color:#991b1b">Rechazada</span>',
+      revocada:    '<span class="chip" style="background:#fee2e2;color:#991b1b">Revocada</span>',
+    };
+    const cuentaActiva = (bancarios || [])[0] || null;
+    const bancoEstado = cuentaActiva
+      ? (BANCO_BADGE[cuentaActiva.autorizacion_status] || BANCO_BADGE[cuentaActiva.cuenta_status] || esc(cuentaActiva.cuenta_status || ''))
+      : '<span class="chip" style="background:#f1f5f9;color:#475569">Sin registrar</span>';
     // estado por tipo: aprobado (en documentos) / en_revision / rechazado (último envío)
     const docTipos = new Set(documentos.map(d => d.tipo_documento));
     const envByTipo = {};
@@ -150,6 +163,56 @@
       </div>
 
       <div class="card" style="margin-top:16px">
+        <div class="row"><div><div class="eyebrow">Información financiera</div><h2>Datos bancarios</h2></div><div>${bancoEstado}</div></div>
+        ${cuentaActiva ? `
+        <div class="table-wrap" style="margin-top:12px">
+          <table><thead><tr><th>Banco</th><th>CLABE</th><th>Titular</th><th>Moneda</th><th>Estatus</th></tr></thead>
+          <tbody><tr>
+            <td>${esc(cuentaActiva.banco_nombre || cuentaActiva.banco_codigo || '—')}</td>
+            <td style="font-family:monospace;font-size:12px">${esc(cuentaActiva.clabe || cuentaActiva.cuenta_15 || '—')}</td>
+            <td>${esc(cuentaActiva.titular || '—')}</td>
+            <td>${esc(cuentaActiva.moneda || 'MXN')}</td>
+            <td>${BANCO_BADGE[cuentaActiva.autorizacion_status] || BANCO_BADGE[cuentaActiva.cuenta_status] || esc(cuentaActiva.cuenta_status || '')}</td>
+          </tr></tbody></table>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:6px">Para cambiar tu cuenta, registra una nueva abajo. Quedará en revisión hasta que la empresa la valide.</p>` :
+        '<p class="muted" style="font-size:13px;margin-top:6px">Aún no has registrado una cuenta bancaria.</p>'}
+
+        <div class="grid-2" style="gap:10px;margin-top:12px">
+          <div>
+            <div class="label-text">País del banco</div>
+            <select class="select" id="bkPais"><option value="MEX" selected>México</option><option value="USA">Extranjero</option></select>
+          </div>
+          <div>
+            <div class="label-text">Clave bancaria (3 díg. de CLABE)</div>
+            <input class="input" id="bkClave" maxlength="3" inputmode="numeric" placeholder="012"/>
+          </div>
+        </div>
+        <div class="grid-2" style="gap:10px;margin-top:10px">
+          <div>
+            <div class="label-text">Número de cuenta (15 díg. de CLABE)</div>
+            <input class="input" id="bkCuenta" maxlength="15" inputmode="numeric" placeholder="180001864380912"/>
+          </div>
+          <div>
+            <div class="label-text">Titular de la cuenta</div>
+            <input class="input" id="bkTitular" placeholder="Razón social del proveedor"/>
+          </div>
+        </div>
+        <div class="grid-2" style="gap:10px;margin-top:10px">
+          <div>
+            <div class="label-text">Moneda</div>
+            <select class="select" id="bkMoneda"><option value="MXN" selected>MXN</option><option value="USD">USD</option></select>
+          </div>
+          <div>
+            <div class="label-text">Comprobante (carátula / estado de cuenta)</div>
+            <input class="input" id="bkFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp"/>
+          </div>
+        </div>
+        <button class="btn primary" id="bkBtn" style="margin-top:12px">Guardar cuenta bancaria</button>
+        <p class="muted" style="font-size:11px;margin-top:6px">KOGU valida la CLABE (18 dígitos) antes de guardar. Tus datos bancarios se muestran enmascarados.</p>
+      </div>
+
+      <div class="card" style="margin-top:16px">
         <div class="eyebrow">Historial</div>
         <h2 style="margin-bottom:6px">Mis envíos</h2>
         <div class="table-wrap" style="margin-top:10px">
@@ -171,6 +234,37 @@
       $('upTipo').scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     $('upBtn').onclick = subir;
+    if ($('bkBtn')) $('bkBtn').onclick = guardarBanco;
+  }
+
+  async function guardarBanco() {
+    const pais = $('bkPais').value;
+    const titular = $('bkTitular').value.trim();
+    if (!titular) { PortalApi.toast('Captura el titular de la cuenta.', 'error'); return; }
+    const fd = new FormData();
+    fd.append('pais_banco', pais);
+    fd.append('titular', titular);
+    fd.append('moneda', $('bkMoneda').value);
+    if (pais === 'MEX') {
+      const clave = $('bkClave').value.replace(/\D/g, '');
+      const cuenta = $('bkCuenta').value.replace(/\D/g, '');
+      if (clave.length !== 3) { PortalApi.toast('La clave bancaria debe tener 3 dígitos.', 'error'); return; }
+      if (cuenta.length !== 15) { PortalApi.toast('El número de cuenta debe tener 15 dígitos.', 'error'); return; }
+      fd.append('banco_codigo', clave);
+      fd.append('cuenta_15', cuenta);
+    }
+    const file = $('bkFile').files[0];
+    if (file) fd.append('comprobante', file);
+
+    const btn = $('bkBtn'); btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      await PortalApi.call('/portal/me/bancarios', { method: 'POST', form: fd, withEmpresa: true });
+      PortalApi.toast('Cuenta bancaria registrada. Queda en revisión.', 'success');
+      await loadAll();
+    } catch (err) {
+      PortalApi.toast(err.message || 'No se pudo guardar la cuenta.', 'error');
+      btn.disabled = false; btn.textContent = 'Guardar cuenta bancaria';
+    }
   }
 
   async function subir() {

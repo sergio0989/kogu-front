@@ -69,6 +69,7 @@
     {section:'Proveedores',items:[
       {href:'/modules/prov/invitar.html',         label:'Invitar Proveedor',         perm:'prov_portal.invitar'},
       {href:'/modules/prov/bandeja-revision.html',label:'Bandeja de Revisión',       perm:'screen.prov.bandeja_revision'},
+      {href:'/modules/prov/banca.html',           label:'Validación Bancaria',       perm:'screen.prov.banca'},
     ]},
     {section:'Lab QA',items:[
       // ── Vista ejecutiva ──
