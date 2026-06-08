@@ -29,7 +29,6 @@
     ]},
     {section:'Catálogos',items:[
       {href:'/modules/core/clientes/clientes.html',label:'Clientes',perm:'screen.catalogos.clientes'},
-      {href:'/modules/core/proveedores/proveedores.html',label:'Proveedores',perm:'screen.catalogos.proveedores'},
     ]},
     {section:'Catálogos Maestros',items:[
       {href:'/modules/cat/familias/familias.html',label:'Familias / Subfamilias',perm:'screen.catalogos.familias'},
@@ -67,6 +66,7 @@
       {href:'/modules/mat/reglas.html',         label:'Reglas de materialidad',     perm:'screen.mat.reglas'},
     ]},
     {section:'Proveedores',items:[
+      {href:'/modules/core/proveedores/proveedores.html',label:'Catálogo de Proveedores', perm:'screen.catalogos.proveedores'},
       {href:'/modules/prov/invitar.html',         label:'Invitar Proveedor',         perm:'prov_portal.invitar'},
       {href:'/modules/prov/bandeja-revision.html',label:'Bandeja de Revisión',       perm:'screen.prov.bandeja_revision'},
       {href:'/modules/prov/banca.html',           label:'Validación Bancaria',       perm:'screen.prov.banca'},
