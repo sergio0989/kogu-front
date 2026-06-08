@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage:        '/modules/prov/invitar.html',
     title:              'Invitar Proveedor',
-    description:        'Invita a un proveedor al portal y define los documentos que debe entregar. KOGU nunca envía contraseñas: el proveedor define la suya.',
+    description:        'Invita a un proveedor al portal y define o edita los documentos que debe entregar. Selecciona un proveedor para ver su expediente y ajustar su lista de requisitos. KOGU nunca envía contraseñas: el proveedor define la suya.',
     requiredPermission: 'prov_portal.invitar',
   });
   if (!b) return;
@@ -83,7 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtDate = d => d ? new Date(d).toLocaleDateString('es-MX') : '—';
 
   let proveedores = [];
-  let expByProv = {};   // proveedor_id -> expediente_id
+  let expByProv = {};     // proveedor_id -> expediente_id
+  let folioByProv = {};   // proveedor_id -> folio (id_mov del expediente)
 
   async function loadCatalogos() {
     // Proveedores
@@ -96,27 +97,60 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch('/protected/exp/expedientes');
       const data = KoguApi.unwrapData(res);
       const rows = (data && data.rows) || (Array.isArray(data) ? data : []);
-      expByProv = {};
-      rows.forEach(r => { if (r.proveedor_id) expByProv[r.proveedor_id] = r.expediente_id; });
-    } catch (e) { expByProv = {}; }
+      expByProv = {}; folioByProv = {};
+      rows.forEach(r => {
+        if (r.proveedor_id) {
+          expByProv[r.proveedor_id] = r.expediente_id;
+          folioByProv[r.proveedor_id] = r.id_mov ?? r.folio ?? null;
+        }
+      });
+    } catch (e) { expByProv = {}; folioByProv = {}; }
 
     $('provSearch').placeholder = `Buscar entre ${proveedores.length} proveedores por nombre o RFC…`;
   }
 
   // ── Buscador con filtro (reemplaza el <select> con miles de opciones) ──
   const mapNom = p => p.nombre || p.nombre_proveedor || p.razon_social || '';
-  function seleccionarProv(p) {
-    $('provId').value = p.proveedor_id;
+  function limpiarChecklist() {
+    document.querySelectorAll('.req-chk:checked').forEach(c => c.checked = false);
+  }
+  async function cargarRequisitosActuales(expedienteId) {
+    limpiarChecklist();
+    if (!expedienteId) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/prov/expedientes/' + expedienteId + '/requisitos');
+      const data = KoguApi.unwrapData(res);
+      const rows = (data && data.rows) || [];
+      const set = new Set(rows.map(r => r.tipo_documento));
+      document.querySelectorAll('.req-chk').forEach(c => { c.checked = set.has(c.value); });
+    } catch (e) { /* sin requisitos previos: checklist queda vacío */ }
+  }
+  async function seleccionarProv(p) {
+    const provId = p.proveedor_id;
+    $('provId').value = provId;
     $('provSearch').value = mapNom(p) + (p.rfc ? ' · ' + p.rfc : '');
     $('provList').style.display = 'none';
     if (p.email_contacto && !$('email').value) $('email').value = p.email_contacto;
-    $('provInfo').innerHTML = expByProv[p.proveedor_id]
-      ? '✅ Ya tiene expediente.'
-      : 'ℹ️ Se creará su expediente al invitar.';
+
+    const expId = expByProv[provId];
+    const folio = folioByProv[provId];
+    $('provInfo').innerHTML = `
+      <div style="margin-top:8px;padding:10px 12px;border:1px solid var(--line,#e2e8f0);border-radius:10px;background:#f8fafc;display:flex;flex-wrap:wrap;gap:18px;align-items:center;font-size:12px">
+        <span><span style="color:#64748b">Nombre:</span> <strong>${KoguUi.escapeHtml(mapNom(p) || '—')}</strong></span>
+        <span><span style="color:#64748b">RFC:</span> <strong style="font-family:monospace">${KoguUi.escapeHtml(p.rfc || '—')}</strong></span>
+        <span><span style="color:#64748b">Folio:</span> <strong>${folio != null ? '#' + KoguUi.escapeHtml(String(folio)) : '—'}</strong></span>
+        <span style="margin-left:auto">${expId
+          ? '<span class="chip" style="background:#dcfce7;color:#15803d">✅ Con expediente</span>'
+          : '<span class="chip" style="background:#fef3c7;color:#92600c">Se crea al invitar</span>'}</span>
+      </div>`;
+
+    // Precargar el checklist actual del expediente (para editar la lista existente).
+    await cargarRequisitosActuales(expId);
   }
   function filtrar() {
     const q = $('provSearch').value.trim().toLowerCase();
     $('provId').value = '';  // se invalida hasta elegir de la lista
+    $('provInfo').innerHTML = '';
     if (q.length < 2) { $('provList').style.display = 'none'; return; }
     const res = proveedores.filter(p =>
       mapNom(p).toLowerCase().includes(q) || String(p.rfc || '').toLowerCase().includes(q)
@@ -174,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const body = { requisitos: reqs.map(t => ({ tipo_documento: t, obligatorio: true })) };
       await KoguApi.apiFetch('/protected/prov/expedientes/' + expedienteId + '/requisitos', { method: 'PUT', body: JSON.stringify(body) });
-      KoguApi.toast(`Requisitos guardados (${reqs.length}) · el proveedor los verá en su portal`, 'success');
+      KoguApi.toast(`Lista actualizada (${reqs.length} requisito${reqs.length === 1 ? '' : 's'}) · el proveedor la verá en su portal`, 'success');
     } catch (e) {
       KoguApi.toast(e.message, 'error');
     } finally {
