@@ -66,6 +66,9 @@
       {href:'/modules/mat/bandeja-defensa.html',label:'Bandeja de Defensa',         perm:'screen.mat.bandeja_defensa'},
       {href:'/modules/mat/reglas.html',         label:'Reglas de materialidad',     perm:'screen.mat.reglas'},
     ]},
+    {section:'Proveedores',items:[
+      {href:'/modules/prov/bandeja-revision.html',label:'Bandeja de Revisión',       perm:'screen.prov.bandeja_revision'},
+    ]},
     {section:'Lab QA',items:[
       // ── Vista ejecutiva ──
       {href:'/modules/lab/lab-kpis.html',             label:'📊 Dashboard KPIs',   perm:'screen.lab.maestros'},
