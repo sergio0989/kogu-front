@@ -11,6 +11,8 @@ const BADGE = {
   revocada:  '<span class="chip" style="background:#fee2e2;color:#991b1b">Revocada</span>',
 };
 
+const fmtClabe = s => { const d = String(s || '').replace(/\D/g, ''); return d.length === 18 ? d.replace(/(.{6})(.{6})(.{6})/, '$1 $2 $3') : (s || ''); };
+
 document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage:        '/modules/prov/banca.html',
@@ -88,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div style="font-family:monospace;font-size:11px;color:var(--muted,#64748b)">${KoguUi.escapeHtml(r.proveedor_rfc || '')}</div>
           </td>
           <td style="font-size:12px">${KoguUi.escapeHtml(r.banco_nombre || r.banco_codigo || '—')}</td>
-          <td style="font-family:monospace;font-size:12px">${KoguUi.escapeHtml(r.clabe || r.cuenta_15 || '—')}</td>
+          <td style="font-family:monospace;font-size:12px;white-space:nowrap;letter-spacing:.5px">${KoguUi.escapeHtml(fmtClabe(r.clabe) || r.cuenta_15 || '—')}</td>
           <td style="font-size:12px">${KoguUi.escapeHtml(r.titular || '—')}</td>
           <td style="font-size:12px">${r.comprobante_nombre ? KoguUi.escapeHtml(r.comprobante_nombre) : '<span class="muted">—</span>'}</td>
           <td>${BADGE[r.autorizacion_status] || KoguUi.escapeHtml(r.autorizacion_status || '')} ${r.version > 1 ? `<span class="muted" style="font-size:10px">v${r.version}</span>` : ''}</td>

@@ -214,6 +214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = KoguApi.unwrapData(res) || {};
       const list = data.rows || [];
       const fdt = d => d ? new Date(d).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+      const fmtClabe = s => { const d = String(s || '').replace(/\D/g, ''); return d.length === 18 ? d.replace(/(.{6})(.{6})(.{6})/, '$1 $2 $3') : (s || '—'); };
       document.getElementById('bancoBody').innerHTML = list.length
         ? `<div class="table-wrap"><table>
             <thead><tr>
@@ -222,7 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </tr></thead><tbody>${list.map(c => `
             <tr>
               <td>${KoguUi.escapeHtml(c.banco_nombre || c.banco_codigo || '—')}</td>
-              <td style="font-family:monospace;font-size:12px">${KoguUi.escapeHtml(c.clabe || c.cuenta_15 || '—')}</td>
+              <td style="font-family:monospace;font-size:12px;white-space:nowrap;letter-spacing:.5px">${KoguUi.escapeHtml(c.clabe ? fmtClabe(c.clabe) : (c.cuenta_15 || '—'))}</td>
               <td>${KoguUi.escapeHtml(c.titular || '—')}</td>
               <td>${KoguUi.escapeHtml(c.moneda || 'MXN')}</td>
               <td>${KoguUi.statusBadge(c.autorizacion_status || c.cuenta_status || '-')}${c.version > 1 ? ` <span class="muted" style="font-size:10px">v${c.version}</span>` : ''}</td>
