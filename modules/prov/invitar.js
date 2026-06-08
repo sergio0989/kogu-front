@@ -74,8 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="eyebrow">Historial</div>
   <h2 style="margin-bottom:6px">Invitaciones</h2>
   <div class="table-wrap" style="margin-top:10px">
-    <table><thead><tr><th>Correo</th><th>Enviada</th><th>Vence</th><th>Estatus</th><th style="text-align:right">Acción</th></tr></thead>
-    <tbody id="invRows"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody></table>
+    <table><thead><tr><th>Proveedor</th><th>RFC</th><th>Folio</th><th>Correo</th><th>Enviada</th><th>Vence</th><th>Estatus</th><th style="text-align:right">Acción</th></tr></thead>
+    <tbody id="invRows"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody></table>
   </div>
 </div>`;
 
@@ -223,6 +223,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rows = (data && data.rows) || [];
       $('invRows').innerHTML = rows.length ? rows.map(r => `
         <tr>
+          <td>${KoguUi.escapeHtml(r.proveedor_nombre || '—')}</td>
+          <td style="font-family:monospace;font-size:12px;white-space:nowrap">${KoguUi.escapeHtml(r.proveedor_rfc || '—')}</td>
+          <td style="font-size:12px;white-space:nowrap">${r.folio != null ? '#' + KoguUi.escapeHtml(String(r.folio)) : '—'}</td>
           <td>${KoguUi.escapeHtml(r.email_destino || '—')}</td>
           <td style="font-size:12px;white-space:nowrap">${fmtDate(r.created_at)}</td>
           <td style="font-size:12px;white-space:nowrap">${fmtDate(r.expira_at)}</td>
@@ -230,7 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right">${r.status === 'pendiente'
             ? `<button class="btn sm btn-rev" data-id="${KoguUi.escapeHtml(r.invitacion_id)}" style="border-color:#fca5a5;color:#dc2626">Revocar</button>`
             : '<span class="muted">—</span>'}</td>
-        </tr>`).join('') : '<tr><td colspan="5" class="empty">Sin invitaciones.</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="8" class="empty">Sin invitaciones.</td></tr>';
 
       document.querySelectorAll('.btn-rev').forEach(btn => btn.onclick = async () => {
         if (!confirm('¿Revocar esta invitación?')) return;
@@ -241,7 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) { KoguApi.toast(e.message, 'error'); }
       });
     } catch (e) {
-      $('invRows').innerHTML = `<tr><td colspan="5" class="empty">Error: ${KoguUi.escapeHtml(e.message)}</td></tr>`;
+      $('invRows').innerHTML = `<tr><td colspan="8" class="empty">Error: ${KoguUi.escapeHtml(e.message)}</td></tr>`;
     }
   }
 
