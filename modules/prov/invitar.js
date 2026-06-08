@@ -59,11 +59,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           <input type="checkbox" class="req-chk" value="${v}" /> ${l}
         </label>`).join('')}
     </div>
-    <div class="muted" style="font-size:11px;margin-top:6px">Los requisitos se guardan en el expediente del proveedor (requiere expediente existente).</div>
+    <div class="muted" style="font-size:11px;margin-top:6px">Al invitar se guardan en el expediente. Si el proveedor ya fue invitado, usa <strong>Guardar requisitos</strong> para definirlos/actualizarlos sin reenviar la invitación.</div>
   </div>
 
-  <div style="margin-top:16px;display:flex;gap:8px">
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn primary" id="inviteBtn">Enviar invitación</button>
+    <button class="btn" id="saveReqBtn" title="Guarda los requisitos marcados en el expediente del proveedor seleccionado (sin reenviar invitación)">Guardar requisitos</button>
     <button class="btn" id="refreshBtn">Actualizar lista</button>
   </div>
   <div id="msg" class="muted" style="font-size:12px;margin-top:8px"></div>
@@ -161,6 +162,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  async function guardarRequisitos() {
+    const provId = $('provId').value;
+    if (!provId) { KoguApi.toast('Selecciona un proveedor de la lista.', 'error'); return; }
+    const expedienteId = expByProv[provId] || null;
+    if (!expedienteId) { KoguApi.toast('El proveedor aún no tiene expediente. Invítalo primero (se crea al invitar).', 'error'); return; }
+    const reqs = Array.from(document.querySelectorAll('.req-chk:checked')).map(c => c.value);
+    if (!reqs.length) { KoguApi.toast('Marca al menos un requisito.', 'error'); return; }
+
+    const btn = $('saveReqBtn'); btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      const body = { requisitos: reqs.map(t => ({ tipo_documento: t, obligatorio: true })) };
+      await KoguApi.apiFetch('/protected/prov/expedientes/' + expedienteId + '/requisitos', { method: 'PUT', body: JSON.stringify(body) });
+      KoguApi.toast(`Requisitos guardados (${reqs.length}) · el proveedor los verá en su portal`, 'success');
+    } catch (e) {
+      KoguApi.toast(e.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Guardar requisitos';
+    }
+  }
+
   async function loadInvitaciones() {
     try {
       const res = await KoguApi.apiFetch('/protected/prov/invitaciones');
@@ -191,6 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   $('inviteBtn').onclick = invitar;
+  $('saveReqBtn').onclick = guardarRequisitos;
   $('refreshBtn').onclick = loadInvitaciones;
 
   await loadCatalogos();
