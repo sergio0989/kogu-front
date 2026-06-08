@@ -70,6 +70,7 @@
       {href:'/modules/prov/invitar.html',         label:'Invitar Proveedor',         perm:'prov_portal.invitar'},
       {href:'/modules/prov/bandeja-revision.html',label:'Bandeja de Revisión',       perm:'screen.prov.bandeja_revision'},
       {href:'/modules/prov/banca.html',           label:'Validación Bancaria',       perm:'screen.prov.banca'},
+      {href:'/modules/prov/cfdi.html',            label:'Verificación CFDI',         perm:'screen.prov.cfdi'},
     ]},
     {section:'Lab QA',items:[
       // ── Vista ejecutiva ──

@@ -58,16 +58,18 @@
 
   async function loadAll() {
     $('app').innerHTML = '<div class="muted" style="padding:40px;text-align:center">Cargando…</div>';
-    let exp = {}, reqs = [], envios = [], bancarios = [];
+    let exp = {}, reqs = [], envios = [], bancarios = [], cfdis = [];
     try {
-      const [e, r, s, bk] = await Promise.all([
+      const [e, r, s, bk, ck] = await Promise.all([
         PortalApi.call('/portal/me/expediente', { withEmpresa: true }),
         PortalApi.call('/portal/me/requisitos', { withEmpresa: true }),
         PortalApi.call('/portal/me/documentos', { withEmpresa: true }),
         PortalApi.call('/portal/me/bancarios',  { withEmpresa: true }).catch(() => ({ cuentas: [] })),
+        PortalApi.call('/portal/me/cfdi',       { withEmpresa: true }).catch(() => ({ rows: [] })),
       ]);
       exp = e || {}; reqs = (r && r.rows) || []; envios = (s && s.rows) || [];
       bancarios = (bk && bk.cuentas) || [];
+      cfdis = (ck && ck.rows) || [];
     } catch (err) {
       $('app').innerHTML = `<div class="card"><p style="color:#dc2626">No se pudo cargar tu expediente: ${esc(err.message)}</p></div>`;
       return;
@@ -81,12 +83,12 @@
     const nRev   = envios.filter(e => e.status === 'en_revision').length;
     const nRech  = envios.filter(e => e.status === 'rechazado').length;
 
-    render({ expediente, documentos, reqs, envios, nAprob, nRev, nRech, bancarios });
+    render({ expediente, documentos, reqs, envios, nAprob, nRev, nRech, bancarios, cfdis });
   }
 
-  let activeTab = 'exp';  // exp | banca | hist — persiste entre recargas
+  let activeTab = 'exp';  // exp | banca | hist | cfdi — persiste entre recargas
 
-  function render({ documentos, reqs, envios, nAprob, nRev, nRech, bancarios = [] }) {
+  function render({ documentos, reqs, envios, nAprob, nRev, nRech, bancarios = [], cfdis = [] }) {
     const BANCO_BADGE = {
       validada:    '<span class="chip" style="background:#dcfce7;color:#15803d">Validada</span>',
       pendiente:   '<span class="chip" style="background:#fef3c7;color:#92600c">Pendiente</span>',
@@ -138,6 +140,7 @@
       <div class="pp-tabs">
         <button class="pp-tab${activeTab === 'exp' ? ' on' : ''}"   data-tab="exp">📁 Mi expediente</button>
         <button class="pp-tab${activeTab === 'banca' ? ' on' : ''}" data-tab="banca">🏦 Datos bancarios ${bancoEstado}</button>
+        <button class="pp-tab${activeTab === 'cfdi' ? ' on' : ''}"  data-tab="cfdi">📄 Mis CFDI</button>
         <button class="pp-tab${activeTab === 'hist' ? ' on' : ''}"  data-tab="hist">🕘 Historial</button>
       </div>
 
@@ -224,6 +227,50 @@
       </div>
       </div><!-- /panel banca -->
 
+      <div class="pp-panel" data-panel="cfdi" style="${activeTab === 'cfdi' ? '' : 'display:none'}">
+      <div class="card">
+        <div class="eyebrow">Verificación CFDI</div>
+        <h2 style="margin-bottom:6px">Subir CFDI / Complemento de pago</h2>
+        <p class="muted" style="font-size:13px;margin-top:0">Sube el XML de tus facturas (ingreso) o complementos de pago (REP). KOGU los lee y guarda como verificación; deben estar dirigidos a tu empresa cliente.</p>
+        <div class="grid-2" style="gap:10px;margin-top:10px">
+          <div>
+            <div class="label-text">Archivo XML del CFDI</div>
+            <input class="input" id="cfFile" type="file" accept=".xml,text/xml,application/xml"/>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn primary" id="cfBtn" style="width:100%">Subir y verificar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2 style="margin-bottom:6px">Mis CFDI cargados</h2>
+        <div class="table-wrap" style="margin-top:10px">
+          <table><thead><tr><th>Tipo</th><th>UUID</th><th>Serie/Folio</th><th>Fecha</th><th>Total</th><th>Método</th><th>SAT</th></tr></thead>
+          <tbody>${cfdis.length ? cfdis.map(c => {
+            const tipo = { I: 'Ingreso', P: 'Pago (REP)', E: 'Egreso', T: 'Traslado', N: 'Nómina' }[c.tipo_comprobante] || c.tipo_comprobante;
+            const metodo = c.metodo_pago === 'PPD'
+              ? '<span class="chip" style="background:#fef3c7;color:#92600c">PPD</span>'
+              : (c.metodo_pago === 'PUE' ? '<span class="chip" style="background:#eff6ff;color:#1d4ed8">PUE</span>' : '—');
+            const sat = c.match_uuid
+              ? '<span class="chip" style="background:#dcfce7;color:#15803d">En SAT</span>'
+              : '<span class="chip" style="background:#f1f5f9;color:#475569">Anticipado</span>';
+            return `<tr>
+              <td>${esc(tipo)}</td>
+              <td style="font-family:monospace;font-size:11px">${esc((c.uuid || '').slice(0, 8))}…</td>
+              <td style="font-size:12px">${esc((c.serie || '') + (c.folio ? (c.serie ? '/' : '') + c.folio : '') || '—')}</td>
+              <td style="font-size:12px;white-space:nowrap">${fmtDate(c.fecha_emision)}</td>
+              <td style="text-align:right;white-space:nowrap">${c.total != null ? '$' + Number(c.total).toLocaleString('es-MX', { minimumFractionDigits: 2 }) + ' ' + esc(c.moneda || '') : '—'}</td>
+              <td>${metodo}</td>
+              <td>${sat}</td>
+            </tr>`;
+          }).join('') : '<tr><td colspan="7" class="empty">Aún no has subido CFDI.</td></tr>'}
+          </tbody></table>
+        </div>
+        <p class="muted" style="font-size:11px;margin-top:6px">"En SAT" = el UUID ya fue descargado por KOGU. "Anticipado" = aún no aparece en el SAT (lo conciliará el proceso cuando se emita).</p>
+      </div>
+      </div><!-- /panel cfdi -->
+
       <div class="pp-panel" data-panel="hist" style="${activeTab === 'hist' ? '' : 'display:none'}">
       <div class="card">
         <div class="eyebrow">Historial</div>
@@ -256,6 +303,23 @@
     });
     $('upBtn').onclick = subir;
     if ($('bkBtn')) $('bkBtn').onclick = guardarBanco;
+    if ($('cfBtn')) $('cfBtn').onclick = subirCfdi;
+  }
+
+  async function subirCfdi() {
+    const file = $('cfFile').files[0];
+    if (!file) { PortalApi.toast('Selecciona el XML del CFDI.', 'error'); return; }
+    const fd = new FormData();
+    fd.append('xml', file);
+    const btn = $('cfBtn'); btn.disabled = true; btn.textContent = 'Procesando…';
+    try {
+      await PortalApi.call('/portal/me/cfdi', { method: 'POST', form: fd, withEmpresa: true });
+      PortalApi.toast('CFDI cargado y verificado.', 'success');
+      await loadAll();
+    } catch (err) {
+      PortalApi.toast(err.message || 'No se pudo cargar el CFDI.', 'error');
+      btn.disabled = false; btn.textContent = 'Subir y verificar';
+    }
   }
 
   async function guardarBanco() {
