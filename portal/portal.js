@@ -130,6 +130,13 @@
       </tr>`;
     }).join('') : '<tr><td colspan="3" class="empty">La empresa aún no definió documentos requeridos. Puedes subir los tuyos abajo.</td></tr>';
 
+    // PPD sin complemento de pago: UUIDs pagados (referenciados en algún REP del proveedor)
+    const repUuids = new Set();
+    (cfdis || []).filter(c => c.tipo_comprobante === 'P').forEach(c =>
+      (c.relacionados || []).forEach(r => { const u = r && (r.uuid || r.UUID); if (u) repUuids.add(String(u).toUpperCase()); }));
+    const ppdSinRep = (cfdis || []).filter(c =>
+      c.metodo_pago === 'PPD' && c.uuid && !repUuids.has(String(c.uuid).toUpperCase()));
+
     $('app').innerHTML = `
       <div class="pp-kpis">
         <div class="pp-kpi"><div class="v" style="color:#16a34a">${nAprob}</div><div class="l">Aprobados</div></div>
@@ -241,6 +248,27 @@
             <button class="btn primary" id="cfBtn" style="width:100%">Subir y verificar</button>
           </div>
         </div>
+      </div>
+
+      <div class="card" style="margin-top:16px${ppdSinRep.length ? ';border:1px solid #fde68a' : ''}">
+        <div class="row">
+          <div><div class="eyebrow">Cobranza</div><h2 style="margin-bottom:0">Facturas PPD sin complemento de pago</h2></div>
+          <div>${ppdSinRep.length
+            ? `<span class="chip" style="background:#fef3c7;color:#92600c">${ppdSinRep.length} pendiente(s)</span>`
+            : '<span class="chip" style="background:#dcfce7;color:#15803d">Al día</span>'}</div>
+        </div>
+        <p class="muted" style="font-size:13px;margin-top:6px">Facturas que registraste como <strong>PPD</strong> y para las que aún no has subido su complemento de pago (REP).</p>
+        ${ppdSinRep.length ? `
+        <div class="table-wrap" style="margin-top:10px">
+          <table><thead><tr><th>UUID</th><th>Serie/Folio</th><th>Fecha</th><th style="text-align:right">Total</th></tr></thead>
+          <tbody>${ppdSinRep.map(c => `
+            <tr>
+              <td style="font-family:monospace;font-size:11px" title="${esc(c.uuid || '')}">${esc((c.uuid || '').slice(0, 8))}…</td>
+              <td style="font-size:12px">${esc((c.serie || '') + (c.folio ? (c.serie ? '/' : '') + c.folio : '') || '—')}</td>
+              <td style="font-size:12px;white-space:nowrap">${fmtDate(c.fecha_emision)}</td>
+              <td style="text-align:right;white-space:nowrap;font-weight:600">${c.total != null ? '$' + Number(c.total).toLocaleString('es-MX', { minimumFractionDigits: 2 }) + ' ' + esc(c.moneda || '') : '—'}</td>
+            </tr>`).join('')}</tbody></table>
+        </div>` : '<p class="muted" style="font-size:13px;margin-top:6px">No tienes facturas PPD pendientes de complemento de pago. 🎉</p>'}
       </div>
 
       <div class="card" style="margin-top:16px">
