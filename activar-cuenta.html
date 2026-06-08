@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>KOGU Multiempresa · Activar cuenta</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <div class="login-shell">
+    <section class="login-hero">
+      <div>
+        <div class="brand-kicker">KOGU</div>
+        <div class="brand-title">Multiempresa</div>
+        <p class="brand-text" style="max-width:620px; margin-top:16px;">
+          Activa tu cuenta de KOGU.
+        </p>
+        <p class="brand-text" style="max-width:620px; margin-top:12px;">
+          Por seguridad, KOGU nunca envía contraseñas por correo. Aquí defines tú mismo
+          tu contraseña con un enlace de un solo uso.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="login-stat">
+          <div class="label-text" style="color:#a5f3fc;">Política mínima</div>
+          <div style="font-size:24px; font-weight:700;">Requisitos de contraseña</div>
+          <div class="brand-text" style="margin-top:10px;">
+            Al menos 8 caracteres, incluyendo un símbolo.
+          </div>
+        </div>
+        <div class="login-stat">
+          <div class="label-text" style="color:#a5f3fc;">Enlace seguro</div>
+          <div style="font-size:24px; font-weight:700;">Un solo uso</div>
+          <div class="brand-text" style="margin-top:10px;">
+            El enlace de activación expira y solo puede usarse una vez.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-box">
+        <div class="eyebrow">Acceso seguro</div>
+        <h1 style="font-size:30px; margin:8px 0 10px;">Define tu contraseña</h1>
+        <p id="introText" style="color:#64748b; margin-top:0;">
+          Establece tu contraseña para activar tu cuenta de KOGU.
+        </p>
+
+        <form id="activarForm" class="form-grid" style="margin-top:20px;">
+          <div>
+            <div class="label-text">Nueva contraseña</div>
+            <input class="input" id="newPassword" type="password" placeholder="Mínimo 8 caracteres y un símbolo" autocomplete="new-password" />
+          </div>
+          <div>
+            <div class="label-text">Confirmar contraseña</div>
+            <input class="input" id="confirmPassword" type="password" placeholder="Repite la contraseña" autocomplete="new-password" />
+          </div>
+
+          <div id="msg" style="display:none;margin-top:4px;padding:10px 12px;border-radius:8px;font-size:13px"></div>
+
+          <button class="btn primary" id="submitBtn" type="submit" style="margin-top:6px">Activar mi cuenta</button>
+        </form>
+
+        <p style="margin-top:16px;font-size:13px;color:#64748b">
+          ¿Ya tienes acceso? <a href="/login.html">Inicia sesión</a>.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="pages/activar-cuenta.js"></script>
+</body>
+</html>
