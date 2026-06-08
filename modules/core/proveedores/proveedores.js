@@ -183,9 +183,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               : '<span class="muted" style="font-size:11px">— sin clave —</span>'}</td>
             <td>${KoguUi.statusBadge(r.status || '-')}</td>
             <td>${KoguUi.statusBadge(r.activo ? 'activo' : 'inactivo')}</td>
-            <td class="actions-cell">
-              <button class="btn sm btn-edit" data-id="${mapId(r)}">Editar</button>
-              <button class="btn sm btn-banco" data-id="${mapId(r)}" data-name="${KoguUi.escapeHtml(mapName(r))}">Banco</button>
+            <td style="white-space:nowrap;text-align:right">
+              <button class="btn sm btn-edit"  data-id="${mapId(r)}" style="white-space:nowrap">Editar</button>
+              <button class="btn sm btn-banco" data-id="${mapId(r)}" data-name="${KoguUi.escapeHtml(mapName(r))}" style="white-space:nowrap;margin-left:6px">Banco</button>
             </td>
           </tr>`).join('')
       : '<tr><td colspan="6" class="empty">Sin registros</td></tr>';
