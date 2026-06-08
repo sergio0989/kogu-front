@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <!-- ── Modal datos bancarios ── -->
   <div id="bancoModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.5);z-index:60;align-items:center;justify-content:center;padding:20px">
-    <div class="card" style="max-width:600px;width:100%;margin:0">
+    <div class="card" style="max-width:900px;width:96%;max-height:88vh;overflow:auto;margin:0">
       <div class="row">
         <div><div class="eyebrow">Información financiera</div><h2 id="bancoTitle">Datos bancarios</h2></div>
         <button class="btn" id="bancoClose">Cerrar</button>
@@ -213,14 +213,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res  = await KoguApi.apiFetch('/protected/prov/bancarios/' + proveedorId);
       const data = KoguApi.unwrapData(res) || {};
       const list = data.rows || [];
+      const fdt = d => d ? new Date(d).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
       document.getElementById('bancoBody').innerHTML = list.length
-        ? `<div class="table-wrap"><table><thead><tr><th>Banco</th><th>CLABE</th><th>Titular</th><th>Moneda</th><th>Estatus</th></tr></thead><tbody>${list.map(c => `
+        ? `<div class="table-wrap"><table>
+            <thead><tr>
+              <th>Banco</th><th>CLABE</th><th>Titular</th><th style="width:70px">Moneda</th>
+              <th style="width:120px">Estatus</th><th style="width:150px">Capturado</th><th style="width:170px">Validó</th>
+            </tr></thead><tbody>${list.map(c => `
             <tr>
               <td>${KoguUi.escapeHtml(c.banco_nombre || c.banco_codigo || '—')}</td>
               <td style="font-family:monospace;font-size:12px">${KoguUi.escapeHtml(c.clabe || c.cuenta_15 || '—')}</td>
               <td>${KoguUi.escapeHtml(c.titular || '—')}</td>
               <td>${KoguUi.escapeHtml(c.moneda || 'MXN')}</td>
               <td>${KoguUi.statusBadge(c.autorizacion_status || c.cuenta_status || '-')}${c.version > 1 ? ` <span class="muted" style="font-size:10px">v${c.version}</span>` : ''}</td>
+              <td style="font-size:12px">${fdt(c.created_at)}</td>
+              <td style="font-size:12px">${c.validado_por_nombre
+                  ? KoguUi.escapeHtml(c.validado_por_nombre) + '<div class="muted" style="font-size:11px">' + fdt(c.validado_at) + '</div>'
+                  : '<span class="muted">— sin validar —</span>'}</td>
             </tr>`).join('')}</tbody></table></div>`
         : '<p class="muted">Este proveedor no tiene cuentas bancarias registradas.</p>';
     } catch (e) {
