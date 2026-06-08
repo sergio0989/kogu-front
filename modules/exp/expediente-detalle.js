@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${KoguUi.statusBadge(STATUS_DOC_LABELS[d.status] || d.status)}</td>
         <td>
           <div class="actions-cell">
-            <a class="btn" href="${KoguApi.getBaseUrl()}/protected/exp/documentos/${d.documento_id}/archivo" target="_blank" rel="noopener">Descargar</a>
+            <button class="btn btn-dl" data-id="${d.documento_id}" data-name="${KoguUi.escapeHtml(d.nombre_archivo_original || (TIPO_DOCUMENTO_LABELS[d.tipo_documento] || d.tipo_documento))}">Descargar</button>
             <button class="btn btn-delete" data-id="${d.documento_id}">Eliminar</button>
           </div>
         </td>
@@ -250,6 +250,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         KoguApi.toast('Documento eliminado', 'success');
         await loadDocs();
       } catch (e) { KoguApi.toast(e.message, 'error'); }
+    });
+
+    // Descarga con fetch autenticado (los endpoints /protected exigen el JWT
+    // en el header; un link directo no lo manda -> 401 Token no proporcionado).
+    document.querySelectorAll('.btn-dl').forEach(btn => btn.onclick = async () => {
+      const orig = btn.textContent; btn.disabled = true; btn.textContent = '...';
+      try {
+        const res = await KoguApi.authFetchRaw('/protected/exp/documentos/' + btn.dataset.id + '/archivo');
+        if (!res.ok) throw new Error('No se pudo descargar (' + res.status + ')');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = btn.dataset.name || 'documento';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      } catch (e) {
+        KoguApi.toast(e.message, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = orig;
+      }
     });
   }
 
