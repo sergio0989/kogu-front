@@ -67,6 +67,7 @@
       {href:'/modules/mat/reglas.html',         label:'Reglas de materialidad',     perm:'screen.mat.reglas'},
     ]},
     {section:'Proveedores',items:[
+      {href:'/modules/prov/invitar.html',         label:'Invitar Proveedor',         perm:'prov_portal.invitar'},
       {href:'/modules/prov/bandeja-revision.html',label:'Bandeja de Revisión',       perm:'screen.prov.bandeja_revision'},
     ]},
     {section:'Lab QA',items:[

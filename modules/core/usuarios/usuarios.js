@@ -79,6 +79,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
 
           <div>
+            <div class="label-text">Activación por enlace</div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#475569;padding-top:6px;cursor:pointer">
+              <input type="checkbox" id="enviar_activacion" />
+              Enviar enlace de activación (sin contraseña; el usuario la define)
+            </label>
+          </div>
+
+          <div>
             <div class="label-text">Activo</div>
             <select class="select" id="activo">
               <option value="true">Sí</option>
@@ -141,6 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('perfil_id').value = '';
     document.getElementById('activo').value = 'true';
+    const _ea = document.getElementById('enviar_activacion'); if (_ea) _ea.checked = false;
     document.getElementById('formTitle').textContent = 'Alta de usuario';
     document.getElementById('modeChip').textContent = 'Alta';
   }
@@ -238,17 +247,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         KoguApi.toast('Usuario actualizado', 'success');
       } else {
-        if (!password) throw new Error('La contraseña es obligatoria en alta.');
+        const enviarActivacion = !!document.getElementById('enviar_activacion')?.checked;
+        if (!enviarActivacion && !password) {
+          throw new Error('La contraseña es obligatoria en alta (o marca "enviar enlace de activación").');
+        }
 
         await KoguApi.apiFetch('/protected/core/usuarios', {
           method: 'POST',
-          body: JSON.stringify({
-            ...payload,
-            password
-          })
+          body: JSON.stringify(
+            enviarActivacion
+              ? { ...payload, enviar_activacion: true }
+              : { ...payload, password }
+          )
         });
 
-        KoguApi.toast('Usuario creado', 'success');
+        KoguApi.toast(
+          enviarActivacion ? 'Usuario creado · enlace de activación enviado' : 'Usuario creado',
+          'success'
+        );
       }
 
       reset();
