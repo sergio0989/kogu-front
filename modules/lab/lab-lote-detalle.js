@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const puedeCambiarEstado = KoguShell.hasPerm(b, 'lab.lotes.cambiar_estado')
                             || KoguShell.hasPerm(b, 'lab.lotes.update');
     const estaLiberado = ['liberado', 'con_excepcion'].includes(lote.estado_calidad);
-    const origenLabel  = { compra: 'Compra / insumo', produccion: 'Producción propia', transferencia: 'Transferencia' }[lote.origen] || lote.origen;
+    const origenLabel  = { compra: 'Compra / insumo', produccion: 'Producción propia', manual: 'Manual', sda: 'SDA', transferencia: 'Transferencia' }[lote.origen] || lote.origen;
 
     // Helper: celda de metadato read-only
     const cell = (label, value) => `
@@ -255,6 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${cell('Cantidad', cantidad)}
         ${cell('Ref. externa', escapeHtml(lote.referencia_externa || '—'))}
         ${lote.proveedor_nombre ? cell('Proveedor', escapeHtml(lote.proveedor_nombre)) : ''}
+        <div style="grid-column:1/-1">${cell('Observaciones', escapeHtml(lote.observaciones || '—'))}</div>
       </div>
 
       <!-- ── Sección editable unificada ── -->
@@ -305,12 +306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>` : ''}
       `}
 
-      <!-- ── Observaciones ── -->
-      ${lote.observaciones ? `
-      <div style="margin-top:12px;padding:10px 14px;background:#fffbeb;border-left:3px solid #f59e0b;
-                  border-radius:0 6px 6px 0;font-size:13px;color:#78350f">
-        <span style="font-weight:600">Observaciones:</span> ${escapeHtml(lote.observaciones)}
-      </div>` : ''}
+      <!-- ── Observaciones: ahora visible en la banda de metadatos (arriba) ── -->
 
       <!-- ── Banner bloqueo ── -->
       ${!estaLiberado ? `

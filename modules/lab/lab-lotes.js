@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'produccion', label: 'Producción' },
     { code: 'compra',     label: 'Compra'     },
     { code: 'manual',     label: 'Manual'     },
+    { code: 'sda',        label: 'SDA'        },
   ];
 
   const b = await KoguShell.initShell({
