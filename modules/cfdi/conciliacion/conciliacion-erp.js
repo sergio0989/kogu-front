@@ -88,6 +88,7 @@
           <div class="tabs" id="cfTabs">
             <button class="tab active" data-tab="faltantes">Faltantes en ERP</button>
             <button class="tab"        data-tab="moneda">Discrepancias de moneda</button>
+            <button class="tab"        data-tab="pue">PUE no pagadas</button>
             <button class="tab"        data-tab="excluidos">Excluidos (no UUID)</button>
             <button class="tab"        data-tab="todos">Todos los CFDI</button>
           </div>
@@ -172,7 +173,7 @@
 
     const semaforo =
       resumen.faltantes_erp > 0 ? { lbl: 'CON FALTANTES', col: '#c0392b' } :
-      resumen.discrepancias_moneda > 0 ? { lbl: 'OBSERVADO', col: '#b07207' } :
+      (resumen.discrepancias_moneda > 0 || resumen.pue_no_pagadas > 0) ? { lbl: 'OBSERVADO', col: '#b07207' } :
       { lbl: 'CONCILIADO', col: '#1c7a3e' };
 
     $('card-resumen').innerHTML = `
@@ -195,6 +196,7 @@
         ${kpiBox(resumen.kogu_periodo,        'CFDI recibidos en KOGU')}
         ${kpiBox(resumen.faltantes_erp,       'Faltantes en ERP', resumen.faltantes_erp > 0 ? '#c0392b' : null)}
         ${kpiBox(resumen.discrepancias_moneda,'Discrepancias moneda', resumen.discrepancias_moneda > 0 ? '#b07207' : null)}
+        ${kpiBox((resumen.pue_no_pagadas != null ? resumen.pue_no_pagadas : 0), 'PUE no pagadas', resumen.pue_no_pagadas > 0 ? '#c0392b' : null)}
         ${kpiBox((resumen.pct_cobertura_erp != null ? resumen.pct_cobertura_erp + '%' : '—'), 'Cobertura ERP', (resumen.pct_cobertura_erp != null && resumen.pct_cobertura_erp < 100) ? '#b07207' : '#1c7a3e')}
       </div>
     `;
@@ -259,6 +261,27 @@
       return;
     }
 
+    if (tabActiva === 'pue') {
+      renderTabla(
+        'PUE no pagadas al cierre — registradas en el ERP con Status_fac ≠ PAGADA. Solicitar al proveedor refacturar a PPD.',
+        r.pue_no_pagadas,
+        [
+          { k: 'fecha_emision', l: 'Fecha',      fn: fmtFecha },
+          { k: 'uuid',          l: 'UUID' },
+          { k: 'serie',         l: 'Serie' },
+          { k: 'folio',         l: 'Folio' },
+          { k: 'rfc_emisor',    l: 'RFC emisor' },
+          { k: 'nombre_emisor', l: 'Emisor' },
+          { k: 'moneda',        l: 'Moneda' },
+          { k: 'total',         l: 'Total', align: 'right', fn: (v, row) => fmtMoneda(v, row.moneda) },
+          { k: 'no_facc',       l: 'No_facc ERP' },
+          { k: 'status_fac',    l: 'Status ERP' },
+        ],
+        'No hay PUE pendientes de pago en el ERP para el periodo.',
+      );
+      return;
+    }
+
     if (tabActiva === 'excluidos') {
       renderTabla(
         'Excluidos — renglones del ERP cuyo Vmfolio no es un UUID (facturas directas, extranjeras o sin folio)',
@@ -319,10 +342,11 @@
     } else {
       h += '<div style="overflow-x:auto"><table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px">';
       h += '<thead><tr>';
-      ['Fecha','UUID','Serie','Folio','RFC emisor','Emisor','Moneda','Total CFDI',
+      ['Fecha','UUID','Serie','Folio','RFC emisor','Emisor','Método','Moneda','Total CFDI',
        'Estado','No_facc ERP','Total ERP','Moneda ERP','Diferencia']
-        .forEach((label, idx) => {
-          const align = (idx >= 7 && idx !== 8 && idx !== 9 && idx !== 11) ? 'right' : 'left';
+        .forEach((label) => {
+          const align = ['Total CFDI','Total ERP','Diferencia'].includes(label) ? 'right'
+            : ['Método','Estado'].includes(label) ? 'center' : 'left';
           h += '<th style="text-align:' + align + ';padding:8px 10px;border-bottom:2px solid #e2e8f0;background:#f8fafc;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px">' + esc(label) + '</th>';
         });
       h += '</tr></thead><tbody>';
@@ -338,6 +362,7 @@
         h += `<td ${tdL}>${esc(x.folio)}</td>`;
         h += `<td ${tdL}>${esc(x.rfc_emisor)}</td>`;
         h += `<td ${tdL}>${esc(x.nombre_emisor)}</td>`;
+        h += `<td ${tdC}>${badgeMetodo(x.metodo_pago)}</td>`;
         h += `<td ${tdL}>${esc(x.moneda)}</td>`;
         h += `<td ${tdR}>${esc(fmtMoneda(x.total, x.moneda))}</td>`;
         h += `<td ${tdC}>${badgeEstado(x.en_erp)}</td>`;
@@ -374,6 +399,15 @@
     const rojo  = 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5';
     const style = `padding:3px 9px;border-radius:11px;font-size:11px;font-weight:700;letter-spacing:.3px;${enErp ? verde : rojo}`;
     return `<span style="${style}">${enErp ? 'EN ERP' : 'FALTANTE'}</span>`;
+  }
+
+  function badgeMetodo(metodo) {
+    const m = String(metodo || '').toUpperCase();
+    if (!m) return '<span class="muted">—</span>';
+    const base = 'padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:.3px';
+    if (m === 'PUE') return `<span style="${base};background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe">PUE</span>`;
+    if (m === 'PPD') return `<span style="${base};background:#fef3c7;color:#92400e;border:1px solid #fcd34d">PPD</span>`;
+    return `<span style="${base};background:#e2e8f0;color:#475569">${esc(m)}</span>`;
   }
 
   function renderDiferencia(diff, moneda) {
@@ -440,6 +474,11 @@
       ['Discrepancias de moneda',     resumen.discrepancias_moneda],
       ['CFDI en ERP',                 resumen.cfdi_en_erp != null ? resumen.cfdi_en_erp : ''],
       ['% Cobertura ERP',             resumen.pct_cobertura_erp != null ? resumen.pct_cobertura_erp + '%' : ''],
+      [],
+      ['PUE — total',                 resumen.pue_total != null ? resumen.pue_total : ''],
+      ['PUE pagadas (ERP)',           resumen.pue_pagadas != null ? resumen.pue_pagadas : ''],
+      ['PUE no pagadas (ERP)',        resumen.pue_no_pagadas != null ? resumen.pue_no_pagadas : ''],
+      ['PUE sin dato en ERP',         resumen.pue_sin_dato_erp != null ? resumen.pue_sin_dato_erp : ''],
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resAOA), 'Resumen');
 
@@ -450,6 +489,10 @@
     XLSX.utils.book_append_sheet(wb, aoaDe(r.discrepancias_moneda,
       ['uuid','serie','folio','rfc_emisor','nombre_emisor','moneda_cfdi','moneda_erp','moneda_erp_raw','no_facc','total_cfdi','total_erp']),
       'Discrepancias moneda');
+
+    XLSX.utils.book_append_sheet(wb, aoaDe(r.pue_no_pagadas,
+      ['fecha_emision','uuid','serie','folio','rfc_emisor','nombre_emisor','moneda','total','no_facc','status_fac','total_erp','moneda_erp_raw']),
+      'PUE no pagadas');
 
     XLSX.utils.book_append_sheet(wb, aoaDe(r.excluidos,
       ['no_facc','vmfolio','cve_prov','nom_prov','des_mon','total_fac','motivo']),
@@ -465,7 +508,7 @@
     }));
     XLSX.utils.book_append_sheet(wb, aoaDe(universoConEstado,
       ['fecha_emision','uuid','serie','folio','rfc_emisor','nombre_emisor',
-       'tipo_comprobante','moneda','total',
+       'tipo_comprobante','metodo_pago','moneda','total',
        'estado','no_facc_erp','total_erp','moneda_erp','diferencia_monto']),
       'Todos los CFDI');
 
