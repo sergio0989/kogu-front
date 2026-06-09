@@ -57,8 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
-<div style="margin-bottom:12px">
+<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
   <button class="btn ghost" id="backBtn">← Volver a Lotes</button>
+  <button class="btn" id="duplicarBtn" style="display:none">⧉ Duplicar lote</button>
 </div>
 
 <!-- Encabezado del lote -->
@@ -780,6 +781,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = '/modules/lab/lab-lotes.html';
   });
 
+  // Botón Duplicar: solo visible si el usuario puede crear lotes.
+  if (KoguShell.hasPerm(b, 'lab.lotes.create')) {
+    const dupBtn = $('duplicarBtn');
+    dupBtn.style.display = '';
+    dupBtn.addEventListener('click', () => {
+      if (!lote) return;
+      abrirModalDuplicar();
+    });
+  }
+
   $('toggleAllBtn').addEventListener('click', () => {
     const cards = document.querySelectorAll('.muestra-card');
     if (!cards.length) return;
@@ -790,6 +801,63 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   $('addMuestraBtn').addEventListener('click', () => abrirModalNuevaMuestra());
+
+  // ── Modal: Duplicar lote con clave nueva ─────────────────
+  function abrirModalDuplicar() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:28px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h3 style="margin:0">Duplicar lote</h3>
+          <button id="closeDupModal" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">×</button>
+        </div>
+        <p style="margin:0 0 16px;font-size:13px;color:#64748b">
+          Se creará un lote nuevo de <strong>${escapeHtml(lote.cve_prod || '')}</strong>
+          (origen ${escapeHtml(lote.origen || '')}) copiando la cabecera. Los resultados
+          oficiales del lote <strong>${escapeHtml(lote.numero_lote || '')}</strong> se sembrarán
+          como una muestra para que puedas agregar parámetros y recalcular.
+        </p>
+        <label style="display:block;font-weight:600;margin-bottom:4px;font-size:13px">Nueva clave (número de lote) *</label>
+        <input id="dup_clave" class="input" type="text" style="width:100%;text-transform:uppercase" maxlength="80"
+               placeholder="Ej. ${escapeHtml(lote.numero_lote || '')}-COPIA"/>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
+          <button id="cancelDupModal" class="btn ghost">Cancelar</button>
+          <button id="saveDupModal" class="btn primary">Crear duplicado</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#closeDupModal').onclick  = close;
+    overlay.querySelector('#cancelDupModal').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const input = overlay.querySelector('#dup_clave');
+    input.focus();
+
+    const guardar = async () => {
+      const numero = input.value.trim().toUpperCase();
+      if (!numero) { KoguApi.toast('Ingresa la nueva clave', 'error'); return; }
+      const btn = overlay.querySelector('#saveDupModal');
+      btn.disabled = true;
+      try {
+        const res = await KoguApi.apiFetch(`${BASE}/lotes/${loteId}/duplicar`, {
+          method: 'POST',
+          body: JSON.stringify({ numero_lote: numero }),
+        });
+        const creado = KoguApi.unwrapData(res);
+        KoguApi.toast('Lote duplicado', 'success');
+        close();
+        window.location.href = `/modules/lab/lab-lote-detalle.html?id=${creado.lote_id}`;
+      } catch (err) {
+        KoguApi.toast(err.message, 'error');
+        btn.disabled = false;
+      }
+    };
+    overlay.querySelector('#saveDupModal').addEventListener('click', guardar);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); });
+  }
 
   function abrirModalNuevaMuestra() {
     const hoy = new Date().toISOString().slice(0, 10);
