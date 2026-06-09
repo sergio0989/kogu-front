@@ -802,49 +802,93 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('addMuestraBtn').addEventListener('click', () => abrirModalNuevaMuestra());
 
-  // ── Modal: Duplicar lote con clave nueva ─────────────────
-  function abrirModalDuplicar() {
+  // ── Modal: Duplicar lote bajo OTRO producto (conserva número de lote) ──
+  async function abrirModalDuplicar() {
+    // Catálogo de productos activos, excluyendo el producto actual del lote.
+    let productos = [];
+    try {
+      const res = await KoguApi.apiFetch('/protected/cat/productos?pageSize=1000&status=activo');
+      productos = (KoguApi.unwrapRows(res) || []).filter(p => p.producto_id !== lote.producto_id);
+    } catch (err) {
+      KoguApi.toast('No se pudieron cargar los productos: ' + err.message, 'error');
+      return;
+    }
+
+    let seleccionado = null;
+
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center';
     overlay.innerHTML = `
-      <div style="background:#fff;border-radius:10px;padding:28px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="background:#fff;border-radius:10px;padding:28px;width:520px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.2)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <h3 style="margin:0">Duplicar lote</h3>
           <button id="closeDupModal" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">×</button>
         </div>
         <p style="margin:0 0 16px;font-size:13px;color:#64748b">
-          Se creará un lote nuevo de <strong>${escapeHtml(lote.cve_prod || '')}</strong>
-          (origen ${escapeHtml(lote.origen || '')}) copiando la cabecera. Los resultados
-          oficiales del lote <strong>${escapeHtml(lote.numero_lote || '')}</strong> se sembrarán
-          como una muestra para que puedas agregar parámetros y recalcular.
+          Se creará un lote nuevo con el <strong>mismo número de lote ${escapeHtml(lote.numero_lote || '')}</strong>
+          (origen ${escapeHtml(lote.origen || '')}) bajo el <strong>producto que elijas</strong>. Los resultados
+          oficiales se sembrarán como una muestra para que puedas agregar parámetros y recalcular.
         </p>
-        <label style="display:block;font-weight:600;margin-bottom:4px;font-size:13px">Nueva clave (número de lote) *</label>
-        <input id="dup_clave" class="input" type="text" style="width:100%;text-transform:uppercase" maxlength="80"
-               placeholder="Ej. ${escapeHtml(lote.numero_lote || '')}-COPIA"/>
+        <label style="display:block;font-weight:600;margin-bottom:4px;font-size:13px">Nuevo producto *</label>
+        <input id="dup_search" class="input" type="text" placeholder="Buscar por clave o descripción…" style="width:100%;margin-bottom:8px"/>
+        <div id="dup_list" style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:8px"></div>
+        <div id="dup_sel" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg,#f1f5f9);border-radius:6px;font-size:13px"></div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
           <button id="cancelDupModal" class="btn ghost">Cancelar</button>
-          <button id="saveDupModal" class="btn primary">Crear duplicado</button>
+          <button id="saveDupModal" class="btn primary" disabled>Crear duplicado</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
 
-    const close = () => overlay.remove();
+    const close   = () => overlay.remove();
+    const listEl  = overlay.querySelector('#dup_list');
+    const searchEl= overlay.querySelector('#dup_search');
+    const selEl   = overlay.querySelector('#dup_sel');
+    const saveBtn = overlay.querySelector('#saveDupModal');
+
     overlay.querySelector('#closeDupModal').onclick  = close;
     overlay.querySelector('#cancelDupModal').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
-    const input = overlay.querySelector('#dup_clave');
-    input.focus();
+    function renderList(q) {
+      const q2 = q.trim().toLowerCase();
+      const hits = productos.filter(p =>
+        !q2 || (p.cve_prod || '').toLowerCase().includes(q2) || (p.desc_prod || '').toLowerCase().includes(q2)
+      ).slice(0, 40);
+      if (!hits.length) {
+        listEl.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">Sin resultados</div>`;
+        return;
+      }
+      listEl.innerHTML = hits.map(p => `
+        <div data-id="${escapeHtml(p.producto_id)}" data-cve="${escapeHtml(p.cve_prod || '')}" data-desc="${escapeHtml(p.desc_prod || '')}"
+             style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)"
+             onmouseover="this.style.background='var(--bg,#f1f5f9)'" onmouseout="this.style.background=''">
+          <strong style="font-family:monospace">${escapeHtml(p.cve_prod || '')}</strong>
+          <span style="margin-left:8px">${escapeHtml(p.desc_prod || '')}</span>
+        </div>`).join('');
+    }
+    renderList('');
+    searchEl.addEventListener('input', () => renderList(searchEl.value));
+    searchEl.focus();
 
-    const guardar = async () => {
-      const numero = input.value.trim().toUpperCase();
-      if (!numero) { KoguApi.toast('Ingresa la nueva clave', 'error'); return; }
-      const btn = overlay.querySelector('#saveDupModal');
-      btn.disabled = true;
+    listEl.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-id]');
+      if (!row) return;
+      listEl.querySelectorAll('[data-id]').forEach(r => r.style.background = '');
+      row.style.background = 'var(--accent-muted,#e0f2fe)';
+      seleccionado = { producto_id: row.dataset.id, cve_prod: row.dataset.cve, desc_prod: row.dataset.desc };
+      selEl.textContent = `Seleccionado: ${seleccionado.cve_prod} — ${seleccionado.desc_prod}`;
+      selEl.style.display = 'block';
+      saveBtn.disabled = false;
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (!seleccionado) { KoguApi.toast('Selecciona un producto', 'error'); return; }
+      saveBtn.disabled = true;
       try {
         const res = await KoguApi.apiFetch(`${BASE}/lotes/${loteId}/duplicar`, {
           method: 'POST',
-          body: JSON.stringify({ numero_lote: numero }),
+          body: JSON.stringify({ producto_id: seleccionado.producto_id }),
         });
         const creado = KoguApi.unwrapData(res);
         KoguApi.toast('Lote duplicado', 'success');
@@ -852,11 +896,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = `/modules/lab/lab-lote-detalle.html?id=${creado.lote_id}`;
       } catch (err) {
         KoguApi.toast(err.message, 'error');
-        btn.disabled = false;
+        saveBtn.disabled = false;
       }
-    };
-    overlay.querySelector('#saveDupModal').addEventListener('click', guardar);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); });
+    });
   }
 
   function abrirModalNuevaMuestra() {
