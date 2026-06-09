@@ -1,7 +1,8 @@
 // ============================================================
 // lab-plantilla-producto.js
 // Pantalla Lab QA — Plantilla de parámetros por producto.
-// Patrón: lista de productos configurados → detalle de parámetros.
+// Patrón: lista de productos → detalle con UNA tabla de TODOS los
+// parámetros del catálogo; un check "Aplica" agrega/quita de la plantilla.
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -23,9 +24,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Estado ───────────────────────────────────────────────────
   let listaProductos = [];   // productos con plantilla configurada
   let todosProductos = [];   // catálogo completo para el modal de alta
-  let parametros     = [];   // catálogo de parámetros analíticos
+  let parametros     = [];   // catálogo de parámetros analíticos (TODOS)
   let productoSel    = null; // { producto_id, producto_clave, producto_nombre }
-  let plantilla      = [];   // parámetros del producto seleccionado
+  let plantilla      = [];   // parámetros aplicados al producto seleccionado
+  let detalleFiltro  = '';   // texto de búsqueda en el detalle
 
   // ── Helpers ───────────────────────────────────────────────────
   const esc = s => s ? String(s).replace(/[&<>"']/g, c =>
@@ -38,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function showNotif(msg, tipo = 'success') {
     if (typeof window.KoguUI?.toast === 'function') { window.KoguUI.toast(msg, tipo); return; }
-    // Sin alert — el cambio visual en la tabla confirma la acción
+    if (typeof KoguApi?.toast === 'function') { KoguApi.toast(msg, tipo); return; }
   }
 
   // ── Render HTML principal ────────────────────────────────────
@@ -78,36 +80,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 </div>
 
-<!-- Card de detalle: parámetros del producto seleccionado -->
+<!-- Card de detalle: TODOS los parámetros del catálogo con check "Aplica" -->
 <div id="detalleCard" class="card" style="display:none;margin-top:16px">
   <div class="row">
     <div>
-      <div class="eyebrow" id="detalleEyebrow">Parámetros configurados</div>
+      <div class="eyebrow" id="detalleEyebrow">Parámetros</div>
       <h3 style="margin:0" id="detalleTitulo">—</h3>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn ghost" id="cerrarDetalleBtn">Cerrar</button>
-      <button class="btn primary" id="agregarParamBtn">+ Agregar parámetro</button>
     </div>
   </div>
 
-  <div id="detalleEmpty" style="display:none;text-align:center;padding:32px;color:var(--muted);font-size:14px">
-    Sin parámetros configurados. Usa "+ Agregar parámetro".
-  </div>
+  <p style="margin:10px 0 0;font-size:13px;color:var(--muted)">
+    Marca <strong>Aplica</strong> para incluir el parámetro en la plantilla del producto.
+    Solo los marcados se pre-cargan al crear una muestra. Orden, Obligatorio y En COA
+    se editan en los parámetros aplicados.
+  </p>
 
-  <div class="table-wrap" id="detalleTblWrap" style="margin-top:16px;display:none">
+  <input class="input" id="detalleSearch" placeholder="Buscar por clave o nombre…" style="margin-top:12px"/>
+
+  <div class="table-wrap" id="detalleTblWrap" style="margin-top:12px;display:none">
     <table>
       <thead><tr>
-        <th style="width:64px">Orden</th>
+        <th style="width:70px;text-align:center">Aplica</th>
+        <th style="width:70px">Orden</th>
         <th>Clave</th>
         <th>Parámetro</th>
         <th>Tipo</th>
         <th style="text-align:center">Obligatorio</th>
         <th style="text-align:center">En COA</th>
-        <th style="width:80px"></th>
       </tr></thead>
       <tbody id="detalleTbody"></tbody>
     </table>
+  </div>
+  <div id="detalleEmpty" style="display:none;text-align:center;padding:32px;color:var(--muted);font-size:14px">
+    No hay parámetros en el catálogo.
   </div>
 </div>
 
@@ -127,38 +135,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 </div>
-
-<!-- Modal: Agregar parámetro -->
-<div id="modalParam" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
-  <div class="card" style="width:500px;max-width:95vw;max-height:80vh;overflow-y:auto">
-    <div class="row" style="margin-bottom:16px">
-      <h3 style="margin:0">Agregar parámetro</h3>
-      <button class="btn ghost" id="cerrarModalParam">✕</button>
-    </div>
-    <input class="input" id="paramSearch" placeholder="Buscar por clave o nombre…" style="margin-bottom:10px"/>
-    <div id="paramLista" style="max-height:300px;overflow-y:auto;border:1px solid var(--line);border-radius:8px"></div>
-    <div id="paramSelLabel" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:6px;font-size:13px"></div>
-    <div style="margin-top:14px;display:flex;gap:10px;align-items:flex-end">
-      <div>
-        <label class="label">Orden</label>
-        <input class="input" id="modalOrden" type="number" value="0" min="0" style="width:80px"/>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px">
-        <input type="checkbox" id="modalOblig" checked/>
-        <label for="modalOblig" style="font-size:13px">Obligatorio</label>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px">
-        <input type="checkbox" id="modalCoa" checked/>
-        <label for="modalCoa" style="font-size:13px">En COA</label>
-      </div>
-    </div>
-    <div id="paramError" style="display:none;margin-top:10px;padding:8px 12px;background:#fee2e2;border-radius:6px;color:#991b1b;font-size:13px"></div>
-    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn ghost" id="cancelarModalParam">Cancelar</button>
-      <button class="btn primary" id="guardarParam" disabled>Guardar</button>
-    </div>
-  </div>
-</div>
 `;
 
   // ── Referencias DOM ───────────────────────────────────────────
@@ -171,19 +147,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const detalleTbody    = document.getElementById('detalleTbody');
   const detalleTblWrap  = document.getElementById('detalleTblWrap');
   const detalleEmpty    = document.getElementById('detalleEmpty');
+  const detalleSearch   = document.getElementById('detalleSearch');
 
   const modalNueva      = document.getElementById('modalNueva');
   const nuevaProdSearch = document.getElementById('nuevaProdSearch');
   const nuevaProdLista  = document.getElementById('nuevaProdLista');
   const nuevaSelLabel   = document.getElementById('nuevaSelLabel');
   const confirmarNueva  = document.getElementById('confirmarNueva');
-
-  const modalParam      = document.getElementById('modalParam');
-  const paramSearch     = document.getElementById('paramSearch');
-  const paramLista      = document.getElementById('paramLista');
-  const paramSelLabel   = document.getElementById('paramSelLabel');
-  const paramError      = document.getElementById('paramError');
-  const guardarParam    = document.getElementById('guardarParam');
 
   // ── Carga de catálogos ────────────────────────────────────────
   async function cargarCatalogos() {
@@ -240,6 +210,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Abrir detalle de un producto ──────────────────────────────
   window.__abrirProducto = async (productoId, clave, nombre) => {
     productoSel = { producto_id: productoId, producto_clave: clave, producto_nombre: nombre };
+    detalleFiltro = '';
+    detalleSearch.value = '';
     detalleEyebrow.textContent = `Parámetros — ${clave}`;
     detalleTitulo.textContent  = nombre;
     detalleTblWrap.style.display = 'none';
@@ -259,71 +231,115 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ── Render detalle: TODOS los parámetros con check "Aplica" ────
   function renderDetalle() {
-    if (!plantilla.length) {
+    if (!parametros.length) {
       detalleEmpty.style.display   = 'block';
       detalleTblWrap.style.display = 'none';
       return;
     }
+
+    // Mapa de aplicados por parametro_id (trae plantilla_id, orden, flags).
+    const aplicados = new Map(plantilla.map(i => [i.parametro_id, i]));
+
+    const q = detalleFiltro.trim().toLowerCase();
+    const lista = parametros.filter(p =>
+      !q || (p.clave || '').toLowerCase().includes(q) || (p.nombre || '').toLowerCase().includes(q)
+    );
+
+    // Orden visual: aplicados primero (por su orden), luego el resto por clave.
+    lista.sort((a, bb) => {
+      const ia = aplicados.get(a.parametro_id);
+      const ib = aplicados.get(bb.parametro_id);
+      if (ia && !ib) return -1;
+      if (!ia && ib) return 1;
+      if (ia && ib) return (ia.orden - ib.orden) || (a.clave || '').localeCompare(bb.clave || '');
+      return (a.clave || '').localeCompare(bb.clave || '');
+    });
+
+    if (!lista.length) {
+      detalleTbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);font-size:13px">Sin resultados para "${esc(detalleFiltro)}".</td></tr>`;
+      detalleTblWrap.style.display = 'block';
+      detalleEmpty.style.display   = 'none';
+      return;
+    }
+
     detalleEmpty.style.display   = 'none';
     detalleTblWrap.style.display = 'block';
 
-    detalleTbody.innerHTML = plantilla.map(item => `
-      <tr>
-        <td style="text-align:center">
-          <input type="number" value="${item.orden}" min="0"
-            style="width:52px;text-align:center;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text)"
-            onchange="window.__plantillaOrden('${esc(item.plantilla_id)}','${esc(item.parametro_id)}',this.value)"/>
-        </td>
-        <td style="font-family:monospace;font-size:12px">${esc(item.parametro_clave)}</td>
-        <td>${esc(item.parametro_nombre)}</td>
-        <td style="font-size:12px;color:var(--muted)">${tipoLabel(item.tipo_parametro)}</td>
-        <td style="text-align:center">
-          <input type="checkbox" ${item.es_obligatorio ? 'checked' : ''}
-            onchange="window.__plantillaToggle('${esc(item.plantilla_id)}','${esc(item.parametro_id)}','es_obligatorio',this.checked)"/>
-        </td>
-        <td style="text-align:center">
-          <input type="checkbox" ${item.incluir_en_coa ? 'checked' : ''}
-            onchange="window.__plantillaToggle('${esc(item.plantilla_id)}','${esc(item.parametro_id)}','incluir_en_coa',this.checked)"/>
-        </td>
-        <td style="text-align:right">
-          <button class="btn ghost" style="font-size:12px;color:#dc2626"
-            onclick="window.__plantillaEliminar('${esc(item.plantilla_id)}')">Quitar</button>
-        </td>
-      </tr>
-    `).join('');
+    detalleTbody.innerHTML = lista.map(p => {
+      const item     = aplicados.get(p.parametro_id);
+      const aplica   = !!item;
+      const disabled = aplica ? '' : 'disabled';
+      const rowStyle = aplica ? '' : 'opacity:.5';
+      return `
+        <tr style="${rowStyle}">
+          <td style="text-align:center">
+            <input type="checkbox" ${aplica ? 'checked' : ''}
+              onchange="window.__plantillaAplica('${esc(p.parametro_id)}', this.checked)"/>
+          </td>
+          <td style="text-align:center">
+            <input type="number" value="${item ? item.orden : ''}" min="0" ${disabled}
+              style="width:54px;text-align:center;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text)"
+              onchange="window.__plantillaOrden('${esc(p.parametro_id)}', this.value)"/>
+          </td>
+          <td style="font-family:monospace;font-size:12px">${esc(p.clave)}</td>
+          <td>${esc(p.nombre)}</td>
+          <td style="font-size:12px;color:var(--muted)">${tipoLabel(p.tipo_parametro)}</td>
+          <td style="text-align:center">
+            <input type="checkbox" ${item && item.es_obligatorio ? 'checked' : ''} ${disabled}
+              onchange="window.__plantillaToggle('${esc(p.parametro_id)}','es_obligatorio',this.checked)"/>
+          </td>
+          <td style="text-align:center">
+            <input type="checkbox" ${item && item.incluir_en_coa ? 'checked' : ''} ${disabled}
+              onchange="window.__plantillaToggle('${esc(p.parametro_id)}','incluir_en_coa',this.checked)"/>
+          </td>
+        </tr>`;
+    }).join('');
   }
 
-  // ── Inline edits ──────────────────────────────────────────────
-  window.__plantillaOrden = async (plantillaId, parametroId, newOrden) => {
+  // ── Toggle "Aplica": agrega (PUT) o quita (DELETE) de la plantilla ──
+  window.__plantillaAplica = async (parametroId, checked) => {
+    if (!productoSel) return;
+    try {
+      if (checked) {
+        await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${parametroId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ orden: plantilla.length, es_obligatorio: true, incluir_en_coa: true }),
+        });
+      } else {
+        const item = plantilla.find(i => i.parametro_id === parametroId);
+        if (item) {
+          await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${item.plantilla_id}`, { method: 'DELETE' });
+        }
+      }
+      await cargarDetalle();   // recarga estado real + re-render
+      await cargarLista();     // actualiza el contador en la lista
+    } catch (err) {
+      showNotif('Error: ' + (err.message || err), 'error');
+      await cargarDetalle();   // revertir UI al estado real del servidor
+    }
+  };
+
+  // ── Inline edits (solo aplican a parámetros ya en la plantilla) ──
+  window.__plantillaOrden = async (parametroId, newOrden) => {
+    if (!productoSel) return;
     try {
       await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${parametroId}`,
         { method: 'PUT', body: JSON.stringify({ orden: parseInt(newOrden, 10) || 0 }) });
-      const item = plantilla.find(i => i.plantilla_id === plantillaId);
+      const item = plantilla.find(i => i.parametro_id === parametroId);
       if (item) item.orden = parseInt(newOrden, 10) || 0;
-      plantilla.sort((a, b) => a.orden - b.orden || a.parametro_clave.localeCompare(b.parametro_clave));
     } catch { showNotif('Error al actualizar orden', 'error'); }
   };
 
-  window.__plantillaToggle = async (plantillaId, parametroId, campo, valor) => {
+  window.__plantillaToggle = async (parametroId, campo, valor) => {
+    if (!productoSel) return;
     try {
       await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${parametroId}`,
         { method: 'PUT', body: JSON.stringify({ [campo]: valor }) });
-      const item = plantilla.find(i => i.plantilla_id === plantillaId);
+      const item = plantilla.find(i => i.parametro_id === parametroId);
       if (item) item[campo] = valor;
     } catch { showNotif('Error al actualizar', 'error'); }
-  };
-
-  window.__plantillaEliminar = async (plantillaId) => {
-    if (!confirm('¿Quitar este parámetro de la plantilla?')) return;
-    try {
-      await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${plantillaId}`,
-        { method: 'DELETE' });
-      plantilla = plantilla.filter(i => i.plantilla_id !== plantillaId);
-      renderDetalle();
-      await cargarLista(); // actualiza el contador en la lista
-      showNotif('Parámetro removido');
-    } catch (err) { showNotif('Error: ' + (err.message || err), 'error'); }
   };
 
   // ── Botones principales ───────────────────────────────────────
@@ -336,6 +352,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   qInput.addEventListener('input', () => renderLista(qInput.value.trim()));
+
+  detalleSearch.addEventListener('input', () => {
+    detalleFiltro = detalleSearch.value;
+    renderDetalle();
+  });
 
   // ── Modal: Nueva plantilla ────────────────────────────────────
   let nuevaSelProd = null;
@@ -357,7 +378,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderNuevaProdLista(q) {
     const q2 = q.toLowerCase();
-    // Excluir productos que ya tienen plantilla
     const yaConfigurados = new Set(listaProductos.map(p => p.producto_id));
     const hits = todosProductos.filter(p =>
       (!q2 || p.cve_prod?.toLowerCase().includes(q2) || p.desc_prod?.toLowerCase().includes(q2))
@@ -398,111 +418,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   confirmarNueva.addEventListener('click', async () => {
     if (!nuevaSelProd) return;
     modalNueva.style.display = 'none';
-    await cargarLista();
+    // Abre el detalle: la tabla muestra todo el catálogo para marcar lo que aplica.
     await window.__abrirProducto(nuevaSelProd.producto_id, nuevaSelProd.producto_clave, nuevaSelProd.producto_nombre);
-    // Al crear plantilla nueva, abrir directo el modal de parámetros sin clic extra
-    document.getElementById('agregarParamBtn').click();
   });
 
-  // ── Modal: Agregar parámetro ──────────────────────────────────
-  let paramSelModal = null;
-
-  document.getElementById('agregarParamBtn').addEventListener('click', () => {
-    paramSelModal = null;
-    paramSearch.value = '';
-    document.getElementById('modalOrden').value = plantilla.length;
-    document.getElementById('modalOblig').checked = true;
-    document.getElementById('modalCoa').checked   = true;
-    paramSelLabel.style.display = 'none';
-    guardarParam.disabled = true;
-    paramError.style.display = 'none';
-    renderParamLista('');
-    modalParam.style.display = 'flex';
-    paramSearch.focus();
-  });
-
-  [document.getElementById('cerrarModalParam'),
-   document.getElementById('cancelarModalParam')].forEach(btn =>
-    btn.addEventListener('click', () => { modalParam.style.display = 'none'; })
-  );
-
-  function renderParamLista(q) {
-    const q2 = q.toLowerCase();
-    const yaEnPlantilla = new Set(plantilla.map(i => i.parametro_id));
-    const hits = parametros.filter(p =>
-      !yaEnPlantilla.has(p.parametro_id) &&
-      (!q2 || p.clave?.toLowerCase().includes(q2) || p.nombre?.toLowerCase().includes(q2))
-    ).slice(0, 30);
-
-    if (!hits.length) {
-      paramLista.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px">
-        ${q2 ? 'Sin resultados' : 'Todos los parámetros ya están en la plantilla'}
-      </div>`;
-      return;
-    }
-    paramLista.innerHTML = hits.map(p => `
-      <div data-pid="${esc(p.parametro_id)}" data-clave="${esc(p.clave)}" data-nombre="${esc(p.nombre)}" data-tipo="${esc(p.tipo_parametro)}"
-           style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)"
-           onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-        <strong style="font-family:monospace">${esc(p.clave)}</strong>
-        <span style="margin-left:8px">${esc(p.nombre)}</span>
-        <span style="margin-left:6px;font-size:11px;color:var(--muted)">${tipoLabel(p.tipo_parametro)}</span>
-      </div>`
-    ).join('');
-  }
-
-  paramSearch.addEventListener('input', () => renderParamLista(paramSearch.value.trim()));
-
-  paramLista.addEventListener('click', (e) => {
-    const row = e.target.closest('[data-pid]');
-    if (!row) return;
-    paramLista.querySelectorAll('[data-pid]').forEach(r => r.style.background = '');
-    row.style.background = 'var(--accent-muted,#e0f2fe)';
-    paramSelModal = { parametro_id: row.dataset.pid, clave: row.dataset.clave, nombre: row.dataset.nombre };
-    paramSelLabel.textContent = `Seleccionado: ${paramSelModal.clave} — ${paramSelModal.nombre}`;
-    paramSelLabel.style.display = 'block';
-    guardarParam.disabled = false;
-    paramError.style.display = 'none';
-  });
-
-  guardarParam.addEventListener('click', async () => {
-    if (!paramSelModal || !productoSel) return;
-    guardarParam.disabled = true;
-    paramError.style.display = 'none';
-    try {
-      const body = {
-        orden:          parseInt(document.getElementById('modalOrden').value, 10) || 0,
-        es_obligatorio: document.getElementById('modalOblig').checked,
-        incluir_en_coa: document.getElementById('modalCoa').checked,
-      };
-      await KoguApi.apiFetch(`${BASE}/${productoSel.producto_id}/${paramSelModal.parametro_id}`,
-        { method: 'PUT', body: JSON.stringify(body) });
-      await cargarDetalle();
-      await cargarLista(); // actualiza el contador
-      showNotif('Parámetro agregado');
-      // Resetear el modal y dejarlo abierto para agregar más parámetros
-      paramSelModal = null;
-      paramSearch.value = '';
-      document.getElementById('modalOrden').value = plantilla.length;
-      document.getElementById('modalOblig').checked = true;
-      document.getElementById('modalCoa').checked   = true;
-      paramSelLabel.style.display = 'none';
-      guardarParam.disabled = true;
-      paramError.style.display = 'none';
-      renderParamLista('');
-    } catch (err) {
-      const msg = err.body?.message || err.message || 'Error al guardar';
-      paramError.textContent = msg;
-      paramError.style.display = 'block';
-      guardarParam.disabled = false;
-    }
-  });
-
-  // Cerrar modales con Escape
+  // Cerrar modal con Escape
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    modalNueva.style.display  = 'none';
-    modalParam.style.display  = 'none';
+    modalNueva.style.display = 'none';
   });
 
   // ── Carga inicial ─────────────────────────────────────────────
