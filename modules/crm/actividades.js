@@ -15,7 +15,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="stack" style="gap:16px">
   <div class="card">
     <div class="row">
-      <div><div class="eyebrow">CRM · Seguimiento</div><h2 style="margin:2px 0 0">Actividades</h2></div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div><div class="eyebrow">CRM · Seguimiento</div><h2 style="margin:2px 0 0">Actividades</h2></div>
+        <button class="btn primary" id="crmNuevaActBtn" style="display:none">+ Nueva actividad</button>
+      </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
         <select class="select" id="vigFil" style="max-width:170px">
           <option value="">Todas las vigencias</option>
@@ -72,6 +75,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let catalogo = [];
   const puedeCrearEtq = KoguShell.hasPerm(b, 'crm.etiquetas.create');
   const puedeGestEtq = KoguShell.hasPerm(b, 'crm.etiquetas.manage');
+  const puedeCrearAct = KoguShell.hasPerm(b, 'crm.actividades.create');
+  const puedeAdmin = KoguShell.hasPerm(b, 'crm.actividades.admin');
+  const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
   // Texto blanco/negro según luminancia del color de fondo.
   const txtOn = hex => {
@@ -486,10 +492,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ── Nueva actividad (manual, sin snapshot del Radar) ─────────
+  function closeNueva() { document.getElementById('crmNuevaModal')?.remove(); }
+  function openNuevaActividad() {
+    let selCli = null;
+    const html = `
+      <div id="crmNuevaModal" style="position:fixed;inset:0;z-index:10001;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:8px">
+            <div><div class="eyebrow">CRM · Nueva actividad</div><h2 style="margin:4px 0 0">Crear actividad</h2>
+              <div class="hint" style="color:var(--muted);font-size:12px">Seguimiento manual de un cliente${puedeAdmin ? '' : ' de tu cartera'}.</div></div>
+            <button class="btn" id="crmNuevaClose">✕</button>
+          </div>
+          <div style="margin-top:10px">
+            <div class="label-text">Cliente</div>
+            <div style="position:relative">
+              <input class="input" id="crmNuevaCli" placeholder="Busca por nombre o clave…" autocomplete="off" style="width:100%"/>
+              <div id="crmNuevaCliBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:200px;overflow:auto;margin-top:2px"></div>
+            </div>
+            <div id="crmNuevaCliSel" class="hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+          </div>
+          <div style="margin-top:10px"><div class="label-text">Título</div><input class="input" id="crmNuevaTitulo" placeholder="Título de la actividad"/></div>
+          <div style="margin-top:10px"><div class="label-text">Nota / plan de acción</div><textarea class="input" id="crmNuevaNota" rows="3"></textarea></div>
+          <div style="margin-top:10px"><div class="label-text">Vigencia (fecha límite)</div><input class="input" id="crmNuevaFecha" type="date" value="${hoyMas(15)}" style="max-width:200px"/></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+            <button class="btn" id="crmNuevaCancel">Cancelar</button>
+            <button class="btn primary" id="crmNuevaGuardar">Crear actividad</button>
+          </div>
+        </div>
+      </div>`;
+    closeNueva();
+    document.body.insertAdjacentHTML('beforeend', html);
+    const close = () => closeNueva();
+    document.getElementById('crmNuevaClose').onclick = close;
+    document.getElementById('crmNuevaCancel').onclick = close;
+    document.getElementById('crmNuevaModal').onclick = e => { if (e.target.id === 'crmNuevaModal') close(); };
+
+    const cli = document.getElementById('crmNuevaCli');
+    const box = document.getElementById('crmNuevaCliBox');
+    let t;
+    const hide = () => { box.style.display = 'none'; box.innerHTML = ''; };
+    cli.addEventListener('input', () => {
+      selCli = null; document.getElementById('crmNuevaCliSel').textContent = '';
+      clearTimeout(t);
+      t = setTimeout(async () => {
+        try {
+          const res = await KoguApi.apiFetch(`${BASE}/clientes?q=${encodeURIComponent(cli.value.trim())}`);
+          const arr = res?.data || res || [];
+          if (!arr.length) { hide(); return; }
+          box.innerHTML = arr.map(x => `<div data-cref="${esc(x.cliente_ref)}" data-nom="${esc(x.nombre)}" data-ag="${esc(x.agente_id || '')}" style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)">${esc(x.nombre)} <span style="color:var(--muted);font-size:11px">· ${esc(x.cliente_ref)}${x.agente_nombre ? ' · ' + esc(x.agente_nombre) : ''}</span></div>`).join('');
+          box.style.display = 'block';
+          box.querySelectorAll('[data-cref]').forEach(el => el.onmousedown = (ev) => {
+            ev.preventDefault();
+            selCli = { cliente_ref: el.dataset.cref, nombre: el.dataset.nom, agente_id: el.dataset.ag || null };
+            cli.value = el.dataset.nom;
+            document.getElementById('crmNuevaCliSel').textContent = `Cliente ${el.dataset.cref}`;
+            const tit = document.getElementById('crmNuevaTitulo');
+            if (!tit.value.trim()) tit.value = `Seguimiento ${el.dataset.nom}`;
+            hide();
+          });
+        } catch (_) { hide(); }
+      }, 250);
+    });
+    cli.addEventListener('blur', () => setTimeout(hide, 150));
+
+    document.getElementById('crmNuevaGuardar').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+      if (!selCli) { KoguApi.toast('Selecciona un cliente de la lista', 'error'); return; }
+      const body = {
+        cliente_ref: selCli.cliente_ref,
+        cliente_nombre: selCli.nombre,
+        origen: 'manual',
+        titulo: document.getElementById('crmNuevaTitulo').value.trim(),
+        descripcion: document.getElementById('crmNuevaNota').value.trim() || null,
+        fecha_limite: document.getElementById('crmNuevaFecha').value || null,
+      };
+      if (puedeAdmin && selCli.agente_id) body.agente_id = selCli.agente_id;
+      try {
+        await KoguApi.apiFetch(`${BASE}/actividades`, { method: 'POST', body: JSON.stringify(body) });
+        KoguApi.toast('Actividad creada', 'success');
+        close();
+        await loadKpis(); await load();
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    }, 'Creando…');
+  }
+
   document.getElementById('estFil').onchange = load;
   document.getElementById('vigFil').onchange = load;
   document.getElementById('etqFil').onchange = load;
   document.getElementById('cliFil').oninput = (() => { let t; return () => { clearTimeout(t); t = setTimeout(load, 350); }; })();
+  if (puedeCrearAct) { const n = document.getElementById('crmNuevaActBtn'); n.style.display = ''; n.onclick = openNuevaActividad; }
   if (puedeGestEtq) { const g = document.getElementById('gestEtqBtn'); g.style.display = ''; g.onclick = openGestor; }
   KoguShell.subscribeEmpresaActivaChange(async () => { await loadEtiquetas(); await loadKpis(); await load(); });
   await loadEtiquetas();
