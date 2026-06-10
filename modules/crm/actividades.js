@@ -31,6 +31,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="cancelada">Cancelada</option>
         </select>
         <input class="input" id="cliFil" placeholder="Cliente (cve)" style="max-width:140px"/>
+        <select class="select" id="etqFil" style="max-width:150px"><option value="">Toda etiqueta</option></select>
+        <button class="btn" id="gestEtqBtn" title="Gestionar etiquetas" style="display:none">Etiquetas</button>
       </div>
     </div>
     <div id="kpis" style="margin-top:14px"></div>
@@ -62,6 +64,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
 
   let items = [];
+  let catalogo = [];
+  const puedeCrearEtq = KoguShell.hasPerm(b, 'crm.etiquetas.create');
+  const puedeGestEtq = KoguShell.hasPerm(b, 'crm.etiquetas.manage');
+
+  // Texto blanco/negro según luminancia del color de fondo.
+  const txtOn = hex => {
+    const h = String(hex || '').replace('#', '');
+    if (h.length < 6) return '#fff';
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), bl = parseInt(h.slice(4, 6), 16);
+    return ((0.299 * r + 0.587 * g + 0.114 * bl) / 255) > 0.62 ? '#0f172a' : '#fff';
+  };
+  const chipEtq = (e, removable = false) => {
+    const col = e.color || '#64748b';
+    return `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;color:${txtOn(col)};background:${col}">
+      ${esc(e.nombre)}${removable ? `<span style="cursor:pointer;font-weight:700" data-rm-etq="${esc(e.etiqueta_id)}" title="Quitar">✕</span>` : ''}</span>`;
+  };
+
+  async function loadEtiquetas() {
+    try { const res = await KoguApi.apiFetch(`${BASE}/etiquetas`); catalogo = res?.data || res || []; }
+    catch (_) { catalogo = []; }
+    const f = document.getElementById('etqFil');
+    if (f) {
+      const cur = f.value;
+      f.innerHTML = '<option value="">Toda etiqueta</option>' + catalogo.map(e => `<option value="${esc(e.etiqueta_id)}">${esc(e.nombre)}</option>`).join('');
+      f.value = cur;
+    }
+  }
 
   async function loadKpis() {
     try {
@@ -82,6 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (sel('estFil')) p.set('estado', sel('estFil'));
     if (sel('vigFil')) p.set('vigencia', sel('vigFil'));
     if (sel('cliFil').trim()) p.set('cliente_ref', sel('cliFil').trim());
+    if (sel('etqFil')) p.set('etiqueta_id', sel('etqFil'));
     const s = p.toString();
     return s ? `?${s}` : '';
   }
@@ -119,6 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               ${vigBadge(a)}
             </div>
             <div style="font-size:12px;color:var(--muted);margin-top:3px">${esc(a.titulo)}${a.resultado ? ` · <b>${RES_TXT[a.resultado] || a.resultado}</b>` : ''}</div>
+            ${(a.etiquetas && a.etiquetas.length) ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${a.etiquetas.map(e => chipEtq(e, false)).join('')}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:130px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
@@ -189,6 +220,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
 
           ${d.descripcion ? `<div style="font-size:13px;margin-top:8px">${esc(d.descripcion)}</div>` : ''}
+
+          <div class="eyebrow" style="margin:14px 0 6px">Etiquetas</div>
+          <div id="crmEtqWrap" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${(d.etiquetas || []).map(e => chipEtq(e, true)).join('') || '<span class="hint" style="color:var(--muted);font-size:12px">Sin etiquetas</span>'}
+            <button class="btn" id="crmEtqAdd" style="font-size:12px;padding:2px 10px">+ etiqueta</button>
+          </div>
+          <div id="crmEtqPicker" style="display:none;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px"></div>
+
           ${snapshotHtml(d.snapshot)}
 
           <div class="eyebrow" style="margin:16px 0 6px">Bitácora</div>
@@ -233,6 +272,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const refresh = async () => { await openDetalle(d.actividad_id); await loadKpis(); await load(); };
 
+    // Etiquetas: quitar / asignar / crear-y-asignar
+    document.querySelectorAll('#crmEtqWrap [data-rm-etq]').forEach(x => x.onclick = async () => {
+      try { await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/etiquetas/${x.dataset.rmEtq}`, { method: 'DELETE' }); await refresh(); }
+      catch (err) { KoguApi.toast(err.message, 'error'); }
+    });
+    const picker = document.getElementById('crmEtqPicker');
+    const renderPicker = () => {
+      const yaTiene = new Set((d.etiquetas || []).map(e => e.etiqueta_id));
+      const disp = catalogo.filter(e => !yaTiene.has(e.etiqueta_id));
+      picker.innerHTML = `
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${disp.length ? disp.map(e => `<span style="cursor:pointer" data-add-etq="${esc(e.etiqueta_id)}">${chipEtq(e, false)}</span>`).join('')
+                        : '<span class="hint" style="color:var(--muted);font-size:12px">No hay más etiquetas disponibles.</span>'}
+        </div>
+        ${puedeCrearEtq ? `
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+          <input class="input" id="crmEtqNombre" placeholder="Nueva etiqueta" style="max-width:180px"/>
+          <input type="color" id="crmEtqColor" value="#2563eb" style="width:42px;height:34px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px"/>
+          <button class="btn primary" id="crmEtqCrear" style="font-size:12px">Crear y asignar</button>
+        </div>` : ''}`;
+      picker.querySelectorAll('[data-add-etq]').forEach(x => x.onclick = async () => {
+        try { await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/etiquetas`, { method: 'POST', body: JSON.stringify({ etiqueta_id: x.dataset.addEtq }) }); await refresh(); }
+        catch (err) { KoguApi.toast(err.message, 'error'); }
+      });
+      const crear = document.getElementById('crmEtqCrear');
+      if (crear) crear.onclick = (e) => KoguUi.withLoading(e.target, async () => {
+        const nombre = document.getElementById('crmEtqNombre').value.trim();
+        if (!nombre) { KoguApi.toast('Escribe un nombre', 'error'); return; }
+        const res = await KoguApi.apiFetch(`${BASE}/etiquetas`, { method: 'POST', body: JSON.stringify({ nombre, color: document.getElementById('crmEtqColor').value }) });
+        const nueva = res?.data || res;
+        await loadEtiquetas();
+        await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/etiquetas`, { method: 'POST', body: JSON.stringify({ etiqueta_id: nueva.etiqueta_id }) });
+        await refresh();
+      }, 'Creando…').catch(err => KoguApi.toast(err.message, 'error'));
+    };
+    document.getElementById('crmEtqAdd').onclick = () => {
+      const show = picker.style.display === 'none';
+      picker.style.display = show ? 'block' : 'none';
+      if (show) renderPicker();
+    };
+
     document.getElementById('crmAddComent').onclick = (e) => KoguUi.withLoading(e.target, async () => {
       const txt = document.getElementById('crmNuevoComent').value.trim();
       if (!txt) return;
@@ -265,10 +345,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ── Gestor de etiquetas (solo admin: renombrar / recolorear / eliminar) ──────
+  function closeGestor() { document.getElementById('crmGestModal')?.remove(); }
+  function openGestor() {
+    const rows = catalogo.map(e => `
+      <div data-row="${esc(e.etiqueta_id)}" style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)">
+        <input type="color" value="${esc(e.color || '#64748b')}" data-col style="width:38px;height:32px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px"/>
+        <input class="input" value="${esc(e.nombre)}" data-nom style="flex:1"/>
+        <button class="btn" data-save style="font-size:12px">Guardar</button>
+        <button class="btn" data-del style="font-size:12px;color:var(--danger,#dc2626)">Eliminar</button>
+      </div>`).join('') || '<div class="empty">Aún no hay etiquetas. Créalas desde una actividad.</div>';
+    const html = `
+      <div id="crmGestModal" style="position:fixed;inset:0;z-index:10001;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:8px">
+            <div><div class="eyebrow">CRM · Etiquetas</div><h2 style="margin:4px 0 0">Gestionar etiquetas</h2>
+              <div class="hint" style="color:var(--muted);font-size:12px">Renombrar, recolorear o eliminar. Afecta a todas las actividades.</div></div>
+            <button class="btn" id="crmGestClose">Cerrar ✕</button>
+          </div>
+          <div style="margin-top:10px">${rows}</div>
+        </div>
+      </div>`;
+    closeGestor();
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('crmGestClose').onclick = closeGestor;
+    document.getElementById('crmGestModal').onclick = e => { if (e.target.id === 'crmGestModal') closeGestor(); };
+    document.querySelectorAll('#crmGestModal [data-row]').forEach(row => {
+      const id = row.dataset.row;
+      row.querySelector('[data-save]').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+        await KoguApi.apiFetch(`${BASE}/etiquetas/${id}`, { method: 'PATCH', body: JSON.stringify({ nombre: row.querySelector('[data-nom]').value.trim(), color: row.querySelector('[data-col]').value }) });
+        KoguApi.toast('Etiqueta actualizada', 'success');
+        await loadEtiquetas(); await load();
+      }, 'Guardando…').catch(err => KoguApi.toast(err.message, 'error'));
+      row.querySelector('[data-del]').onclick = async () => {
+        if (!confirm('¿Eliminar esta etiqueta? Se quitará de todas las actividades.')) return;
+        try {
+          await KoguApi.apiFetch(`${BASE}/etiquetas/${id}`, { method: 'DELETE' });
+          KoguApi.toast('Etiqueta eliminada', 'success');
+          await loadEtiquetas(); await load(); openGestor();
+        } catch (err) { KoguApi.toast(err.message, 'error'); }
+      };
+    });
+  }
+
   document.getElementById('estFil').onchange = load;
   document.getElementById('vigFil').onchange = load;
+  document.getElementById('etqFil').onchange = load;
   document.getElementById('cliFil').oninput = (() => { let t; return () => { clearTimeout(t); t = setTimeout(load, 350); }; })();
-  KoguShell.subscribeEmpresaActivaChange(async () => { await loadKpis(); await load(); });
+  if (puedeGestEtq) { const g = document.getElementById('gestEtqBtn'); g.style.display = ''; g.onclick = openGestor; }
+  KoguShell.subscribeEmpresaActivaChange(async () => { await loadEtiquetas(); await loadKpis(); await load(); });
+  await loadEtiquetas();
   await loadKpis();
   await load();
 });
