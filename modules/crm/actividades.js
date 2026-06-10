@@ -512,8 +512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             <div id="crmNuevaCliSel" class="hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
           </div>
-          ${puedeAdmin ? `<div style="margin-top:10px"><div class="label-text">Agente responsable</div>
-            <select class="select" id="crmNuevaAgente" style="width:100%"><option value="">— selecciona agente —</option></select></div>` : ''}
+          ${puedeAdmin ? `<div style="margin-top:10px"><div class="label-text">Agente responsable <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
+            <select class="select" id="crmNuevaAgente" style="width:100%"><option value="">— sin agente (general) —</option></select></div>` : ''}
           <div style="margin-top:10px"><div class="label-text">Título</div><input class="input" id="crmNuevaTitulo" placeholder="Título de la actividad"/></div>
           <div style="margin-top:10px"><div class="label-text">Nota / plan de acción</div><textarea class="input" id="crmNuevaNota" rows="3"></textarea></div>
           <div style="margin-top:10px"><div class="label-text">Vigencia (fecha límite)</div><input class="input" id="crmNuevaFecha" type="date" value="${hoyMas(15)}" style="max-width:200px"/></div>
@@ -569,18 +569,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('crmNuevaGuardar').onclick = (e) => KoguUi.withLoading(e.target, async () => {
       const titulo = document.getElementById('crmNuevaTitulo').value.trim();
-      if (!selCli && !titulo) { KoguApi.toast('Indica un cliente o escribe un título', 'error'); return; }
-      const body = {
-        origen: 'manual',
-        titulo,
-        descripcion: document.getElementById('crmNuevaNota').value.trim() || null,
-        fecha_limite: document.getElementById('crmNuevaFecha').value || null,
-      };
+      const nota = document.getElementById('crmNuevaNota').value.trim();
+      const fecha = document.getElementById('crmNuevaFecha').value;
+      if (!titulo) { KoguApi.toast('Escribe un título', 'error'); return; }
+      if (!nota) { KoguApi.toast('Escribe una nota / plan de acción', 'error'); return; }
+      if (!fecha) { KoguApi.toast('Indica una vigencia', 'error'); return; }
+      const body = { origen: 'manual', titulo, descripcion: nota, fecha_limite: fecha };
       if (selCli) { body.cliente_ref = selCli.cliente_ref; body.cliente_nombre = selCli.nombre; }
       if (puedeAdmin) {
         const ag = document.getElementById('crmNuevaAgente')?.value || (selCli ? selCli.agente_id : '');
-        if (!ag) { KoguApi.toast('Selecciona un agente responsable', 'error'); return; }
-        body.agente_id = ag;
+        if (ag) body.agente_id = ag;   // opcional: si se deja vacío, queda general
       }
       try {
         await KoguApi.apiFetch(`${BASE}/actividades`, { method: 'POST', body: JSON.stringify(body) });
