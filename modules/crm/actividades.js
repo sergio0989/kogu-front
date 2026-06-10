@@ -45,6 +45,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = v => KoguUi.money(Number(v || 0));
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
   const esc = s => KoguUi.escapeHtml(String(s ?? ''));
+  // Resalta @menciones dentro de un texto YA escapado (HTML-safe).
+  const resaltarMenciones = html => String(html).replace(
+    /@([\p{L}\p{N}._-]+)/gu,
+    '<span style="color:var(--brand,#2563eb);font-weight:600;background:rgba(37,99,235,.10);border-radius:4px;padding:0 3px">@$1</span>'
+  );
   const sel = id => document.getElementById(id)?.value ?? '';
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   const mesIso = iso => iso ? `${MESES[new Date(iso).getUTCMonth() + 1]} ${String(new Date(iso).getUTCFullYear()).slice(2)}` : '';
@@ -196,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const coments = (d.comentarios || []).map(x => `
       <div style="border-left:3px solid var(--line);padding:6px 0 6px 10px;margin:6px 0">
         <div style="font-size:11px;color:var(--muted)">${esc(x.autor_nombre || 'Usuario')} · ${fechaCorta(x.created_at)}</div>
-        ${x.comentario ? `<div style="font-size:13px;white-space:pre-wrap">${esc(x.comentario)}</div>` : ''}
+        ${x.comentario ? `<div style="font-size:13px;white-space:pre-wrap">${resaltarMenciones(esc(x.comentario))}</div>` : ''}
         ${x.tiene_adjunto ? `<div style="margin-top:4px"><a href="#" data-dl-adj="${esc(x.comentario_id)}" style="font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--brand,#2563eb);text-decoration:none">📎 ${esc(x.adjunto_nombre || 'archivo')} <span style="color:var(--muted)">${kb(x.adjunto_size)}</span></a></div>` : ''}
       </div>`).join('') || '<div class="hint" style="color:var(--muted);font-size:12px">Sin comentarios aún.</div>';
     const recs = (d.recordatorios || []).map(r => `
