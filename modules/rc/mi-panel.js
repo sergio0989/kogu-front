@@ -284,13 +284,84 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div style="text-align:right;min-width:150px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
             <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgoCli(c))}</div>
-            <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px;margin-top:8px">Detalle</button>
+            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+              <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px">Detalle</button>
+              <button class="btn" data-act-ref="${KoguUi.escapeHtml(c.cliente_ref)}" title="Generar actividad de seguimiento" style="font-size:12px">+ Actividad</button>
+            </div>
           </div>
         </div>
       </div>`;
     }).join('');
     document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () =>
       openFicha({ cliente_ref: x.dataset.fichaRef, detalle: { periodos: comp.periodos } }));
+    document.querySelectorAll('#alertas .btn[data-act-ref]').forEach(x => x.onclick = () => {
+      const cli = (comp.clientes || []).find(k => k.cliente_ref === x.dataset.actRef);
+      if (cli) openCrearActividad(cli);
+    });
+  }
+
+  // ── Crear actividad de seguimiento (CRM) desde una tarjeta de riesgo ─────────
+  const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  function closeActModal() { document.getElementById('rcCrearActModal')?.remove(); }
+  function openCrearActividad(c) {
+    const monto = riesgoCli(c);
+    const nombre = c.nombre || c.cliente_ref;
+    const prods = (c.productos || []).slice(0, 8).map(pr =>
+      `<div style="font-size:12px;color:var(--muted)">${pr.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(pr.desc_prod || '')}</div>`).join('');
+    const html = `
+      <div id="rcCrearActModal" style="position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:8px">
+            <div><div class="eyebrow">CRM · Nueva actividad</div><h2 style="margin:4px 0 0">${KoguUi.escapeHtml(nombre)}</h2>
+              <div class="hint" style="color:var(--muted);font-size:12px">En riesgo: <b>${fmtVal(monto)}</b> · severidad ${c.severidad || '—'} · se congela el comparativo actual</div>
+            </div>
+            <button class="btn" id="rcActCancel">✕</button>
+          </div>
+          ${prods ? `<div style="margin:8px 0 4px">${prods}</div>` : ''}
+          <div style="margin-top:10px"><div class="label-text">Título</div>
+            <input class="input" id="rcActTitulo" value="Recuperar ${KoguUi.escapeHtml(nombre)}"/></div>
+          <div style="margin-top:10px"><div class="label-text">Nota / plan de acción</div>
+            <textarea class="input" id="rcActNota" rows="3" placeholder="¿Qué vas a hacer para recuperar a este cliente?"></textarea></div>
+          <div style="margin-top:10px"><div class="label-text">Vigencia (fecha límite)</div>
+            <input class="input" id="rcActFecha" type="date" value="${hoyMas(15)}" style="max-width:200px"/></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+            <button class="btn" id="rcActCancel2">Cancelar</button>
+            <button class="btn primary" id="rcActGuardar">Crear actividad</button>
+          </div>
+        </div>
+      </div>`;
+    closeActModal();
+    document.body.insertAdjacentHTML('beforeend', html);
+    const close = () => closeActModal();
+    document.getElementById('rcActCancel').onclick = close;
+    document.getElementById('rcActCancel2').onclick = close;
+    document.getElementById('rcCrearActModal').onclick = e => { if (e.target.id === 'rcCrearActModal') close(); };
+    document.getElementById('rcActGuardar').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+      const body = {
+        cliente_ref: c.cliente_ref,
+        cliente_nombre: c.nombre,
+        origen: 'mi-panel',
+        severidad: c.severidad || null,
+        monto_riesgo: monto,
+        metrica,
+        titulo: document.getElementById('rcActTitulo').value.trim(),
+        descripcion: document.getElementById('rcActNota').value.trim() || null,
+        fecha_limite: document.getElementById('rcActFecha').value || null,
+        snapshot: {
+          capturado_at: new Date().toISOString(),
+          metrica, severidad: c.severidad || null, monto_riesgo: monto,
+          periodos: comp.periodos || null,
+          caida: c.caida || null, dormancia: c.dormancia || null,
+          productos: c.productos || [],
+        },
+      };
+      const ag = sel('agenteSel'); if (ag) body.agente_id = ag;  // Dirección previsualizando otra cartera
+      try {
+        await KoguApi.apiFetch('/protected/crm/actividades', { method: 'POST', body: JSON.stringify(body) });
+        KoguApi.toast('Actividad creada. Disponible en CRM → Actividades de seguimiento.', 'success');
+        close();
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    }, 'Creando…');
   }
 
   // Vista "Ventas por mes": pivote cliente × mes (Cantidad o Importe según métrica).

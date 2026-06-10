@@ -53,6 +53,9 @@
       {href:'/modules/rc/asignacion-pp.html',label:'Asignación PP',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/pp-carga.html',label:'Carga de PP',perm:'rc.pp.manage'},
     ]},
+    {section:'CRM',items:[
+      {href:'/modules/crm/actividades.html',label:'Actividades de seguimiento',perm:'crm.actividades.read'},
+    ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
       {href:'/modules/com/configuracion.html',label:'Configuración',perm:'screen.comisiones'},
