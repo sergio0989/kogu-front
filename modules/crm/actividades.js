@@ -192,10 +192,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderDetalle(d) {
     const estC = EST[d.estado] || EST.abierta;
+    const kb = n => n ? `${(Number(n) / 1024).toFixed(0)} KB` : '';
     const coments = (d.comentarios || []).map(x => `
       <div style="border-left:3px solid var(--line);padding:6px 0 6px 10px;margin:6px 0">
         <div style="font-size:11px;color:var(--muted)">${esc(x.autor_nombre || 'Usuario')} · ${fechaCorta(x.created_at)}</div>
-        <div style="font-size:13px;white-space:pre-wrap">${esc(x.comentario)}</div>
+        ${x.comentario ? `<div style="font-size:13px;white-space:pre-wrap">${esc(x.comentario)}</div>` : ''}
+        ${x.tiene_adjunto ? `<div style="margin-top:4px"><a href="#" data-dl-adj="${esc(x.comentario_id)}" style="font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--brand,#2563eb);text-decoration:none">📎 ${esc(x.adjunto_nombre || 'archivo')} <span style="color:var(--muted)">${kb(x.adjunto_size)}</span></a></div>` : ''}
       </div>`).join('') || '<div class="hint" style="color:var(--muted);font-size:12px">Sin comentarios aún.</div>';
     const recs = (d.recordatorios || []).map(r => `
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
@@ -232,10 +234,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <div class="eyebrow" style="margin:16px 0 6px">Bitácora</div>
           <div id="crmComents">${coments}</div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…" style="flex:1"/>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+            <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…" style="flex:1;min-width:200px"/>
+            <input type="file" id="crmComentFile" style="max-width:210px;font-size:12px"/>
             <button class="btn" id="crmAddComent">Comentar</button>
           </div>
+          <div class="hint" style="color:var(--muted);font-size:11px;margin-top:3px">Puedes adjuntar un archivo (máx. 25 MB).</div>
 
           <div class="eyebrow" style="margin:16px 0 6px">Recordatorios</div>
           <div>${recs}</div>
@@ -315,10 +319,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('crmAddComent').onclick = (e) => KoguUi.withLoading(e.target, async () => {
       const txt = document.getElementById('crmNuevoComent').value.trim();
-      if (!txt) return;
-      await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/comentarios`, { method: 'POST', body: JSON.stringify({ comentario: txt }) });
+      const file = document.getElementById('crmComentFile')?.files?.[0] || null;
+      if (!txt && !file) { KoguApi.toast('Escribe un comentario o adjunta un archivo', 'error'); return; }
+      let opts;
+      if (file) {
+        const fd = new FormData();
+        fd.append('comentario', txt);
+        fd.append('archivo', file);
+        opts = { method: 'POST', body: fd };
+      } else {
+        opts = { method: 'POST', body: JSON.stringify({ comentario: txt }) };
+      }
+      await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/comentarios`, opts);
       await refresh();
     }, 'Guardando…').catch(err => KoguApi.toast(err.message, 'error'));
+
+    // Descarga de adjuntos de la bitácora.
+    document.querySelectorAll('#crmComents [data-dl-adj]').forEach(a => a.onclick = async (ev) => {
+      ev.preventDefault();
+      try {
+        const res = await KoguApi.authFetchRaw(`${BASE}/actividades/${d.actividad_id}/comentarios/${a.dataset.dlAdj}/archivo`);
+        if (!res.ok) { KoguApi.toast('No se pudo descargar el adjunto.', 'error'); return; }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename="?([^"]+)"?/);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = m ? m[1] : 'adjunto';
+        document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    });
 
     document.getElementById('crmAddRec').onclick = (e) => KoguUi.withLoading(e.target, async () => {
       const f = document.getElementById('crmRecFecha').value;
