@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card">
     <div class="row">
       <div><div class="eyebrow">CRM · Seguimiento</div><h2 style="margin:2px 0 0">Actividades</h2></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
         <select class="select" id="vigFil" style="max-width:170px">
           <option value="">Todas las vigencias</option>
           <option value="abiertas">Solo abiertas</option>
