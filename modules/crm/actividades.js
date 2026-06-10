@@ -155,11 +155,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${estC}">${EST_TXT[a.estado] || a.estado}</span>
               ${a.severidad ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:${sevC}">${SEV_TXT[a.severidad] || a.severidad}</span>` : ''}
-              <span style="font-weight:700">${esc(a.cliente_nombre || a.cliente_ref)}</span>
-              <span style="font-size:11px;color:var(--muted)">· ${esc(a.cliente_ref)}</span>
+              <span style="font-weight:700">${esc(a.cliente_nombre || a.cliente_ref || a.titulo)}</span>
+              ${a.cliente_ref ? `<span style="font-size:11px;color:var(--muted)">· ${esc(a.cliente_ref)}</span>` : '<span style="font-size:11px;color:var(--muted)">· general</span>'}
               ${vigBadge(a)}
             </div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">${esc(a.titulo)}${a.resultado ? ` · <b>${RES_TXT[a.resultado] || a.resultado}</b>` : ''}</div>
+            ${(a.cliente_ref || a.resultado) ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">${a.cliente_ref ? esc(a.titulo) : ''}${a.resultado ? `${a.cliente_ref ? ' · ' : ''}<b>${RES_TXT[a.resultado] || a.resultado}</b>` : ''}</div>` : ''}
             ${(a.etiquetas && a.etiquetas.length) ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${a.etiquetas.map(e => chipEtq(e, false)).join('')}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:130px">
@@ -226,8 +226,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${estC}">${EST_TXT[d.estado] || d.estado}</span>
                 ${d.vencida ? '<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;background:var(--danger,#dc2626)">Vencida</span>' : ''}
               </div>
-              <h2 style="margin:6px 0 0">${esc(d.cliente_nombre || d.cliente_ref)}</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px">${esc(d.titulo)} · vigencia ${fechaCorta(d.fecha_limite)} · ${d.monto_riesgo != null ? money(d.monto_riesgo) : '—'} en riesgo</div>
+              <h2 style="margin:6px 0 0">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
+              <div class="hint" style="color:var(--muted);font-size:12px">${esc(d.titulo)} · vigencia ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · ${money(d.monto_riesgo)} en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'}</div>
             </div>
             <button class="btn" id="crmActClose">Cerrar ✕</button>
           </div>
@@ -505,13 +505,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="crmNuevaClose">✕</button>
           </div>
           <div style="margin-top:10px">
-            <div class="label-text">Cliente</div>
+            <div class="label-text">Cliente <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
             <div style="position:relative">
-              <input class="input" id="crmNuevaCli" placeholder="Busca por nombre o clave…" autocomplete="off" style="width:100%"/>
+              <input class="input" id="crmNuevaCli" placeholder="Busca por nombre o clave… (deja vacío para actividad general)" autocomplete="off" style="width:100%"/>
               <div id="crmNuevaCliBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:200px;overflow:auto;margin-top:2px"></div>
             </div>
             <div id="crmNuevaCliSel" class="hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
           </div>
+          ${puedeAdmin ? `<div style="margin-top:10px"><div class="label-text">Agente responsable</div>
+            <select class="select" id="crmNuevaAgente" style="width:100%"><option value="">— selecciona agente —</option></select></div>` : ''}
           <div style="margin-top:10px"><div class="label-text">Título</div><input class="input" id="crmNuevaTitulo" placeholder="Título de la actividad"/></div>
           <div style="margin-top:10px"><div class="label-text">Nota / plan de acción</div><textarea class="input" id="crmNuevaNota" rows="3"></textarea></div>
           <div style="margin-top:10px"><div class="label-text">Vigencia (fecha límite)</div><input class="input" id="crmNuevaFecha" type="date" value="${hoyMas(15)}" style="max-width:200px"/></div>
@@ -527,6 +529,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('crmNuevaClose').onclick = close;
     document.getElementById('crmNuevaCancel').onclick = close;
     document.getElementById('crmNuevaModal').onclick = e => { if (e.target.id === 'crmNuevaModal') close(); };
+
+    if (puedeAdmin) {
+      KoguApi.apiFetch(`${BASE}/agentes`).then(res => {
+        const ags = res?.data || res || [];
+        const s = document.getElementById('crmNuevaAgente');
+        if (s) s.innerHTML = '<option value="">— selecciona agente —</option>' + ags.map(a => `<option value="${esc(a.agente_id)}">${esc(a.agente_nombre)}</option>`).join('');
+      }).catch(() => {});
+    }
 
     const cli = document.getElementById('crmNuevaCli');
     const box = document.getElementById('crmNuevaCliBox');
@@ -549,6 +559,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('crmNuevaCliSel').textContent = `Cliente ${el.dataset.cref}`;
             const tit = document.getElementById('crmNuevaTitulo');
             if (!tit.value.trim()) tit.value = `Seguimiento ${el.dataset.nom}`;
+            if (puedeAdmin && selCli.agente_id) { const s = document.getElementById('crmNuevaAgente'); if (s) s.value = selCli.agente_id; }
             hide();
           });
         } catch (_) { hide(); }
@@ -557,16 +568,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     cli.addEventListener('blur', () => setTimeout(hide, 150));
 
     document.getElementById('crmNuevaGuardar').onclick = (e) => KoguUi.withLoading(e.target, async () => {
-      if (!selCli) { KoguApi.toast('Selecciona un cliente de la lista', 'error'); return; }
+      const titulo = document.getElementById('crmNuevaTitulo').value.trim();
+      if (!selCli && !titulo) { KoguApi.toast('Indica un cliente o escribe un título', 'error'); return; }
       const body = {
-        cliente_ref: selCli.cliente_ref,
-        cliente_nombre: selCli.nombre,
         origen: 'manual',
-        titulo: document.getElementById('crmNuevaTitulo').value.trim(),
+        titulo,
         descripcion: document.getElementById('crmNuevaNota').value.trim() || null,
         fecha_limite: document.getElementById('crmNuevaFecha').value || null,
       };
-      if (puedeAdmin && selCli.agente_id) body.agente_id = selCli.agente_id;
+      if (selCli) { body.cliente_ref = selCli.cliente_ref; body.cliente_nombre = selCli.nombre; }
+      if (puedeAdmin) {
+        const ag = document.getElementById('crmNuevaAgente')?.value || (selCli ? selCli.agente_id : '');
+        if (!ag) { KoguApi.toast('Selecciona un agente responsable', 'error'); return; }
+        body.agente_id = ag;
+      }
       try {
         await KoguApi.apiFetch(`${BASE}/actividades`, { method: 'POST', body: JSON.stringify(body) });
         KoguApi.toast('Actividad creada', 'success');
