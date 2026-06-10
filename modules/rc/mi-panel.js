@@ -123,23 +123,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return null; // auto
   }
   const fmtPctCap = d => { const n = Number(d); if (n <= -1) return '−100%+'; return `${(n * 100).toFixed(1)}%`; };
-  const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
   const SEM = { verde: 'var(--ok,#16a34a)', amarillo: 'var(--warning,#d97706)', naranja: '#ea580c', rojo: 'var(--danger,#dc2626)', sin_meta: 'var(--muted,#64748b)' };
   const SEM_TXT = { verde: 'Al día', amarillo: 'Atención', naranja: 'Atrasado', rojo: 'Crítico', sin_meta: 'Sin meta' };
-
-  function montoRiesgo(a) {
-    const d = a.detalle || {};
-    if (esDinero()) {
-      if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
-      if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));
-      if (d.venta_anio != null) return Math.max(0, Number(d.venta_anio));
-      return 0;
-    }
-    if (d.cant_p1 != null) return Math.max(0, Number(d.cant_p1) - Number(d.cant_p2));
-    if (d.qty_anio != null) return Math.max(0, Number(d.qty_anio));
-    if (d.prev_qty != null) return Math.max(0, Number(d.prev_qty) - Number(d.cur_qty));
-    return 0;
-  }
 
   let panel = { agente: null, alertas: [], cumplimiento: null };
   let comp = { clientes: [], periodos: null };
@@ -227,33 +212,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard('En riesgo', String(enRiesgo), `${total ? Math.round(100 * enRiesgo / total) : 0}% de la cartera`, enRiesgo ? 'var(--danger,#dc2626)' : '')}
         ${miniCard(`Venta ${panel.anio}`, fmtVal(esDinero() ? ventaImp : ventaQty), 'cartera del agente')}
         ${miniCard('Sanos', String(total - enRiesgo), 'sin alertas', 'var(--ok,#16a34a)')}
-      </div>`;
-  }
-
-  // Resumen estilo Bandeja (enfoque en el riesgo) para la vista "Solo en riesgo".
-  function renderResumenRiesgo() {
-    const groups = new Map();
-    let productos = 0, sinCompra = 0;
-    (panel.alertas || []).filter(a => a.status !== 'descartada' && a.cliente_ref &&
-      (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto')).forEach(a => {
-        let g = groups.get(a.cliente_ref);
-        if (!g) { g = { alertas: [], rc005: null, rc004: null, productos: [] }; groups.set(a.cliente_ref, g); }
-        g.alertas.push(a);
-        if (a.regla_clave === 'RC-005') g.rc005 = a;
-        if (a.regla_clave === 'RC-004') { g.rc004 = a; sinCompra++; }
-        if (a.regla_clave === 'RC-006') { g.productos.push(a); productos++; }
-      });
-    const grpRiesgo = g => g.rc005 ? montoRiesgo(g.rc005)
-      : Math.max(g.productos.reduce((s, a) => s + montoRiesgo(a), 0), g.rc004 ? montoRiesgo(g.rc004) : 0);
-    const arr = [...groups.values()];
-    const totalRiesgo = arr.reduce((s, g) => s + grpRiesgo(g), 0);
-    const nCriticas = arr.filter(g => g.alertas.some(a => a.severidad === 'critica')).length;
-    document.getElementById('carteraResumen').innerHTML = `
-      <div class="grid-4" style="gap:10px">
-        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes en caída', String(arr.length), `${nCriticas} críticos`)}
-        ${miniCard('Productos en caída', String(productos), 'alertas RC-006')}
-        ${miniCard('Sin compra', String(sinCompra), 'clientes dormidos')}
       </div>`;
   }
 
@@ -427,82 +385,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard('Avance', pct(r.avance), SEM_TXT[r.semaforo] || '', semColor)}
         ${miniCard('Faltante al ritmo', fmtBase(r.faltante_ritmo, r.base), `${fmtBase(r.faltante_anual, r.base)} a meta anual`)}
       </div>`;
-  }
-
-  function renderAlertas() {
-    const sv = sel('sevFil');
-    const filtered = (panel.alertas || []).filter(a =>
-      (!sv || a.severidad === sv) && a.status !== 'descartada' &&
-      a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto'));
-
-    const groups = new Map();
-    filtered.forEach(a => {
-      let g = groups.get(a.cliente_ref);
-      if (!g) { g = { cliente_ref: a.cliente_ref, nombre: null, alertas: [], rc005: null, rc004: null, productos: [] }; groups.set(a.cliente_ref, g); }
-      g.alertas.push(a);
-      const d = a.detalle || {};
-      if (d.cliente_nombre && !g.nombre) g.nombre = d.cliente_nombre;
-      if (a.regla_clave === 'RC-005') g.rc005 = a;
-      if (a.regla_clave === 'RC-004') g.rc004 = a;
-      if (a.regla_clave === 'RC-006') g.productos.push(a);
-    });
-    const grpRiesgo = g => g.rc005 ? montoRiesgo(g.rc005)
-      : Math.max(g.productos.reduce((s, a) => s + montoRiesgo(a), 0), g.rc004 ? montoRiesgo(g.rc004) : 0);
-    const grpSev = g => g.alertas.reduce((m, a) => Math.min(m, SEV_RANK[a.severidad] ?? 2), 2);
-    const arr = [...groups.values()].sort((a, b) => grpRiesgo(b) - grpRiesgo(a));
-
-    if (!arr.length) { document.getElementById('alertas').innerHTML = '<div class="empty">Sin clientes en riesgo para el filtro. ¡Bien!</div>'; return; }
-
-    const sevWord = { 0: 'Crítica', 1: 'Alerta', 2: 'Info' };
-    const sevBg = { 0: 'var(--danger,#dc2626)', 1: 'var(--warning,#d97706)', 2: 'var(--muted,#64748b)' };
-    document.getElementById('alertas').innerHTML = arr.map(g => {
-      const riesgo = grpRiesgo(g); const sevN = grpSev(g);
-      const varTxt = g.rc005 ? fmtPctCap(esDinero() ? g.rc005.detalle?.delta_importe : g.rc005.detalle?.delta_cantidad) : '';
-      const prods = g.productos.slice().sort((a, b) => montoRiesgo(b) - montoRiesgo(a)).slice(0, 6).map(a => {
-        const d = a.detalle || {};
-        const v1 = esDinero() ? d.importe_p1 : d.cant_p1, v2 = esDinero() ? d.importe_p2 : d.cant_p2, dl = esDinero() ? d.delta_importe : d.delta_cantidad;
-        return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
-          <span style="color:var(--muted)">${a.producto_ref ? `<span class="chip-compact">${KoguUi.escapeHtml(a.producto_ref)}</span> ` : ''}${KoguUi.escapeHtml(d.desc_prod || '')}${d.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
-          <span>${fmtVal(v1)} → ${fmtVal(v2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(dl)}</b></span>
-        </div>`;
-      }).join('');
-      return `<div style="border:1px solid var(--line);border-left:4px solid ${sevBg[sevN]};border-radius:12px;padding:14px;margin-bottom:10px">
-        <div class="row" style="align-items:flex-start">
-          <div style="flex:1">
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${sevBg[sevN]}">${sevWord[sevN]}</span>
-              <span style="font-weight:700">${KoguUi.escapeHtml(g.nombre || g.cliente_ref)}</span>
-            </div>
-            ${g.rc005 ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p1 : g.rc005.detalle?.cant_p1)} → ${fmtVal(esDinero() ? g.rc005.detalle?.venta_p2 : g.rc005.detalle?.cant_p2)}</div>` : ''}
-            ${g.rc004 ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${g.rc004.detalle?.dias_sin_compra} días · última ${KoguUi.fmtDate(g.rc004.detalle?.ultima_compra).split(',')[0]}</div>` : ''}
-            ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
-          </div>
-          <div style="text-align:right;min-width:150px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
-            <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgo)}</div>
-            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
-              <button class="btn primary" data-ficha-grp="${g.cliente_ref}" style="font-size:12px">Detalle</button>
-              <button class="btn" data-descgrp="${g.cliente_ref}" style="font-size:12px">Descartar</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-
-    document.querySelectorAll('#alertas .btn[data-ficha-grp]').forEach(x => x.onclick = () => {
-      const g = groups.get(x.dataset.fichaGrp);
-      const a = g && (g.rc005 || g.productos[0] || g.rc004);
-      if (a) openFicha(a);
-    });
-    document.querySelectorAll('#alertas .btn[data-descgrp]').forEach(x => x.onclick = async () => {
-      const g = groups.get(x.dataset.descgrp); if (!g) return;
-      try {
-        await Promise.all(g.alertas.map(a => KoguApi.apiFetch(`${BASE}/alertas/${a.alerta_id}/status`, { method: 'PUT', body: JSON.stringify({ status: 'descartada' }) })));
-        g.alertas.forEach(a => { const z = (panel.alertas || []).find(q => q.alerta_id === a.alerta_id); if (z) z.status = 'descartada'; });
-        KoguApi.toast('Caso descartado', 'success');
-        render();
-      } catch (err) { KoguApi.toast(err.message, 'error'); }
-    });
   }
 
   // ── Ficha (modal) ───────────────────────────────────────────────────────────
