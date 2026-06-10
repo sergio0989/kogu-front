@@ -241,38 +241,43 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div class="hint" style="color:var(--muted);font-size:11px;margin-top:3px">Puedes adjuntar un archivo (máx. 25 MB).</div>
 
-          <div class="eyebrow" style="margin:16px 0 6px">Recordatorios</div>
-          <div>${recs}</div>
-          <div style="display:flex;gap:8px;margin-top:8px;align-items:end;flex-wrap:wrap">
-            <div><div class="label-text">Fecha</div><input class="input" id="crmRecFecha" type="date"/></div>
-            <div><div class="label-text">Canal</div><select class="select" id="crmRecCanal"><option value="in_app">In-app</option><option value="email">Correo</option></select></div>
-            <button class="btn" id="crmAddRec">Programar</button>
-          </div>
-
-          ${activa ? `
-          <div class="eyebrow" style="margin:18px 0 8px">Acciones</div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              ${d.estado === 'abierta' ? '<button class="btn" id="crmTomar">Tomar (en proceso)</button>' : ''}
-              <button class="btn" id="crmCancelar">Cancelar actividad</button>
-            </div>
-            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-              <div><div class="label-text">Nueva vigencia</div><input class="input" id="crmFechaLim" type="date" value="${d.fecha_limite || ''}"/></div>
-              <button class="btn" id="crmGuardarVig">Actualizar vigencia</button>
-            </div>
-            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-              <div><div class="label-text">Resultado al cerrar</div>
-                <select class="select" id="crmResultado">
-                  <option value="">—</option>
-                  <option value="recuperado">Recuperado</option>
-                  <option value="parcial">Parcial</option>
-                  <option value="perdido">Perdido</option>
-                  <option value="no_aplica">No aplica</option>
-                </select>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;margin-top:16px;align-items:start">
+            <div>
+              <div class="eyebrow" style="margin:0 0 6px">Recordatorios</div>
+              <div>${recs}</div>
+              <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
+                <div><div class="label-text">Fecha</div><input class="input" id="crmRecFecha" type="date"/></div>
+                <div><div class="label-text">Canal</div><select class="select" id="crmRecCanal"><option value="in_app">In-app</option><option value="email">Correo</option></select></div>
+                <button class="btn" id="crmAddRec">Programar</button>
               </div>
-              <button class="btn primary" id="crmCerrar">Cerrar actividad</button>
             </div>
-          </div>` : ''}
+            ${activa ? `
+            <div>
+              <div class="eyebrow" style="margin:0 0 8px">Acciones</div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  ${d.estado === 'abierta' ? '<button class="btn" id="crmTomar">Tomar (en proceso)</button>' : ''}
+                  <button class="btn" id="crmCancelar">Cancelar actividad</button>
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                  <div><div class="label-text">Nueva vigencia</div><input class="input" id="crmFechaLim" type="date" value="${d.fecha_limite || ''}"/></div>
+                  <button class="btn" id="crmGuardarVig">Actualizar vigencia</button>
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                  <div><div class="label-text">Resultado al cerrar</div>
+                    <select class="select" id="crmResultado">
+                      <option value="">—</option>
+                      <option value="recuperado">Recuperado</option>
+                      <option value="parcial">Parcial</option>
+                      <option value="perdido">Perdido</option>
+                      <option value="no_aplica">No aplica</option>
+                    </select>
+                  </div>
+                  <button class="btn primary" id="crmCerrar">Cerrar actividad</button>
+                </div>
+              </div>
+            </div>` : ''}
+          </div>
         </div>
       </div>`;
     closeDetalle();
