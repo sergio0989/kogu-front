@@ -230,16 +230,24 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div id="crmEtqPicker" style="display:none;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px"></div>
 
+          <div class="eyebrow" style="margin:14px 0 6px">Seguidores</div>
+          <div id="crmSeguidores" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${(d.seguidores || []).map(s => `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel2,#f1f5f9);color:var(--ink,#0f172a)" title="${esc(s.email || '')}">@${esc(s.nombre)}<span style="cursor:pointer;color:var(--muted)" data-rm-seg="${esc(s.user_id)}" title="Quitar">✕</span></span>`).join('') || '<span class="hint" style="color:var(--muted);font-size:12px">Sin seguidores · menciona con @ en un comentario para sumar a alguien</span>'}
+          </div>
+
           ${snapshotHtml(d.snapshot)}
 
           <div class="eyebrow" style="margin:16px 0 6px">Bitácora</div>
           <div id="crmComents">${coments}</div>
           <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
-            <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…" style="flex:1;min-width:200px"/>
+            <div style="position:relative;flex:1;min-width:220px">
+              <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…  (@ para mencionar)" style="width:100%"/>
+              <div id="crmMentionBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:190px;overflow:auto;margin-top:2px"></div>
+            </div>
             <input type="file" id="crmComentFile" style="max-width:210px;font-size:12px"/>
             <button class="btn" id="crmAddComent">Comentar</button>
           </div>
-          <div class="hint" style="color:var(--muted);font-size:11px;margin-top:3px">Puedes adjuntar un archivo (máx. 25 MB).</div>
+          <div class="hint" style="color:var(--muted);font-size:11px;margin-top:3px">Puedes adjuntar un archivo (máx. 25 MB) y mencionar con <b>@</b> para sumar seguidores.</div>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;margin-top:16px;align-items:start">
             <div>
@@ -328,18 +336,61 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (show) renderPicker();
     };
 
+    // Seguidores: quitar
+    document.querySelectorAll('#crmSeguidores [data-rm-seg]').forEach(x => x.onclick = async () => {
+      try { await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/seguidores/${x.dataset.rmSeg}`, { method: 'DELETE' }); await refresh(); }
+      catch (err) { KoguApi.toast(err.message, 'error'); }
+    });
+
+    // @menciones — autocompletar usuarios de la empresa
+    const mentions = new Map();
+    const cInput = document.getElementById('crmNuevoComent');
+    const mBox = document.getElementById('crmMentionBox');
+    let mTimer;
+    const hideM = () => { mBox.style.display = 'none'; mBox.innerHTML = ''; };
+    const tokenAt = () => {
+      const pos = cInput.selectionStart ?? cInput.value.length;
+      const m = cInput.value.slice(0, pos).match(/@([\p{L}\p{N}._-]*)$/u);
+      return m ? m[1] : null;
+    };
+    cInput.addEventListener('input', () => {
+      const tok = tokenAt();
+      if (tok === null) { hideM(); return; }
+      clearTimeout(mTimer);
+      mTimer = setTimeout(async () => {
+        try {
+          const res = await KoguApi.apiFetch(`${BASE}/usuarios${tok ? `?q=${encodeURIComponent(tok)}` : ''}`);
+          const users = res?.data || res || [];
+          if (!users.length) { hideM(); return; }
+          mBox.innerHTML = users.map(u => `<div data-uid="${esc(u.user_id)}" data-nom="${esc(u.nombre)}" style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)">${esc(u.nombre)} <span style="color:var(--muted);font-size:11px">${esc(u.email)}</span></div>`).join('');
+          mBox.style.display = 'block';
+          mBox.querySelectorAll('[data-uid]').forEach(el => el.onmousedown = (ev) => {
+            ev.preventDefault();
+            const pos = cInput.selectionStart ?? cInput.value.length;
+            const before = cInput.value.slice(0, pos).replace(/@([\p{L}\p{N}._-]*)$/u, `@${el.dataset.nom} `);
+            cInput.value = before + cInput.value.slice(pos);
+            mentions.set(el.dataset.uid, el.dataset.nom);
+            hideM(); cInput.focus();
+          });
+        } catch (_) { hideM(); }
+      }, 200);
+    });
+    cInput.addEventListener('blur', () => setTimeout(hideM, 150));
+
     document.getElementById('crmAddComent').onclick = (e) => KoguUi.withLoading(e.target, async () => {
-      const txt = document.getElementById('crmNuevoComent').value.trim();
+      const txt = cInput.value.trim();
       const file = document.getElementById('crmComentFile')?.files?.[0] || null;
       if (!txt && !file) { KoguApi.toast('Escribe un comentario o adjunta un archivo', 'error'); return; }
+      const ids = [...mentions.keys()];
       let opts;
       if (file) {
         const fd = new FormData();
         fd.append('comentario', txt);
         fd.append('archivo', file);
+        if (ids.length) fd.append('menciones', ids.join(','));
         opts = { method: 'POST', body: fd };
       } else {
-        opts = { method: 'POST', body: JSON.stringify({ comentario: txt }) };
+        opts = { method: 'POST', body: JSON.stringify({ comentario: txt, menciones: ids }) };
       }
       await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/comentarios`, opts);
       await refresh();
