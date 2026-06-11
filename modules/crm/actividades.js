@@ -191,6 +191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!snap || typeof snap !== 'object') return '';
     const p = snap.periodos || {};
     const prods = Array.isArray(snap.productos) ? snap.productos : [];
+    if (!prods.length) return '';   // sin productos (p.ej. actividad general) → ocultar sección
     const rango = (p.p1d && p.p2d) ? `${mesIso(p.p1d)} vs ${mesIso(p.p2d)}` : '';
     const filas = prods.slice(0, 30).map(pr => {
       const v1 = pr.importe_p1 ?? pr.p1, v2 = pr.importe_p2 ?? pr.p2;
@@ -237,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="crmActClose">Cerrar ✕</button>
           </div>
 
-          ${d.descripcion ? `<div style="font-size:13px;margin-top:8px">${esc(d.descripcion)}</div>` : ''}
+          ${d.descripcion ? `<div class="eyebrow" style="margin:12px 0 4px">Nota / plan de acción</div><div style="font-size:13px">${esc(d.descripcion)}</div>` : ''}
 
           <div class="eyebrow" style="margin:14px 0 6px">Etiquetas</div>
           <div id="crmEtqWrap" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -246,10 +247,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div id="crmEtqPicker" style="display:none;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px"></div>
 
-          <div class="eyebrow" style="margin:14px 0 6px">Seguidores</div>
+          ${(d.seguidores && d.seguidores.length) ? `<div class="eyebrow" style="margin:14px 0 6px">Seguidores</div>
           <div id="crmSeguidores" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            ${(d.seguidores || []).map(s => `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel2,#f1f5f9);color:var(--ink,#0f172a)" title="${esc(s.email || '')}">@${esc(s.nombre)}<span style="cursor:pointer;color:var(--muted)" data-rm-seg="${esc(s.user_id)}" title="Quitar">✕</span></span>`).join('') || '<span class="hint" style="color:var(--muted);font-size:12px">Sin seguidores · menciona con @ en un comentario para sumar a alguien</span>'}
-          </div>
+            ${d.seguidores.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel2,#f1f5f9);color:var(--ink,#0f172a)" title="${esc(s.email || '')}">@${esc(s.nombre)}<span style="cursor:pointer;color:var(--muted)" data-rm-seg="${esc(s.user_id)}" title="Quitar">✕</span></span>`).join('')}
+          </div>` : ''}
 
           ${snapshotHtml(d.snapshot)}
 
