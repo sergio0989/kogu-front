@@ -161,6 +161,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             ${(a.cliente_ref || a.resultado) ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">${a.cliente_ref ? esc(a.titulo) : ''}${a.resultado ? `${a.cliente_ref ? ' · ' : ''}<b>${RES_TXT[a.resultado] || a.resultado}</b>` : ''}</div>` : ''}
             ${(a.etiquetas && a.etiquetas.length) ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${a.etiquetas.map(e => chipEtq(e, false)).join('')}</div>` : ''}
+            ${(a.created_by_nombre || (a.seguidores && a.seguidores.length)) ? `<div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              ${a.created_by_nombre ? `<span>Creada por <b>${esc(a.created_by_nombre)}</b></span>` : ''}
+              ${(a.seguidores && a.seguidores.length) ? `<span>· 👥 ${a.seguidores.map(s => esc(s.nombre)).join(', ')}</span>` : ''}
+            </div>` : ''}
           </div>
           <div style="text-align:right;min-width:130px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
@@ -228,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
               <h2 style="margin:6px 0 0">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
               <div class="hint" style="color:var(--muted);font-size:12px">${esc(d.titulo)} · vigencia ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · ${money(d.monto_riesgo)} en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'}</div>
+              ${d.created_by_nombre ? `<div class="hint" style="color:var(--muted);font-size:11px;margin-top:2px">Creada por ${esc(d.created_by_nombre)}</div>` : ''}
             </div>
             <button class="btn" id="crmActClose">Cerrar ✕</button>
           </div>
