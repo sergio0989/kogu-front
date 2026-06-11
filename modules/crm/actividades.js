@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const SEV_TXT = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
   const EST = { abierta: 'var(--brand,#2563eb)', en_proceso: 'var(--warning,#d97706)', cerrada: 'var(--ok,#16a34a)', cancelada: 'var(--muted,#64748b)' };
   const EST_TXT = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
-  const RES_TXT = { recuperado: 'Recuperado', parcial: 'Parcial', perdido: 'Perdido', no_aplica: 'No aplica' };
+  const RES_TXT = { recuperado: 'Recuperado', parcial: 'Parcial', perdido: 'Perdido', no_aplica: 'No aplica', completada: 'Completada' };
 
   const miniCard = (lbl, val, hint = '', color = '') => `
     <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
@@ -291,10 +291,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <div><div class="label-text">Resultado al cerrar</div>
                     <select class="select" id="crmResultado">
                       <option value="">—</option>
-                      <option value="recuperado">Recuperado</option>
-                      <option value="parcial">Parcial</option>
-                      <option value="perdido">Perdido</option>
-                      <option value="no_aplica">No aplica</option>
+                      <optgroup label="Venta">
+                        <option value="recuperado">Recuperado</option>
+                        <option value="parcial">Parcial</option>
+                        <option value="perdido">Perdido</option>
+                        <option value="no_aplica">No aplica</option>
+                      </optgroup>
+                      <optgroup label="General">
+                        <option value="completada">Completada</option>
+                      </optgroup>
                     </select>
                   </div>
                   <button class="btn primary" id="crmCerrar">Cerrar actividad</button>
