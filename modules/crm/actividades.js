@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const EST = { abierta: 'var(--brand,#2563eb)', en_proceso: 'var(--warning,#d97706)', cerrada: 'var(--ok,#16a34a)', cancelada: 'var(--muted,#64748b)' };
   const EST_TXT = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
   const RES_TXT = { recuperado: 'Recuperado', parcial: 'Parcial', perdido: 'Perdido', no_aplica: 'No aplica', completada: 'Completada' };
+  const ORIGEN_TXT = { 'mi-panel': 'Radar · Mi panel', 'bandeja-riesgo': 'Radar · Bandeja', 'manual': 'Manual' };
 
   const miniCard = (lbl, val, hint = '', color = '') => `
     <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
@@ -161,8 +162,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             ${(a.cliente_ref || a.resultado) ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">${a.cliente_ref ? esc(a.titulo) : ''}${a.resultado ? `${a.cliente_ref ? ' · ' : ''}<b>${RES_TXT[a.resultado] || a.resultado}</b>` : ''}</div>` : ''}
             ${(a.etiquetas && a.etiquetas.length) ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${a.etiquetas.map(e => chipEtq(e, false)).join('')}</div>` : ''}
-            ${(a.created_by_nombre || (a.seguidores && a.seguidores.length)) ? `<div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${(a.created_by_nombre || a.tomada_por_nombre || (a.seguidores && a.seguidores.length)) ? `<div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               ${a.created_by_nombre ? `<span>Creada por <b>${esc(a.created_by_nombre)}</b></span>` : ''}
+              ${a.tomada_por_nombre ? `<span>· Tomada por <b>${esc(a.tomada_por_nombre)}</b></span>` : ''}
               ${(a.seguidores && a.seguidores.length) ? `<span>· 👥 ${a.seguidores.map(s => esc(s.nombre)).join(', ')}</span>` : ''}
             </div>` : ''}
           </div>
@@ -247,7 +249,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ${d.vencida ? '<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;background:var(--danger,#dc2626)">Vencida</span>' : ''}
               </div>
               <h2 style="margin:8px 0 0;font-size:22px;line-height:1.2">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:3px">${esc(d.titulo)} · vence ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · <b style="color:var(--danger,#dc2626)">${money(d.monto_riesgo)}</b> en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'}${d.created_by_nombre ? ` · creada por ${esc(d.created_by_nombre)}` : ''}</div>
+              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:3px">${esc(d.titulo)} · vence ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · <b style="color:var(--danger,#dc2626)">${money(d.monto_riesgo)}</b> en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'} · origen ${esc(ORIGEN_TXT[d.origen] || d.origen || '—')}</div>
+              <div class="hint" style="color:var(--muted);font-size:11px;margin-top:2px">${d.created_by_nombre ? `Creada por ${esc(d.created_by_nombre)}` : ''}${d.tomada_por_nombre ? `${d.created_by_nombre ? ' · ' : ''}Tomada por <b>${esc(d.tomada_por_nombre)}</b>${d.tomada_at ? ' (' + fechaCorta(d.tomada_at) + ')' : ''}` : ''}</div>
             </div>
             <button class="btn" id="crmActClose">Cerrar ✕</button>
           </div>
