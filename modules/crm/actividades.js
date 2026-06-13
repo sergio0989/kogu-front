@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div>${recs}</div>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
                   <div><div class="label-text">Fecha</div><input class="input" id="crmRecFecha" type="date" style="margin-top:4px"/></div>
-                  <div><div class="label-text">Canal</div><select class="select" id="crmRecCanal" style="margin-top:4px"><option value="in_app">In-app</option><option value="email">Correo</option></select></div>
+                  <div><div class="label-text">Canal</div><select class="select" id="crmRecCanal" style="margin-top:4px"><option value="in_app">In-app</option><option value="email">Correo</option><option value="whatsapp">WhatsApp</option></select></div>
                   <button class="btn" id="crmAddRec">Programar</button>
                 </div>
               </div>
