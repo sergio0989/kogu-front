@@ -331,6 +331,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <button class="btn" id="crmAddRec">Programar</button>
                 </div>
               </div>
+
+              <div class="crm-block">
+                <div class="crm-sech">Notificaciones enviadas</div>
+                <div id="crmEnvios" class="hint" style="color:var(--muted);font-size:12px">Cargando…</div>
+              </div>
             </div>
           </div>
         </div>
@@ -339,6 +344,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.insertAdjacentHTML('beforeend', html);
     document.getElementById('crmActClose').onclick = closeDetalle;
     document.getElementById('crmActModal').onclick = e => { if (e.target.id === 'crmActModal') closeDetalle(); };
+
+    // Bitácora de envíos (respuesta del proveedor) — carga diferida.
+    (async () => {
+      try {
+        const res = await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/envios`);
+        const list = res?.data || res || [];
+        const el = document.getElementById('crmEnvios');
+        if (!el) return;
+        el.innerHTML = list.length ? list.map(e => {
+          const col = e.estado === 'enviado' ? 'var(--ok,#16a34a)' : (e.estado === 'fallido' ? 'var(--danger,#dc2626)' : 'var(--muted)');
+          const err = e.respuesta && (e.respuesta.error || e.respuesta.reason);
+          return `<div style="padding:5px 0;border-bottom:1px solid var(--line);font-size:12px">
+            <span style="color:${col};font-weight:600">${esc(e.canal)} · ${esc(e.estado)}</span><span style="color:var(--muted)"> · ${fechaCorta(e.created_at)}</span>
+            <div style="color:var(--muted)">${esc(e.destinatario || '')}${e.proveedor_ref ? ' · ' + esc(e.proveedor_ref) : ''}${err ? ' · ' + esc(String(err)) : ''}</div>
+          </div>`;
+        }).join('') : '<span>Sin envíos registrados.</span>';
+      } catch (_) { const el = document.getElementById('crmEnvios'); if (el) el.textContent = '—'; }
+    })();
 
     const refresh = async () => { await openDetalle(d.actividad_id); await loadKpis(); await load(); };
 

@@ -55,6 +55,7 @@
     ]},
     {section:'CRM',items:[
       {href:'/modules/crm/actividades.html',label:'Actividades de seguimiento',perm:'crm.actividades.read'},
+      {href:'/modules/crm/notif-plantillas.html',label:'Plantillas de notificación',perm:'crm.notif.read'},
     ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
