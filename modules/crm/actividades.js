@@ -222,75 +222,71 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`).join('') || '<div class="hint" style="color:var(--muted);font-size:12px">Sin recordatorios.</div>';
     const activa = d.estado === 'abierta' || d.estado === 'en_proceso';
 
+    const sevPill = d.severidad ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:${SEV[d.severidad] || SEV.info}">${SEV_TXT[d.severidad] || d.severidad}</span>` : '';
     const html = `
-      <div id="crmActModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
-        <div style="background:var(--panel,#fff);border-radius:16px;max-width:840px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-          <div class="row" style="align-items:flex-start;margin-bottom:6px">
-            <div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${estC}">${EST_TXT[d.estado] || d.estado}</span>
-                ${d.vencida ? '<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;background:var(--danger,#dc2626)">Vencida</span>' : ''}
+      <div id="crmActModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:28px 16px">
+        <style>
+          #crmActModal .crm-card{background:var(--panel,#fff);border-radius:16px;max-width:1000px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
+          #crmActModal .crm-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+          #crmActModal .crm-body{display:grid;grid-template-columns:1fr 330px}
+          #crmActModal .crm-main{padding:20px 24px;min-width:0}
+          #crmActModal .crm-side{padding:20px 22px;background:var(--panel2,#f8fafc);border-left:1px solid var(--line)}
+          #crmActModal .crm-sech{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 8px}
+          #crmActModal .crm-block{margin-bottom:20px}
+          #crmActModal .crm-block:last-child{margin-bottom:0}
+          #crmActModal .crm-side .input,#crmActModal .crm-side .select{width:100%}
+          @media(max-width:860px){#crmActModal .crm-body{grid-template-columns:1fr}#crmActModal .crm-side{border-left:0;border-top:1px solid var(--line)}}
+        </style>
+        <div class="crm-card">
+
+          <div class="crm-head">
+            <div style="min-width:0">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <span style="display:inline-block;padding:3px 11px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${estC}">${EST_TXT[d.estado] || d.estado}</span>
+                ${sevPill}
+                ${d.vencida ? '<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;background:var(--danger,#dc2626)">Vencida</span>' : ''}
               </div>
-              <h2 style="margin:6px 0 0">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px">${esc(d.titulo)} · vigencia ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · ${money(d.monto_riesgo)} en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'}</div>
-              ${d.created_by_nombre ? `<div class="hint" style="color:var(--muted);font-size:11px;margin-top:2px">Creada por ${esc(d.created_by_nombre)}</div>` : ''}
+              <h2 style="margin:8px 0 0;font-size:22px;line-height:1.2">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
+              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:3px">${esc(d.titulo)} · vence ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · <b style="color:var(--danger,#dc2626)">${money(d.monto_riesgo)}</b> en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'}${d.created_by_nombre ? ` · creada por ${esc(d.created_by_nombre)}` : ''}</div>
             </div>
             <button class="btn" id="crmActClose">Cerrar ✕</button>
           </div>
 
-          ${d.descripcion ? `<div class="eyebrow" style="margin:12px 0 4px">Nota / plan de acción</div><div style="font-size:13px">${esc(d.descripcion)}</div>` : ''}
+          <div class="crm-body">
+            <div class="crm-main">
+              ${d.descripcion ? `<div class="crm-block"><div class="crm-sech">Nota / plan de acción</div><div style="font-size:13.5px;line-height:1.5">${esc(d.descripcion)}</div></div>` : ''}
 
-          <div class="eyebrow" style="margin:14px 0 6px">Etiquetas</div>
-          <div id="crmEtqWrap" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            ${(d.etiquetas || []).map(e => chipEtq(e, true)).join('') || '<span class="hint" style="color:var(--muted);font-size:12px">Sin etiquetas</span>'}
-            <button class="btn" id="crmEtqAdd" style="font-size:12px;padding:2px 10px">+ etiqueta</button>
-          </div>
-          <div id="crmEtqPicker" style="display:none;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px"></div>
+              ${snapshotHtml(d.snapshot) ? `<div class="crm-block">${snapshotHtml(d.snapshot)}</div>` : ''}
 
-          ${(d.seguidores && d.seguidores.length) ? `<div class="eyebrow" style="margin:14px 0 6px">Seguidores</div>
-          <div id="crmSeguidores" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            ${d.seguidores.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel2,#f1f5f9);color:var(--ink,#0f172a)" title="${esc(s.email || '')}">@${esc(s.nombre)}<span style="cursor:pointer;color:var(--muted)" data-rm-seg="${esc(s.user_id)}" title="Quitar">✕</span></span>`).join('')}
-          </div>` : ''}
-
-          ${snapshotHtml(d.snapshot)}
-
-          <div class="eyebrow" style="margin:16px 0 6px">Bitácora</div>
-          <div id="crmComents">${coments}</div>
-          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
-            <div style="position:relative;flex:1;min-width:220px">
-              <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…  (@ para mencionar)" style="width:100%"/>
-              <div id="crmMentionBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:190px;overflow:auto;margin-top:2px"></div>
-            </div>
-            <input type="file" id="crmComentFile" style="max-width:210px;font-size:12px"/>
-            <button class="btn" id="crmAddComent">Comentar</button>
-          </div>
-          <div class="hint" style="color:var(--muted);font-size:11px;margin-top:3px">Puedes adjuntar un archivo (máx. 25 MB) y mencionar con <b>@</b> para sumar seguidores.</div>
-
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;margin-top:16px;align-items:start">
-            <div>
-              <div class="eyebrow" style="margin:0 0 6px">Recordatorios</div>
-              <div>${recs}</div>
-              <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
-                <div><div class="label-text">Fecha</div><input class="input" id="crmRecFecha" type="date"/></div>
-                <div><div class="label-text">Canal</div><select class="select" id="crmRecCanal"><option value="in_app">In-app</option><option value="email">Correo</option></select></div>
-                <button class="btn" id="crmAddRec">Programar</button>
+              <div class="crm-block">
+                <div class="crm-sech">Bitácora</div>
+                <div id="crmComents">${coments}</div>
+                <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+                  <div style="position:relative;flex:1;min-width:200px">
+                    <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…  (@ para mencionar)" style="width:100%"/>
+                    <div id="crmMentionBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:190px;overflow:auto;margin-top:2px"></div>
+                  </div>
+                  <input type="file" id="crmComentFile" style="max-width:170px;font-size:12px"/>
+                  <button class="btn primary" id="crmAddComent">Comentar</button>
+                </div>
+                <div class="hint" style="color:var(--muted);font-size:11px;margin-top:4px">Adjunta un archivo (máx. 25 MB) y menciona con <b>@</b> para sumar seguidores.</div>
               </div>
             </div>
-            ${activa ? `
-            <div>
-              <div class="eyebrow" style="margin:0 0 8px">Acciones</div>
-              <div style="display:flex;flex-direction:column;gap:12px">
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  ${d.estado === 'abierta' ? '<button class="btn" id="crmTomar">Tomar (en proceso)</button>' : ''}
-                  <button class="btn" id="crmCancelar">Cancelar actividad</button>
-                </div>
-                <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                  <div><div class="label-text">Nueva vigencia</div><input class="input" id="crmFechaLim" type="date" value="${d.fecha_limite || ''}"/></div>
-                  <button class="btn" id="crmGuardarVig">Actualizar vigencia</button>
-                </div>
-                <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+
+            <div class="crm-side">
+              ${activa ? `
+              <div class="crm-block">
+                <div class="crm-sech">Acciones</div>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${d.estado === 'abierta' ? '<button class="btn" id="crmTomar">Tomar (en proceso)</button>' : ''}
+                    <button class="btn" id="crmCancelar">Cancelar</button>
+                  </div>
+                  <div><div class="label-text">Nueva vigencia</div>
+                    <div style="display:flex;gap:8px;margin-top:4px"><input class="input" id="crmFechaLim" type="date" value="${d.fecha_limite || ''}"/><button class="btn" id="crmGuardarVig" style="white-space:nowrap">Actualizar</button></div>
+                  </div>
                   <div><div class="label-text">Resultado al cerrar</div>
-                    <select class="select" id="crmResultado">
+                    <select class="select" id="crmResultado" style="margin-top:4px">
                       <option value="">—</option>
                       <optgroup label="Venta">
                         <option value="recuperado">Recuperado</option>
@@ -302,11 +298,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <option value="completada">Completada</option>
                       </optgroup>
                     </select>
+                    <button class="btn primary" id="crmCerrar" style="width:100%;margin-top:8px">Cerrar actividad</button>
                   </div>
-                  <button class="btn primary" id="crmCerrar">Cerrar actividad</button>
+                </div>
+              </div>` : ''}
+
+              <div class="crm-block">
+                <div class="crm-sech">Etiquetas</div>
+                <div id="crmEtqWrap" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  ${(d.etiquetas || []).map(e => chipEtq(e, true)).join('') || '<span class="hint" style="color:var(--muted);font-size:12px">Sin etiquetas</span>'}
+                  <button class="btn" id="crmEtqAdd" style="font-size:12px;padding:2px 10px">+ etiqueta</button>
+                </div>
+                <div id="crmEtqPicker" style="display:none;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px"></div>
+              </div>
+
+              ${(d.seguidores && d.seguidores.length) ? `<div class="crm-block">
+                <div class="crm-sech">Seguidores</div>
+                <div id="crmSeguidores" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  ${d.seguidores.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel,#fff);border:1px solid var(--line);color:var(--ink,#0f172a)" title="${esc(s.email || '')}">@${esc(s.nombre)}<span style="cursor:pointer;color:var(--muted)" data-rm-seg="${esc(s.user_id)}" title="Quitar">✕</span></span>`).join('')}
+                </div>
+              </div>` : ''}
+
+              <div class="crm-block">
+                <div class="crm-sech">Recordatorios</div>
+                <div>${recs}</div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                  <div><div class="label-text">Fecha</div><input class="input" id="crmRecFecha" type="date" style="margin-top:4px"/></div>
+                  <div><div class="label-text">Canal</div><select class="select" id="crmRecCanal" style="margin-top:4px"><option value="in_app">In-app</option><option value="email">Correo</option></select></div>
+                  <button class="btn" id="crmAddRec">Programar</button>
                 </div>
               </div>
-            </div>` : ''}
+            </div>
           </div>
         </div>
       </div>`;
@@ -508,27 +530,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   function openNuevaActividad() {
     let selCli = null;
     const html = `
-      <div id="crmNuevaModal" style="position:fixed;inset:0;z-index:10001;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
-        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-          <div class="row" style="align-items:flex-start;margin-bottom:8px">
-            <div><div class="eyebrow">CRM · Nueva actividad</div><h2 style="margin:4px 0 0">Crear actividad</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px">Seguimiento manual de un cliente${puedeAdmin ? '' : ' de tu cartera'}.</div></div>
+      <div id="crmNuevaModal" style="position:fixed;inset:0;z-index:10001;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:28px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:580px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden">
+          <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+            <div><div class="eyebrow">CRM · Nueva actividad</div><h2 style="margin:4px 0 0;font-size:21px">Crear actividad</h2>
+              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:2px">Seguimiento manual${puedeAdmin ? '' : ' de tu cartera'}. Solo título, nota y vigencia son obligatorios.</div></div>
             <button class="btn" id="crmNuevaClose">✕</button>
           </div>
-          <div style="margin-top:10px">
-            <div class="label-text">Cliente <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
-            <div style="position:relative">
-              <input class="input" id="crmNuevaCli" placeholder="Busca por nombre o clave… (deja vacío para actividad general)" autocomplete="off" style="width:100%"/>
-              <div id="crmNuevaCliBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:200px;overflow:auto;margin-top:2px"></div>
+          <div style="padding:20px 24px;display:flex;flex-direction:column;gap:15px">
+            <div>
+              <div class="label-text">Cliente <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
+              <div style="position:relative;margin-top:4px">
+                <input class="input" id="crmNuevaCli" placeholder="Busca por nombre o clave… (vacío = actividad general)" autocomplete="off" style="width:100%"/>
+                <div id="crmNuevaCliBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:200px;overflow:auto;margin-top:2px"></div>
+              </div>
+              <div id="crmNuevaCliSel" class="hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
             </div>
-            <div id="crmNuevaCliSel" class="hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+            ${puedeAdmin ? `<div><div class="label-text">Agente responsable <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
+              <select class="select" id="crmNuevaAgente" style="width:100%;margin-top:4px"><option value="">— sin agente (general) —</option></select></div>` : ''}
+            <div><div class="label-text">Título</div><input class="input" id="crmNuevaTitulo" placeholder="Título de la actividad" style="width:100%;margin-top:4px"/></div>
+            <div><div class="label-text">Nota / plan de acción</div><textarea class="input" id="crmNuevaNota" rows="3" placeholder="¿Qué se va a hacer?" style="width:100%;margin-top:4px"></textarea></div>
+            <div><div class="label-text">Vigencia (fecha límite)</div><input class="input" id="crmNuevaFecha" type="date" value="${hoyMas(15)}" style="width:100%;margin-top:4px"/></div>
           </div>
-          ${puedeAdmin ? `<div style="margin-top:10px"><div class="label-text">Agente responsable <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
-            <select class="select" id="crmNuevaAgente" style="width:100%"><option value="">— sin agente (general) —</option></select></div>` : ''}
-          <div style="margin-top:10px"><div class="label-text">Título</div><input class="input" id="crmNuevaTitulo" placeholder="Título de la actividad"/></div>
-          <div style="margin-top:10px"><div class="label-text">Nota / plan de acción</div><textarea class="input" id="crmNuevaNota" rows="3"></textarea></div>
-          <div style="margin-top:10px"><div class="label-text">Vigencia (fecha límite)</div><input class="input" id="crmNuevaFecha" type="date" value="${hoyMas(15)}" style="max-width:200px"/></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+          <div style="padding:16px 24px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end">
             <button class="btn" id="crmNuevaCancel">Cancelar</button>
             <button class="btn primary" id="crmNuevaGuardar">Crear actividad</button>
           </div>
