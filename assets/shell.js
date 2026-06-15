@@ -66,6 +66,7 @@
       {href:'/modules/cto/cargas.html',label:'Cargas / Importación',perm:'screen.costo'},
       {href:'/modules/cto/resumen.html',label:'Costo de ventas / Utilidad',perm:'screen.costo'},
       {href:'/modules/cto/bandeja.html',label:'Bandeja / Corrección de costo',perm:'screen.costo'},
+      {href:'/modules/cto/cierre.html',label:'Validación / Cierre de periodo',perm:'screen.costo'},
     ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
