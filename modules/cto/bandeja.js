@@ -46,9 +46,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th style="text-align:right">Kg</th><th style="text-align:right">SubTotal</th>
         <th style="text-align:right">Costo MP u.</th><th style="text-align:center">A/B/C</th>
         <th style="text-align:right">Costo Int</th><th style="text-align:right">Utilidad</th>
+        <th style="text-align:center">% Util</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="11" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="12" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -63,6 +64,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtNum = (v) => (Number(v) || 0).toLocaleString('es-MX');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
   const chip = (on, txt, col) => `<span class="chip" style="background:${on ? col + '22' : '#e5e7eb'};color:${on ? col : '#9ca3af'};font-size:10px;padding:1px 5px">${txt}</span>`;
+  function pctChip(p) {
+    const v = (Number(p) || 0) * 100;
+    let bg, col, txt;
+    if (v >= 20)      { bg = '#dcfce7'; col = '#166534'; txt = 'Correcto'; }
+    else if (v >= 10) { bg = '#fef9c3'; col = '#854d0e'; txt = 'Revisar'; }
+    else              { bg = '#fee2e2'; col = '#991b1b'; txt = 'Alerta'; }
+    return `<span class="chip" style="background:${bg};color:${col};font-size:11px;white-space:nowrap">${v.toFixed(2)}% · ${txt}</span>`;
+  }
 
   async function load() {
     const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
@@ -84,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => `
       <tr${r.costo_manual ? ' style="background:#fef9c3"' : ''}>
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
@@ -97,6 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:center;white-space:nowrap">${chip(r.marca_a,'A','#0ea5e9')}${chip(r.marca_b,'B','#16a34a')}${chip(r.marca_c,'C','#a855f7')}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
+        <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
         <td style="text-align:right;white-space:nowrap">
           ${r.costo_manual
             ? `<button class="btn ghost" data-quitar="${r.venta_id}" style="padding:3px 7px;font-size:11px">Quitar</button>`
