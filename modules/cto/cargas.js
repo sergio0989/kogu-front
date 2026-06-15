@@ -135,6 +135,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const headerRow = Math.max(1, parseInt($('headerRow').value, 10) || 1);
     let rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true, range: headerRow - 1 });
+    // Normalizar encabezados: algunos exports del ERP traen espacios alrededor
+    // del nombre de columna (p.ej. " cant_surt "). Trim para que el backend mapee.
+    rows = rows.map(r => {
+      const o = {};
+      for (const k in r) o[String(k).trim()] = r[k];
+      return o;
+    });
     // Descartar renglones totalmente vacíos (colas/blancos de Excel).
     rows = rows.filter(r => Object.values(r).some(v => v !== null && v !== '' && v !== undefined));
     if (!rows.length) return KoguApi.toast('La hoja no tiene filas de datos.', 'error');
