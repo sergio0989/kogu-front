@@ -59,7 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('kpis').style.display = 'grid';
     $('kpis').innerHTML = [
       kpi('Total ventas', fmtMon(r.total_ventas)),
-      kpi('Costo integrado', fmtMon(r.costo_integrado), 'MP directo: ' + fmtMon(r.costo_mp)),
+      kpi('Σ Costo MP (ctototmn)', fmtMon(r.costo_mp), 'costo del sistema'),
+      kpi('Σ Costo integrado (costo_int_imp)', fmtMon(r.costo_integrado), 'MP + factores'),
       kpi('Utilidad bruta', fmtMon(r.utilidad_bruta), fmtPct(r.utilidad_bruta_pct)),
       kpi('Gastos de venta', fmtMon(r.gastos_venta)),
       kpi('Utilidad de operación', fmtMon(r.utilidad_operacion), fmtPct(r.utilidad_operacion_pct)),
