@@ -34,7 +34,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
   <div class="grid-2" style="margin-top:12px;gap:10px">
     <input class="input" id="q" placeholder="Buscar por producto, cliente, lote, folio…"/>
-    <div style="display:flex;gap:14px;align-items:center;font-size:13px">
+    <div style="display:flex;gap:14px;align-items:center;font-size:13px;flex-wrap:wrap">
+      <select class="select" id="nivel" style="width:auto">
+        <option value="">Utilidad: todas</option>
+        <option value="correcto">🟢 Correcto (≥20%)</option>
+        <option value="revisar">🟡 Revisar (10–20%)</option>
+        <option value="alerta">🔴 Alerta (&lt;10%)</option>
+      </select>
       <label><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
       <label><input type="checkbox" id="soloManual"/> Solo corregidos</label>
     </div>
@@ -80,6 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('q').value.trim()) p.set('q', $('q').value.trim());
     if ($('soloProd').checked) p.set('solo_producido', 'true');
     if ($('soloManual').checked) p.set('solo_manual', 'true');
+    if ($('nivel').value) p.set('nivel_util', $('nivel').value);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/bandeja?${p}`);
       const rows = KoguApi.unwrapData(res) || [];
@@ -197,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('q').addEventListener('input', () => { page = 1; clearTimeout(window.__t); window.__t = setTimeout(load, 350); });
   $('soloProd').addEventListener('change', () => { page = 1; load(); });
   $('soloManual').addEventListener('change', () => { page = 1; load(); });
+  $('nivel').addEventListener('change', () => { page = 1; load(); });
   $('verCorr').addEventListener('click', verCorrecciones);
   $('prev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
   $('next').addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
