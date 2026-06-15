@@ -42,6 +42,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="revisar">🟡 Revisar (10–20%)</option>
         <option value="alerta">🔴 Alerta (&lt;10%)</option>
       </select>
+      <select class="select" id="tipoCli" style="width:auto">
+        <option value="">Cliente: todos</option>
+        <option value="externo">Solo externos</option>
+        <option value="interno">Solo internos (Co-Pack)</option>
+      </select>
       <label><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
       <label><input type="checkbox" id="soloManual"/> Solo corregidos</label>
     </div>
@@ -88,6 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('soloProd').checked) p.set('solo_producido', 'true');
     if ($('soloManual').checked) p.set('solo_manual', 'true');
     if ($('nivel').value) p.set('nivel_util', $('nivel').value);
+    if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/bandeja?${p}`);
       const rows = KoguApi.unwrapData(res) || [];
@@ -105,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tb.innerHTML = rows.map(r => `
       <tr${r.costo_manual ? ' style="background:#fef9c3"' : ''}>
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
-        <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}</td>
+        <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}${r.es_interno ? ' <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:1px 4px">interno</span>' : ''}</td>
         <td style="font-size:12px"><strong>${esc(r.cve_prod)}</strong></td>
         <td style="font-family:monospace;font-size:11px">${esc(r.lote || '—')}</td>
         <td style="text-align:right;font-size:12px">${fmtNum(r.cant_surt)}</td>
@@ -206,6 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('soloProd').addEventListener('change', () => { page = 1; load(); });
   $('soloManual').addEventListener('change', () => { page = 1; load(); });
   $('nivel').addEventListener('change', () => { page = 1; load(); });
+  $('tipoCli').addEventListener('change', () => { page = 1; load(); });
   $('verCorr').addEventListener('click', verCorrecciones);
   $('exportar').addEventListener('click', exportar);
 
@@ -217,6 +224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('soloProd').checked) p.set('solo_producido', 'true');
     if ($('soloManual').checked) p.set('solo_manual', 'true');
     if ($('nivel').value) p.set('nivel_util', $('nivel').value);
+    if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
     try {
       KoguApi.toast('Generando Excel…', 'info');
       const res = await KoguApi.authFetchRaw(`${BASE}/bandeja/export?${p}`);
