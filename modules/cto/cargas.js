@@ -134,7 +134,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!ws) return KoguApi.toast('Hoja no encontrada.', 'error');
 
     const headerRow = Math.max(1, parseInt($('headerRow').value, 10) || 1);
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true, range: headerRow - 1 });
+    let rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true, range: headerRow - 1 });
+    // Descartar renglones totalmente vacíos (colas/blancos de Excel).
+    rows = rows.filter(r => Object.values(r).some(v => v !== null && v !== '' && v !== undefined));
     if (!rows.length) return KoguApi.toast('La hoja no tiene filas de datos.', 'error');
 
     const body = { rows, archivo_nombre: file.name };
@@ -146,8 +148,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (f.soloAnio) {
       const anio = parseInt($('anio').value, 10);
       if (!anio) return KoguApi.toast('Indica el año (el mes se toma de cada fila).', 'error');
+      // Descartar renglones separadores (sin ID de agente).
+      rows = rows.filter(r => (r.ID ?? r.Identificador ?? r.agente_ref ?? r.cve_agente) != null
+                              && (r.Mes ?? r.mes) != null && String(r.Mes ?? r.mes).trim() !== '_');
       // El archivo de gastos no trae año; lo inyectamos por fila (el backend lee row.year).
       rows.forEach(r => { if (r.year == null && r.Year == null && r.anio == null) r.year = anio; });
+      if (!rows.length) return KoguApi.toast('No hay filas de agente válidas en la hoja.', 'error');
     }
     if (f.modo) body.modo = $('modo').value;
 
