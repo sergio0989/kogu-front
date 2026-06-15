@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'ventas_costo',       label: 'Ventas con costo (ALPHA ERP)',       ep: '/cargas/ventas-costo',        periodo:false, modo:true,  hojaSug:null },
     { code: 'producciones',       label: 'Producciones (historial)',           ep: '/cargas/producciones',        periodo:false, modo:'agregar', hojaSug:'Sheet1' },
     { code: 'costos_exportacion', label: 'Costos de exportación (Int_FacExpo)', ep: '/cargas/costos-exportacion',  periodo:false, modo:true,  hojaSug:'Sheet1' },
-    { code: 'gastos_venta',       label: 'Gastos de venta por agente',         ep: '/cargas/gastos-venta',        periodo:false, modo:false, hojaSug:'AgenteCosto' },
+    { code: 'gastos_venta',       label: 'Gastos de venta por agente',         ep: '/cargas/gastos-venta',        periodo:false, modo:false, hojaSug:'AgenteCosto', soloAnio:true },
     { code: 'inventario_sistema', label: 'Inventario del sistema',             ep: '/cargas/inventario-sistema',  periodo:true,  modo:true,  hojaSug:null },
     { code: 'inventario_conteo',  label: 'Conteo físico',                      ep: '/cargas/inventario-conteo',   periodo:true,  modo:true,  hojaSug:null },
     { code: 'movimientos',        label: 'Movimientos / kardex (mov_ade)',     ep: '/cargas/movimientos',         periodo:false, modo:'agregar', hojaSug:null },
@@ -65,8 +65,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 
   <div class="grid-2" id="periodoBox" style="margin-top:12px;gap:12px;display:none">
-    <div><label class="muted" style="font-size:12px">Año del corte</label><input type="number" id="anio" class="input" placeholder="2026"/></div>
-    <div><label class="muted" style="font-size:12px">Mes del corte</label><input type="number" id="mes" class="input" placeholder="4" min="1" max="12"/></div>
+    <div><label class="muted" style="font-size:12px" id="anioLbl">Año del corte</label><input type="number" id="anio" class="input" placeholder="2026"/></div>
+    <div id="mesBox"><label class="muted" style="font-size:12px">Mes del corte</label><input type="number" id="mes" class="input" placeholder="4" min="1" max="12"/></div>
   </div>
 
   <div id="modoBox" style="margin-top:12px;display:none">
@@ -101,7 +101,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function syncForm() {
     const f = fuenteActual();
-    $('periodoBox').style.display = f.periodo ? 'grid' : 'none';
+    $('periodoBox').style.display = (f.periodo || f.soloAnio) ? 'grid' : 'none';
+    $('mesBox').style.display = f.soloAnio ? 'none' : '';
+    $('anioLbl').textContent = f.soloAnio ? 'Año (el mes sale de cada fila)' : 'Año del corte';
     $('modoBox').style.display = f.modo ? 'block' : 'none';
     if (f.modo === 'agregar') $('modo').value = 'agregar';
     // sugerir hoja
@@ -140,6 +142,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
       if (!anio || !mes) return KoguApi.toast('Esta fuente requiere año y mes del corte.', 'error');
       body.anio = anio; body.mes = mes;
+    }
+    if (f.soloAnio) {
+      const anio = parseInt($('anio').value, 10);
+      if (!anio) return KoguApi.toast('Indica el año (el mes se toma de cada fila).', 'error');
+      // El archivo de gastos no trae año; lo inyectamos por fila (el backend lee row.year).
+      rows.forEach(r => { if (r.year == null && r.Year == null && r.anio == null) r.year = anio; });
     }
     if (f.modo) body.modo = $('modo').value;
 
