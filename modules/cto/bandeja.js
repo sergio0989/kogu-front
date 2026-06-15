@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:90px" value="${now.getFullYear()}"/></div>
       <div><label class="muted" style="font-size:12px">Mes</label><input type="number" id="mes" class="input" style="width:70px" min="1" max="12" value="${now.getMonth() + 1}"/></div>
       <button class="btn ghost" id="verCorr">Ver correcciones</button>
+      <button class="btn ghost" id="exportar">⬇ Excel</button>
       <button class="btn primary" id="cargar">Cargar</button>
     </div>
   </div>
@@ -206,6 +207,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('soloManual').addEventListener('change', () => { page = 1; load(); });
   $('nivel').addEventListener('change', () => { page = 1; load(); });
   $('verCorr').addEventListener('click', verCorrecciones);
+  $('exportar').addEventListener('click', exportar);
+
+  async function exportar() {
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    const p = new URLSearchParams({ anio, mes });
+    if ($('q').value.trim()) p.set('q', $('q').value.trim());
+    if ($('soloProd').checked) p.set('solo_producido', 'true');
+    if ($('soloManual').checked) p.set('solo_manual', 'true');
+    if ($('nivel').value) p.set('nivel_util', $('nivel').value);
+    try {
+      KoguApi.toast('Generando Excel…', 'info');
+      const res = await KoguApi.authFetchRaw(`${BASE}/bandeja/export?${p}`);
+      if (!res.ok) throw new Error('No se pudo generar el Excel.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `cto_bandeja_${anio}_${String(mes).padStart(2, '0')}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
   $('prev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
   $('next').addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
   KoguShell.subscribeEmpresaActivaChange(() => { page = 1; load(); });
