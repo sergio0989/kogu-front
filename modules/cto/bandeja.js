@@ -54,6 +54,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="compra">Compra</option>
         <option value="sin">Sin fuente</option>
       </select>
+      <select class="select" id="revision" style="width:auto">
+        <option value="">Revisión: todas</option>
+        <option value="true">✓ Revisados</option>
+        <option value="false">Pendientes</option>
+      </select>
       <label><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
       <label><input type="checkbox" id="soloManual"/> Solo corregidos</label>
     </div>
@@ -68,9 +73,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
         <th style="text-align:right">Costo Int</th><th style="text-align:right">Utilidad</th>
         <th style="text-align:center">% Util</th>
+        <th style="text-align:center">Rev.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="18" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -117,6 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('nivel').value) p.set('nivel_util', $('nivel').value);
     if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
     if ($('fuente').value) p.set('fuente', $('fuente').value);
+    if ($('revision').value) p.set('revisado', $('revision').value);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/bandeja?${p}`);
       const rows = KoguApi.unwrapData(res) || [];
@@ -130,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       const sist = (r.costo_sistema_unit != null) ? Number(r.costo_sistema_unit) : null;
@@ -152,7 +159,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
         <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
+        <td style="text-align:center" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
+          <input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/>
+        </td>
         <td style="text-align:right;white-space:nowrap">
+          <button class="btn ghost" data-nota="${r.venta_id}" title="${r.nota ? esc(r.nota) : 'Agregar nota'}" style="padding:3px 7px;font-size:13px">${r.nota ? '📝' : '🗒️'}</button>
           ${r.costo_manual
             ? `<button class="btn ghost" data-quitar="${r.venta_id}" style="padding:3px 7px;font-size:11px">Quitar</button>`
             : `<button class="btn ghost" data-corr="${r.venta_id}" data-prod="${esc(r.cve_prod)}" data-sis="${r.costo_sistema_unit ?? ''}" data-ref="${ri.ref ?? ''}" style="padding:3px 7px;font-size:11px">Corregir</button>`}
@@ -161,6 +172,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     tb.querySelectorAll('button[data-corr]').forEach(btn => btn.addEventListener('click', () => modal(btn.dataset)));
     tb.querySelectorAll('button[data-quitar]').forEach(btn => btn.addEventListener('click', () => quitar(btn.dataset.quitar)));
+    tb.querySelectorAll('input[data-rev]').forEach(cb => cb.addEventListener('change', () => toggleRevisado(cb.dataset.rev, cb.checked)));
+    tb.querySelectorAll('button[data-nota]').forEach(btn => btn.addEventListener('click', () => {
+      const r = rows.find(x => String(x.venta_id) === btn.dataset.nota); notaModal(btn.dataset.nota, r ? (r.nota || '') : '');
+    }));
+  }
+
+  async function toggleRevisado(ventaId, checked) {
+    try {
+      await KoguApi.apiFetch(`${BASE}/revision`, { method: 'POST', body: JSON.stringify({ venta_id: ventaId, revisado: checked }) });
+      KoguApi.toast(checked ? 'Marcado como revisado' : 'Marcado como pendiente', 'success');
+    } catch (e) { KoguApi.toast(e.message, 'error'); load(); }
+  }
+
+  function notaModal(ventaId, current) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:8px;max-width:460px;width:100%;padding:22px;box-shadow:0 25px 50px rgba(0,0,0,.3)">
+        <div class="eyebrow">Costo</div><h2 style="margin:6px 0 10px">Nota del renglón</h2>
+        <textarea id="notaTxt" class="input" rows="4" style="width:100%;resize:vertical" placeholder="Escribe una nota…">${esc(current)}</textarea>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+          <button class="btn ghost" id="notaCancel">Cancelar</button>
+          <button class="btn primary" id="notaSave">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    ov.querySelector('#notaCancel').addEventListener('click', () => ov.remove());
+    ov.querySelector('#notaSave').addEventListener('click', async () => {
+      try {
+        await KoguApi.apiFetch(`${BASE}/revision`, { method: 'POST', body: JSON.stringify({ venta_id: ventaId, nota: ov.querySelector('#notaTxt').value }) });
+        KoguApi.toast('Nota guardada', 'success'); ov.remove(); load();
+      } catch (e) { KoguApi.toast(e.message, 'error'); }
+    });
   }
 
   function modal(ds) {
@@ -246,6 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('nivel').addEventListener('change', () => { page = 1; load(); });
   $('tipoCli').addEventListener('change', () => { page = 1; load(); });
   $('fuente').addEventListener('change', () => { page = 1; load(); });
+  $('revision').addEventListener('change', () => { page = 1; load(); });
   $('verCorr').addEventListener('click', verCorrecciones);
   $('exportar').addEventListener('click', exportar);
 
