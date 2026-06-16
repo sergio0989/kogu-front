@@ -57,11 +57,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th>Folio</th><th>Cliente</th><th>Producto</th><th>Lote</th>
         <th style="text-align:right">Kg</th><th style="text-align:right">SubTotal</th>
         <th style="text-align:right">Costo MP u.</th><th style="text-align:center">A/B/C</th>
+        <th style="text-align:right">Costo u. sist.</th><th style="text-align:right">Costo u. ref.</th>
+        <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
         <th style="text-align:right">Costo Int</th><th style="text-align:right">Utilidad</th>
         <th style="text-align:center">% Util</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="12" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -76,6 +78,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtNum = (v) => (Number(v) || 0).toLocaleString('es-MX');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
   const chip = (on, txt, col) => `<span class="chip" style="background:${on ? col + '22' : '#e5e7eb'};color:${on ? col : '#9ca3af'};font-size:10px;padding:1px 5px">${txt}</span>`;
+  // Referencia de costo por renglón: producción import → producción mov → compra.
+  function refInfo(r) {
+    if (r.ref_prod != null)    return { ref: Number(r.ref_prod),    fuente: 'producción' };
+    if (r.ref_prodmov != null) return { ref: Number(r.ref_prodmov), fuente: 'prod_mov' };
+    if (r.ref_comp != null)    return { ref: Number(r.ref_comp),    fuente: 'compra' };
+    return { ref: null, fuente: '—' };
+  }
+  function difChip(dif) {
+    if (dif == null) return '<span style="color:#9ca3af;font-size:11px">—</span>';
+    const v = dif * 100, a = Math.abs(v);
+    const [bg, col] = a > 5 ? ['#fee2e2', '#991b1b'] : a > 2 ? ['#fef9c3', '#854d0e'] : ['#dcfce7', '#166534'];
+    return `<span class="chip" style="background:${bg};color:${col};font-size:11px;white-space:nowrap">${v.toFixed(1)}%</span>`;
+  }
   function pctChip(p) {
     const v = (Number(p) || 0) * 100;
     let bg, col, txt;
@@ -107,8 +122,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
-    tb.innerHTML = rows.map(r => `
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    tb.innerHTML = rows.map(r => {
+      const ri = refInfo(r);
+      const sist = (r.costo_sistema_unit != null) ? Number(r.costo_sistema_unit) : null;
+      const dif = (ri.ref && sist != null) ? (sist - ri.ref) / ri.ref : null;
+      return `
       <tr${r.costo_manual ? ' style="background:#fef9c3"' : ''}>
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
         <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}${r.es_interno ? ' <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:1px 4px">interno</span>' : ''}</td>
@@ -118,15 +137,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right;font-size:12px">${fmtMon(r.subtotal)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
         <td style="text-align:center;white-space:nowrap">${chip(r.marca_a,'A','#0ea5e9')}${chip(r.marca_b,'B','#16a34a')}${chip(r.marca_c,'C','#a855f7')}</td>
+        <td style="text-align:right;font-size:12px">${sist != null ? fmtMon(sist) : '—'}</td>
+        <td style="text-align:right;font-size:12px">${ri.ref != null ? fmtMon(ri.ref) : '—'}</td>
+        <td style="text-align:center;font-size:11px;color:#64748b">${ri.fuente}</td>
+        <td style="text-align:right">${difChip(dif)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
         <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
         <td style="text-align:right;white-space:nowrap">
           ${r.costo_manual
             ? `<button class="btn ghost" data-quitar="${r.venta_id}" style="padding:3px 7px;font-size:11px">Quitar</button>`
-            : `<button class="btn ghost" data-corr="${r.venta_id}" data-prod="${esc(r.cve_prod)}" data-sis="${r.costo_sistema_unit ?? ''}" style="padding:3px 7px;font-size:11px">Corregir</button>`}
+            : `<button class="btn ghost" data-corr="${r.venta_id}" data-prod="${esc(r.cve_prod)}" data-sis="${r.costo_sistema_unit ?? ''}" data-ref="${ri.ref ?? ''}" style="padding:3px 7px;font-size:11px">Corregir</button>`}
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     tb.querySelectorAll('button[data-corr]').forEach(btn => btn.addEventListener('click', () => modal(btn.dataset)));
     tb.querySelectorAll('button[data-quitar]').forEach(btn => btn.addEventListener('click', () => quitar(btn.dataset.quitar)));
   }
