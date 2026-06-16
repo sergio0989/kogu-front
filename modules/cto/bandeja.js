@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="false">Pendientes</option>
       </select>
       <label><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
+      <label><input type="checkbox" id="soloExpo"/> Solo con exportación (C)</label>
       <label><input type="checkbox" id="soloManual"/> Solo corregidos</label>
     </div>
   </div>
@@ -74,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center;padding:0 2px">ABC</th>
         <th style="text-align:right">Costo u. ref.</th>
         <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
-        <th style="text-align:right">Costo Expo</th><th style="text-align:right">Costo Int u.</th>
+        <th data-sort="costo_expo" style="text-align:right;cursor:pointer">Costo Expo</th><th style="text-align:right">Costo Int u.</th>
         <th data-sort="costo_int" style="text-align:right;cursor:pointer">Costo Int</th><th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
         <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
         <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
@@ -125,6 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const p = new URLSearchParams({ anio, mes, page, pageSize });
     if ($('q').value.trim()) p.set('q', $('q').value.trim());
     if ($('soloProd').checked) p.set('solo_producido', 'true');
+    if ($('soloExpo').checked) p.set('con_expo', 'true');
     if ($('soloManual').checked) p.set('solo_manual', 'true');
     if ($('nivel').value) p.set('nivel_util', $('nivel').value);
     if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
@@ -302,6 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('cargar').addEventListener('click', () => { page = 1; load(); });
   $('q').addEventListener('input', () => { page = 1; clearTimeout(window.__t); window.__t = setTimeout(load, 350); });
   $('soloProd').addEventListener('change', () => { page = 1; load(); });
+  $('soloExpo').addEventListener('change', () => { page = 1; load(); });
   $('soloManual').addEventListener('change', () => { page = 1; load(); });
   $('nivel').addEventListener('change', () => { page = 1; load(); });
   $('tipoCli').addEventListener('change', () => { page = 1; load(); });
