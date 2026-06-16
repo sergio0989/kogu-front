@@ -63,6 +63,8 @@
       {href:'/modules/com/configuracion.html',label:'Configuración',perm:'screen.comisiones'},
     ]},
     {section:'Costo',items:[
+      {href:'/modules/cto/dashboard-bruta.html',label:'📊 Dirección · Utilidad Bruta',perm:'screen.costo'},
+      {href:'/modules/cto/dashboard-operacion.html',label:'📊 Dirección · Utilidad Operación',perm:'screen.costo'},
       {href:'/modules/cto/cargas.html',label:'Cargas / Importación',perm:'screen.costo'},
       {href:'/modules/cto/resumen.html',label:'Costo de ventas / Utilidad',perm:'screen.costo'},
       {href:'/modules/cto/bandeja.html',label:'Bandeja / Corrección de costo',perm:'screen.costo'},
