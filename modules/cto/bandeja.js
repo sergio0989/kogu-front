@@ -219,12 +219,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function exportar() {
     const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
     if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    // El Resumen ejecutivo es del MES COMPLETO (segmenta externos/internos
+    // y facturas/notas adentro); NO aplica los filtros de la vista.
     const p = new URLSearchParams({ anio, mes });
-    if ($('q').value.trim()) p.set('q', $('q').value.trim());
-    if ($('soloProd').checked) p.set('solo_producido', 'true');
-    if ($('soloManual').checked) p.set('solo_manual', 'true');
-    if ($('nivel').value) p.set('nivel_util', $('nivel').value);
-    if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
     try {
       KoguApi.toast('Generando Excel…', 'info');
       const res = await KoguApi.authFetchRaw(`${BASE}/bandeja/export?${p}`);
