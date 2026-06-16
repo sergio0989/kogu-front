@@ -62,6 +62,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
   <div style="overflow-x:auto;margin-top:12px"><table class="table" id="tabla" style="width:100%;font-size:13px"></table></div>
   <div class="muted" id="tablaMeta" style="font-size:12px;margin-top:8px"></div>
+</div>
+
+<div class="card" id="costoCeroCard" style="margin-top:16px;display:none;border-left:4px solid #8b5cf6">
+  <div class="row"><h3 style="margin:0">🟣 Costo-cero — existencia con costo $0</h3>
+    <span class="muted" id="costoCeroMeta" style="font-size:12px"></span></div>
+  <div class="muted" style="font-size:12px;margin-top:4px">Partidas con existencia en el sistema pero costo unitario por debajo del piso. Requieren costeo.</div>
+  <div style="overflow-x:auto;margin-top:12px"><table class="table" id="tablaCero" style="width:100%;font-size:13px"></table></div>
 </div>`;
 
   function showMsg(html, tipo) {
@@ -140,6 +147,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     pintarTabla(KoguApi.unwrapData(res) || [], res.meta);
   }
 
+  // Bloque específico: solo partidas costo-cero (existencia con costo $0).
+  async function cargarCostoCero() {
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    const res = await KoguApi.apiFetch(`${BASE}/inventario/verificacion/${anio}/${mes}?nivel=${nivel}&tipo=costo_cero&limit=500`);
+    const rows = KoguApi.unwrapData(res) || [];
+    if (!rows.length) { $('costoCeroCard').style.display = 'none'; return; }
+    $('costoCeroCard').style.display = 'block';
+    const esLote = nivel === 'producto_lote';
+    const head = `<thead><tr style="text-align:right;border-bottom:2px solid #e2e8f0">
+      <th style="text-align:left;padding:6px">Producto</th>${esLote ? '<th style="text-align:left;padding:6px">Lote</th>' : ''}
+      <th style="padding:6px">Exist. sistema</th><th style="padding:6px">Costo u. sist.</th>
+      <th style="padding:6px">Conteo físico</th><th style="padding:6px">Dif. kg</th><th style="padding:6px;text-align:center">Kg</th></tr></thead>`;
+    const body = rows.map(r => `<tr style="text-align:right;border-bottom:1px solid #f1f5f9;background:#faf5ff">
+      <td style="text-align:left;padding:6px;font-weight:600">${esc(r.cve_prod || '')}</td>
+      ${esLote ? `<td style="text-align:left;padding:6px">${esc(r.lote_norm || '')}</td>` : ''}
+      <td style="padding:6px">${fmtNum(r.existencia_sistema)}</td>
+      <td style="padding:6px;color:#7c3aed;font-weight:600">${fmtMon(r.costo_unit_sistema)}</td>
+      <td style="padding:6px">${fmtNum(r.conteo_fisico)}</td>
+      <td style="padding:6px">${fmtNum(r.dif_existencia)}</td>
+      <td style="padding:6px;text-align:center">${chipOK(r.dif_existencia_ok, 'OK', '≠')}</td></tr>`).join('');
+    $('tablaCero').innerHTML = head + '<tbody>' + body + '</tbody>';
+    $('costoCeroMeta').textContent = `${rows.length} partidas · nivel ${esLote ? 'producto+lote' : 'sumatoria producto'}`;
+  }
+
   async function verResultado() {
     const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
     if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
@@ -156,8 +187,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('tablaCard').style.display = 'block';
       syncNivelBtns();
       await cargarTabla();
+      await cargarCostoCero();
     } catch (e) {
-      $('kpis').style.display = $('tablaCard').style.display = 'none';
+      $('kpis').style.display = $('tablaCard').style.display = $('costoCeroCard').style.display = 'none';
       showMsg('❌ ' + e.message, 'error');
     }
   }
@@ -176,6 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('tablaCard').style.display = 'block';
       syncNivelBtns();
       await cargarTabla();
+      await cargarCostoCero();
       KoguApi.toast('Inventario verificado', 'success');
     } catch (e) {
       showMsg('❌ ' + e.message, 'error');
@@ -185,8 +218,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('runBtn').addEventListener('click', verificar);
   $('verBtn').addEventListener('click', verResultado);
-  $('nivLote').addEventListener('click', () => { nivel = 'producto_lote'; syncNivelBtns(); cargarTabla(); });
-  $('nivProd').addEventListener('click', () => { nivel = 'producto'; syncNivelBtns(); cargarTabla(); });
+  $('nivLote').addEventListener('click', () => { nivel = 'producto_lote'; syncNivelBtns(); cargarTabla(); cargarCostoCero(); });
+  $('nivProd').addEventListener('click', () => { nivel = 'producto'; syncNivelBtns(); cargarTabla(); cargarCostoCero(); });
   $('soloAnom').addEventListener('change', (e) => { soloAnomalias = e.target.checked; cargarTabla(); });
   let qt; $('q').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(cargarTabla, 350); });
   KoguShell.subscribeEmpresaActivaChange(() => verResultado());
