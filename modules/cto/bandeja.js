@@ -72,14 +72,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
         <th style="text-align:right">P.venta/kg</th><th style="text-align:right">USD/kg</th>
         <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center">A/B/C</th>
-        <th style="text-align:right">Costo u. sist.</th><th style="text-align:right">Costo u. ref.</th>
+        <th style="text-align:right">Costo u. ref.</th>
         <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
         <th data-sort="costo_int" style="text-align:right;cursor:pointer">Costo Int</th><th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
         <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
         <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="20" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="19" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -141,11 +141,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
-      const sist = (r.costo_sistema_unit != null) ? Number(r.costo_sistema_unit) : null;
-      const dif = (ri.ref && sist != null) ? (sist - ri.ref) / ri.ref : null;
+      // Dif. %: costo usado (Costo MP u.) vs referencia (producción/compra).
+      const mp = (r.costo_mp != null) ? Number(r.costo_mp) : null;
+      const dif = (ri.ref && mp != null) ? (mp - ri.ref) / ri.ref : null;
       const cant = Number(r.cant_surt) || 0;
       const pvMxn = cant ? Number(r.subtotal) / cant : null;
       const tc = Number(r.tip_cam) || 0;
@@ -162,7 +163,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right;font-size:12px;color:#475569">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
         <td style="text-align:center;white-space:nowrap">${chip(r.marca_a,'A','#0ea5e9')}${chip(r.marca_b,'B','#16a34a')}${chip(r.marca_c,'C','#a855f7')}</td>
-        <td style="text-align:right;font-size:12px">${sist != null ? fmtMon(sist) : '—'}</td>
         <td style="text-align:right;font-size:12px">${ri.ref != null ? fmtMon(ri.ref) : '—'}</td>
         <td style="text-align:center;font-size:11px;color:#64748b">${ri.fuente}</td>
         <td style="text-align:right">${difChip(dif)}</td>
