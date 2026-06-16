@@ -71,15 +71,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="producto" style="cursor:pointer">Producto</th><th data-sort="lote" style="cursor:pointer">Lote</th>
         <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
         <th style="text-align:right">P.venta/kg</th><th style="text-align:right">USD/kg</th>
-        <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center">A/B/C</th>
+        <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center;padding:0 2px">ABC</th>
         <th style="text-align:right">Costo u. ref.</th>
         <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
+        <th style="text-align:right">Costo Expo</th><th style="text-align:right">Costo Int u.</th>
         <th data-sort="costo_int" style="text-align:right;cursor:pointer">Costo Int</th><th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
         <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
         <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="19" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="21" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -94,6 +95,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtNum = (v) => (Number(v) || 0).toLocaleString('es-MX');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
   const chip = (on, txt, col) => `<span class="chip" style="background:${on ? col + '22' : '#e5e7eb'};color:${on ? col : '#9ca3af'};font-size:10px;padding:1px 5px">${txt}</span>`;
+  // Marca A/B/C compacta (ahorra ancho): letra coloreada si activa, gris si no.
+  const mchip = (on, txt, col) => `<span style="font-size:11px;font-weight:700;margin:0 1px;color:${on ? col : '#d1d5db'}">${txt}</span>`;
   // Referencia de costo por renglón: producción import → producción mov → compra.
   function refInfo(r) {
     if (r.ref_prod != null)    return { ref: Number(r.ref_prod),    fuente: 'producción' };
@@ -141,7 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="21" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       // Dif. %: costo usado (Costo MP u.) vs referencia (producción/compra).
@@ -162,10 +165,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}</td>
         <td style="text-align:right;font-size:12px;color:#475569">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
-        <td style="text-align:center;white-space:nowrap">${chip(r.marca_a,'A','#0ea5e9')}${chip(r.marca_b,'B','#16a34a')}${chip(r.marca_c,'C','#a855f7')}</td>
+        <td style="text-align:center;white-space:nowrap;padding:0 2px">${mchip(r.marca_a,'A','#0ea5e9')}${mchip(r.marca_b,'B','#16a34a')}${mchip(r.marca_c,'C','#a855f7')}</td>
         <td style="text-align:right;font-size:12px">${ri.ref != null ? fmtMon(ri.ref) : '—'}</td>
         <td style="text-align:center;font-size:11px;color:#64748b">${ri.fuente}</td>
         <td style="text-align:right">${difChip(dif)}</td>
+        <td style="text-align:right;font-size:12px">${Number(r.costo_expo_kg) > 0 ? fmtMon(r.costo_expo_kg) : '—'}</td>
+        <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_unit)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
         <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
