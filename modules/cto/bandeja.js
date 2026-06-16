@@ -47,6 +47,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="externo">Solo externos</option>
         <option value="interno">Solo internos (Co-Pack)</option>
       </select>
+      <select class="select" id="fuente" style="width:auto">
+        <option value="">Fuente: todas</option>
+        <option value="produccion">Producción</option>
+        <option value="prod_mov">Producción (mov)</option>
+        <option value="compra">Compra</option>
+        <option value="sin">Sin fuente</option>
+      </select>
       <label><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
       <label><input type="checkbox" id="soloManual"/> Solo corregidos</label>
     </div>
@@ -109,6 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('soloManual').checked) p.set('solo_manual', 'true');
     if ($('nivel').value) p.set('nivel_util', $('nivel').value);
     if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
+    if ($('fuente').value) p.set('fuente', $('fuente').value);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/bandeja?${p}`);
       const rows = KoguApi.unwrapData(res) || [];
@@ -237,6 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('soloManual').addEventListener('change', () => { page = 1; load(); });
   $('nivel').addEventListener('change', () => { page = 1; load(); });
   $('tipoCli').addEventListener('change', () => { page = 1; load(); });
+  $('fuente').addEventListener('change', () => { page = 1; load(); });
   $('verCorr').addEventListener('click', verCorrecciones);
   $('exportar').addEventListener('click', exportar);
 
