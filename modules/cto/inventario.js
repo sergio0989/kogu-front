@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:96px" value="${now.getFullYear()}"/></div>
       <div><label class="muted" style="font-size:12px">Mes</label><input type="number" id="mes" class="input" style="width:72px" min="1" max="12" value="${now.getMonth() + 1}"/></div>
       <button class="btn ghost" id="verBtn">Ver resultado</button>
+      <button class="btn ghost" id="exportBtn">⬇ Excel</button>
       <button class="btn primary" id="runBtn" style="background:#16a34a">▶ Verificar</button>
     </div>
   </div>
@@ -272,8 +273,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally { $('runBtn').disabled = false; }
   }
 
+  async function exportar() {
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    const qs = new URLSearchParams({ nivel, soloAnomalias: String(soloAnomalias) });
+    if (familiaSel) qs.set('familia', familiaSel);
+    if (tipoSel) qs.set('tipo', tipoSel);
+    try {
+      KoguApi.toast('Generando Excel…', 'info');
+      const res = await KoguApi.authFetchRaw(`${BASE}/inventario/export/${anio}/${mes}?${qs.toString()}`);
+      if (!res.ok) throw new Error('No se pudo generar el Excel.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `cto_inventario_${anio}_${String(mes).padStart(2, '0')}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
   $('runBtn').addEventListener('click', verificar);
   $('verBtn').addEventListener('click', verResultado);
+  $('exportBtn').addEventListener('click', exportar);
   $('nivLote').addEventListener('click', () => { nivel = 'producto_lote'; syncNivelBtns(); cargarTabla(); cargarCostoCero(); });
   $('nivProd').addEventListener('click', () => { nivel = 'producto'; syncNivelBtns(); cargarTabla(); cargarCostoCero(); });
   $('soloAnom').addEventListener('change', (e) => { soloAnomalias = e.target.checked; cargarTabla(); });
