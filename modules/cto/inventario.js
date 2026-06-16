@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="dif_kg">Dif. kg (contado)</option>
         <option value="dif_costo">Dif. costo</option>
         <option value="costo_cero">Costo-cero</option>
+        <option value="sin_fuente">Sin fuente de costo</option>
         <option value="sin_conteo">Sin conteo</option>
         <option value="sobrante">Sobrante</option>
       </select>
