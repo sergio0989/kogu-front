@@ -44,6 +44,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="cargar">Cargar</button>
     </div>
   </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:13px">
+    <select class="select" id="nivel" style="width:auto">
+      <option value="">Utilidad: todas</option>
+      <option value="correcto">🟢 Correcto (≥20%)</option>
+      <option value="revisar">🟡 Revisar (10–20%)</option>
+      <option value="alerta">🔴 Alerta (&lt;10%)</option>
+    </select>
+    <select class="select" id="tipoCli" style="width:auto">
+      <option value="">Cliente: todos</option>
+      <option value="externo">Solo externos</option>
+      <option value="interno">Solo internos (Co-Pack)</option>
+    </select>
+    <select class="select" id="fuente" style="width:auto">
+      <option value="">Fuente: todas</option>
+      <option value="produccion">Producción</option>
+      <option value="prod_mov">Producción (mov)</option>
+      <option value="compra">Compra</option>
+      <option value="sin">Sin fuente</option>
+    </select>
+    <select class="select" id="revision" style="width:auto">
+      <option value="">Revisión: todas</option>
+      <option value="true">✓ Revisados</option>
+      <option value="false">Pendientes</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
+    <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="soloManual"/> Solo corregidos</label>
+  </div>
   <div id="msg" style="display:none;margin-top:12px;padding:10px;border-radius:6px;font-size:13px"></div>
 </div>
 
@@ -144,6 +171,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
     if (!anio || !mes) return;
     const qs = new URLSearchParams(); const q = ($('q').value || '').trim(); if (q) qs.set('q', q);
+    if ($('nivel').value) qs.set('nivel_util', $('nivel').value);
+    if ($('tipoCli').value) qs.set('tipo_cliente', $('tipoCli').value);
+    if ($('fuente').value) qs.set('fuente', $('fuente').value);
+    if ($('revision').value) qs.set('revisado', $('revision').value);
+    if ($('soloProd').checked) qs.set('solo_producido', 'true');
+    if ($('soloManual').checked) qs.set('solo_manual', 'true');
     const res = await KoguApi.apiFetch(`${BASE}/facturas/${anio}/${mes}?${qs}`);
     pintarLista(KoguApi.unwrapData(res) || []);
   }
@@ -168,6 +201,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('cargar').addEventListener('click', cargar);
   $('anio').addEventListener('change', cargar);
   $('mes').addEventListener('change', cargar);
+  ['nivel', 'tipoCli', 'fuente', 'revision', 'soloProd', 'soloManual'].forEach(id =>
+    $(id).addEventListener('change', cargarLista));
   let qt; $('q').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(cargarLista, 300); });
   KoguShell.subscribeEmpresaActivaChange(() => { folioSel = null; cargar(); });
 
