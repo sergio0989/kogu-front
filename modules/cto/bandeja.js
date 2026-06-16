@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="folio" style="cursor:pointer">Folio</th><th data-sort="cliente" style="cursor:pointer">Cliente</th>
         <th data-sort="producto" style="cursor:pointer">Producto</th><th data-sort="lote" style="cursor:pointer">Lote</th>
         <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
+        <th style="text-align:right">P.venta/kg</th><th style="text-align:right">USD/kg</th>
         <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center">A/B/C</th>
         <th style="text-align:right">Costo u. sist.</th><th style="text-align:right">Costo u. ref.</th>
         <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
@@ -78,7 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="18" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="20" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -112,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (v >= 20)      { bg = '#dcfce7'; col = '#166534'; txt = 'Correcto'; }
     else if (v >= 10) { bg = '#fef9c3'; col = '#854d0e'; txt = 'Revisar'; }
     else              { bg = '#fee2e2'; col = '#991b1b'; txt = 'Alerta'; }
-    return `<span class="chip" style="background:${bg};color:${col};font-size:11px;white-space:nowrap">${v.toFixed(2)}% · ${txt}</span>`;
+    return `<span class="chip" style="background:${bg};color:${col};font-size:11px;display:inline-flex;flex-direction:column;align-items:center;line-height:1.25;padding:2px 8px"><strong>${v.toFixed(2)}%</strong><span style="font-size:10px">${txt}</span></span>`;
   }
 
   async function load() {
@@ -140,11 +141,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       const sist = (r.costo_sistema_unit != null) ? Number(r.costo_sistema_unit) : null;
       const dif = (ri.ref && sist != null) ? (sist - ri.ref) / ri.ref : null;
+      const cant = Number(r.cant_surt) || 0;
+      const pvMxn = cant ? Number(r.subtotal) / cant : null;
+      const tc = Number(r.tip_cam) || 0;
+      const pvUsd = (pvMxn != null && tc > 1) ? pvMxn / tc : null;
       return `
       <tr${r.costo_manual ? ' style="background:#fef9c3"' : ''}>
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
@@ -153,6 +158,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="font-family:monospace;font-size:11px">${esc(r.lote || '—')}</td>
         <td style="text-align:right;font-size:12px">${fmtNum(r.cant_surt)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.subtotal)}</td>
+        <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}</td>
+        <td style="text-align:right;font-size:12px;color:#475569">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
         <td style="text-align:center;white-space:nowrap">${chip(r.marca_a,'A','#0ea5e9')}${chip(r.marca_b,'B','#16a34a')}${chip(r.marca_c,'C','#a855f7')}</td>
         <td style="text-align:right;font-size:12px">${sist != null ? fmtMon(sist) : '—'}</td>
