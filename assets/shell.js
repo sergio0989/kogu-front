@@ -68,6 +68,7 @@
       {href:'/modules/cto/cargas.html',label:'Cargas / Importación',perm:'screen.costo'},
       {href:'/modules/cto/resumen.html',label:'Costo de ventas / Utilidad',perm:'screen.costo'},
       {href:'/modules/cto/bandeja.html',label:'Bandeja / Corrección de costo',perm:'screen.costo'},
+      {href:'/modules/cto/factura.html',label:'Ficha de factura',perm:'screen.costo'},
       {href:'/modules/cto/inventario.html',label:'Inventario integrado',perm:'screen.costo'},
       {href:'/modules/cto/cierre.html',label:'Validación / Cierre de periodo',perm:'screen.costo'},
     ]},
