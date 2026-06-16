@@ -30,6 +30,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   let familiaSel = '';
   let tipoSel = '';
   let familiasData = [];
+  let resumenData = [];
+  const totalValorNivel = () => {
+    const r = (resumenData || []).find(x => x.nivel === nivel);
+    return r ? Number(r.valor_sistema) || 0 : 0;
+  };
 
   const fmtMon = (v) => v == null ? '—' : '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtNum = (v) => v == null ? '—' : (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 3 });
@@ -150,9 +155,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const head = `<thead><tr style="text-align:right;border-bottom:2px solid #e2e8f0">
       <th style="text-align:left;padding:6px">Fam.</th><th style="text-align:left;padding:6px">Producto</th>${esLote ? '<th style="text-align:left;padding:6px">Lote</th>' : ''}
       <th style="padding:6px">Exist. sistema</th><th style="padding:6px">Conteo físico</th><th style="padding:6px">Dif. kg</th><th style="padding:6px;text-align:center">Kg</th>
-      <th style="padding:6px">Costo u. sist.</th>${esLote ? '<th style="padding:6px">Costo u. ref.</th><th style="padding:6px">Fuente</th><th style="padding:6px">Dif. %</th><th style="padding:6px;text-align:center">Costo</th>' : ''}
+      <th style="padding:6px">Costo u. sist.</th><th style="padding:6px">Importe inv.</th><th style="padding:6px">% inv.</th>${esLote ? '<th style="padding:6px">Costo u. ref.</th><th style="padding:6px">Fuente</th><th style="padding:6px">Dif. %</th><th style="padding:6px;text-align:center">Costo</th>' : ''}
       <th style="padding:6px;text-align:center">Estado</th><th style="text-align:left;padding:6px">Motivo</th></tr></thead>`;
-    const body = rows.map(r => `<tr style="text-align:right;border-bottom:1px solid #f1f5f9;${r.anomalia ? 'background:#fef2f2' : ''}">
+    const total = totalValorNivel();
+    const body = rows.map(r => {
+      const importe = (Number(r.existencia_sistema) || 0) * (Number(r.costo_unit_sistema) || 0);
+      const pctInv = total > 0 ? importe / total : 0;
+      return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9;${r.anomalia ? 'background:#fef2f2' : ''}">
       <td style="text-align:left;padding:6px;color:#64748b">${esc(r.familia || '')}</td>
       <td style="text-align:left;padding:6px;font-weight:600">${esc(r.cve_prod || '')}</td>
       ${esLote ? `<td style="text-align:left;padding:6px">${esc(r.lote_norm || '')}</td>` : ''}
@@ -161,13 +170,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="padding:6px">${fmtNum(r.dif_existencia)}</td>
       <td style="padding:6px;text-align:center">${chipEstado(r.estado_kg)}</td>
       <td style="padding:6px">${fmtMon(r.costo_unit_sistema)}</td>
+      <td style="padding:6px;font-weight:600">${fmtMon(importe)}</td>
+      <td style="padding:6px;color:#475569">${(pctInv * 100).toFixed(2)} %</td>
       ${esLote ? `<td style="padding:6px">${fmtMon(r.costo_unit_referencia)}</td>
       <td style="padding:6px;text-align:center">${r.fuente_referencia ? esc(r.fuente_referencia) : '—'}</td>
       <td style="padding:6px">${fmtPct(r.dif_costo_pct)}</td>
       <td style="padding:6px;text-align:center">${chipOK(r.dif_costo_ok, 'OK', '>tol')}</td>` : ''}
       <td style="padding:6px;text-align:center">${r.anomalia ? chipOK(false, '', 'Revisar') : chipOK(true, 'OK', '')}</td>
-      <td style="text-align:left;padding:6px;color:#991b1b">${esc(r.motivo || '')}</td></tr>`).join('');
-    $('tabla').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="15" class="muted" style="padding:12px;text-align:center">Sin partidas.</td></tr>`) + '</tbody>';
+      <td style="text-align:left;padding:6px;color:#991b1b">${esc(r.motivo || '')}</td></tr>`;
+    }).join('');
+    $('tabla').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="17" class="muted" style="padding:12px;text-align:center">Sin partidas.</td></tr>`) + '</tbody>';
     $('tablaMeta').textContent = `${meta ? meta.total : rows.length} partidas · nivel ${esLote ? 'producto+lote' : 'sumatoria producto'}${familiaSel ? ' · familia ' + familiaSel : ''}${tipoSel ? ' · ' + tipoSel : ''}${soloAnomalias ? ' · solo anomalías' : ''}`;
   }
 
@@ -223,6 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       $('msg').style.display = 'none';
+      resumenData = d.resumen || [];
       familiasData = d.familias || []; pintarFamilias();
       pintarKpis(d.resumen, d.parametros);
       $('tablaCard').style.display = 'block';
@@ -245,6 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const d = KoguApi.unwrapData(res) || {};
       const c = d.conteos || {};
       showMsg(`✅ Verificación completada: ${fmtNum(c.producto_lote)} partidas producto+lote · ${fmtNum(c.producto)} productos. Tolerancias: kg ${d.parametros.tol_kg}, costo ±${(d.parametros.var_costo_pct * 100).toFixed(0)}%, piso $${d.parametros.costo_min_kg}.`, 'ok');
+      resumenData = d.resumen || [];
       familiasData = d.familias || []; pintarFamilias();
       pintarKpis(d.resumen, d.parametros);
       $('tablaCard').style.display = 'block';
