@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = (id) => document.getElementById(id);
   const now = new Date();
   let page = 1, pageSize = 50, totalPages = 1, total = 0;
+  let sortBy = 'producto', sortDir = 'asc';
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
@@ -65,15 +66,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
   <div class="table-wrap" style="margin-top:14px">
     <table>
-      <thead><tr>
-        <th>Folio</th><th>Cliente</th><th>Producto</th><th>Lote</th>
-        <th style="text-align:right">Kg</th><th style="text-align:right">SubTotal</th>
-        <th style="text-align:right">Costo MP u.</th><th style="text-align:center">A/B/C</th>
+      <thead><tr id="thead">
+        <th data-sort="folio" style="cursor:pointer">Folio</th><th data-sort="cliente" style="cursor:pointer">Cliente</th>
+        <th data-sort="producto" style="cursor:pointer">Producto</th><th data-sort="lote" style="cursor:pointer">Lote</th>
+        <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
+        <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center">A/B/C</th>
         <th style="text-align:right">Costo u. sist.</th><th style="text-align:right">Costo u. ref.</th>
         <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
-        <th style="text-align:right">Costo Int</th><th style="text-align:right">Utilidad</th>
-        <th style="text-align:center">% Util</th>
-        <th style="text-align:center">Rev.</th>
+        <th data-sort="costo_int" style="text-align:right;cursor:pointer">Costo Int</th><th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
+        <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
+        <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
       <tbody id="rows"><tr><td colspan="18" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
@@ -124,6 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
     if ($('fuente').value) p.set('fuente', $('fuente').value);
     if ($('revision').value) p.set('revisado', $('revision').value);
+    p.set('sort', sortBy); p.set('dir', sortDir);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/bandeja?${p}`);
       const rows = KoguApi.unwrapData(res) || [];
@@ -292,6 +295,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('tipoCli').addEventListener('change', () => { page = 1; load(); });
   $('fuente').addEventListener('change', () => { page = 1; load(); });
   $('revision').addEventListener('change', () => { page = 1; load(); });
+
+  // Orden dinámico por encabezado.
+  function pintarOrden() {
+    $('thead').querySelectorAll('th[data-sort]').forEach(th => {
+      const base = th.textContent.replace(/[ ▲▼]+$/, '');
+      th.textContent = base + (th.dataset.sort === sortBy ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+    });
+  }
+  $('thead').querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const s = th.dataset.sort;
+    if (sortBy === s) sortDir = (sortDir === 'asc' ? 'desc' : 'asc');
+    else { sortBy = s; sortDir = 'asc'; }
+    page = 1; pintarOrden(); load();
+  }));
+  pintarOrden();
+
   $('verCorr').addEventListener('click', verCorrecciones);
   $('exportar').addEventListener('click', exportar);
 
