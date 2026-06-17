@@ -62,8 +62,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="muted" style="font-size:12px">Ventas, costo integrado y utilidad por mes</div></div>
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:100px" value="${now.getFullYear()}"/></div>
-      <div><label class="muted" style="font-size:12px">Mes (KPIs)</label>
-        <select id="mes" class="input" style="width:130px"></select></div>
+      <div><label class="muted" style="font-size:12px">Periodo (KPIs)</label>
+        <select id="mes" class="input" style="width:150px"></select></div>
       <button class="btn primary" id="refreshBtn">Actualizar</button>
       <a class="btn ghost" href="/modules/cto/dashboard-operacion.html" style="white-space:nowrap;text-decoration:none">Ut. Operación →</a>
     </div>
@@ -101,11 +101,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function pintarKpis() {
-    const mesSel = parseInt($('mes').value, 10);
+    const raw = $('mes').value;
+    const t = data.totales;
+    // Modo ACUMULADO (año): KPIs del YTD en lugar de un mes.
+    if (raw === 'acum') {
+      const nMeses = data.meses.length || 1;
+      const costoPctA = t.total_ventas ? (t.costo_integrado / t.total_ventas) * 100 : 0;
+      $('kpis').style.display = 'grid';
+      $('kpis').innerHTML = [
+        kpi(`Ventas · Acumulado ${data.anio}`, fmtMM(t.total_ventas), `${fmtMon(t.total_ventas)} · ${fmtNum(t.recuento_facturas)} fact.`, '#0d9488'),
+        kpi('Costo integrado · Acum.', fmtMM(t.costo_integrado), `${costoPctA.toFixed(2)} % de ventas`, '#64748b'),
+        kpi('Utilidad bruta · Acum.', fmtMM(t.utilidad_bruta), `${fmtPct(t.utilidad_bruta_pct)} ${chip(t.utilidad_bruta_pct)}`, '#8b5cf6'),
+        kpi('Kilos · Facturas · Acum.', fmtKg(t.kilos), fmtNum(t.recuento_facturas) + ' facturas'),
+        kpi('Promedio ventas / mes', fmtMM(t.total_ventas / nMeses), `${nMeses} ${nMeses === 1 ? 'mes' : 'meses'} con datos`, '#0d9488'),
+        kpi('Promedio utilidad / mes', fmtMM(t.utilidad_bruta / nMeses), fmtPct(t.utilidad_bruta_pct) + ' del año', '#8b5cf6'),
+      ].join('');
+      return;
+    }
+    const mesSel = parseInt(raw, 10);
     const idx = data.meses.findIndex(x => x.mes === mesSel);
     const m = idx >= 0 ? data.meses[idx] : null;
     const prev = idx > 0 ? data.meses[idx - 1] : null;
-    const t = data.totales;
     if (!m) { $('kpis').style.display = 'none'; return; }
     const pn = prev ? prev.mes_nombre : '';
     const costoPct = m.total_ventas ? (m.costo_integrado / m.total_ventas) * 100 : 0;
@@ -179,10 +195,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function llenarSelectMes() {
     const sel = $('mes');
-    const prev = parseInt(sel.value, 10) || (now.getMonth() + 1);
-    sel.innerHTML = data.meses.map(m => `<option value="${m.mes}">${m.mes_nombre}</option>`).join('');
-    const existe = data.meses.some(m => m.mes === prev);
-    sel.value = existe ? prev : (data.meses.length ? data.meses[data.meses.length - 1].mes : prev);
+    const prevRaw = sel.value;
+    sel.innerHTML = '<option value="acum">Acumulado (año)</option>'
+      + data.meses.map(m => `<option value="${m.mes}">${m.mes_nombre}</option>`).join('');
+    if (prevRaw === 'acum') { sel.value = 'acum'; return; }
+    const prev = parseInt(prevRaw, 10) || (now.getMonth() + 1);
+    sel.value = data.meses.some(m => m.mes === prev)
+      ? String(prev)
+      : (data.meses.length ? String(data.meses[data.meses.length - 1].mes) : 'acum');
   }
 
   async function cargar() {
