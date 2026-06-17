@@ -69,8 +69,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="muted" style="font-size:12px">Gastos de venta por agente y utilidad resultante</div></div>
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:100px" value="${now.getFullYear()}"/></div>
-      <div><label class="muted" style="font-size:12px">Mes</label>
-        <select id="mes" class="input" style="width:130px"></select></div>
+      <div><label class="muted" style="font-size:12px">Periodo</label>
+        <select id="mes" class="input" style="width:150px"></select></div>
       <button class="btn primary" id="refreshBtn">Actualizar</button>
       <a class="btn ghost" href="/modules/cto/dashboard-bruta.html" style="white-space:nowrap;text-decoration:none">← Ut. Bruta</a>
     </div>
@@ -115,15 +115,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintarKpis() {
     const m = mesData;
     if (!m) { $('kpis').style.display = 'none'; return; }
-    // Mes anterior (para variación), desde la serie anual.
+    const acum = $('mes').value === 'acum';
+    const periodo = acum ? `Acumulado ${$('anio').value}` : MESES[m.mes];
+    // Variación vs mes anterior (solo en modo mensual).
     const meses = (serieCache && serieCache.meses) || [];
-    const idx = meses.findIndex(x => x.mes === m.mes);
+    const idx = acum ? -1 : meses.findIndex(x => x.mes === m.mes);
     const prev = idx > 0 ? meses[idx - 1] : null;
     const pn = prev ? prev.mes_nombre : '';
     const v = m.total_ventas;
     $('kpis').style.display = 'grid';
     $('kpis').innerHTML = [
-      kpi(`Utilidad de operación · ${MESES[m.mes]}`, fmtMM(m.utilidad_operacion),
+      kpi(`Utilidad de operación · ${periodo}`, fmtMM(m.utilidad_operacion),
         `${fmtPct(m.utilidad_operacion_pct)} ${chip(m.utilidad_operacion_pct)} ${varSpan(m.utilidad_operacion, prev && prev.utilidad_operacion, pn)}`, COL.utilidad),
       kpi('Gastos de venta', fmtMM(m.gastos_venta), `comisión + sueldo + gasto + carga · ${pctVentas(m.gastos_venta, v)}`, COL.gasto),
       kpi('Comisiones', fmtMon(m.comisiones), pctVentas(m.comisiones, v), COL.comisiones),
@@ -136,6 +138,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   function topAgentes() {
     // Agentes con ventas, ordenados; máx 15 para legibilidad.
     return (agData.agentes || []).filter(a => a.total_ventas !== 0).slice(0, 15);
+  }
+
+  // Etiquetas fijas sobre las barras (sin hover). segFmt: valor por segmento
+  // (si cabe); totalFmt: total al final de la barra.
+  function makeLabels({ segFmt, totalFmt, minW = 56 }) {
+    return {
+      id: 'lbl_' + Math.random().toString(36).slice(2),
+      afterDatasetsDraw(ch) {
+        const ctx = ch.ctx, ds = ch.data.datasets;
+        ctx.save(); ctx.textBaseline = 'middle';
+        if (segFmt) ds.forEach((d, di) => {
+          ch.getDatasetMeta(di).data.forEach((bar, i) => {
+            const val = Number(d.data[i]) || 0; if (val <= 0) return;
+            if (Math.abs(bar.x - bar.base) < minW) return;
+            ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
+            ctx.fillText(segFmt(val), (bar.x + bar.base) / 2, bar.y);
+          });
+        });
+        if (totalFmt) {
+          const last = ch.getDatasetMeta(ds.length - 1);
+          ch.data.labels.forEach((_l, i) => {
+            const bar = last.data[i]; if (!bar) return;
+            const total = ds.reduce((s, d) => s + (Number(d.data[i]) || 0), 0);
+            ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#0f172a'; ctx.textAlign = 'left';
+            ctx.fillText(totalFmt(total), bar.x + 8, bar.y);
+          });
+        }
+        ctx.restore();
+      },
+    };
   }
 
   async function pintarCharts() {
@@ -171,6 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         scales: { x: { stacked: true, max: 100, ticks: { callback: (v) => v + '%' } }, y: { stacked: true } },
       },
+      plugins: [makeLabels({ segFmt: (v) => v.toFixed(0) + '%', minW: 40 })],
     });
 
     // ── Gráfica absoluta (pesos) ──
@@ -186,12 +219,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        layout: { padding: { right: 70 } },
         plugins: {
           legend: { position: 'top' },
           tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmtMon(c.raw)}` } },
         },
         scales: { x: { stacked: true, ticks: { callback: (v) => '$' + (v / 1e6).toFixed(1) + 'M' } }, y: { stacked: true } },
       },
+      plugins: [makeLabels({ segFmt: (v) => '$' + (v / 1e6).toFixed(1) + 'M', totalFmt: (t) => '$' + (t / 1e6).toFixed(1) + ' M', minW: 56 })],
     });
   }
 
@@ -236,18 +271,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!serie || !serie.meses || !serie.meses.length) {
       sel.innerHTML = ''; return null;
     }
-    const prev = parseInt(sel.value, 10) || (now.getMonth() + 1);
-    sel.innerHTML = serie.meses.map(m => `<option value="${m.mes}">${m.mes_nombre}</option>`).join('');
-    sel.value = serie.meses.some(m => m.mes === prev) ? prev : serie.meses[serie.meses.length - 1].mes;
+    const prevRaw = sel.value;
+    sel.innerHTML = '<option value="acum">Acumulado (año)</option>'
+      + serie.meses.map(m => `<option value="${m.mes}">${m.mes_nombre}</option>`).join('');
+    if (prevRaw === 'acum') { sel.value = 'acum'; }
+    else {
+      const prev = parseInt(prevRaw, 10) || (now.getMonth() + 1);
+      sel.value = serie.meses.some(m => m.mes === prev) ? String(prev) : String(serie.meses[serie.meses.length - 1].mes);
+    }
     return serie;
   }
 
   async function cargarMes(serie) {
     const anio = parseInt($('anio').value, 10);
-    const mes = parseInt($('mes').value, 10);
-    mesData = (serie || {}).meses ? serie.meses.find(m => m.mes === mes) : null;
-    const res = await KoguApi.apiFetch(`${BASE}/dashboard/${anio}/${mes}/agentes`);
-    agData = KoguApi.unwrapData(res);
+    const raw = $('mes').value;
+    if (raw === 'acum') {
+      const res = await KoguApi.apiFetch(`${BASE}/dashboard/${anio}/agentes`);
+      agData = KoguApi.unwrapData(res);
+      mesData = Object.assign({ mes: 0 }, agData.totales); // KPIs YTD
+    } else {
+      const mes = parseInt(raw, 10);
+      mesData = (serie || {}).meses ? serie.meses.find(m => m.mes === mes) : null;
+      const res = await KoguApi.apiFetch(`${BASE}/dashboard/${anio}/${mes}/agentes`);
+      agData = KoguApi.unwrapData(res);
+    }
     $('kpis').style.display = 'grid';
     $('chartPctCard').style.display = $('chartAbsCard').style.display = $('tablaCard').style.display = 'block';
     pintarKpis(); pintarTabla(); await pintarCharts();
