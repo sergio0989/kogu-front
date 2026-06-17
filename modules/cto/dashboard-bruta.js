@@ -47,15 +47,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<span style="background:${map[0]};color:${map[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700">${map[2]}</span>`;
   }
 
+  // Variación vs mes anterior (▲/▼ %). upGood=true → subir es verde.
+  function varSpan(cur, prev, prevName, upGood = true) {
+    if (prev == null || !isFinite(Number(prev)) || Number(prev) === 0) return '';
+    const d = (Number(cur) - Number(prev)) / Number(prev);
+    const up = d >= 0, good = upGood ? up : !up;
+    return `<span style="color:${good ? '#166534' : '#991b1b'};font-weight:600;font-size:11px">${up ? '▲' : '▼'} ${Math.abs(d * 100).toFixed(1)}% vs ${prevName}</span>`;
+  }
+
   $('pageContent').innerHTML = `
 <div class="card">
   <div class="row">
-    <div><div class="eyebrow">Costo · Dirección</div><h2>Utilidad Bruta</h2></div>
+    <div><div class="eyebrow">Costo · Tableros</div><h2 style="margin:2px 0">Utilidad Bruta</h2>
+      <div class="muted" style="font-size:12px">Ventas, costo integrado y utilidad por mes</div></div>
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:100px" value="${now.getFullYear()}"/></div>
       <div><label class="muted" style="font-size:12px">Mes (KPIs)</label>
         <select id="mes" class="input" style="width:130px"></select></div>
       <button class="btn primary" id="refreshBtn">Actualizar</button>
+      <a class="btn ghost" href="/modules/cto/dashboard-operacion.html" style="white-space:nowrap;text-decoration:none">Ut. Operación →</a>
     </div>
   </div>
   <div id="msg" style="display:none;margin-top:14px;padding:12px;border-radius:6px;font-size:13px"></div>
@@ -71,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div class="card" id="tablaCard" style="margin-top:16px;display:none">
   <h3 style="margin:0 0 10px 0">Detalle por mes</h3>
-  <div style="overflow-x:auto"><table class="table" id="tabla" style="width:100%;font-size:13px"></table></div>
+  <div style="overflow-x:auto"><table class="table" id="tabla" style="width:100%;font-size:13px;font-variant-numeric:tabular-nums"></table></div>
 </div>`;
 
   function showMsg(html, tipo) {
@@ -92,17 +102,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function pintarKpis() {
     const mesSel = parseInt($('mes').value, 10);
-    const m = data.meses.find(x => x.mes === mesSel);
+    const idx = data.meses.findIndex(x => x.mes === mesSel);
+    const m = idx >= 0 ? data.meses[idx] : null;
+    const prev = idx > 0 ? data.meses[idx - 1] : null;
     const t = data.totales;
     if (!m) { $('kpis').style.display = 'none'; return; }
+    const pn = prev ? prev.mes_nombre : '';
+    const costoPct = m.total_ventas ? (m.costo_integrado / m.total_ventas) * 100 : 0;
     $('kpis').style.display = 'grid';
     $('kpis').innerHTML = [
-      kpi(`Total ventas · ${m.mes_nombre}`, fmtMon(m.total_ventas), null, '#0d9488'),
-      kpi('Costo integrado', fmtMon(m.costo_integrado), 'MP + factores', '#64748b'),
-      kpi('Utilidad bruta', fmtMon(m.utilidad_bruta), `${fmtPct(m.utilidad_bruta_pct)} ${chip(m.utilidad_bruta_pct)}`, '#8b5cf6'),
-      kpi('Kilos / Facturas', fmtKg(m.kilos), fmtNum(m.recuento_facturas) + ' facturas'),
-      kpi(`Ventas YTD ${data.anio}`, fmtMon(t.total_ventas), `${fmtNum(t.recuento_facturas)} facturas`, '#0d9488'),
-      kpi('Utilidad bruta YTD', fmtMon(t.utilidad_bruta), `${fmtPct(t.utilidad_bruta_pct)} ${chip(t.utilidad_bruta_pct)}`, '#8b5cf6'),
+      kpi(`Ventas · ${m.mes_nombre}`, fmtMM(m.total_ventas), `${fmtMon(m.total_ventas)} ${varSpan(m.total_ventas, prev && prev.total_ventas, pn)}`, '#0d9488'),
+      kpi('Costo integrado', fmtMM(m.costo_integrado), `${costoPct.toFixed(2)} % de ventas`, '#64748b'),
+      kpi('Utilidad bruta', fmtMM(m.utilidad_bruta), `${fmtPct(m.utilidad_bruta_pct)} ${chip(m.utilidad_bruta_pct)} ${varSpan(m.utilidad_bruta, prev && prev.utilidad_bruta, pn)}`, '#8b5cf6'),
+      kpi(`Kilos · Facturas · ${m.mes_nombre}`, fmtKg(m.kilos), fmtNum(m.recuento_facturas) + ' facturas'),
+      kpi(`Ventas YTD ${data.anio}`, fmtMM(t.total_ventas), `${fmtMon(t.total_ventas)} · ${fmtNum(t.recuento_facturas)} fact.`, '#0d9488'),
+      kpi('Utilidad bruta YTD', fmtMM(t.utilidad_bruta), `${fmtPct(t.utilidad_bruta_pct)} ${chip(t.utilidad_bruta_pct)}`, '#8b5cf6'),
     ].join('');
   }
 
@@ -140,8 +154,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th style="padding:6px">Costo integrado</th><th style="padding:6px">Utilidad bruta</th>
       <th style="padding:6px">% Util</th><th style="padding:6px">Nivel</th>
       <th style="padding:6px">Kg</th><th style="padding:6px">Facturas</th></tr></thead>`;
-    const rows = data.meses.map(m => `<tr style="text-align:right;border-bottom:1px solid #f1f5f9">
-      <td style="text-align:left;padding:6px;font-weight:600">${m.mes_nombre}</td>
+    const mesSel = parseInt($('mes').value, 10);
+    const rows = data.meses.map(m => `<tr style="text-align:right;border-bottom:1px solid #f1f5f9${m.mes === mesSel ? ';background:#f1f5f9' : ''}">
+      <td style="text-align:left;padding:6px;font-weight:600">${m.mes_nombre}${m.mes === mesSel ? ' <span style="font-size:9px;color:#0ea5e9;font-weight:700;letter-spacing:.5px">FOCO</span>' : ''}</td>
       <td style="padding:6px">${fmtMon(m.total_ventas)}</td>
       <td style="padding:6px">${fmtMon(m.costo_integrado)}</td>
       <td style="padding:6px;font-weight:600">${fmtMon(m.utilidad_bruta)}</td>

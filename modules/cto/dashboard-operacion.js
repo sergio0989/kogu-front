@@ -34,10 +34,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   let agData = null;      // { anio, mes, agentes, totales }
 
   const fmtMon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtMM = (v) => '$' + (Number(v) / 1e6).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' M';
   const fmtPct = (v) => v == null ? '—' : ((Number(v) || 0) * 100).toFixed(2) + ' %';
   const fmtNum = (v) => (Number(v) || 0).toLocaleString('es-MX');
   const fmtKg = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 }) + ' kg';
   const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  let serieCache = null; // serie anual (para variación vs mes anterior)
+  function chip(pctVal) {
+    const p = Number(pctVal) || 0;
+    const map = p >= 0.20 ? ['#dcfce7', '#166534', 'Correcto'] : p >= 0.10 ? ['#fef9c3', '#854d0e', 'Revisar'] : ['#fee2e2', '#991b1b', 'Alerta'];
+    return `<span style="background:${map[0]};color:${map[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700">${map[2]}</span>`;
+  }
+  function varSpan(cur, prev, prevName, upGood = true) {
+    if (prev == null || !isFinite(Number(prev)) || Number(prev) === 0) return '';
+    const d = (Number(cur) - Number(prev)) / Number(prev);
+    const up = d >= 0, good = upGood ? up : !up;
+    return `<span style="color:${good ? '#166534' : '#991b1b'};font-weight:600;font-size:11px">${up ? '▲' : '▼'} ${Math.abs(d * 100).toFixed(1)}% vs ${prevName}</span>`;
+  }
+  const pctVentas = (parte, ventas) => ventas ? ((Number(parte) / Number(ventas)) * 100).toFixed(2) + ' % de ventas' : '';
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -51,12 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('pageContent').innerHTML = `
 <div class="card">
   <div class="row">
-    <div><div class="eyebrow">Costo · Dirección</div><h2>Utilidad de Operación</h2></div>
+    <div><div class="eyebrow">Costo · Tableros</div><h2 style="margin:2px 0">Utilidad de Operación</h2>
+      <div class="muted" style="font-size:12px">Gastos de venta por agente y utilidad resultante</div></div>
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:100px" value="${now.getFullYear()}"/></div>
       <div><label class="muted" style="font-size:12px">Mes</label>
         <select id="mes" class="input" style="width:130px"></select></div>
       <button class="btn primary" id="refreshBtn">Actualizar</button>
+      <a class="btn ghost" href="/modules/cto/dashboard-bruta.html" style="white-space:nowrap;text-decoration:none">← Ut. Bruta</a>
     </div>
   </div>
   <div id="msg" style="display:none;margin-top:14px;padding:12px;border-radius:6px;font-size:13px"></div>
@@ -77,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div class="card" id="tablaCard" style="margin-top:16px;display:none">
   <h3 style="margin:0 0 10px 0">Detalle por agente</h3>
-  <div style="overflow-x:auto"><table class="table" id="tabla" style="width:100%;font-size:13px"></table></div>
+  <div style="overflow-x:auto"><table class="table" id="tabla" style="width:100%;font-size:13px;font-variant-numeric:tabular-nums"></table></div>
 </div>`;
 
   function showMsg(html, tipo) {
@@ -97,16 +113,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function pintarKpis() {
-    const m = mesData, t = agData ? agData.totales : null;
+    const m = mesData;
     if (!m) { $('kpis').style.display = 'none'; return; }
+    // Mes anterior (para variación), desde la serie anual.
+    const meses = (serieCache && serieCache.meses) || [];
+    const idx = meses.findIndex(x => x.mes === m.mes);
+    const prev = idx > 0 ? meses[idx - 1] : null;
+    const pn = prev ? prev.mes_nombre : '';
+    const v = m.total_ventas;
     $('kpis').style.display = 'grid';
     $('kpis').innerHTML = [
-      kpi(`Gastos de venta · ${MESES[m.mes]}`, fmtMon(m.gastos_venta), 'comisión + sueldo + gasto + carga', COL.utilidad),
-      kpi('Comisiones', fmtMon(m.comisiones), null, COL.comisiones),
-      kpi('Sueldo', fmtMon(m.sueldo), null, COL.sueldo),
-      kpi('Gastos', fmtMon(m.gasto), null, COL.gasto),
-      kpi('Carga social', fmtMon(m.carga), null, COL.carga),
-      kpi('Utilidad de operación', fmtMon(m.utilidad_operacion), fmtPct(m.utilidad_operacion_pct), COL.utilidad),
+      kpi(`Utilidad de operación · ${MESES[m.mes]}`, fmtMM(m.utilidad_operacion),
+        `${fmtPct(m.utilidad_operacion_pct)} ${chip(m.utilidad_operacion_pct)} ${varSpan(m.utilidad_operacion, prev && prev.utilidad_operacion, pn)}`, COL.utilidad),
+      kpi('Gastos de venta', fmtMM(m.gastos_venta), `comisión + sueldo + gasto + carga · ${pctVentas(m.gastos_venta, v)}`, COL.gasto),
+      kpi('Comisiones', fmtMon(m.comisiones), pctVentas(m.comisiones, v), COL.comisiones),
+      kpi('Sueldo', fmtMon(m.sueldo), pctVentas(m.sueldo, v), COL.sueldo),
+      kpi('Gastos', fmtMon(m.gasto), pctVentas(m.gasto, v), COL.gasto),
+      kpi('Carga social', fmtMon(m.carga), pctVentas(m.carga, v), COL.carga),
     ].join('');
   }
 
@@ -230,7 +253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     pintarKpis(); pintarTabla(); await pintarCharts();
   }
 
-  let serieCache = null;
   async function cargar(reload = true) {
     const anio = parseInt($('anio').value, 10);
     if (!anio) return KoguApi.toast('Indica el año.', 'error');
