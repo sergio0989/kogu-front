@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'producciones',       label: 'Producciones (historial)',           ep: '/cargas/producciones',        periodo:false, modo:'agregar', hojaSug:'Sheet1' },
     { code: 'costos_exportacion', label: 'Costos de exportación (Int_FacExpo)', ep: '/cargas/costos-exportacion',  periodo:false, modo:true,  hojaSug:'Sheet1' },
     { code: 'gastos_venta',       label: 'Gastos de venta por agente',         ep: '/cargas/gastos-venta',        periodo:false, modo:false, hojaSug:'AgenteCosto', soloAnio:true },
-    { code: 'inventario_sistema', label: 'Inventario del sistema',             ep: '/cargas/inventario-sistema',  periodo:true,  modo:true,  hojaSug:null },
-    { code: 'inventario_conteo',  label: 'Conteo físico',                      ep: '/cargas/inventario-conteo',   periodo:true,  modo:true,  hojaSug:null },
+    { code: 'inventario_sistema', label: 'Inventario del sistema',             ep: '/cargas/inventario-sistema',  periodo:true,  modo:false, hojaSug:null },
+    { code: 'inventario_conteo',  label: 'Conteo físico',                      ep: '/cargas/inventario-conteo',   periodo:true,  modo:false, hojaSug:null },
     { code: 'movimientos',        label: 'Movimientos / kardex (mov_ade)',     ep: '/cargas/movimientos',         periodo:false, modo:'agregar', hojaSug:null },
   ];
 
