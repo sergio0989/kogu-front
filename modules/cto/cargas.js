@@ -107,7 +107,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div class="card" style="margin-top:16px">
-  <h3 style="margin:0 0 10px 0">Cargas recientes</h3>
+  <h3 style="margin:0 0 12px 0">Cargas recientes</h3>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+    <div>
+      <label class="muted" style="font-size:11px;display:block;margin-bottom:4px">Fuente</label>
+      <select class="select" id="fFuente" style="min-width:220px">
+        <option value="">Todas</option>
+        ${FUENTES.map(f => `<option value="${f.code}">${f.label}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label class="muted" style="font-size:11px;display:block;margin-bottom:4px">Estado</label>
+      <select class="select" id="fEstado" style="min-width:150px">
+        <option value="">Todos</option>
+        <option value="procesada">procesada</option>
+        <option value="error">error</option>
+        <option value="cargada">cargada</option>
+      </select>
+    </div>
+    <div>
+      <label class="muted" style="font-size:11px;display:block;margin-bottom:4px">Por página</label>
+      <select class="select" id="fLimit" style="min-width:90px">
+        <option value="10">10</option>
+        <option value="30" selected>30</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+    </div>
+    <button class="btn ghost" id="fLimpiar" style="margin-left:auto">Limpiar filtros</button>
+  </div>
+
   <div class="table-wrap">
     <table>
       <thead><tr>
@@ -116,6 +146,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       </tr></thead>
       <tbody id="cargasRows"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">—</td></tr></tbody>
     </table>
+  </div>
+
+  <div class="row" style="margin-top:12px;align-items:center">
+    <div class="muted" style="font-size:12px" id="cargasInfo">—</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost" id="prevBtn" disabled>← Anterior</button>
+      <button class="btn ghost" id="nextBtn" disabled>Siguiente →</button>
+    </div>
   </div>
 </div>`;
 
@@ -219,26 +257,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally { $('cargarBtn').disabled = false; }
   }
 
+  // Estado de la tabla de historial (filtros + paginación).
+  const cargasState = { offset: 0, limit: 30, fuente: '', estado: '', total: null };
+
+  function renderCargas(rows) {
+    const tb = $('cargasRows');
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">'
+        + (cargasState.offset || cargasState.fuente || cargasState.estado ? 'Sin resultados con estos filtros.' : 'Sin cargas todavía.')
+        + '</td></tr>';
+      return;
+    }
+    tb.innerHTML = rows.map(x => {
+      const periodo = (x.anio && x.mes) ? `${x.anio}-${String(x.mes).padStart(2, '0')}` : (x.anio || '—');
+      const col = x.status === 'procesada' ? '#16a34a' : x.status === 'error' ? '#dc2626' : '#f59e0b';
+      return `<tr>
+        <td style="font-size:12px">${x.created_at ? new Date(x.created_at).toLocaleString() : '—'}</td>
+        <td style="font-size:12px">${escapeHtml(x.tipo_fuente || '—')}</td>
+        <td style="font-size:12px">${periodo}</td>
+        <td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(x.archivo_nombre || '—')}</td>
+        <td style="text-align:center"><span class="chip" style="background:${col}22;color:${col};font-size:11px">${escapeHtml(x.status)}</span></td>
+        <td style="text-align:right;font-size:12px">${x.renglones_ok ?? 0} / ${x.renglones_error ?? 0}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPager(shown) {
+    const { offset, limit, total } = cargasState;
+    const info = $('cargasInfo');
+    let haySiguiente;
+    if (total != null) {
+      const desde = total ? offset + 1 : 0;
+      const hasta = offset + shown;
+      info.textContent = `Mostrando ${desde}–${hasta} de ${total}`;
+      haySiguiente = offset + limit < total;
+    } else {
+      // Backend sin total (compat): paginación simple por tamaño de página.
+      info.textContent = `Página ${Math.floor(offset / limit) + 1}`;
+      haySiguiente = shown === limit;
+    }
+    $('prevBtn').disabled = offset === 0;
+    $('nextBtn').disabled = !haySiguiente;
+  }
+
   async function loadCargas() {
     try {
-      const r = await KoguApi.apiFetch(`${BASE}/cargas?limit=30`);
-      const rows = KoguApi.unwrapData(r) || [];
-      const tb = $('cargasRows');
-      if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Sin cargas todavía.</td></tr>'; return; }
-      tb.innerHTML = rows.map(x => {
-        const periodo = (x.anio && x.mes) ? `${x.anio}-${String(x.mes).padStart(2, '0')}` : (x.anio || '—');
-        const col = x.status === 'procesada' ? '#16a34a' : x.status === 'error' ? '#dc2626' : '#f59e0b';
-        return `<tr>
-          <td style="font-size:12px">${x.created_at ? new Date(x.created_at).toLocaleString() : '—'}</td>
-          <td style="font-size:12px">${escapeHtml(x.tipo_fuente || '—')}</td>
-          <td style="font-size:12px">${periodo}</td>
-          <td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(x.archivo_nombre || '—')}</td>
-          <td style="text-align:center"><span class="chip" style="background:${col}22;color:${col};font-size:11px">${escapeHtml(x.status)}</span></td>
-          <td style="text-align:right;font-size:12px">${x.renglones_ok ?? 0} / ${x.renglones_error ?? 0}</td>
-        </tr>`;
-      }).join('');
+      const p = new URLSearchParams();
+      p.set('limit', cargasState.limit);
+      p.set('offset', cargasState.offset);
+      if (cargasState.fuente) p.set('tipo_fuente', cargasState.fuente);
+      if (cargasState.estado) p.set('status', cargasState.estado);
+      const r = await KoguApi.apiFetch(`${BASE}/cargas?${p.toString()}`);
+      const payload = KoguApi.unwrapData(r);
+      // Compat: backend nuevo devuelve {rows,total}; el viejo, un arreglo.
+      const rows = Array.isArray(payload) ? payload : (payload?.rows || []);
+      cargasState.total = Array.isArray(payload) ? null : (payload?.total ?? null);
+      renderCargas(rows);
+      renderPager(rows.length);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
+
+  function reloadDesdeInicio() { cargasState.offset = 0; loadCargas(); }
 
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
@@ -246,7 +325,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('archivo').addEventListener('change', onFile);
   $('cargarBtn').addEventListener('click', cargar);
   $('refreshBtn').addEventListener('click', loadCargas);
-  KoguShell.subscribeEmpresaActivaChange(() => loadCargas());
+
+  // Filtros + paginación del historial.
+  $('fFuente').addEventListener('change', () => { cargasState.fuente = $('fFuente').value; reloadDesdeInicio(); });
+  $('fEstado').addEventListener('change', () => { cargasState.estado = $('fEstado').value; reloadDesdeInicio(); });
+  $('fLimit').addEventListener('change', () => { cargasState.limit = parseInt($('fLimit').value, 10) || 30; reloadDesdeInicio(); });
+  $('fLimpiar').addEventListener('click', () => {
+    cargasState.fuente = ''; cargasState.estado = ''; cargasState.limit = 30;
+    $('fFuente').value = ''; $('fEstado').value = ''; $('fLimit').value = '30';
+    reloadDesdeInicio();
+  });
+  $('prevBtn').addEventListener('click', () => { cargasState.offset = Math.max(0, cargasState.offset - cargasState.limit); loadCargas(); });
+  $('nextBtn').addEventListener('click', () => { cargasState.offset += cargasState.limit; loadCargas(); });
+  KoguShell.subscribeEmpresaActivaChange(() => reloadDesdeInicio());
 
   syncForm();
   loadCargas();
