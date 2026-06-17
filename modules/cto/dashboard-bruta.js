@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card" id="chartCard" style="margin-top:16px;display:none">
   <div class="row"><h3 style="margin:0">Costo integrado + Utilidad bruta por mes</h3>
     <span class="muted" style="font-size:12px">Cada barra suma el total de ventas del mes</span></div>
-  <div style="position:relative;height:360px;margin-top:12px"><canvas id="chartMeses"></canvas></div>
+  <div style="position:relative;height:340px;margin-top:12px;max-width:880px"><canvas id="chartMeses"></canvas></div>
 </div>
 
 <div class="card" id="tablaCard" style="margin-top:16px;display:none">
@@ -130,8 +130,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       data: {
         labels,
         datasets: [
-          { label: 'Costo integrado', data: data.meses.map(m => m.costo_integrado), backgroundColor: '#94a3b8', stack: 's' },
-          { label: 'Utilidad bruta', data: data.meses.map(m => m.utilidad_bruta), backgroundColor: '#0d9488', stack: 's' },
+          { label: 'Costo integrado', data: data.meses.map(m => m.costo_integrado), backgroundColor: '#94a3b8', stack: 's', maxBarThickness: 34 },
+          { label: 'Utilidad bruta', data: data.meses.map(m => m.utilidad_bruta), backgroundColor: '#0d9488', stack: 's', maxBarThickness: 34 },
         ],
       },
       options: {
