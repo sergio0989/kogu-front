@@ -153,8 +153,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           const val = Number(d.data[i]) || 0;
           if (val <= 0) return;
           const w = Math.abs(bar.x - bar.base);
-          if (w < 52) return; // no cabe → no etiquetar el segmento
-          ctx.font = '11px sans-serif';
+          if (w < 60) return; // no cabe → no etiquetar el segmento
+          ctx.font = 'bold 14px sans-serif';
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'center';
           ctx.fillText('$' + (val / 1e6).toFixed(1) + 'M', (bar.x + bar.base) / 2, bar.y);
@@ -165,10 +165,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       ch.data.labels.forEach((_lbl, i) => {
         const bar = last.data[i]; if (!bar) return;
         const total = ds.reduce((s, d) => s + (Number(d.data[i]) || 0), 0);
-        ctx.font = 'bold 12px sans-serif';
+        ctx.font = 'bold 16px sans-serif';
         ctx.fillStyle = '#0f172a';
         ctx.textAlign = 'left';
-        ctx.fillText('$' + (total / 1e6).toFixed(1) + ' M', bar.x + 6, bar.y);
+        ctx.fillText('$' + (total / 1e6).toFixed(1) + ' M', bar.x + 8, bar.y);
       });
       ctx.restore();
     },
@@ -190,14 +190,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        layout: { padding: { right: 64 } },
+        layout: { padding: { right: 86 } },
         plugins: {
-          legend: { position: 'top' },
+          legend: { position: 'top', labels: { font: { size: 13 } } },
           tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmtMon(c.raw)}` } },
         },
         scales: {
-          x: { stacked: true, ticks: { callback: (v) => '$' + (v / 1e6).toFixed(0) + 'M' } },
-          y: { stacked: true },
+          x: { stacked: true, ticks: { font: { size: 13 }, callback: (v) => '$' + (v / 1e6).toFixed(0) + 'M' } },
+          y: { stacked: true, ticks: { font: { size: 13 } } },
         },
       },
       plugins: [valueLabels],
