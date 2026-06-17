@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <select class="select" id="hoja"><option value="">— selecciona archivo —</option></select>
       </div>
       <div>
-        <label class="muted" style="font-size:12px">Fila de encabezado</label>
+        <label class="muted" style="font-size:12px;display:block;margin-bottom:4px">Fila de encabezado</label>
         <input type="number" id="headerRow" class="input" value="1" min="1" style="width:120px"/>
       </div>
     </div>
