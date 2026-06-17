@@ -136,6 +136,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     ].join('');
   }
 
+  // Etiquetas de importe fijas sobre las barras (sin hover):
+  //  - valor de cada segmento centrado (si cabe), en blanco;
+  //  - total al final de la barra, en negrita oscuro.
+  const valueLabels = {
+    id: 'valueLabels',
+    afterDatasetsDraw(ch) {
+      const ctx = ch.ctx;
+      const ds = ch.data.datasets;
+      ctx.save();
+      ctx.textBaseline = 'middle';
+      // Segmentos
+      ds.forEach((d, di) => {
+        const meta = ch.getDatasetMeta(di);
+        meta.data.forEach((bar, i) => {
+          const val = Number(d.data[i]) || 0;
+          if (val <= 0) return;
+          const w = Math.abs(bar.x - bar.base);
+          if (w < 52) return; // no cabe → no etiquetar el segmento
+          ctx.font = '11px sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.fillText('$' + (val / 1e6).toFixed(1) + 'M', (bar.x + bar.base) / 2, bar.y);
+        });
+      });
+      // Total al final de cada barra
+      const last = ch.getDatasetMeta(ds.length - 1);
+      ch.data.labels.forEach((_lbl, i) => {
+        const bar = last.data[i]; if (!bar) return;
+        const total = ds.reduce((s, d) => s + (Number(d.data[i]) || 0), 0);
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'left';
+        ctx.fillText('$' + (total / 1e6).toFixed(1) + ' M', bar.x + 6, bar.y);
+      });
+      ctx.restore();
+    },
+  };
+
   async function pintarChart() {
     try { await loadScript(CHART_SRC); } catch (_e) { return; }
     const Chart = window.Chart;
@@ -152,6 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        layout: { padding: { right: 64 } },
         plugins: {
           legend: { position: 'top' },
           tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmtMon(c.raw)}` } },
@@ -161,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           y: { stacked: true },
         },
       },
+      plugins: [valueLabels],
     });
   }
 
