@@ -32,6 +32,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = (id) => document.getElementById(id);
   let workbook = null;
 
+  // Encabezado de paso/bloque (número + título + subtítulo).
+  const stepHead = (n, t, s) => `
+    <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px">
+      <span style="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:#ecfeff;color:var(--primary);font-size:13px;font-weight:800;border:1px solid #cffafe">${n}</span>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);line-height:1.15">${t}</div>
+        <div class="muted" style="font-size:11px">${s}</div>
+      </div>
+    </div>`;
+
   const c = document.getElementById('pageContent');
   c.innerHTML = `
 <div class="card">
@@ -40,45 +50,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     <button class="btn ghost" id="refreshBtn">Actualizar historial</button>
   </div>
 
-  <div class="grid-2" style="margin-top:14px;gap:12px">
-    <div>
-      <label class="muted" style="font-size:12px">Fuente de datos</label>
-      <select class="select" id="fuente">
-        ${FUENTES.map(f => `<option value="${f.code}">${f.label}</option>`).join('')}
+  <!-- Bloque 1 · Origen -->
+  <div style="margin-top:18px">
+    ${stepHead(1, 'Origen', 'Qué vas a importar y desde qué archivo')}
+    <div class="grid-2" style="gap:12px">
+      <div>
+        <label class="muted" style="font-size:12px">Fuente de datos</label>
+        <select class="select" id="fuente">
+          ${FUENTES.map(f => `<option value="${f.code}">${f.label}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="muted" style="font-size:12px">Archivo Excel (.xlsx / .xls)</label>
+        <input type="file" id="archivo" accept=".xlsx,.xls" class="input"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bloque 2 · Lectura del archivo -->
+  <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+    ${stepHead(2, 'Lectura del archivo', 'Hoja y fila donde empiezan los encabezados')}
+    <div class="grid-2" style="gap:12px">
+      <div>
+        <label class="muted" style="font-size:12px">Hoja</label>
+        <select class="select" id="hoja"><option value="">— selecciona archivo —</option></select>
+      </div>
+      <div>
+        <label class="muted" style="font-size:12px">Fila de encabezado</label>
+        <input type="number" id="headerRow" class="input" value="1" min="1" style="width:120px"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bloque 3 · Período de la carga -->
+  <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+    ${stepHead(3, 'Período de la carga', 'Año y mes asociados a esta carga')}
+    <div class="grid-2" id="periodoBox" style="gap:12px">
+      <div><label class="muted" style="font-size:12px" id="anioLbl">Año del corte</label><input type="number" id="anio" class="input" placeholder="2026"/></div>
+      <div id="mesBox"><label class="muted" style="font-size:12px" id="mesLbl">Mes del corte</label><input type="number" id="mes" class="input" placeholder="6" min="1" max="12"/></div>
+    </div>
+    <div id="periodoHint" class="muted" style="font-size:11px;margin-top:6px"></div>
+    <div id="modoBox" style="margin-top:14px;display:none">
+      <label class="muted" style="font-size:12px">Modo de escritura</label>
+      <select class="select" id="modo" style="max-width:260px">
+        <option value="reemplazar">Reemplazar periodo</option>
+        <option value="agregar">Agregar (no destructivo)</option>
       </select>
     </div>
-    <div>
-      <label class="muted" style="font-size:12px">Archivo Excel (.xlsx / .xls)</label>
-      <input type="file" id="archivo" accept=".xlsx,.xls" class="input"/>
-    </div>
   </div>
 
-  <div class="grid-2" style="margin-top:12px;gap:12px">
-    <div>
-      <label class="muted" style="font-size:12px">Hoja</label>
-      <select class="select" id="hoja"><option value="">— selecciona archivo —</option></select>
-    </div>
-    <div>
-      <label class="muted" style="font-size:12px">Fila de encabezado</label>
-      <input type="number" id="headerRow" class="input" value="1" min="1" style="width:120px"/>
-    </div>
-  </div>
-
-  <div class="grid-2" id="periodoBox" style="margin-top:12px;gap:12px">
-    <div><label class="muted" style="font-size:12px" id="anioLbl">Año del corte</label><input type="number" id="anio" class="input" placeholder="2026"/></div>
-    <div id="mesBox"><label class="muted" style="font-size:12px" id="mesLbl">Mes del corte</label><input type="number" id="mes" class="input" placeholder="4" min="1" max="12"/></div>
-  </div>
-  <div id="periodoHint" class="muted" style="font-size:11px;margin-top:4px"></div>
-
-  <div id="modoBox" style="margin-top:12px;display:none">
-    <label class="muted" style="font-size:12px">Modo</label>
-    <select class="select" id="modo" style="max-width:240px">
-      <option value="reemplazar">Reemplazar periodo</option>
-      <option value="agregar">Agregar (no destructivo)</option>
-    </select>
-  </div>
-
-  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
     <button class="btn primary" id="cargarBtn">📥 Cargar</button>
   </div>
 
