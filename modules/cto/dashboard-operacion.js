@@ -80,15 +80,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div id="kpis" class="grid-3" style="margin-top:16px;gap:12px;display:none"></div>
 
-<div class="card" id="chartPctCard" style="margin-top:16px;display:none">
-  <div class="row"><h3 style="margin:0">Composición por agente (% de ventas)</h3>
-    <span class="muted" style="font-size:12px">Costo + gasto de venta + utilidad = 100%</span></div>
-  <div style="position:relative;height:420px;margin-top:12px;max-width:880px"><canvas id="canvasPct"></canvas></div>
-</div>
-
-<div class="card" id="chartAbsCard" style="margin-top:16px;display:none">
-  <h3 style="margin:0 0 12px 0">Composición por agente (pesos)</h3>
-  <div style="position:relative;height:420px;max-width:880px"><canvas id="canvasAbs"></canvas></div>
+<div id="chartsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:16px;margin-top:16px;align-items:start">
+  <div class="card" id="chartPctCard" style="display:none;margin:0">
+    <h3 style="margin:0">Composición por agente (% de ventas)</h3>
+    <div class="muted" style="font-size:12px">Costo + gasto de venta + utilidad = 100%</div>
+    <div style="position:relative;height:520px;margin-top:12px"><canvas id="canvasPct"></canvas></div>
+  </div>
+  <div class="card" id="chartAbsCard" style="display:none;margin:0">
+    <h3 style="margin:0">Composición por agente (pesos)</h3>
+    <div class="muted" style="font-size:12px">Mismas series en valor absoluto</div>
+    <div style="position:relative;height:520px;margin-top:12px"><canvas id="canvasAbs"></canvas></div>
+  </div>
 </div>
 
 <div class="card" id="tablaCard" style="margin-top:16px;display:none">
