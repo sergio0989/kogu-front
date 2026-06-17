@@ -64,10 +64,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
-  <div class="grid-2" id="periodoBox" style="margin-top:12px;gap:12px;display:none">
+  <div class="grid-2" id="periodoBox" style="margin-top:12px;gap:12px">
     <div><label class="muted" style="font-size:12px" id="anioLbl">Año del corte</label><input type="number" id="anio" class="input" placeholder="2026"/></div>
-    <div id="mesBox"><label class="muted" style="font-size:12px">Mes del corte</label><input type="number" id="mes" class="input" placeholder="4" min="1" max="12"/></div>
+    <div id="mesBox"><label class="muted" style="font-size:12px" id="mesLbl">Mes del corte</label><input type="number" id="mes" class="input" placeholder="4" min="1" max="12"/></div>
   </div>
+  <div id="periodoHint" class="muted" style="font-size:11px;margin-top:4px"></div>
 
   <div id="modoBox" style="margin-top:12px;display:none">
     <label class="muted" style="font-size:12px">Modo</label>
@@ -101,9 +102,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function syncForm() {
     const f = fuenteActual();
-    $('periodoBox').style.display = (f.periodo || f.soloAnio) ? 'grid' : 'none';
-    $('mesBox').style.display = f.soloAnio ? 'none' : '';
-    $('anioLbl').textContent = f.soloAnio ? 'Año (el mes sale de cada fila)' : 'Año del corte';
+    // El período se captura SIEMPRE. En cortes (inventario/conteo) define el
+    // renglón; en acumuladas es el "período de cierre" (solo trazabilidad +
+    // reconciliación) y cada fila conserva el suyo.
+    const esCorte = !!f.periodo;
+    $('periodoBox').style.display = 'grid';
+    $('mesBox').style.display = '';
+    $('anioLbl').textContent = esCorte ? 'Año del corte' : 'Año de cierre';
+    $('mesLbl').textContent = esCorte ? 'Mes del corte' : 'Mes de cierre';
+    $('periodoHint').textContent = esCorte
+      ? 'Define el período del corte (sustituye al anterior de ese mes).'
+      : 'Etiqueta la carga para trazabilidad; cada renglón conserva su propio período. Se avisa si el archivo trae meses posteriores al cierre.';
+    // Prefill con período en curso si está vacío.
+    const now = new Date();
+    if (!$('anio').value) $('anio').value = now.getFullYear();
+    if (!$('mes').value) $('mes').value = now.getMonth() + 1;
     $('modoBox').style.display = f.modo ? 'block' : 'none';
     if (f.modo === 'agregar') $('modo').value = 'agregar';
     // sugerir hoja
@@ -146,15 +159,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     rows = rows.filter(r => Object.values(r).some(v => v !== null && v !== '' && v !== undefined));
     if (!rows.length) return KoguApi.toast('La hoja no tiene filas de datos.', 'error');
 
-    const body = { rows, archivo_nombre: file.name };
-    if (f.periodo) {
-      const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
-      if (!anio || !mes) return KoguApi.toast('Esta fuente requiere año y mes del corte.', 'error');
-      body.anio = anio; body.mes = mes;
-    }
+    // Período SIEMPRE: corte (inventario/conteo) o cierre (acumuladas).
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    if (!anio || !mes) return KoguApi.toast('Indica el año y el mes (de corte o de cierre).', 'error');
     if (f.soloAnio) {
-      const anio = parseInt($('anio').value, 10);
-      if (!anio) return KoguApi.toast('Indica el año (el mes se toma de cada fila).', 'error');
       // Descartar renglones separadores (sin ID de agente).
       rows = rows.filter(r => (r.ID ?? r.Identificador ?? r.agente_ref ?? r.cve_agente) != null
                               && (r.Mes ?? r.mes) != null && String(r.Mes ?? r.mes).trim() !== '_');
@@ -162,6 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       rows.forEach(r => { if (r.year == null && r.Year == null && r.anio == null) r.year = anio; });
       if (!rows.length) return KoguApi.toast('No hay filas de agente válidas en la hoja.', 'error');
     }
+    const body = { rows, archivo_nombre: file.name, anio, mes };
     if (f.modo) body.modo = $('modo').value;
 
     const res$ = $('result');
@@ -174,11 +183,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const r = await KoguApi.apiFetch(`${BASE}${f.ep}`, { method: 'POST', body: JSON.stringify(body) });
       const d = KoguApi.unwrapData(r) || {};
       const errores = d.errores ?? 0;
-      res$.style.cssText = `display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:${errores ? '#fef9c3' : '#dcfce7'};color:${errores ? '#854d0e' : '#166534'}`;
-      res$.innerHTML = `<strong>${errores ? '⚠ Carga con avisos' : '✅ Carga completada'}</strong><br>
+      const aviso = d.aviso || null;             // reconciliación de período (no bloqueante)
+      const warn = errores || aviso;
+      res$.style.cssText = `display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:${warn ? '#fef9c3' : '#dcfce7'};color:${warn ? '#854d0e' : '#166534'}`;
+      res$.innerHTML = `<strong>${warn ? '⚠ Carga con avisos' : '✅ Carga completada'}</strong><br>
         ${d.ok ?? '?'} filas OK · ${errores} con error · estado: ${d.carga?.status ?? '—'}
-        ${errores && d.detalle?.length ? `<br><span style="font-size:11px">Primer error (fila ${d.detalle[0].fila}): ${escapeHtml(d.detalle[0].error)}</span>` : ''}`;
-      KoguApi.toast(errores ? 'Carga con avisos' : 'Carga completada', errores ? 'warning' : 'success');
+        ${errores && d.detalle?.length ? `<br><span style="font-size:11px">Primer error (fila ${d.detalle[0].fila}): ${escapeHtml(d.detalle[0].error)}</span>` : ''}
+        ${aviso ? `<br><span style="font-size:12px">🔎 ${escapeHtml(aviso)}</span>` : ''}`;
+      KoguApi.toast(warn ? 'Carga con avisos' : 'Carga completada', warn ? 'warning' : 'success');
       loadCargas();
     } catch (e) {
       res$.style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#fee2e2;color:#991b1b';
