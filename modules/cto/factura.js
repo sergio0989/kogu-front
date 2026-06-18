@@ -143,6 +143,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px;text-align:right;font-size:12px;color:${difCol};font-weight:600">${difTxt}</td>
         <td style="padding:6px;text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}<div style="font-size:10px;color:#64748b">${fmtPct(r.utilidad_bruta_pct)}</div></td>
         <td style="padding:6px;text-align:center"><input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/></td>
+        <td style="padding:6px;text-align:center" title="Muestra facturada (se excluye de rentabilidad)"><input type="checkbox" data-mtra="${r.venta_id}" ${r.es_muestra ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/></td>
         <td style="padding:6px;min-width:220px"><textarea data-nota="${r.venta_id}" rows="2" class="input" style="width:100%;font-size:12px;resize:vertical" placeholder="Nota…">${esc(r.nota || '')}</textarea></td>
       </tr>`;
     }).join('');
@@ -153,9 +154,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           <th style="padding:6px">Kg</th><th style="padding:6px">SubTotal</th>
           <th style="padding:6px">Costo u. sist.</th><th style="padding:6px">Costo u. ref.</th>
           <th style="padding:6px">Dif. %</th><th style="padding:6px">Utilidad</th>
-          <th style="padding:6px;text-align:center">Rev.</th><th style="text-align:left;padding:6px">Nota</th>
+          <th style="padding:6px;text-align:center">Rev.</th><th style="padding:6px;text-align:center" title="Muestra facturada">Mtra.</th><th style="text-align:left;padding:6px">Nota</th>
         </tr></thead><tbody>${filas}</tbody></table></div>`;
     $('ficha').querySelectorAll('input[data-rev]').forEach(cb => cb.addEventListener('change', () => guardar(cb.dataset.rev, { revisado: cb.checked })));
+    $('ficha').querySelectorAll('input[data-mtra]').forEach(cb => cb.addEventListener('change', () => guardar(cb.dataset.mtra, { es_muestra: cb.checked })));
     $('ficha').querySelectorAll('textarea[data-nota]').forEach(ta => ta.addEventListener('change', () => guardar(ta.dataset.nota, { nota: ta.value })));
   }
 

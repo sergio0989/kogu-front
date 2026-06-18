@@ -60,6 +60,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="true">✓ Revisados</option>
         <option value="false">Pendientes</option>
       </select>
+      <select class="select" id="fMuestra" style="width:auto">
+        <option value="">Muestra: todas</option>
+        <option value="true">Solo muestras</option>
+        <option value="false">Sin muestras</option>
+      </select>
       <label><input type="checkbox" id="soloProd"/> Solo producidos (B)</label>
       <label><input type="checkbox" id="soloExpo"/> Solo con exportación (C)</label>
       <label><input type="checkbox" id="soloManual"/> Solo corregidos</label>
@@ -79,9 +84,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="costo_int" style="text-align:right;cursor:pointer">Costo Int</th><th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
         <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
         <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
+        <th data-sort="muestra" style="text-align:center;cursor:pointer" title="Muestra facturada (precio no representativo, costo real). Se excluye de rentabilidad.">Mtra.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="21" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="22" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -132,6 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('tipoCli').value) p.set('tipo_cliente', $('tipoCli').value);
     if ($('fuente').value) p.set('fuente', $('fuente').value);
     if ($('revision').value) p.set('revisado', $('revision').value);
+    if ($('fMuestra').value) p.set('muestra', $('fMuestra').value);
     p.set('sort', sortBy); p.set('dir', sortDir);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/bandeja?${p}`);
@@ -146,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="21" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="22" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       // Dif. %: costo usado (Costo MP u.) vs referencia (producción/compra).
@@ -157,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tc = Number(r.tip_cam) || 0;
       const pvUsd = (pvMxn != null && tc > 1) ? pvMxn / tc : null;
       return `
-      <tr${r.costo_manual ? ' style="background:#fef9c3"' : ''}>
+      <tr style="${r.costo_manual ? 'background:#fef9c3' : (r.es_muestra ? 'background:#eef2ff' : '')}">
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
         <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}${r.es_interno ? ' <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:1px 4px">interno</span>' : ''}</td>
         <td style="font-size:12px"><strong>${esc(r.cve_prod)}</strong></td>
@@ -179,6 +186,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:center" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
           <input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/>
         </td>
+        <td style="text-align:center" title="Muestra facturada (se excluye de rentabilidad)">
+          <input type="checkbox" data-mtra="${r.venta_id}" ${r.es_muestra ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/>
+        </td>
         <td style="text-align:right;white-space:nowrap">
           <button class="btn ghost" data-nota="${r.venta_id}" title="${r.nota ? esc(r.nota) : 'Agregar nota'}" style="padding:3px 7px;font-size:13px">${r.nota ? '📝' : '🗒️'}</button>
           ${r.costo_manual
@@ -190,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tb.querySelectorAll('button[data-corr]').forEach(btn => btn.addEventListener('click', () => modal(btn.dataset)));
     tb.querySelectorAll('button[data-quitar]').forEach(btn => btn.addEventListener('click', () => quitar(btn.dataset.quitar)));
     tb.querySelectorAll('input[data-rev]').forEach(cb => cb.addEventListener('change', () => toggleRevisado(cb.dataset.rev, cb.checked)));
+    tb.querySelectorAll('input[data-mtra]').forEach(cb => cb.addEventListener('change', () => toggleMuestra(cb.dataset.mtra, cb.checked)));
     tb.querySelectorAll('button[data-nota]').forEach(btn => btn.addEventListener('click', () => {
       const r = rows.find(x => String(x.venta_id) === btn.dataset.nota); notaModal(btn.dataset.nota, r ? (r.nota || '') : '');
     }));
@@ -199,6 +210,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await KoguApi.apiFetch(`${BASE}/revision`, { method: 'POST', body: JSON.stringify({ venta_id: ventaId, revisado: checked }) });
       KoguApi.toast(checked ? 'Marcado como revisado' : 'Marcado como pendiente', 'success');
+    } catch (e) { KoguApi.toast(e.message, 'error'); load(); }
+  }
+
+  async function toggleMuestra(ventaId, checked) {
+    try {
+      await KoguApi.apiFetch(`${BASE}/revision`, { method: 'POST', body: JSON.stringify({ venta_id: ventaId, es_muestra: checked }) });
+      KoguApi.toast(checked ? 'Marcado como muestra (excluida de rentabilidad)' : 'Ya no es muestra', 'success');
+      load(); // refresca tinte de la fila
     } catch (e) { KoguApi.toast(e.message, 'error'); load(); }
   }
 
@@ -310,6 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('tipoCli').addEventListener('change', () => { page = 1; load(); });
   $('fuente').addEventListener('change', () => { page = 1; load(); });
   $('revision').addEventListener('change', () => { page = 1; load(); });
+  $('fMuestra').addEventListener('change', () => { page = 1; load(); });
 
   // Orden dinámico por encabezado.
   function pintarOrden() {
