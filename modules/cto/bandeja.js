@@ -76,18 +76,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="folio" style="cursor:pointer">Folio</th><th data-sort="cliente" style="cursor:pointer">Cliente</th>
         <th data-sort="producto" style="cursor:pointer">Producto</th><th data-sort="lote" style="cursor:pointer">Lote</th>
         <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
-        <th style="text-align:right">P.venta/kg</th><th style="text-align:right">USD/kg</th>
+        <th data-sort="subtotal" style="text-align:right;cursor:pointer" title="Precio de venta por kg: MXN arriba, USD abajo">P.venta/kg<div style="font-size:9px;font-weight:400;color:#94a3b8">MXN · USD</div></th>
         <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center;padding:0 2px">ABC</th>
-        <th style="text-align:right">Costo u. ref.</th>
-        <th style="text-align:center">Fuente</th><th style="text-align:right">Dif. %</th>
-        <th data-sort="costo_expo" style="text-align:right;cursor:pointer">Costo Expo</th><th style="text-align:right">Costo Int u.</th>
-        <th data-sort="costo_int" style="text-align:right;cursor:pointer">Costo Int</th><th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
+        <th style="text-align:right" title="Costo unitario de referencia (fuente abajo)">Costo u. ref.</th>
+        <th style="text-align:right">Dif. %</th>
+        <th data-sort="costo_int" style="text-align:right;cursor:pointer" title="Costo integrado: total arriba; unitario y exportación abajo">Costo Int<div style="font-size:9px;font-weight:400;color:#94a3b8">total · u · exp</div></th>
+        <th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
         <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
         <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
         <th data-sort="muestra" style="text-align:center;cursor:pointer" title="Muestra facturada (precio no representativo, costo real). Se excluye de rentabilidad.">Mtra.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="22" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="17" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="22" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       // Dif. %: costo usado (Costo MP u.) vs referencia (producción/compra).
@@ -171,16 +171,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="font-family:monospace;font-size:11px">${esc(r.lote || '—')}</td>
         <td style="text-align:right;font-size:12px">${fmtNum(r.cant_surt)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.subtotal)}</td>
-        <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}</td>
-        <td style="text-align:right;font-size:12px;color:#475569">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+        <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}<div style="font-size:10px;color:#94a3b8">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div></td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
         <td style="text-align:center;white-space:nowrap;padding:0 2px">${mchip(r.marca_a,'A','#0ea5e9')}${mchip(r.marca_b,'B','#16a34a')}${mchip(r.marca_c,'C','#a855f7')}</td>
-        <td style="text-align:right;font-size:12px">${ri.ref != null ? fmtMon(ri.ref) : '—'}</td>
-        <td style="text-align:center;font-size:11px;color:#64748b">${ri.fuente}</td>
+        <td style="text-align:right;font-size:12px">${ri.ref != null ? fmtMon(ri.ref) : '—'}<div style="font-size:10px;color:#64748b">${ri.fuente !== '—' ? esc(ri.fuente) : ''}</div></td>
         <td style="text-align:right">${difChip(dif)}</td>
-        <td style="text-align:right;font-size:12px">${Number(r.costo_expo_kg) > 0 ? fmtMon(r.costo_expo_kg) : '—'}</td>
-        <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_unit)}</td>
-        <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}</td>
+        <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}<div style="font-size:10px;color:#94a3b8">u ${fmtMon(r.costo_int_unit)}${Number(r.costo_expo_kg) > 0 ? ' · exp ' + fmtMon(r.costo_expo_kg) : ''}</div></td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
         <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
         <td style="text-align:center" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
