@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = (id) => document.getElementById(id);
   const now = new Date();
   const fmtMon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const f2 = (v) => (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const f4 = (v) => v == null ? '—' : (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const MES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   // Campos de importe: id, etiqueta, cuenta/origen, y si su factor se aplica.
   const CAMPOS = [
@@ -59,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="grid-2" style="margin-top:16px;gap:12px 22px">
     ${CAMPOS.map(f => `<div>
       <label class="muted" style="font-size:12px;display:block">${f.lbl}${tagChip(f.tag)}</label>
-      <input type="number" step="0.01" id="${f.id}" class="input" placeholder="0.00"/>
+      <input type="text" inputmode="decimal" id="${f.id}" class="input" placeholder="0.00"/>
       <div class="muted" style="font-size:11px;margin-top:2px">${f.src}</div>
     </div>`).join('')}
   </div>
@@ -78,6 +81,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     Al costo se aplican <strong>Factor A</strong> y <strong>Factor B fijo</strong>; los demás son informativos.
     Después de guardar, ve a <strong>Costo de ventas / Utilidad</strong> y pulsa <strong>Calcular</strong>.
   </div>
+</div>
+
+<div class="card" id="listaCard" style="margin-top:16px">
+  <div class="row">
+    <div><h3 style="margin:0" id="listaTitulo">Histórico ABC</h3>
+      <span class="muted" style="font-size:12px">Importes capturados + kilos y factores calculados (reporte de cierre)</span></div>
+    <button class="btn ghost" id="exportBtn">⬇ Excel</button>
+  </div>
+  <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tablaLista" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums"></table></div>
 </div>`;
 
   function showMsg(html, tipo) {
@@ -94,7 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await KoguApi.apiFetch(`${BASE}/factores/${anio}/${mes}`);
       const f = KoguApi.unwrapData(res);
-      CAMPOS.forEach(cmp => { $(cmp.id).value = f && f[cmp.id] != null ? Number(f[cmp.id]) : ''; });
+      CAMPOS.forEach(cmp => { $(cmp.id).value = f && f[cmp.id] != null ? Number(f[cmp.id]).toFixed(2) : ''; });
       if (f) {
         showMsg(`Periodo ${anio}-${String(mes).padStart(2, '0')} ya tiene importes capturados — puedes ajustarlos y volver a guardar.`, 'ok');
         $('estadoPeriodo').textContent = `Última actualización: ${f.updated_at ? new Date(f.updated_at).toLocaleString() : '—'}`;
@@ -111,8 +123,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const row = { anio, mes };
     let alguno = false;
     CAMPOS.forEach(cmp => {
-      const v = $(cmp.id).value;
-      if (v !== '' && v != null) { row[cmp.key] = Number(v); alguno = true; }
+      const raw = String($(cmp.id).value || '').replace(/,/g, '').trim();
+      const v = raw === '' ? null : parseFloat(raw);
+      if (v != null && isFinite(v)) { row[cmp.key] = v; alguno = true; }
       else row[cmp.key] = 0;
     });
     if (!alguno) return KoguApi.toast('Captura al menos un importe.', 'error');
@@ -126,6 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         showMsg(`✅ Importes guardados para ${anio}-${String(mes).padStart(2, '0')}. Ahora ve a "Costo de ventas / Utilidad" y pulsa Calcular.`, 'ok');
         KoguApi.toast('Importes guardados', 'success');
+        cargarLista();
       }
     } catch (e) {
       showMsg('❌ ' + e.message, 'error');
@@ -133,9 +147,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally { $('guardarBtn').disabled = false; }
   }
 
-  $('cargarBtn').addEventListener('click', cargarPeriodo);
+  function pintarLista(rows, anio) {
+    $('listaTitulo').textContent = `Histórico ABC ${anio}`;
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      <th style="text-align:left;padding:6px">Mes</th>
+      <th style="padding:6px">Importe A</th><th style="padding:6px">Importe B</th>
+      <th style="padding:6px">Imp. B prorr.</th><th style="padding:6px">Importe C</th>
+      <th style="padding:6px">Suma</th>
+      <th style="padding:6px">Kilos A</th><th style="padding:6px">Kilos B</th>
+      <th style="padding:6px">Kilos Prod B</th><th style="padding:6px">Kilos C</th>
+      <th style="padding:6px">Factor A</th><th style="padding:6px">Factor B fijo</th>
+      <th style="padding:6px">Factor B</th><th style="padding:6px">Factor C</th>
+      <th style="padding:6px">Promedio</th></tr></thead>`;
+    if (!rows || !rows.length) {
+      $('tablaLista').innerHTML = head + '<tbody><tr><td colspan="15" style="text-align:center;padding:18px;color:var(--muted)">Sin periodos capturados para el año.</td></tr></tbody>';
+      return;
+    }
+    const body = rows.map(r => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+      <td style="text-align:left;padding:6px;font-weight:600">${MES[Number(r.mes)] || r.mes}</td>
+      <td style="padding:6px">${f2(r.importe_a)}</td><td style="padding:6px">${f2(r.importe_b)}</td>
+      <td style="padding:6px">${f2(r.importe_b_prorrateo)}</td><td style="padding:6px">${f2(r.importe_c)}</td>
+      <td style="padding:6px;font-weight:600">${f2(r.sum_gastos)}</td>
+      <td style="padding:6px">${f2(r.kilos_a)}</td><td style="padding:6px">${f2(r.kilos_b)}</td>
+      <td style="padding:6px">${f2(r.kilos_prod_b)}</td><td style="padding:6px">${f2(r.kilos_c)}</td>
+      <td style="padding:6px;color:#166534;font-weight:600">${f4(r.factor_a)}</td>
+      <td style="padding:6px;color:#166534;font-weight:600">${f4(r.factor_b_fijo)}</td>
+      <td style="padding:6px;color:#64748b">${f4(r.factor_b)}</td><td style="padding:6px;color:#64748b">${f4(r.factor_c)}</td>
+      <td style="padding:6px">${f4(r.costo_promedio)}</td></tr>`).join('');
+    $('tablaLista').innerHTML = head + '<tbody>' + body + '</tbody>';
+  }
+
+  async function cargarLista() {
+    const anio = parseInt($('anio').value, 10);
+    if (!anio) return;
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/factores-lista/${anio}`);
+      pintarLista(KoguApi.unwrapData(res) || [], anio);
+    } catch (e) { /* lista best-effort */ }
+  }
+
+  async function exportarLista() {
+    const anio = parseInt($('anio').value, 10);
+    if (!anio) return KoguApi.toast('Indica el año.', 'error');
+    try {
+      KoguApi.toast('Generando Excel…', 'info');
+      const res = await KoguApi.authFetchRaw(`${BASE}/factores-lista/${anio}/export`);
+      if (!res.ok) throw new Error('No se pudo generar el Excel.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `cto_abc_${anio}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  $('cargarBtn').addEventListener('click', () => { cargarPeriodo(); cargarLista(); });
   $('guardarBtn').addEventListener('click', guardar);
-  KoguShell.subscribeEmpresaActivaChange(() => cargarPeriodo());
+  $('exportBtn').addEventListener('click', exportarLista);
+  KoguShell.subscribeEmpresaActivaChange(() => { cargarPeriodo(); cargarLista(); });
 
   cargarPeriodo();
+  cargarLista();
 });
