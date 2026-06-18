@@ -38,8 +38,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div id="kpis" class="grid-3" style="margin-top:16px;gap:12px;display:none"></div>
 
 <div class="card" id="factoresCard" style="margin-top:16px;display:none">
-  <h3 style="margin:0 0 8px 0">Factores del mes aplicados</h3>
-  <div id="factores" class="muted" style="font-size:13px"></div>
+  <div class="row"><h3 style="margin:0">Indicadores ABC del periodo</h3>
+    <span class="muted" style="font-size:12px">Importes capturados · Kilos calculados por KOGU · Factores</span></div>
+  <div id="factores" style="margin-top:12px"></div>
 </div>`;
 
   const fmtMon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,8 +55,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
   }
 
-  function pintarResultado(r, factores) {
-    if (!r) { $('kpis').style.display = 'none'; $('factoresCard').style.display = 'none'; return; }
+  const fFac = (v) => v == null ? '—' : Number(v).toFixed(6);
+  const fKg = (v) => fmtNum(Math.round(Number(v) || 0)) + ' kg';
+
+  function pintarResultado(r) {
+    if (!r) { $('kpis').style.display = 'none'; return; }
     $('kpis').style.display = 'grid';
     $('kpis').innerHTML = [
       kpi('Total ventas', fmtMon(r.total_ventas)),
@@ -66,12 +70,43 @@ document.addEventListener('DOMContentLoaded', async () => {
       kpi('Utilidad de operación', fmtMon(r.utilidad_operacion), fmtPct(r.utilidad_operacion_pct)),
       kpi('Kilos / Facturas', fmtNum(r.kilos) + ' kg', fmtNum(r.recuento_facturas) + ' facturas'),
     ].join('');
-    if (factores) {
-      $('factoresCard').style.display = 'block';
-      $('factores').innerHTML = `Factor A: <strong>${Number(factores.factor_a).toFixed(6)}</strong> ·
-        Factor B fijo: <strong>${Number(factores.factor_b_fijo).toFixed(6)}</strong> ·
-        Factor C (ref): <strong>${factores.factor_c != null ? Number(factores.factor_c).toFixed(6) : '—'}</strong>`;
-    }
+  }
+
+  function pintarFactores(f) {
+    if (!f) { $('factoresCard').style.display = 'none'; return; }
+    $('factoresCard').style.display = 'block';
+    const aplic = `<span class="chip" style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px">aplicado</span>`;
+    const info = `<span class="chip" style="background:#e5e7eb;color:#6b7280;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px">informativo</span>`;
+    const row = (l, v, tag = '') => `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:5px 8px">${l}${tag}</td><td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums">${v}</td></tr>`;
+    const bloque = (titulo, filas) => `<div>
+      <div class="muted" style="font-size:12px;font-weight:700;margin-bottom:4px">${titulo}</div>
+      <table style="width:100%;font-size:13px;border-collapse:collapse"><tbody>${filas}</tbody></table></div>`;
+    $('factores').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px">
+      ${bloque('Importes (capturados)',
+        row('Importe A', fmtMon(f.importe_a)) +
+        row('Importe B', fmtMon(f.importe_b)) +
+        row('Importe B fijo', fmtMon(f.importe_b_fijo)) +
+        row('Importe B prorrateo', fmtMon(f.importe_b_prorrateo)) +
+        row('Importe C', fmtMon(f.importe_c)))}
+      ${bloque('Kilos (calculados por KOGU)',
+        row('Kilos A <span class="muted" style="font-size:10px">neto de notas</span>', fKg(f.kilos_a)) +
+        row('Kilos B <span class="muted" style="font-size:10px">producidos</span>', fKg(f.kilos_b)) +
+        row('Kilos C <span class="muted" style="font-size:10px">exportación</span>', fKg(f.kilos_c)) +
+        row('Kilos Prod B <span class="muted" style="font-size:10px">producidos del mes</span>', fKg(f.kilos_prod_b)))}
+      ${bloque('Factores',
+        row('Factor A', fFac(f.factor_a), aplic) +
+        row('Factor B fijo', fFac(f.factor_b_fijo), aplic) +
+        row('Factor B', fFac(f.factor_b), info) +
+        row('Factor C', fFac(f.factor_c), info) +
+        row('Factor B almacén', fFac(f.factor_b_alm), info))}
+    </div>`;
+  }
+
+  async function cargarFactores(anio, mes) {
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/factores/${anio}/${mes}`);
+      pintarFactores(KoguApi.unwrapData(res));
+    } catch (_e) { pintarFactores(null); }
   }
 
   function showMsg(html, tipo) {
@@ -91,7 +126,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch(`${BASE}/calculo/${anio}/${mes}`, { method: 'POST', body: JSON.stringify({}) });
       const d = KoguApi.unwrapData(res) || {};
       showMsg(`✅ Cálculo completado: ${fmtNum(d.renglones)} renglones · ${fmtNum(d.renglones_con_gasto_venta)} con gasto de venta.`, 'ok');
-      pintarResultado(d.resultado, d.factores);
+      pintarResultado(d.resultado);
+      await cargarFactores(anio, mes);
       KoguApi.toast('Cálculo completado', 'success');
     } catch (e) {
       showMsg('❌ ' + e.message, 'error');
@@ -104,10 +140,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
     try {
       const res = await KoguApi.apiFetch(`${BASE}/resultado/${anio}/${mes}`);
-      pintarResultado(KoguApi.unwrapData(res), null);
+      pintarResultado(KoguApi.unwrapData(res));
+      await cargarFactores(anio, mes);
       $('msg').style.display = 'none';
     } catch (e) {
       pintarResultado(null);
+      pintarFactores(null);
       showMsg('Sin resultado calculado para ese periodo. Pulsa "Calcular".', 'warn');
     }
   }
