@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <table>
       <thead><tr id="thead">
         <th data-sort="folio" style="cursor:pointer">Folio</th><th data-sort="cliente" style="cursor:pointer">Cliente</th>
-        <th data-sort="producto" style="cursor:pointer">Producto</th><th data-sort="lote" style="cursor:pointer">Lote</th>
+        <th data-sort="producto" style="cursor:pointer">Producto<div style="font-size:9px;font-weight:400;color:#94a3b8">+ lote</div></th>
         <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
         <th data-sort="subtotal" style="text-align:right;cursor:pointer" title="Precio de venta por kg: MXN arriba, USD abajo">P.venta/kg<div style="font-size:9px;font-weight:400;color:#94a3b8">MXN · USD</div></th>
         <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center;padding:0 2px">ABC</th>
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="muestra" style="text-align:center;cursor:pointer" title="Muestra facturada (precio no representativo, costo real). Se excluye de rentabilidad.">Mtra.</th>
         <th style="text-align:right;white-space:nowrap">Acción</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="17" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
   </div>
   <div id="pg" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)">
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       // Dif. %: costo usado (Costo MP u.) vs referencia (producción/compra).
@@ -167,11 +167,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tr style="${r.costo_manual ? 'background:#fef9c3' : (r.es_muestra ? 'background:#eef2ff' : '')}">
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
         <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}${r.es_interno ? ' <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:1px 4px">interno</span>' : ''}</td>
-        <td style="font-size:12px"><strong>${esc(r.cve_prod)}</strong></td>
-        <td style="font-family:monospace;font-size:11px">${esc(r.lote || '—')}</td>
+        <td style="font-size:12px"><strong>${esc(r.cve_prod)}</strong><div style="font-family:monospace;font-size:10px;color:#64748b">${esc(r.lote || '—')}</div></td>
         <td style="text-align:right;font-size:12px">${fmtNum(r.cant_surt)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.subtotal)}</td>
-        <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}<div style="font-size:10px;color:#94a3b8">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div></td>
+        <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}<div style="font-size:9px;font-weight:600;color:#1e3a8a">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div></td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
         <td style="text-align:center;white-space:nowrap;padding:0 2px">${mchip(r.marca_a,'A','#0ea5e9')}${mchip(r.marca_b,'B','#16a34a')}${mchip(r.marca_c,'C','#a855f7')}</td>
         <td style="text-align:right;font-size:12px">${ri.ref != null ? fmtMon(ri.ref) : '—'}<div style="font-size:10px;color:#64748b">${ri.fuente !== '—' ? esc(ri.fuente) : ''}</div></td>
