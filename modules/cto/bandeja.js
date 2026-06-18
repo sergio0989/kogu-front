@@ -83,9 +83,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th data-sort="costo_int" style="text-align:right;cursor:pointer" title="Costo integrado: total arriba; unitario y exportación abajo">Costo Int<div style="font-size:9px;font-weight:400;color:#94a3b8">total · u · exp</div></th>
         <th data-sort="utilidad" style="text-align:right;cursor:pointer">Utilidad</th>
         <th data-sort="pct" style="text-align:center;cursor:pointer">% Util</th>
-        <th data-sort="revisado" style="text-align:center;cursor:pointer">Rev.</th>
-        <th data-sort="muestra" style="text-align:center;cursor:pointer" title="Muestra facturada (precio no representativo, costo real). Se excluye de rentabilidad.">Mtra.</th>
-        <th style="text-align:right;white-space:nowrap">Acción</th>
+        <th data-sort="revisado" style="text-align:center;cursor:pointer;width:1%;white-space:nowrap;padding-left:4px;padding-right:4px">Rev.</th>
+        <th data-sort="muestra" style="text-align:center;cursor:pointer;width:1%;white-space:nowrap;padding-left:4px;padding-right:4px" title="Muestra facturada (precio no representativo, costo real). Se excluye de rentabilidad.">Mtra.</th>
+        <th style="text-align:center;white-space:nowrap;width:1%;padding-left:4px;padding-right:4px">Acción</th>
       </tr></thead>
       <tbody id="rows"><tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Indica periodo y pulsa Cargar.</td></tr></tbody>
     </table>
@@ -180,13 +180,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}<div style="font-size:10px;color:#94a3b8">u ${fmtMon(r.costo_int_unit)}${Number(r.costo_expo_kg) > 0 ? ' · exp ' + fmtMon(r.costo_expo_kg) : ''}</div></td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
         <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
-        <td style="text-align:center" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
+        <td style="text-align:center;width:1%;padding-left:4px;padding-right:4px" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
           <input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer"/>
         </td>
-        <td style="text-align:center" title="Muestra facturada (se excluye de rentabilidad)">
+        <td style="text-align:center;width:1%;padding-left:4px;padding-right:4px" title="Muestra facturada (se excluye de rentabilidad)">
           <input type="checkbox" data-mtra="${r.venta_id}" ${r.es_muestra ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer"/>
         </td>
-        <td style="text-align:right;white-space:nowrap">
+        <td style="text-align:center;white-space:nowrap;width:1%;padding-left:4px;padding-right:4px">
           <button class="btn ghost" data-nota="${r.venta_id}" title="${r.nota ? esc(r.nota) : 'Agregar nota'}" style="padding:2px 5px;font-size:13px;line-height:1">${r.nota ? '📝' : '🗒️'}</button>
           ${r.costo_manual
             ? `<button class="btn ghost" data-quitar="${r.venta_id}" title="Quitar corrección" style="padding:2px 5px;font-size:13px;line-height:1">↩️</button>`
