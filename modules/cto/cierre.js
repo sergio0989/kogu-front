@@ -69,6 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${d.cierre ? ` · Utilidad bruta ${fmtMon(d.cierre.utilidad_bruta)} (${(Number(d.cierre.utilidad_bruta_pct)*100||0).toFixed(2)}%)` : ''}
             ${cerrado && d.cierre?.cerrado_at ? ` · Cerrado ${new Date(d.cierre.cerrado_at).toLocaleString()}` : ''}
           </div>
+          ${cerrado ? `<div style="font-size:12px;margin-top:4px">🔒 Recalcular y recargar ventas de este mes están bloqueados. Reabre para modificar.</div>` : ''}
         </div>
         <div style="display:flex;gap:8px">
           ${cerrado
