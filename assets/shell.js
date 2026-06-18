@@ -70,6 +70,7 @@
       {href:'/modules/cto/bandeja.html',label:'Bandeja / Corrección de costo',perm:'screen.costo'},
       {href:'/modules/cto/factura.html',label:'Ficha de factura',perm:'screen.costo'},
       {href:'/modules/cto/rentabilidad.html',label:'Rentabilidad (producto/cliente)',perm:'screen.costo'},
+      {href:'/modules/cto/compras-usd.html',label:'Compras USD / Dif. cambiaria',perm:'screen.costo'},
       {href:'/modules/cto/inventario.html',label:'Inventario integrado',perm:'screen.costo'},
       {href:'/modules/cto/productos-b.html',label:'Productos B (producidos)',perm:'screen.costo'},
       {href:'/modules/cto/cierre.html',label:'Validación / Cierre de periodo',perm:'screen.costo'},
