@@ -73,6 +73,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div id="kpis" class="grid-3" style="margin-top:16px;gap:12px;display:none"></div>
 
+<div class="card" id="ppCard" style="margin-top:16px;display:none">
+  <div class="row"><h3 style="margin:0">Avance del año vs Presupuesto (PP)</h3>
+    <span class="muted" style="font-size:12px" id="ppSub">Real acumulado vs meta anual</span></div>
+  <div id="ppBody" style="margin-top:14px;max-width:880px"></div>
+</div>
+
 <div class="card" id="chartCard" style="margin-top:16px;display:none">
   <div class="row"><h3 style="margin:0">Costo integrado + Utilidad bruta por mes</h3>
     <span class="muted" style="font-size:12px">Cada barra suma el total de ventas del mes</span></div>
@@ -134,6 +140,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       kpi(`Ventas YTD ${data.anio}`, fmtMM(t.total_ventas), `${fmtMon(t.total_ventas)} · ${fmtNum(t.recuento_facturas)} fact.`, '#0d9488'),
       kpi('Utilidad bruta YTD', fmtMM(t.utilidad_bruta), `${fmtPct(t.utilidad_bruta_pct)} ${chip(t.utilidad_bruta_pct)}`, '#8b5cf6'),
     ].join('');
+  }
+
+  // Una barra de avance Real vs Meta (PP). falta = meta − real.
+  function ppItem(label, real, meta, pctv, falta, fmt) {
+    const p = pctv == null ? 0 : Number(pctv);
+    const wpct = Math.max(0, Math.min(p, 1)) * 100;
+    const over = p >= 1;
+    const barCol = over ? '#16a34a' : p >= 0.8 ? '#0d9488' : p >= 0.5 ? '#d97706' : '#dc2626';
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="font-weight:600">${label}</span>
+        <span class="muted">${fmt(real)} de ${fmt(meta)} · <strong style="color:${barCol}">${fmtPct(pctv)}</strong></span>
+      </div>
+      <div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden">
+        <div style="height:100%;width:${wpct}%;background:${barCol};border-radius:999px"></div>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:3px">${over ? 'Meta superada por ' + fmt(Math.abs(falta)) : 'Falta ' + fmt(falta) + ' para la meta anual'}</div>
+    </div>`;
+  }
+
+  function pintarPP() {
+    const pp = data && data.pp;
+    if (!pp) { $('ppCard').style.display = 'none'; return; }
+    const t = data.totales;
+    $('ppCard').style.display = 'block';
+    $('ppSub').textContent = `Real acumulado ${data.anio} vs meta anual · ${fmtNum(pp.sublineas)} sublíneas de PP`;
+    $('ppBody').innerHTML =
+      ppItem('Ventas', t.total_ventas, pp.ventas_pp, pp.avance_ventas, pp.falta_ventas, fmtMM)
+      + ppItem('Utilidad bruta', t.utilidad_bruta, pp.utilidad_pp, pp.avance_utilidad, pp.falta_utilidad, fmtMM)
+      + ppItem('Kilos', t.kilos, pp.kg_pp, pp.avance_kg, pp.falta_kg, fmtKg);
   }
 
   // Etiquetas de importe fijas sobre las barras (sin hover):
@@ -253,14 +289,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch(`${BASE}/dashboard/${anio}`);
       data = KoguApi.unwrapData(res);
       if (!data || !data.meses || !data.meses.length) {
-        $('kpis').style.display = $('chartCard').style.display = $('tablaCard').style.display = 'none';
+        $('kpis').style.display = $('chartCard').style.display = $('tablaCard').style.display = $('ppCard').style.display = 'none';
         showMsg('Sin datos calculados para ' + anio + '. Calcula algún mes en "Costo de ventas / Utilidad".', 'warn');
         return;
       }
       $('msg').style.display = 'none';
       $('chartCard').style.display = $('tablaCard').style.display = 'block';
       llenarSelectMes();
-      pintarKpis(); pintarTabla(); await pintarChart();
+      pintarKpis(); pintarPP(); pintarTabla(); await pintarChart();
     } catch (e) {
       showMsg('❌ ' + e.message, 'error');
       KoguApi.toast(e.message, 'error');

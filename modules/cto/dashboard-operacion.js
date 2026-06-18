@@ -80,6 +80,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div id="kpis" class="grid-3" style="margin-top:16px;gap:12px;display:none"></div>
 
+<div class="card" id="ppCard" style="margin-top:16px;display:none">
+  <div class="row"><h3 style="margin:0">Avance del año vs Presupuesto (PP)</h3>
+    <span class="muted" style="font-size:12px" id="ppSub">Real acumulado vs meta anual</span></div>
+  <div id="ppBody" style="margin-top:14px;max-width:880px"></div>
+</div>
+
 <div id="chartsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:16px;margin-top:16px;align-items:start">
   <div class="card" id="chartPctCard" style="display:none;margin:0">
     <h3 style="margin:0">Composición por agente (% de ventas)</h3>
@@ -135,6 +141,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       kpi('Gastos', fmtMon(m.gasto), pctVentas(m.gasto, v), COL.gasto),
       kpi('Carga social', fmtMon(m.carga), pctVentas(m.carga, v), COL.carga),
     ].join('');
+  }
+
+  // Avance Real vs Meta (PP). En este tablero solo Ventas y Kg (utilidad_pp es bruta).
+  function ppItem(label, real, meta, pctv, falta, fmt) {
+    const p = pctv == null ? 0 : Number(pctv);
+    const wpct = Math.max(0, Math.min(p, 1)) * 100;
+    const over = p >= 1;
+    const barCol = over ? '#16a34a' : p >= 0.8 ? '#0d9488' : p >= 0.5 ? '#d97706' : '#dc2626';
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="font-weight:600">${label}</span>
+        <span class="muted">${fmt(real)} de ${fmt(meta)} · <strong style="color:${barCol}">${fmtPct(pctv)}</strong></span>
+      </div>
+      <div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden">
+        <div style="height:100%;width:${wpct}%;background:${barCol};border-radius:999px"></div>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:3px">${over ? 'Meta superada por ' + fmt(Math.abs(falta)) : 'Falta ' + fmt(falta) + ' para la meta anual'}</div>
+    </div>`;
+  }
+
+  function pintarPP() {
+    const pp = serieCache && serieCache.pp;
+    if (!pp) { $('ppCard').style.display = 'none'; return; }
+    const t = serieCache.totales;
+    $('ppCard').style.display = 'block';
+    $('ppSub').textContent = `Real acumulado ${serieCache.anio} vs meta anual · la utilidad PP se compara en el tablero de Utilidad Bruta`;
+    $('ppBody').innerHTML =
+      ppItem('Ventas', t.total_ventas, pp.ventas_pp, pp.avance_ventas, pp.falta_ventas, fmtMM)
+      + ppItem('Kilos', t.kilos, pp.kg_pp, pp.avance_kg, pp.falta_kg, fmtKg);
   }
 
   function topAgentes() {
@@ -299,7 +334,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     $('kpis').style.display = 'grid';
     $('chartPctCard').style.display = $('chartAbsCard').style.display = $('tablaCard').style.display = 'block';
-    pintarKpis(); pintarTabla(); await pintarCharts();
+    pintarKpis(); pintarPP(); pintarTabla(); await pintarCharts();
   }
 
   async function cargar(reload = true) {
@@ -309,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       if (reload) serieCache = await llenarSelectMesYcargar();
       if (!serieCache) {
-        $('kpis').style.display = $('chartPctCard').style.display = $('chartAbsCard').style.display = $('tablaCard').style.display = 'none';
+        $('kpis').style.display = $('chartPctCard').style.display = $('chartAbsCard').style.display = $('tablaCard').style.display = $('ppCard').style.display = 'none';
         showMsg('Sin datos calculados para ' + anio + '. Calcula algún mes en "Costo de ventas / Utilidad".', 'warn');
         return;
       }
