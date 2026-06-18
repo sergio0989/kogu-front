@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <thead><tr id="thead">
         <th data-sort="folio" style="cursor:pointer">Folio</th><th data-sort="cliente" style="cursor:pointer">Cliente</th>
         <th data-sort="producto" style="cursor:pointer">Producto<div style="font-size:9px;font-weight:400;color:#94a3b8">+ lote</div></th>
-        <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer">SubTotal</th>
+        <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer" title="SubTotal y moneda de la factura">SubTotal<div style="font-size:9px;font-weight:400;color:#94a3b8">+ moneda</div></th>
         <th data-sort="subtotal" style="text-align:right;cursor:pointer" title="Precio de venta por kg: MXN arriba, USD abajo">P.venta/kg<div style="font-size:9px;font-weight:400;color:#94a3b8">MXN · USD</div></th>
         <th data-sort="costo_mp" style="text-align:right;cursor:pointer">Costo MP u.</th><th style="text-align:center;padding:0 2px">ABC</th>
         <th style="text-align:right" title="Costo unitario de referencia (fuente abajo)">Costo u. ref.</th>
@@ -104,6 +104,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const chip = (on, txt, col) => `<span class="chip" style="background:${on ? col + '22' : '#e5e7eb'};color:${on ? col : '#9ca3af'};font-size:10px;padding:1px 5px">${txt}</span>`;
   // Marca A/B/C compacta (ahorra ancho): letra coloreada si activa, gris si no.
   const mchip = (on, txt, col) => `<span style="font-size:11px;font-weight:700;margin:0 1px;color:${on ? col : '#d1d5db'}">${txt}</span>`;
+  // Moneda de la factura (cve_mon: 1=pesos, 2=dólares).
+  const moneda = (c) => Number(c) === 2 ? 'USD' : Number(c) === 1 ? 'MXN' : '';
   // Referencia de costo por renglón: producción import → producción mov → compra.
   function refInfo(r) {
     if (r.ref_prod != null)    return { ref: Number(r.ref_prod),    fuente: 'producción' };
@@ -169,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}${r.es_interno ? ' <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:1px 4px">interno</span>' : ''}</td>
         <td style="font-size:12px"><strong>${esc(r.cve_prod)}</strong><div style="font-family:monospace;font-size:10px;color:#64748b">${esc(r.lote || '—')}</div></td>
         <td style="text-align:right;font-size:12px">${fmtNum(r.cant_surt)}</td>
-        <td style="text-align:right;font-size:12px">${fmtMon(r.subtotal)}</td>
+        <td style="text-align:right;font-size:12px">${fmtMon(r.subtotal)}<div style="font-size:9px;font-weight:600;color:${Number(r.cve_mon) === 2 ? '#1e3a8a' : '#94a3b8'}">${moneda(r.cve_mon)}</div></td>
         <td style="text-align:right;font-size:12px">${pvMxn != null ? fmtMon(pvMxn) : '—'}<div style="font-size:9px;font-weight:600;color:#1e3a8a">${pvUsd != null ? 'US$' + pvUsd.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div></td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_mp)}${r.costo_manual ? ' ✍️' : ''}</td>
         <td style="text-align:center;white-space:nowrap;padding:0 2px">${mchip(r.marca_a,'A','#0ea5e9')}${mchip(r.marca_b,'B','#16a34a')}${mchip(r.marca_c,'C','#a855f7')}</td>
@@ -179,16 +181,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
         <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
         <td style="text-align:center" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
-          <input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/>
+          <input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer"/>
         </td>
         <td style="text-align:center" title="Muestra facturada (se excluye de rentabilidad)">
-          <input type="checkbox" data-mtra="${r.venta_id}" ${r.es_muestra ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"/>
+          <input type="checkbox" data-mtra="${r.venta_id}" ${r.es_muestra ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer"/>
         </td>
         <td style="text-align:right;white-space:nowrap">
-          <button class="btn ghost" data-nota="${r.venta_id}" title="${r.nota ? esc(r.nota) : 'Agregar nota'}" style="padding:3px 7px;font-size:13px">${r.nota ? '📝' : '🗒️'}</button>
+          <button class="btn ghost" data-nota="${r.venta_id}" title="${r.nota ? esc(r.nota) : 'Agregar nota'}" style="padding:2px 5px;font-size:13px;line-height:1">${r.nota ? '📝' : '🗒️'}</button>
           ${r.costo_manual
-            ? `<button class="btn ghost" data-quitar="${r.venta_id}" style="padding:3px 7px;font-size:11px">Quitar</button>`
-            : `<button class="btn ghost" data-corr="${r.venta_id}" data-prod="${esc(r.cve_prod)}" data-sis="${r.costo_sistema_unit ?? ''}" data-ref="${ri.ref ?? ''}" style="padding:3px 7px;font-size:11px">Corregir</button>`}
+            ? `<button class="btn ghost" data-quitar="${r.venta_id}" title="Quitar corrección" style="padding:2px 5px;font-size:13px;line-height:1">↩️</button>`
+            : `<button class="btn ghost" data-corr="${r.venta_id}" data-prod="${esc(r.cve_prod)}" data-sis="${r.costo_sistema_unit ?? ''}" data-ref="${ri.ref ?? ''}" title="Corregir costo" style="padding:2px 5px;font-size:13px;line-height:1">✏️</button>`}
         </td>
       </tr>`;
     }).join('');
