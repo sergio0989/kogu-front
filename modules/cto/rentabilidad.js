@@ -129,7 +129,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintarHighlights() {
     const items = data.items;
     const top = [...items].sort((a, b) => b.ventas - a.ventas).slice(0, 5);
-    const peor = items.filter(r => r.ventas > 0 && r.margen != null)
+    // "Peores por margen": ignorar ventas ínfimas (umbral = 0.01% del total),
+    // porque sobre ventas ≈ 0 el margen se dispara (división por casi cero) y
+    // tapa las pérdidas que sí importan. La tabla de abajo sí muestra todo.
+    const floor = (data.totales.ventas || 0) * 0.0001;
+    const peor = items.filter(r => r.ventas > floor && r.margen != null)
       .sort((a, b) => a.margen - b.margen).slice(0, 5);
     $('highlights').style.display = 'grid';
     $('topVentas').innerHTML = top.map(filaMini).join('') || '<div class="muted">Sin datos.</div>';
