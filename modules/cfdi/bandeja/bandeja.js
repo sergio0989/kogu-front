@@ -25,34 +25,44 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div class="grid-4" style="margin-top:16px">
-          <div>
-            <div class="label-text">UUID</div>
-            <input class="input" id="uuid" placeholder="UUID">
-          </div>
-          <div>
-            <div class="label-text">RFC emisor / receptor</div>
-            <input class="input" id="rfc" placeholder="RFC emisor/receptor">
-          </div>
-          <div>
-            <div class="label-text">Estatus SAT</div>
-            <select class="select" id="estatus_sat">
-              <option value="">Todos</option>
-              <option value="VIGENTE">VIGENTE</option>
-              <option value="CANCELADO">CANCELADO</option>
-            </select>
-          </div>
-          <div>
-            <div class="label-text">Método de pago</div>
-            <select class="select" id="metodo_pago">
-              <option value="">Todos</option>
-              <option value="PUE">PUE</option>
-              <option value="PPD">PPD</option>
-            </select>
-          </div>
+        <div class="page-actions" id="tipoTabs" style="margin-top:16px; flex-wrap:wrap; gap:8px">
+          <button class="btn primary tipo-tab" data-tipo="">Todos <span class="chip" data-c="total">0</span></button>
+          <button class="btn tipo-tab" data-tipo="I">Ingreso <span class="chip" data-c="I">0</span></button>
+          <button class="btn tipo-tab" data-tipo="E">Egreso <span class="chip" data-c="E">0</span></button>
+          <button class="btn tipo-tab" data-tipo="T">Traslado <span class="chip" data-c="T">0</span></button>
+          <button class="btn tipo-tab" data-tipo="N" id="tipoTabNomina">Nómina <span class="chip" data-c="N">0</span></button>
+          <button class="btn tipo-tab" data-tipo="P">Pago <span class="chip" data-c="P">0</span></button>
+        </div>
+
+        <div class="page-actions" id="estatusTabs" style="margin-top:12px; gap:8px; align-items:center">
+          <span class="label-text" style="margin:0 4px 0 0">Estatus SAT:</span>
+          <button class="btn primary estatus-tab" data-estatus="">Todos</button>
+          <button class="btn estatus-tab" data-estatus="VIGENTE">Vigentes</button>
+          <button class="btn estatus-tab" data-estatus="CANCELADO">Cancelados</button>
         </div>
 
         <div class="grid-4" style="margin-top:16px">
+          <div>
+            <div class="label-text">Periodo (atajo)</div>
+            <div style="display:flex; gap:8px">
+              <select class="select" id="periodo_anio" style="flex:1"></select>
+              <select class="select" id="periodo_mes" style="flex:1">
+                <option value="">Mes…</option>
+                <option value="1">Enero</option>
+                <option value="2">Febrero</option>
+                <option value="3">Marzo</option>
+                <option value="4">Abril</option>
+                <option value="5">Mayo</option>
+                <option value="6">Junio</option>
+                <option value="7">Julio</option>
+                <option value="8">Agosto</option>
+                <option value="9">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+              </select>
+            </div>
+          </div>
           <div>
             <div class="label-text">Fecha inicial</div>
             <input class="input" id="date_from" type="date">
@@ -69,28 +79,44 @@ document.addEventListener('DOMContentLoaded', async () => {
               <option value="recibidos" selected>Recibidos</option>
             </select>
           </div>
-          <div>
-            <div class="label-text">Tipo comprobante</div>
-            <select class="select" id="tipo_comprobante">
-              <option value="">Todos</option>
-              <option value="I">Ingreso</option>
-              <option value="E">Egreso</option>
-              <option value="T">Traslado</option>
-              <option value="N">Nómina</option>
-              <option value="P">Pago</option>
-            </select>
-          </div>
         </div>
 
-        <div class="row" style="margin-top:16px">
-          <div class="hero-note" id="summaryBox">Cargando bandeja…</div>
-          <div class="page-actions">
-            <select class="select" id="pageSize" style="min-width:120px">
+        <div class="grid-4" style="margin-top:16px">
+          <div>
+            <div class="label-text">UUID</div>
+            <input class="input" id="uuid" placeholder="UUID">
+          </div>
+          <div>
+            <div class="label-text">RFC emisor / receptor</div>
+            <input class="input" id="rfc" placeholder="RFC emisor/receptor">
+          </div>
+          <div>
+            <div class="label-text">Método de pago</div>
+            <select class="select" id="metodo_pago">
+              <option value="">Todos</option>
+              <option value="PUE">PUE</option>
+              <option value="PPD">PPD</option>
+            </select>
+          </div>
+          <div>
+            <div class="label-text">Registros por página</div>
+            <select class="select" id="pageSize">
               <option value="25">25</option>
               <option value="50" selected>50</option>
               <option value="100">100</option>
             </select>
           </div>
+        </div>
+
+        <div class="grid-4" id="totalesStrip" style="margin-top:16px">
+          <div class="mini-stat"><div class="mini-stat-k">Conteo (filtro actual)</div><div class="mini-stat-v" data-t="conteo">0</div></div>
+          <div class="mini-stat"><div class="mini-stat-k">Subtotal</div><div class="mini-stat-v" data-t="subtotal">$0.00</div></div>
+          <div class="mini-stat"><div class="mini-stat-k">Impuestos trasladados</div><div class="mini-stat-v" data-t="impuestos_tras">$0.00</div></div>
+          <div class="mini-stat"><div class="mini-stat-k">Total</div><div class="mini-stat-v" data-t="total">$0.00</div></div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <div class="hero-note" id="summaryBox">Cargando bandeja…</div>
         </div>
       </div>
 
@@ -167,38 +193,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   `;
 
-  // Visibilidad de Nómina: si el perfil no tiene cfdi.tipo.nomina.read, se
-  // oculta la opción "Nómina" del filtro de tipo de comprobante. Es cosmético:
-  // el backend ya excluye los CFDI tipo 'N' server-side para estos perfiles.
   const puedeVerNomina = KoguShell.hasPerm(b, 'cfdi.tipo.nomina.read');
-  if (!puedeVerNomina) {
-    document.querySelector('#tipo_comprobante option[value="N"]')?.remove();
-  }
 
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  function resetFilters() {
-    document.getElementById('uuid').value = '';
-    document.getElementById('rfc').value = '';
-    document.getElementById('estatus_sat').value = '';
-    document.getElementById('metodo_pago').value = '';
-    document.getElementById('date_from').value = start.toISOString().slice(0, 10);
-    document.getElementById('date_to').value = now.toISOString().slice(0, 10);
-    document.getElementById('scope').value = 'recibidos';
-    document.getElementById('tipo_comprobante').value = '';
-  }
-
-  resetFilters();
 
   const state = {
     page: 1,
     limit: 50,
     total: 0,
     items: [],
+    tipo: '',
+    estatus: '',
     incTab: 'todos',
     incData: { total: 0, resumen: {}, items: [] }
   };
+
+  // Oculta el tab de Nómina si el perfil no tiene permiso (el backend ya
+  // excluye 'N' server-side; esto es cosmético).
+  if (!puedeVerNomina) {
+    const nominaTab = document.getElementById('tipoTabNomina');
+    if (nominaTab) nominaTab.style.display = 'none';
+  }
+
+  function renderTipoTabs() {
+    document.querySelectorAll('.tipo-tab').forEach(btn => {
+      btn.classList.toggle('primary', (btn.dataset.tipo || '') === state.tipo);
+    });
+  }
+
+  function renderEstatusTabs() {
+    document.querySelectorAll('.estatus-tab').forEach(btn => {
+      btn.classList.toggle('primary', (btn.dataset.estatus || '') === state.estatus);
+    });
+  }
+
+  // Atajo de periodo: pobla el Año (actual y 5 atrás).
+  (function fillPeriodoAnios() {
+    const sel = document.getElementById('periodo_anio');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Año…</option>' +
+      Array.from({ length: 6 }, (_, i) => now.getFullYear() - i)
+        .map(y => `<option value="${y}">${y}</option>`).join('');
+  })();
+
+  function resetFilters() {
+    document.getElementById('uuid').value = '';
+    document.getElementById('rfc').value = '';
+    document.getElementById('metodo_pago').value = '';
+    document.getElementById('date_from').value = start.toISOString().slice(0, 10);
+    document.getElementById('date_to').value = now.toISOString().slice(0, 10);
+    document.getElementById('scope').value = 'recibidos';
+    document.getElementById('periodo_anio').value = '';
+    document.getElementById('periodo_mes').value = '';
+    state.tipo = '';
+    state.estatus = '';
+    renderTipoTabs();
+    renderEstatusTabs();
+  }
+
+  resetFilters();
 
   function safeNumber(v) {
     const n = Number(v || 0);
@@ -240,12 +294,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return {
       uuid: document.getElementById('uuid').value.trim(),
       rfc: document.getElementById('rfc').value.trim(),
-      estatus_sat: document.getElementById('estatus_sat').value,
+      estatus_sat: state.estatus,
       date_from: document.getElementById('date_from').value,
       date_to: document.getElementById('date_to').value,
       metodo_pago: document.getElementById('metodo_pago').value,
       scope: document.getElementById('scope').value,
-      tipo_comprobante: document.getElementById('tipo_comprobante').value,
+      tipo_comprobante: state.tipo,
       limit: state.limit,
       offset: (state.page - 1) * state.limit
     };
@@ -667,6 +721,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     bindRowActions();
   }
 
+  function updateTabCounts(conteos) {
+    const por = (conteos && conteos.por_tipo) || {};
+    const total = conteos && conteos.total != null ? conteos.total : 0;
+    document.querySelectorAll('#tipoTabs [data-c]').forEach(el => {
+      const k = el.dataset.c;
+      el.textContent = KoguUi.int(k === 'total' ? total : (por[k] || 0));
+    });
+  }
+
+  function renderTotales(totales) {
+    const t = totales || {};
+    const set = (key, val) => {
+      const el = document.querySelector(`#totalesStrip [data-t="${key}"]`);
+      if (el) el.textContent = val;
+    };
+    set('conteo', KoguUi.int(t.conteo || 0));
+    set('subtotal', KoguUi.money(Number(t.subtotal || 0)));
+    set('impuestos_tras', KoguUi.money(Number(t.impuestos_tras || 0)));
+    set('total', KoguUi.money(Number(t.total || 0)));
+  }
+
   async function loadBandeja() {
     const qs = KoguUi.queryParams(currentFilters());
     const res = await KoguApi.apiFetch('/protected/kogu/cfdi/negocio/bandeja?' + qs);
@@ -674,6 +749,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     state.total = Number(data.total || data.count || 0);
     state.items = data.items || data.rows || KoguApi.unwrapRows(res) || [];
+    updateTabCounts(data.conteos_por_tipo);
+    renderTotales(data.totales);
     renderBandeja();
   }
 
@@ -805,6 +882,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.page = 1;
     await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
   };
+
+  // Tabs de tipo de comprobante (con conteo en vivo).
+  document.querySelectorAll('.tipo-tab').forEach(btn => {
+    btn.onclick = async () => {
+      state.tipo = btn.dataset.tipo || '';
+      state.page = 1;
+      renderTipoTabs();
+      await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
+    };
+  });
+
+  // Tabs de estatus SAT.
+  document.querySelectorAll('.estatus-tab').forEach(btn => {
+    btn.onclick = async () => {
+      state.estatus = btn.dataset.estatus || '';
+      state.page = 1;
+      renderEstatusTabs();
+      await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
+    };
+  });
+
+  // Atajo de periodo Año/Mes → setea el rango de fechas y refresca.
+  function ymd(d) {
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+  function applyPeriodoAtajo() {
+    const y = Number(document.getElementById('periodo_anio').value || 0);
+    const m = Number(document.getElementById('periodo_mes').value || 0);
+    if (!y) return false;
+    const from = m ? new Date(y, m - 1, 1) : new Date(y, 0, 1);
+    const to = m ? new Date(y, m, 0) : new Date(y, 11, 31);
+    document.getElementById('date_from').value = ymd(from);
+    document.getElementById('date_to').value = ymd(to);
+    return true;
+  }
+  async function onPeriodoChange() {
+    if (!applyPeriodoAtajo()) return;
+    state.page = 1;
+    await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
+  }
+  document.getElementById('periodo_anio').onchange = onPeriodoChange;
+  document.getElementById('periodo_mes').onchange = onPeriodoChange;
 
   // ---------------------------------------------------------------------------
   // Modal de selección de plantilla de Excel.
