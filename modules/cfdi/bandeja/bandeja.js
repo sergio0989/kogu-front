@@ -167,6 +167,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   `;
 
+  // Visibilidad de Nómina: si el perfil no tiene cfdi.tipo.nomina.read, se
+  // oculta la opción "Nómina" del filtro de tipo de comprobante. Es cosmético:
+  // el backend ya excluye los CFDI tipo 'N' server-side para estos perfiles.
+  const puedeVerNomina = KoguShell.hasPerm(b, 'cfdi.tipo.nomina.read');
+  if (!puedeVerNomina) {
+    document.querySelector('#tipo_comprobante option[value="N"]')?.remove();
+  }
+
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
 
