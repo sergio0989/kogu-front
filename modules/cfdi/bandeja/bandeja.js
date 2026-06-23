@@ -25,14 +25,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div class="page-actions" id="scopeTabs" style="margin-top:16px; gap:8px; align-items:center">
-          <span class="label-text" style="margin:0 4px 0 0">Ámbito:</span>
-          <button class="btn scope-tab" data-scope="todos">Todos</button>
-          <button class="btn scope-tab" data-scope="emitidos">Emitidos</button>
-          <button class="btn primary scope-tab" data-scope="recibidos">Recibidos</button>
+        <div class="eyebrow" style="margin-top:18px">Ámbito de CFDI</div>
+        <div class="page-actions" id="scopeTabs" style="margin-top:8px; gap:10px; flex-wrap:wrap">
+          <button class="btn scope-tab" data-scope="todos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Todos</button>
+          <button class="btn scope-tab" data-scope="emitidos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Emitidos</button>
+          <button class="btn primary scope-tab" data-scope="recibidos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Recibidos</button>
         </div>
 
-        <div class="page-actions" id="tipoTabs" style="margin-top:12px; flex-wrap:wrap; gap:8px">
+        <div class="label-text" style="margin-top:18px">Tipo de comprobante</div>
+        <div class="page-actions" id="tipoTabs" style="margin-top:8px; flex-wrap:wrap; gap:8px">
           <button class="btn primary tipo-tab" data-tipo="">Todos <span class="chip" data-c="total">0</span></button>
           <button class="btn tipo-tab" data-tipo="I">Ingreso <span class="chip" data-c="I">0</span></button>
           <button class="btn tipo-tab" data-tipo="E">Egreso <span class="chip" data-c="E">0</span></button>
