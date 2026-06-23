@@ -332,10 +332,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
               </div>
 
-              <div class="crm-block">
-                <div class="crm-sech">Notificaciones enviadas</div>
-                <div id="crmEnvios" class="hint" style="color:var(--muted);font-size:12px">Cargando…</div>
-              </div>
+              <details class="crm-block" id="crmEnviosDet">
+                <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">
+                  Notificaciones enviadas
+                  <span id="crmEnviosResumen" style="font-weight:600;text-transform:none;letter-spacing:0;margin-left:6px;color:var(--muted)">· Cargando…</span>
+                </summary>
+                <div id="crmEnvios" style="max-height:220px;overflow:auto;margin-top:10px">Cargando…</div>
+              </details>
             </div>
           </div>
         </div>
@@ -351,6 +354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const res = await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/envios`);
         const list = res?.data || res || [];
         const el = document.getElementById('crmEnvios');
+        const resumen = document.getElementById('crmEnviosResumen');
         if (!el) return;
         el.innerHTML = list.length ? list.map(e => {
           const col = e.estado === 'enviado' ? 'var(--ok,#16a34a)' : (e.estado === 'fallido' ? 'var(--danger,#dc2626)' : 'var(--muted)');
@@ -359,8 +363,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             <span style="color:${col};font-weight:600">${esc(e.canal)} · ${esc(e.estado)}</span><span style="color:var(--muted)"> · ${fechaCorta(e.created_at)}</span>
             <div style="color:var(--muted)">${esc(e.destinatario || '')}${e.proveedor_ref ? ' · ' + esc(e.proveedor_ref) : ''}${err ? ' · ' + esc(String(err)) : ''}</div>
           </div>`;
-        }).join('') : '<span>Sin envíos registrados.</span>';
-      } catch (_) { const el = document.getElementById('crmEnvios'); if (el) el.textContent = '—'; }
+        }).join('') : '<span style="color:var(--muted);font-size:12px">Sin envíos registrados.</span>';
+        // Resumen plegado: contador + último envío.
+        if (resumen) {
+          if (!list.length) { resumen.textContent = '· Sin envíos'; }
+          else {
+            const u = list[0];
+            const okN = list.filter(e => e.estado === 'enviado').length;
+            resumen.textContent = `· ${list.length} · último ${u.canal} ${u.estado}`;
+            resumen.title = `${okN}/${list.length} enviados`;
+          }
+        }
+      } catch (_) {
+        const el = document.getElementById('crmEnvios'); if (el) el.textContent = '—';
+        const r = document.getElementById('crmEnviosResumen'); if (r) r.textContent = '—';
+      }
     })();
 
     const refresh = async () => { await openDetalle(d.actividad_id); await loadKpis(); await load(); };
