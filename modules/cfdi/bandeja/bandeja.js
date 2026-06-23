@@ -11,11 +11,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   c.innerHTML = `
     <div class="stack">
       <div class="card">
-        <div class="row">
-          <div>
-            <div class="eyebrow">Exploración operativa</div>
-            <h2>Bandeja CFDI</h2>
-          </div>
+        <div class="row" style="align-items:center">
+          <div class="eyebrow" style="margin:0">Exploración operativa · filtros</div>
           <div class="page-actions">
             <button class="btn primary" id="applyBtn">Aplicar</button>
             <button class="btn" id="clearBtn">Limpiar filtros</button>
@@ -27,15 +24,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
 
         <div class="collapsible-body" id="filtrosBody">
-        <div class="eyebrow" style="margin-top:18px">Ámbito de CFDI</div>
-        <div class="page-actions" id="scopeTabs" style="margin-top:8px; gap:10px; flex-wrap:wrap">
-          <button class="btn scope-tab" data-scope="todos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Todos</button>
-          <button class="btn scope-tab" data-scope="emitidos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Emitidos</button>
-          <button class="btn primary scope-tab" data-scope="recibidos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Recibidos</button>
+        <div class="row" style="margin-top:12px; gap:32px; flex-wrap:wrap; align-items:flex-start">
+          <div>
+            <div class="eyebrow" style="margin:0 0 6px">Ámbito de CFDI</div>
+            <div class="page-actions" id="scopeTabs" style="gap:8px; flex-wrap:wrap">
+              <button class="btn scope-tab" data-scope="todos" style="font-size:14px; padding:9px 22px; font-weight:700; border-radius:999px">Todos</button>
+              <button class="btn scope-tab" data-scope="emitidos" style="font-size:14px; padding:9px 22px; font-weight:700; border-radius:999px">Emitidos</button>
+              <button class="btn primary scope-tab" data-scope="recibidos" style="font-size:14px; padding:9px 22px; font-weight:700; border-radius:999px">Recibidos</button>
+            </div>
+          </div>
+          <div>
+            <div class="eyebrow" style="margin:0 0 6px">Estatus SAT</div>
+            <div class="page-actions" id="estatusTabs" style="gap:8px; flex-wrap:wrap">
+              <button class="btn primary estatus-tab" data-estatus="">Todos</button>
+              <button class="btn estatus-tab" data-estatus="VIGENTE">Vigentes</button>
+              <button class="btn estatus-tab" data-estatus="CANCELADO">Cancelados</button>
+            </div>
+          </div>
         </div>
 
-        <div class="label-text" style="margin-top:18px">Tipo de comprobante</div>
-        <div class="page-actions" id="tipoTabs" style="margin-top:8px; flex-wrap:wrap; gap:8px">
+        <div class="label-text" style="margin-top:14px">Tipo de comprobante</div>
+        <div class="page-actions" id="tipoTabs" style="margin-top:6px; flex-wrap:wrap; gap:8px">
           <button class="btn primary tipo-tab" data-tipo="">Todos <span class="chip" data-c="total">0</span></button>
           <button class="btn tipo-tab" data-tipo="I">Ingreso <span class="chip" data-c="I">0</span></button>
           <button class="btn tipo-tab" data-tipo="E">Egreso <span class="chip" data-c="E">0</span></button>
@@ -44,14 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <button class="btn tipo-tab" data-tipo="P">Pago <span class="chip" data-c="P">0</span></button>
         </div>
 
-        <div class="page-actions" id="estatusTabs" style="margin-top:12px; gap:8px; align-items:center">
-          <span class="label-text" style="margin:0 4px 0 0">Estatus SAT:</span>
-          <button class="btn primary estatus-tab" data-estatus="">Todos</button>
-          <button class="btn estatus-tab" data-estatus="VIGENTE">Vigentes</button>
-          <button class="btn estatus-tab" data-estatus="CANCELADO">Cancelados</button>
-        </div>
-
-        <div class="grid-4" style="margin-top:16px">
+        <div class="grid-4" style="margin-top:14px">
           <div>
             <div class="label-text">Periodo (atajo)</div>
             <div style="display:flex; gap:8px">
