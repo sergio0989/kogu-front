@@ -49,6 +49,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const dis = puedeManage ? '' : 'disabled';
 
+  // Acepta lista por comas ("empresa, evento, titulo") o JSON ('["empresa",...]').
+  // Limpia corchetes/comillas/espacios para que un pegado mal formado no rompa el mapeo.
+  function parseVarMap(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return [];
+    let arr;
+    if (s.startsWith('[')) {
+      try { arr = JSON.parse(s); } catch (_) { arr = s.replace(/^\[|\]$/g, '').split(','); }
+    } else {
+      arr = s.split(',');
+    }
+    return (Array.isArray(arr) ? arr : [])
+      .map(x => String(x).replace(/["'\[\]\s]/g, ''))
+      .filter(Boolean);
+  }
+
   function cardEvento(ev) {
     const wa = config[`${ev.k}:whatsapp`] || {};
     const em = config[`${ev.k}:email`] || {};
@@ -65,7 +81,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="label-text">Content SID (Twilio)</div>
           <input class="input" data-wa-sid value="${esc(wa.content_sid || '')}" placeholder="HX…" style="width:100%;margin:4px 0 8px" ${dis}/>
           <div class="label-text">Variables (orden → {{1}},{{2}}…)</div>
-          <input class="input" data-wa-vars value="${esc(varMap)}" placeholder="titulo, evento, fecha, monto" style="width:100%;margin-top:4px" ${dis}/>
+          <input class="input" data-wa-vars value="${esc(varMap)}" placeholder="empresa, evento, titulo, cliente, fecha, link" style="width:100%;margin-top:4px" ${dis}/>
+          <div class="label-text" style="color:var(--muted);font-size:11px;margin-top:2px">Nombres separados por coma, en el orden de la plantilla Twilio (sin corchetes ni comillas).</div>
           ${puedeManage ? `<button class="btn primary" data-save-wa style="margin-top:10px;font-size:12px">Guardar WhatsApp</button>` : ''}
         </div>
         <div style="border:1px solid var(--line);border-radius:10px;padding:12px">
@@ -98,7 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (waBtn) waBtn.onclick = (e) => guardar('whatsapp', {
         activo: card.querySelector('[data-wa-activo]').checked,
         content_sid: card.querySelector('[data-wa-sid]').value.trim() || null,
-        var_map: card.querySelector('[data-wa-vars]').value.split(',').map(s => s.trim()).filter(Boolean),
+        var_map: parseVarMap(card.querySelector('[data-wa-vars]').value),
       }, e.target);
 
       const emBtn = card.querySelector('[data-save-em]');
