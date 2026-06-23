@@ -523,13 +523,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (state.resultados.length) openDetail(0);
       KoguApi.toast('Validación terminada.', 'success');
 
-      // Auto-descarga del Excel tras validación exitosa (defensivo: si falla, no rompe el flujo)
+      // Auto-generación del PDF tras validación exitosa (defensivo: si falla, no rompe el flujo)
       if (state.resultados.length) {
         try {
-          await exportExcel();
+          await exportPdf();
         } catch (autoErr) {
-          // Silencioso: el usuario aún tiene el botón manual "Exportar Excel" como respaldo
-          console.warn('[validador-xml] auto-descarga Excel falló:', autoErr);
+          // Silencioso: el usuario aún tiene el botón manual "Exportar PDF" como respaldo
+          console.warn('[validador-xml] auto-generación PDF falló:', autoErr);
         }
       }
     } catch (err) {
