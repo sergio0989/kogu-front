@@ -168,7 +168,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <th>EFOS</th>
                 <th>Motivo</th>
                 <th>Acción sugerida</th>
-                <th>Detalle</th>
               </tr>
             </thead>
             <tbody id="incRows"></tbody>
@@ -635,9 +634,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="mini-stat"><div class="mini-stat-k">Alta severidad</div><div class="mini-stat-v">${KoguUi.int(resumen.alta_severidad || 0)}</div></div>
     `;
 
-    const msg = state.incData.total
+    let msg = state.incData.total
       ? `Incidencias encontradas: ${KoguUi.int(state.incData.total)}`
       : 'No se encontraron incidencias con los filtros actuales.';
+    if (state.incData.truncado) {
+      msg += ` · Mostrando los primeros ${KoguUi.int(state.incData.cap)} del periodo (acota el rango para ver todo).`;
+    }
     document.getElementById('incMessage').textContent = msg;
 
     const tbody = document.getElementById('incRows');
@@ -647,16 +649,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td class="mono">${KoguUi.escapeHtml(r.uuid || '')}</td>
         <td>${fmtShortDate(r.fecha_emision || r.fecha)}</td>
         <td>
-          <div>${KoguUi.escapeHtml(r.tercero_rfc || r.rfc_tercero || '')}</div>
-          <div class="muted">${KoguUi.escapeHtml(r.tercero_nombre || r.nombre_tercero || '')}</div>
+          <div>${KoguUi.escapeHtml(r.tercero_nombre || r.nombre_tercero || '-')}</div>
+          <div class="muted mono">${KoguUi.escapeHtml(r.tercero_rfc || r.rfc_tercero || '')}</div>
         </td>
         <td>${severityBadge(r.severidad || '-')}</td>
-        <td>${KoguUi.escapeHtml(r.efos_ui || r.sat_riesgo_ui || r.motivo || '-')}</td>
+        <td>${KoguUi.escapeHtml(r.validacion_efos ? String(r.validacion_efos) : 'Sin código')}</td>
         <td>${KoguUi.escapeHtml(r.motivo || '-')}</td>
         <td>${KoguUi.escapeHtml(r.accion_sugerida || '-')}</td>
-        <td>${KoguUi.escapeHtml(r.detalle || '-')}</td>
       </tr>
-    `).join('') : '<tr><td colspan="8" class="empty">Sin incidencias para los criterios seleccionados</td></tr>';
+    `).join('') : '<tr><td colspan="7" class="empty">Sin incidencias para los criterios seleccionados</td></tr>';
   }
 
   function bindRowActions() {
@@ -786,7 +787,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.incData = {
         total: Number(data.total || 0),
         resumen: data.resumen || {},
-        items: data.items || []
+        items: data.items || [],
+        truncado: !!data.truncado,
+        cap: Number(data.cap || 0)
       };
     } catch (err) {
       state.incData = { total: 0, resumen: {}, items: [] };
@@ -809,19 +812,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const filters = currentFilters();
 
-      const queryNew = KoguUi.queryParams({
-        uuid: filters.uuid || '',
-        rfc: filters.rfc || '',
-        status: filters.estatus_sat || '',
-        metodoPago: filters.metodo_pago || '',
-        scope: filters.scope || '',
-        docType: filters.tipo_comprobante || '',
-        dateStart: filters.date_from || '',
-        dateEnd: filters.date_to || '',
-        template
-      });
-
-      const queryOld = KoguUi.queryParams({
+      // Ruta única que sirve este backend (módulo kogu, params snake_case).
+      const query = KoguUi.queryParams({
         uuid: filters.uuid || '',
         rfc: filters.rfc || '',
         estatus_sat: filters.estatus_sat || '',
@@ -833,27 +825,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         template
       });
 
-      const candidatePaths = [
-        '/protected/kogu/cfdi/negocio/exportar-excel?' + queryOld,
-        '/cfdi/protected/cfdi/facturas/exportar-excel?' + queryNew
-      ];
-
       let response = null;
       let lastMessage = 'No fue posible exportar el Excel';
 
-      for (const path of candidatePaths) {
-        const resp = await KoguApi.authFetchRaw(path, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, application/octet-stream, */*'
-          }
-        });
-
-        if (resp.ok) {
-          response = resp;
-          break;
+      const resp = await KoguApi.authFetchRaw('/protected/kogu/cfdi/negocio/exportar-excel?' + query, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, application/octet-stream, */*'
         }
+      });
 
+      if (resp.ok) {
+        response = resp;
+      } else {
         try {
           const err = await resp.clone().json();
           lastMessage = err?.error?.message || err?.message || lastMessage;
