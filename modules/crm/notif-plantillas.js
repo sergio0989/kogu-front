@@ -1,17 +1,18 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/crm/notif-plantillas.html';
-  const BASE = '/protected/crm';
+  const BASE = '/protected/notif';
+  const MODULO = 'crm';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
     title: 'Plantillas de notificación',
     description: 'Define qué plantilla usa cada evento del CRM por canal (WhatsApp / Email).',
-    requiredPermission: 'crm.notif.read',
+    requiredPermission: 'notif.read',
   });
   if (!b) return;
 
   const esc = s => KoguUi.escapeHtml(String(s ?? ''));
-  const puedeManage = KoguShell.hasPerm(b, 'crm.notif.manage');
+  const puedeManage = KoguShell.hasPerm(b, 'notif.manage');
   const EVENTOS = [
     { k: 'mencion', label: 'Mención (@ en comentario)' },
     { k: 'cambio_estado', label: 'Cambio de estado' },
@@ -28,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div class="hint" style="color:var(--muted);font-size:12.5px">
       Tokens disponibles: <code>{cliente}</code> <code>{titulo}</code> <code>{evento}</code> <code>{fecha}</code> <code>{monto}</code> <code>{link}</code>.
       En WhatsApp, el <b>orden de tokens</b> mapea a <b>{{1}}, {{2}}…</b> de tu plantilla aprobada (Twilio).
-      ${puedeManage ? '' : '<br><b>Solo lectura</b> (te falta el permiso crm.notif.manage).'}
+      ${puedeManage ? '' : '<br><b>Solo lectura</b> (te falta el permiso notif.manage).'}
     </div>
   </div>
   <div id="cards" class="stack" style="gap:14px"><div class="empty">Cargando…</div></div>
@@ -38,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function load() {
     try {
-      const res = await KoguApi.apiFetch(`${BASE}/notif-plantillas`);
+      const res = await KoguApi.apiFetch(`${BASE}/plantillas?modulo=${MODULO}`);
       const rows = KoguApi.unwrapRows ? KoguApi.unwrapRows(res) : (res?.data || res || []);
       config = {};
       (rows || []).forEach(r => { config[`${r.evento}:${r.canal}`] = r; });
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('#cards [data-ev]').forEach(card => {
       const ev = card.dataset.ev;
       const guardar = async (canal, payload, btn) => KoguUi.withLoading(btn, async () => {
-        await KoguApi.apiFetch(`${BASE}/notif-plantillas`, { method: 'PUT', body: JSON.stringify({ evento: ev, canal, ...payload }) });
+        await KoguApi.apiFetch(`${BASE}/plantillas`, { method: 'PUT', body: JSON.stringify({ modulo: MODULO, evento: ev, canal, ...payload }) });
         KoguApi.toast('Plantilla guardada', 'success');
         await load();
       }, 'Guardando…').catch(err => KoguApi.toast(err.message, 'error'));

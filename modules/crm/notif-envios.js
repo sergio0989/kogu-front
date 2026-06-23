@@ -1,12 +1,12 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/crm/notif-envios.html';
-  const BASE = '/protected/crm';
+  const BASE = '/protected/notif';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
     title: 'Bitácora de notificaciones',
     description: 'Envíos de WhatsApp y correo del CRM con la respuesta del proveedor.',
-    requiredPermission: 'crm.notif.read',
+    requiredPermission: 'notif.read',
   });
   if (!b) return;
 
