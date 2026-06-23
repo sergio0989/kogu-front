@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <select class="select" id="periodo_anio" style="flex:1"></select>
               <select class="select" id="periodo_mes" style="flex:1">
                 <option value="">Mes…</option>
+                <option value="acumulado">Acumulado (año)</option>
                 <option value="1">Enero</option>
                 <option value="2">Febrero</option>
                 <option value="3">Marzo</option>
@@ -911,8 +912,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function applyPeriodoAtajo() {
     const y = Number(document.getElementById('periodo_anio').value || 0);
-    const m = Number(document.getElementById('periodo_mes').value || 0);
+    const mesRaw = document.getElementById('periodo_mes').value || '';
     if (!y) return false;
+    // 'acumulado' (o mes vacío) → año completo (1 ene – 31 dic).
+    const m = mesRaw === 'acumulado' ? 0 : Number(mesRaw || 0);
     const from = m ? new Date(y, m - 1, 1) : new Date(y, 0, 1);
     const to = m ? new Date(y, m, 0) : new Date(y, 11, 31);
     document.getElementById('date_from').value = ymd(from);
