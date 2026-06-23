@@ -733,11 +733,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${buildSatStatusCell(r)}</td>
         <td>${buildMontoCell(r)}</td>
         <td>
-          <div class="bandeja-actions-grid" style="display:grid; grid-template-columns:1fr; gap:4px; min-width:104px">
-            <a class="btn primary bandeja-action-btn" style="font-size:12px; padding:6px 10px; white-space:nowrap" href="/modules/cfdi/detalle/detalle.html?uuid=${encodeURIComponent(r.uuid)}">Detalle</a>
-            <button class="btn bandeja-action-btn btn-pdf" style="font-size:12px; padding:6px 10px; white-space:nowrap" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">PDF</button>
-            <button class="btn bandeja-action-btn btn-xml" style="font-size:12px; padding:6px 10px; white-space:nowrap" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">XML</button>
-            <button class="btn bandeja-action-btn btn-refresh-sat" style="font-size:12px; padding:6px 10px; white-space:nowrap" data-cfdi-id="${KoguUi.escapeHtml(r.cfdi_id || '')}">Actualizar SAT</button>
+          <div class="bandeja-actions-grid" style="display:grid; grid-template-columns:1fr; gap:3px; min-width:104px">
+            <a class="btn primary bandeja-action-btn" style="font-size:12px; padding:3px 10px; line-height:1.3; min-height:0; white-space:nowrap" href="/modules/cfdi/detalle/detalle.html?uuid=${encodeURIComponent(r.uuid)}">Detalle</a>
+            <button class="btn bandeja-action-btn btn-pdf" style="font-size:12px; padding:3px 10px; line-height:1.3; min-height:0; white-space:nowrap" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">PDF</button>
+            <button class="btn bandeja-action-btn btn-xml" style="font-size:12px; padding:3px 10px; line-height:1.3; min-height:0; white-space:nowrap" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">XML</button>
+            <button class="btn bandeja-action-btn btn-refresh-sat" style="font-size:12px; padding:3px 10px; line-height:1.3; min-height:0; white-space:nowrap" data-cfdi-id="${KoguUi.escapeHtml(r.cfdi_id || '')}">Actualizar SAT</button>
           </div>
         </td>
       </tr>
