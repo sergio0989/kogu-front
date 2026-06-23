@@ -25,7 +25,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div class="page-actions" id="tipoTabs" style="margin-top:16px; flex-wrap:wrap; gap:8px">
+        <div class="page-actions" id="scopeTabs" style="margin-top:16px; gap:8px; align-items:center">
+          <span class="label-text" style="margin:0 4px 0 0">Ámbito:</span>
+          <button class="btn scope-tab" data-scope="todos">Todos</button>
+          <button class="btn scope-tab" data-scope="emitidos">Emitidos</button>
+          <button class="btn primary scope-tab" data-scope="recibidos">Recibidos</button>
+        </div>
+
+        <div class="page-actions" id="tipoTabs" style="margin-top:12px; flex-wrap:wrap; gap:8px">
           <button class="btn primary tipo-tab" data-tipo="">Todos <span class="chip" data-c="total">0</span></button>
           <button class="btn tipo-tab" data-tipo="I">Ingreso <span class="chip" data-c="I">0</span></button>
           <button class="btn tipo-tab" data-tipo="E">Egreso <span class="chip" data-c="E">0</span></button>
@@ -72,14 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="label-text">Fecha final</div>
             <input class="input" id="date_to" type="date">
           </div>
-          <div>
-            <div class="label-text">Scope</div>
-            <select class="select" id="scope">
-              <option value="todos">Todos</option>
-              <option value="emitidos">Emitidos</option>
-              <option value="recibidos" selected>Recibidos</option>
-            </select>
-          </div>
+          <div></div>
         </div>
 
         <div class="grid-4" style="margin-top:16px">
@@ -206,6 +206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     items: [],
     tipo: '',
     estatus: '',
+    scope: 'recibidos',
     incTab: 'todos',
     incData: { total: 0, resumen: {}, items: [] }
   };
@@ -229,6 +230,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  function renderScopeTabs() {
+    document.querySelectorAll('.scope-tab').forEach(btn => {
+      btn.classList.toggle('primary', (btn.dataset.scope || '') === state.scope);
+    });
+  }
+
   // Atajo de periodo: pobla el Año (actual y 5 atrás).
   (function fillPeriodoAnios() {
     const sel = document.getElementById('periodo_anio');
@@ -244,13 +251,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('metodo_pago').value = '';
     document.getElementById('date_from').value = start.toISOString().slice(0, 10);
     document.getElementById('date_to').value = now.toISOString().slice(0, 10);
-    document.getElementById('scope').value = 'recibidos';
     document.getElementById('periodo_anio').value = '';
     document.getElementById('periodo_mes').value = '';
     state.tipo = '';
     state.estatus = '';
+    state.scope = 'recibidos';
     renderTipoTabs();
     renderEstatusTabs();
+    renderScopeTabs();
   }
 
   resetFilters();
@@ -299,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       date_from: document.getElementById('date_from').value,
       date_to: document.getElementById('date_to').value,
       metodo_pago: document.getElementById('metodo_pago').value,
-      scope: document.getElementById('scope').value,
+      scope: state.scope,
       tipo_comprobante: state.tipo,
       limit: state.limit,
       offset: (state.page - 1) * state.limit
@@ -883,6 +891,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.page = 1;
     await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
   };
+
+  // Tabs de ámbito (Scope) — contexto principal emitidos/recibidos/todos.
+  document.querySelectorAll('.scope-tab').forEach(btn => {
+    btn.onclick = async () => {
+      state.scope = btn.dataset.scope || 'todos';
+      state.page = 1;
+      renderScopeTabs();
+      await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
+    };
+  });
 
   // Tabs de tipo de comprobante (con conteo en vivo).
   document.querySelectorAll('.tipo-tab').forEach(btn => {
