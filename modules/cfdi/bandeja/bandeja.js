@@ -22,9 +22,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="refreshSatTodosBtn">Actualizar SAT todos</button>
             <button class="btn" id="zipXmlPdfTodosBtn">ZIP XML + PDF todos</button>
             <button class="btn" id="exportBtn" title="Elegir tipo de reporte">Exportar Excel ▾</button>
+            <button class="btn collapse-btn" data-target="filtrosBody" title="Contraer / expandir">▾</button>
           </div>
         </div>
 
+        <div class="collapsible-body" id="filtrosBody">
         <div class="eyebrow" style="margin-top:18px">Ámbito de CFDI</div>
         <div class="page-actions" id="scopeTabs" style="margin-top:8px; gap:10px; flex-wrap:wrap">
           <button class="btn scope-tab" data-scope="todos" style="font-size:15px; padding:12px 26px; font-weight:700; border-radius:999px">Todos</button>
@@ -110,15 +112,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div class="grid-4" id="totalesStrip" style="margin-top:16px">
-          <div class="mini-stat"><div class="mini-stat-k">Conteo (filtro actual)</div><div class="mini-stat-v" data-t="conteo">0</div></div>
-          <div class="mini-stat"><div class="mini-stat-k">Subtotal</div><div class="mini-stat-v" data-t="subtotal">$0.00</div></div>
-          <div class="mini-stat"><div class="mini-stat-k">Impuestos trasladados</div><div class="mini-stat-v" data-t="impuestos_tras">$0.00</div></div>
-          <div class="mini-stat"><div class="mini-stat-k">Total</div><div class="mini-stat-v" data-t="total">$0.00</div></div>
-        </div>
-
         <div class="row" style="margin-top:12px">
           <div class="hero-note" id="summaryBox">Cargando bandeja…</div>
+        </div>
         </div>
       </div>
 
@@ -135,9 +131,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn inc-tab" data-tab="observados">Observados</button>
             <button class="btn inc-tab" data-tab="alta_severidad">Alta severidad</button>
             <button class="btn inc-tab" data-tab="sin_validacion">Sin validación</button>
+            <button class="btn collapse-btn" data-target="incBody" title="Contraer / expandir">▾</button>
           </div>
         </div>
 
+        <div class="collapsible-body" id="incBody">
         <div class="grid-4" style="margin-top:16px" id="incSummary"></div>
 
         <div class="hero-note" id="incMessage" style="margin-top:16px">Cargando incidencias…</div>
@@ -159,9 +157,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             <tbody id="incRows"></tbody>
           </table>
         </div>
+        </div>
       </div>
 
       <div class="card">
+        <div class="row">
+          <div>
+            <div class="eyebrow">Comprobantes</div>
+            <h2>Bandeja CFDI</h2>
+          </div>
+          <div class="page-actions">
+            <button class="btn collapse-btn" data-target="tablaBody" title="Contraer / expandir">▾</button>
+          </div>
+        </div>
+        <div class="collapsible-body" id="tablaBody">
         <div class="table-wrap">
           <table>
             <thead>
@@ -190,6 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="prevBtn">Anterior</button>
             <button class="btn" id="nextBtn">Siguiente</button>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -740,18 +750,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function renderTotales(totales) {
-    const t = totales || {};
-    const set = (key, val) => {
-      const el = document.querySelector(`#totalesStrip [data-t="${key}"]`);
-      if (el) el.textContent = val;
-    };
-    set('conteo', KoguUi.int(t.conteo || 0));
-    set('subtotal', KoguUi.money(Number(t.subtotal || 0)));
-    set('impuestos_tras', KoguUi.money(Number(t.impuestos_tras || 0)));
-    set('total', KoguUi.money(Number(t.total || 0)));
-  }
-
   async function loadBandeja() {
     const qs = KoguUi.queryParams(currentFilters());
     const res = await KoguApi.apiFetch('/protected/kogu/cfdi/negocio/bandeja?' + qs);
@@ -760,7 +758,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.total = Number(data.total || data.count || 0);
     state.items = data.items || data.rows || KoguApi.unwrapRows(res) || [];
     updateTabCounts(data.conteos_por_tipo);
-    renderTotales(data.totales);
     renderBandeja();
   }
 
@@ -948,6 +945,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('periodo_anio').onchange = onPeriodoChange;
   document.getElementById('periodo_mes').onchange = onPeriodoChange;
+
+  // Colapsar / expandir secciones (filtros, incidencias, tabla).
+  document.querySelectorAll('.collapse-btn').forEach(btn => {
+    btn.onclick = () => {
+      const body = document.getElementById(btn.dataset.target);
+      if (!body) return;
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      btn.textContent = collapsed ? '▾' : '▸';
+    };
+  });
 
   // ---------------------------------------------------------------------------
   // Modal de selección de plantilla de Excel.
