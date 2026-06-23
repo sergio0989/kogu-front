@@ -673,18 +673,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     });
 
-    document.querySelectorAll('.btn-json').forEach(btn => {
-      btn.onclick = async () => {
-        try {
-          const uuid = btn.dataset.uuid;
-          await downloadFile(`/cfdi/protected/cfdi/facturas/${encodeURIComponent(uuid)}/json`, `${uuid}.json`);
-          KoguApi.toast('JSON descargado correctamente', 'success');
-        } catch (err) {
-          KoguApi.toast(err.message || 'No fue posible descargar el JSON', 'error');
-        }
-      };
-    });
-
     document.querySelectorAll('.btn-pdf').forEach(btn => {
       btn.onclick = async () => {
         try {
@@ -745,11 +733,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${buildSatStatusCell(r)}</td>
         <td>${buildMontoCell(r)}</td>
         <td>
-          <div class="bandeja-actions-grid bandeja-actions-grid-5">
+          <div class="bandeja-actions-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; min-width:180px">
             <a class="btn primary bandeja-action-btn" href="/modules/cfdi/detalle/detalle.html?uuid=${encodeURIComponent(r.uuid)}">Detalle</a>
             <button class="btn bandeja-action-btn btn-pdf" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">PDF</button>
             <button class="btn bandeja-action-btn btn-xml" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">XML</button>
-            <button class="btn bandeja-action-btn btn-json" data-uuid="${KoguUi.escapeHtml(r.uuid || '')}">JSON</button>
             <button class="btn bandeja-action-btn btn-refresh-sat" data-cfdi-id="${KoguUi.escapeHtml(r.cfdi_id || '')}">Actualizar SAT</button>
           </div>
         </td>
