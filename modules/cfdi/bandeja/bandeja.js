@@ -9,6 +9,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
+    <style>
+      .btn.collapse-btn {
+        border-radius: 999px;
+        width: 40px; height: 40px;
+        padding: 0;
+        font-size: 16px; line-height: 1;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+        border: 1px solid rgba(15, 23, 42, 0.14);
+        transition: box-shadow .15s ease, transform .15s ease;
+      }
+      .btn.collapse-btn:hover {
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.30);
+        transform: translateY(-1px);
+      }
+    </style>
     <div class="stack">
       <div class="card">
         <div class="row" style="align-items:center">
