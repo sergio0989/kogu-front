@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         row('Kilos A <span class="muted" style="font-size:10px">neto de notas</span>', fKg(f.kilos_a)) +
         row('Kilos B <span class="muted" style="font-size:10px">producidos</span>', fKg(f.kilos_b)) +
         row('Kilos C <span class="muted" style="font-size:10px">exportación</span>', fKg(f.kilos_c)) +
-        row('Kilos Prod B <span class="muted" style="font-size:10px">producidos del mes</span>', fKg(f.kilos_prod_b)))}
+        row('Kilos Prod B <span class="muted" style="font-size:10px">capturado</span>', fKg(f.kilos_prod_b)))}
       ${bloque('Factores',
         row('Factor A', fFac(f.factor_a), aplic) +
         row('Factor B fijo', fFac(f.factor_b_fijo), aplic) +

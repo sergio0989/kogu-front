@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     { id: 'importe_b', key: 'ImporteB', lbl: 'Importe B', src: 'Total B', tag: 'informativo' },
     { id: 'importe_b_fijo', key: 'ImporteBFijo', lbl: 'Importe B fijo', src: '503-0000 · Gastos indirectos tipo B fijos', tag: 'aplica (Factor B fijo)' },
     { id: 'importe_b_prorrateo', key: 'ImporteBProrrateo', lbl: 'Importe B prorrateo', src: 'Maquila + Gastos Variables', tag: 'informativo' },
+    { id: 'kilos_prod_b', key: 'KilosProdB', lbl: 'Kilos Prod B', src: 'kg producidos del mes (para Factor B almacén)', tag: '' },
     { id: 'importe_c', key: 'ImporteC', lbl: 'Importe C', src: 'Total C', tag: 'informativo' },
     { id: 'importe_d', key: 'ImporteD', lbl: 'Importe D', src: 'opcional', tag: '' },
     { id: 'importe_inventario', key: 'ImporteInventario', lbl: 'Importe inventario', src: 'opcional', tag: '' },
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ${CAMPOS.map(f => `<div>
       <label class="muted" style="font-size:12px;display:block">${f.lbl}${tagChip(f.tag)}</label>
       <input type="text" inputmode="decimal" id="${f.id}" class="input" placeholder="0.00"/>
-      <div class="muted" style="font-size:11px;margin-top:2px">${f.src}</div>
+      <div class="muted" style="font-size:11px;margin-top:2px" id="src_${f.id}">${f.src}</div>
     </div>`).join('')}
   </div>
 
@@ -76,8 +77,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card" style="margin-top:16px">
   <div class="muted" style="font-size:13px">
     <strong>¿Cómo funciona?</strong> Aquí solo capturas los <strong>importes</strong> (lo que hoy traes del archivo de finanzas).
-    KOGU calcula automáticamente <strong>KilosA</strong> (neto de notas), <strong>KilosB</strong> (producidos),
-    <strong>KilosC</strong> (exportación) y <strong>KilosProdB</strong> de tus ventas, y deriva los factores.
+    KOGU calcula automáticamente <strong>KilosA</strong> (neto de notas), <strong>KilosB</strong> (producidos)
+    y <strong>KilosC</strong> (exportación) de tus ventas, y deriva los factores. <strong>KilosProdB</strong> lo
+    capturas (KOGU te sugiere el de producciones para que lo confirmes o ajustes).
     Al costo se aplican <strong>Factor A</strong> y <strong>Factor B fijo</strong>; los demás son informativos.
     Después de guardar, ve a <strong>Costo de ventas / Utilidad</strong> y pulsa <strong>Calcular</strong>.
   </div>
@@ -107,6 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch(`${BASE}/factores/${anio}/${mes}`);
       const f = KoguApi.unwrapData(res);
       CAMPOS.forEach(cmp => { $(cmp.id).value = f && f[cmp.id] != null ? Number(f[cmp.id]).toFixed(2) : ''; });
+      await cargarSugerenciaKpb(anio, mes);
       if (f) {
         showMsg(`Periodo ${anio}-${String(mes).padStart(2, '0')} ya tiene importes capturados — puedes ajustarlos y volver a guardar.`, 'ok');
         $('estadoPeriodo').textContent = `Última actualización: ${f.updated_at ? new Date(f.updated_at).toLocaleString() : '—'}`;
@@ -115,6 +118,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         $('estadoPeriodo').textContent = '';
       }
     } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  // KilosProdB: captura con sugerencia. KOGU sugiere el calculado de producciones
+  // (puede traer error); el usuario confirma o ajusta. Autollena solo si está vacío.
+  async function cargarSugerenciaKpb(anio, mes) {
+    const hint = $('src_kilos_prod_b'); if (!hint) return;
+    try {
+      const r = await KoguApi.apiFetch(`${BASE}/factores/${anio}/${mes}/kilos-prod-sugerido`);
+      const s = Number(KoguApi.unwrapData(r)?.kilos_prod_b) || 0;
+      if (s > 0) {
+        hint.innerHTML = `kg producidos del mes · sugerido de producciones: <a href="#" id="usarKpb" style="color:#0e7490;font-weight:600">${f2(s)} kg</a>`;
+        const link = $('usarKpb');
+        if (link) link.addEventListener('click', (e) => { e.preventDefault(); $('kilos_prod_b').value = Number(s).toFixed(2); });
+        if (!String($('kilos_prod_b').value || '').trim()) $('kilos_prod_b').value = Number(s).toFixed(2);
+      } else {
+        hint.textContent = 'kg producidos del mes (captura)';
+      }
+    } catch (_e) { /* sugerencia best-effort */ }
   }
 
   async function guardar() {
