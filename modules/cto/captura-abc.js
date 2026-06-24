@@ -91,7 +91,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="muted" style="font-size:12px;margin:4px 0 12px">Línea manual que NO viene en el extracto de ventas (ej. la suma de notas de cargo). Sobrevive a recargar ventas; se costea al Calcular (1 kg, costo 0, Factor A; marca C si es exportación).</div>
   <div class="grid-2" style="gap:12px 22px">
     <div><label class="muted" style="font-size:12px;display:block">Concepto</label><input type="text" id="aj_concepto" class="input" placeholder="Notas de cargo / Cambio de precio"/></div>
-    <div><label class="muted" style="font-size:12px;display:block">Cliente</label><input type="text" id="aj_cliente" class="input" placeholder="MSI EXPRESS, INC."/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Cliente</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="aj_cliente" class="input" placeholder="(selecciona del catálogo)" readonly style="flex:1;background:#f8fafc;cursor:pointer"/>
+        <input type="hidden" id="aj_cve_cte"/>
+        <button class="btn ghost" id="aj_buscarCli" type="button" title="Buscar cliente">🔍 Buscar</button>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:2px" id="aj_cliente_cve"></div>
+    </div>
     <div><label class="muted" style="font-size:12px;display:block">Subtotal (MXN)</label><input type="text" inputmode="decimal" id="aj_subtotal" class="input" placeholder="0.00"/></div>
     <div style="display:flex;align-items:flex-end;gap:6px"><label style="font-size:13px"><input type="checkbox" id="aj_ext" checked/> Es exportación (EXT → marca C)</label></div>
   </div>
@@ -245,10 +252,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       const a = KoguApi.unwrapData(r);
       $('aj_concepto').value = a?.concepto || '';
       $('aj_cliente').value = a?.nom_cte || '';
+      $('aj_cve_cte').value = a?.cve_cte || '';
+      $('aj_cliente_cve').textContent = a?.cve_cte ? `cve ${a.cve_cte}` : '';
       $('aj_subtotal').value = a && a.subtotal != null ? Number(a.subtotal).toFixed(2) : '';
       $('aj_ext').checked = a ? (a.es_nacional === false) : true;
       $('ajusteEstado').textContent = a ? `Capturado: ${fmtMon(a.subtotal)}` : 'Sin ajuste capturado';
     } catch (_e) { /* best-effort */ }
+  }
+
+  function abrirModalClientes() {
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;z-index:9999;padding-top:8vh';
+    ov.innerHTML = `<div class="card" style="width:560px;max-width:92vw;max-height:74vh;display:flex;flex-direction:column;margin:0">
+      <div class="row"><h3 style="margin:0">Buscar cliente</h3><button class="btn ghost" id="mcX" type="button">✕</button></div>
+      <input type="text" id="mcQ" class="input" placeholder="Nombre, clave o RFC…" style="margin-top:10px"/>
+      <div id="mcList" style="margin-top:10px;overflow:auto;flex:1"></div></div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('#mcX').addEventListener('click', close);
+    const q = ov.querySelector('#mcQ'), list = ov.querySelector('#mcList');
+    async function buscar() {
+      const term = q.value.trim();
+      try {
+        const r = await KoguApi.apiFetch(`${BASE}/clientes-buscar${term ? '?q=' + encodeURIComponent(term) : ''}`);
+        const rows = KoguApi.unwrapData(r) || [];
+        if (!rows.length) { list.innerHTML = '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>'; return; }
+        list.innerHTML = rows.map((c) => `<button class="btn ghost" type="button" data-cve="${esc(c.cve_cte || '')}" data-nom="${esc(c.nombre || '')}" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px">
+          <strong>${esc(c.nombre || '—')}</strong><span class="muted" style="font-size:11px">${c.cve_cte ? ' · cve ' + esc(c.cve_cte) : ''}${c.rfc ? ' · ' + esc(c.rfc) : ''}</span></button>`).join('');
+        list.querySelectorAll('button[data-nom]').forEach((b) => b.addEventListener('click', () => {
+          $('aj_cliente').value = b.dataset.nom;
+          $('aj_cve_cte').value = b.dataset.cve;
+          $('aj_cliente_cve').textContent = b.dataset.cve ? `cve ${b.dataset.cve}` : '';
+          close();
+        }));
+      } catch (e) { list.innerHTML = `<div style="padding:12px;color:#991b1b">${esc(e.message)}</div>`; }
+    }
+    q.addEventListener('input', () => { clearTimeout(window.__mc); window.__mc = setTimeout(buscar, 300); });
+    q.focus(); buscar();
   }
 
   async function guardarAjuste() {
@@ -261,7 +303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await KoguApi.apiFetch(`${BASE}/ajuste-manual/${anio}/${mes}`, {
         method: 'POST', body: JSON.stringify({
-          concepto: $('aj_concepto').value, nom_cte: $('aj_cliente').value,
+          concepto: $('aj_concepto').value, nom_cte: $('aj_cliente').value, cve_cte: $('aj_cve_cte').value || null,
           subtotal, es_exportacion: ext, cve_mon: ext ? 2 : 1,
         }),
       });
@@ -273,6 +315,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   $('aj_guardar').addEventListener('click', guardarAjuste);
+  $('aj_buscarCli').addEventListener('click', abrirModalClientes);
+  $('aj_cliente').addEventListener('click', abrirModalClientes);
   $('cargarBtn').addEventListener('click', () => { cargarPeriodo(); cargarLista(); cargarAjuste(parseInt($('anio').value, 10), parseInt($('mes').value, 10)); });
   $('guardarBtn').addEventListener('click', guardar);
   $('exportBtn').addEventListener('click', exportarLista);
