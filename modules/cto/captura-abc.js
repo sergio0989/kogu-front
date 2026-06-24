@@ -85,6 +85,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 </div>
 
+<div class="card" id="ajusteCard" style="margin-top:16px">
+  <div class="row"><h3 style="margin:0">Notas de cargo / Ajuste del periodo</h3>
+    <span class="muted" style="font-size:12px" id="ajusteEstado">—</span></div>
+  <div class="muted" style="font-size:12px;margin:4px 0 12px">Línea manual que NO viene en el extracto de ventas (ej. la suma de notas de cargo). Sobrevive a recargar ventas; se costea al Calcular (1 kg, costo 0, Factor A; marca C si es exportación).</div>
+  <div class="grid-2" style="gap:12px 22px">
+    <div><label class="muted" style="font-size:12px;display:block">Concepto</label><input type="text" id="aj_concepto" class="input" placeholder="Notas de cargo / Cambio de precio"/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Cliente</label><input type="text" id="aj_cliente" class="input" placeholder="MSI EXPRESS, INC."/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Subtotal (MXN)</label><input type="text" inputmode="decimal" id="aj_subtotal" class="input" placeholder="0.00"/></div>
+    <div style="display:flex;align-items:flex-end;gap:6px"><label style="font-size:13px"><input type="checkbox" id="aj_ext" checked/> Es exportación (EXT → marca C)</label></div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:14px">
+    <button class="btn primary" id="aj_guardar">💾 Guardar ajuste</button>
+  </div>
+</div>
+
 <div class="card" id="listaCard" style="margin-top:16px">
   <div class="row">
     <div><h3 style="margin:0" id="listaTitulo">Histórico ABC</h3>
@@ -224,11 +239,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
-  $('cargarBtn').addEventListener('click', () => { cargarPeriodo(); cargarLista(); });
+  async function cargarAjuste(anio, mes) {
+    try {
+      const r = await KoguApi.apiFetch(`${BASE}/ajuste-manual/${anio}/${mes}`);
+      const a = KoguApi.unwrapData(r);
+      $('aj_concepto').value = a?.concepto || '';
+      $('aj_cliente').value = a?.nom_cte || '';
+      $('aj_subtotal').value = a && a.subtotal != null ? Number(a.subtotal).toFixed(2) : '';
+      $('aj_ext').checked = a ? (a.es_nacional === false) : true;
+      $('ajusteEstado').textContent = a ? `Capturado: ${fmtMon(a.subtotal)}` : 'Sin ajuste capturado';
+    } catch (_e) { /* best-effort */ }
+  }
+
+  async function guardarAjuste() {
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    const raw = String($('aj_subtotal').value || '').replace(/,/g, '').trim();
+    const subtotal = raw === '' ? 0 : parseFloat(raw);
+    const ext = $('aj_ext').checked;
+    $('aj_guardar').disabled = true;
+    try {
+      await KoguApi.apiFetch(`${BASE}/ajuste-manual/${anio}/${mes}`, {
+        method: 'POST', body: JSON.stringify({
+          concepto: $('aj_concepto').value, nom_cte: $('aj_cliente').value,
+          subtotal, es_exportacion: ext, cve_mon: ext ? 2 : 1,
+        }),
+      });
+      KoguApi.toast(subtotal ? 'Ajuste guardado' : 'Ajuste eliminado', 'success');
+      showMsg(`Ajuste del periodo ${anio}-${String(mes).padStart(2, '0')} guardado. Ve a "Costo de ventas / Utilidad" y pulsa Calcular para reflejarlo.`, 'ok');
+      cargarAjuste(anio, mes); cargarLista();
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+    finally { $('aj_guardar').disabled = false; }
+  }
+
+  $('aj_guardar').addEventListener('click', guardarAjuste);
+  $('cargarBtn').addEventListener('click', () => { cargarPeriodo(); cargarLista(); cargarAjuste(parseInt($('anio').value, 10), parseInt($('mes').value, 10)); });
   $('guardarBtn').addEventListener('click', guardar);
   $('exportBtn').addEventListener('click', exportarLista);
-  KoguShell.subscribeEmpresaActivaChange(() => { cargarPeriodo(); cargarLista(); });
+  KoguShell.subscribeEmpresaActivaChange(() => { const a = parseInt($('anio').value, 10), m = parseInt($('mes').value, 10); cargarPeriodo(); cargarLista(); cargarAjuste(a, m); });
 
   cargarPeriodo();
   cargarLista();
+  cargarAjuste(parseInt($('anio').value, 10), parseInt($('mes').value, 10));
 });
