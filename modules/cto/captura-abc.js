@@ -120,27 +120,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function guardar() {
     const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
     if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
-    const row = { anio, mes };
+    const importes = {};
     let alguno = false;
     CAMPOS.forEach(cmp => {
       const raw = String($(cmp.id).value || '').replace(/,/g, '').trim();
       const v = raw === '' ? null : parseFloat(raw);
-      if (v != null && isFinite(v)) { row[cmp.key] = v; alguno = true; }
-      else row[cmp.key] = 0;
+      if (v != null && isFinite(v)) { importes[cmp.id] = v; alguno = true; }
+      else importes[cmp.id] = 0;
     });
     if (!alguno) return KoguApi.toast('Captura al menos un importe.', 'error');
     $('guardarBtn').disabled = true;
     try {
-      const body = { rows: [row], archivo_nombre: `Captura manual ${anio}-${String(mes).padStart(2, '0')}`, anio, mes };
-      const res = await KoguApi.apiFetch(`${BASE}/cargas/factores`, { method: 'POST', body: JSON.stringify(body) });
-      const d = KoguApi.unwrapData(res) || {};
-      if ((d.errores ?? 0) > 0) {
-        showMsg(`⚠ Guardado con avisos: ${d.detalle?.[0]?.error || 'revisa los datos.'}`, 'warn');
-      } else {
-        showMsg(`✅ Importes guardados para ${anio}-${String(mes).padStart(2, '0')}. Ahora ve a "Costo de ventas / Utilidad" y pulsa Calcular.`, 'ok');
-        KoguApi.toast('Importes guardados', 'success');
-        cargarLista();
-      }
+      await KoguApi.apiFetch(`${BASE}/factores/${anio}/${mes}`, { method: 'POST', body: JSON.stringify(importes) });
+      showMsg(`✅ Importes guardados para ${anio}-${String(mes).padStart(2, '0')}. Ahora ve a "Costo de ventas / Utilidad" y pulsa Calcular (necesita ventas/producciones/exportación cargadas).`, 'ok');
+      KoguApi.toast('Importes guardados', 'success');
+      cargarLista();
     } catch (e) {
       showMsg('❌ ' + e.message, 'error');
       KoguApi.toast(e.message, 'error');
@@ -163,17 +157,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('tablaLista').innerHTML = head + '<tbody><tr><td colspan="15" style="text-align:center;padding:18px;color:var(--muted)">Sin periodos capturados para el año.</td></tr></tbody>';
       return;
     }
-    const body = rows.map(r => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
-      <td style="text-align:left;padding:6px;font-weight:600">${MES[Number(r.mes)] || r.mes}</td>
+    const dash = '<span style="color:#cbd5e1">—</span>';
+    const body = rows.map(r => {
+      const pend = r.factor_a == null; // capturado pero aún sin Calcular
+      const kg = (v) => pend ? dash : f2(v);
+      const fc = (v) => pend ? dash : f4(v);
+      const tag = pend ? ' <span class="chip" style="background:#fef9c3;color:#854d0e;font-size:9px;font-weight:700;padding:1px 5px">pendiente</span>' : '';
+      return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${pend ? ';background:#fffdf5' : ''}">
+      <td style="text-align:left;padding:6px;font-weight:600">${MES[Number(r.mes)] || r.mes}${tag}</td>
       <td style="padding:6px">${f2(r.importe_a)}</td><td style="padding:6px">${f2(r.importe_b)}</td>
       <td style="padding:6px">${f2(r.importe_b_prorrateo)}</td><td style="padding:6px">${f2(r.importe_c)}</td>
       <td style="padding:6px;font-weight:600">${f2(r.sum_gastos)}</td>
-      <td style="padding:6px">${f2(r.kilos_a)}</td><td style="padding:6px">${f2(r.kilos_b)}</td>
-      <td style="padding:6px">${f2(r.kilos_prod_b)}</td><td style="padding:6px">${f2(r.kilos_c)}</td>
-      <td style="padding:6px;color:#166534;font-weight:600">${f4(r.factor_a)}</td>
-      <td style="padding:6px;color:#166534;font-weight:600">${f4(r.factor_b_fijo)}</td>
-      <td style="padding:6px;color:#64748b">${f4(r.factor_b)}</td><td style="padding:6px;color:#64748b">${f4(r.factor_c)}</td>
-      <td style="padding:6px">${f4(r.costo_promedio)}</td></tr>`).join('');
+      <td style="padding:6px">${kg(r.kilos_a)}</td><td style="padding:6px">${kg(r.kilos_b)}</td>
+      <td style="padding:6px">${kg(r.kilos_prod_b)}</td><td style="padding:6px">${kg(r.kilos_c)}</td>
+      <td style="padding:6px;color:#166534;font-weight:600">${fc(r.factor_a)}</td>
+      <td style="padding:6px;color:#166534;font-weight:600">${fc(r.factor_b_fijo)}</td>
+      <td style="padding:6px;color:#64748b">${fc(r.factor_b)}</td><td style="padding:6px;color:#64748b">${fc(r.factor_c)}</td>
+      <td style="padding:6px">${fc(r.costo_promedio)}</td></tr>`;
+    }).join('');
     $('tablaLista').innerHTML = head + '<tbody>' + body + '</tbody>';
   }
 
