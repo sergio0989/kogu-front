@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `cto_abc_${anio}.xlsx`;
+      a.href = url; a.download = `ABC_historico_${anio}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
