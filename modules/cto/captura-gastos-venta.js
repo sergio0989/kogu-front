@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const mon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numv = (v) => { const n = Number(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : 0; };
+  const fmtIn = (v) => (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 
   const c = document.getElementById('pageContent');
@@ -55,11 +56,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th style="padding:8px">Comisiones</th><th style="padding:8px">Sueldo</th>
       <th style="padding:8px">Gasto</th><th style="padding:8px">Carga social</th>
       <th style="padding:8px">Total</th><th style="padding:8px">Estado</th></tr></thead>`;
-    const inp = (i, k, v) => `<input class="input gv" data-i="${i}" data-k="${k}" style="width:120px;text-align:right" value="${Number(v) || 0}"/>`;
+    const inp = (i, k, v) => `<input class="input gv" data-i="${i}" data-k="${k}" style="width:120px;text-align:right" value="${fmtIn(v)}"/>`;
+    const act = (s) => (s === 'activo')
+      ? '<span class="chip" style="background:#dcfce7;color:#166534;font-size:9px;font-weight:700;padding:1px 5px;margin-left:6px">activo</span>'
+      : '<span class="chip" style="background:#e5e7eb;color:#6b7280;font-size:9px;font-weight:700;padding:1px 5px;margin-left:6px">inactivo</span>';
     const rows = agentes.map((a, i) => {
       const tot = (numv(a.comisiones_sv) + numv(a.sueldo) + numv(a.gasto));
-      return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9">
-        <td style="text-align:left;padding:8px;font-weight:600">${esc(a.nombre)} <span class="muted" style="font-size:11px">(${esc(a.cve_agente)})</span></td>
+      return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9${a.status === 'activo' ? '' : ';opacity:.6'}">
+        <td style="text-align:left;padding:8px;font-weight:600">${esc(a.nombre)} <span class="muted" style="font-size:11px">(${esc(a.cve_agente)})</span>${act(a.status)}</td>
         <td style="padding:6px">${inp(i, 'comisiones_sv', a.comisiones_sv)}</td>
         <td style="padding:6px">${inp(i, 'sueldo', a.sueldo)}</td>
         <td style="padding:6px">${inp(i, 'gasto', a.gasto)}</td>
@@ -69,7 +73,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       </tr>`;
     }).join('');
     $('tab').innerHTML = head + '<tbody>' + rows + '</tbody>';
-    document.querySelectorAll('.gv').forEach((el) => el.addEventListener('input', onEdit));
+    document.querySelectorAll('.gv').forEach((el) => {
+      el.addEventListener('input', onEdit);
+      el.addEventListener('blur', (e) => { e.target.value = fmtIn(numv(e.target.value)); });
+      el.addEventListener('focus', (e) => { const n = numv(e.target.value); e.target.value = n ? n : ''; });
+    });
   }
 
   function onEdit(e) {
