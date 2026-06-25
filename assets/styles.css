@@ -371,7 +371,7 @@ thead th{
   word-break:break-word;
   min-width:0;
 }
-.kv-row.kv-long{ flex-direction:column; align-items:stretch; gap:5px; }
+.kv-row.kv-long{ flex-direction:column; align-items:stretch; justify-content:flex-start; gap:5px; }
 .kv-row.kv-long .kv-k{ font-size:12px; }
 .kv-row.kv-long .kv-v{ text-align:left; font-weight:500; line-height:1.5; }
 @media (max-width:700px){
