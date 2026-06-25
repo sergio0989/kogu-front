@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${field('Responsable', o.responsable_nombre)}
         ${field('Costo', o.costo != null ? KoguUi.fmtMoney(o.costo, o.moneda) : null)}
         ${field('Apertura', KoguUi.fmtDate(o.fecha_apertura))}
-        ${field('Compromiso', o.fecha_compromiso)}
+        ${field('Compromiso', o.fecha_compromiso ? KoguUi.fmtDateOnly(o.fecha_compromiso) : null)}
         ${field('Cierre', o.fecha_cierre ? KoguUi.fmtDate(o.fecha_cierre) : null)}
         ${o.plan_nombre ? field('Plan', o.plan_nombre) : ''}
       </div>

@@ -2,6 +2,7 @@
   function money(v){ const n=Number(v||0); return new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n); }
   function int(v){ return new Intl.NumberFormat('es-MX').format(Number(v||0)); }
   function fmtDate(v){ if(!v) return '-'; const d=new Date(v); return isNaN(d)?String(v):d.toLocaleString('es-MX'); }
+  function fmtDateOnly(v){ if(!v) return '-'; const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return `${m[3]}/${m[2]}/${m[1]}`; const d=new Date(v); return isNaN(d)?String(v):d.toLocaleDateString('es-MX'); }
   function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function statusBadge(v){
     const x=String(v||'').toUpperCase();
@@ -274,7 +275,7 @@
   function evidenciaLabel(t) { return TIPO_EVIDENCIA_LABELS[t] || t; }
 
   window.KoguUi = {
-    money, int, fmtDate, escapeHtml, statusBadge, cardStat, queryParams, parseBool, withLoading,
+    money, int, fmtDate, fmtDateOnly, escapeHtml, statusBadge, cardStat, queryParams, parseBool, withLoading,
     openSearchPicker, closeSearchPicker,
     // Materialidad
     fmtMoney, nivelBadge, estatusBadge, efosBadge,

@@ -142,8 +142,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${field('Modelo', a.modelo)}
             ${field('Número de serie', a.numero_serie)}
             ${field('Proveedor', a.proveedor_nombre)}
-            ${field('Fecha adquisición', a.fecha_adquisicion)}
-            ${field('Garantía hasta', a.garantia_hasta)}
+            ${field('Fecha adquisición', a.fecha_adquisicion ? KoguUi.fmtDateOnly(a.fecha_adquisicion) : null)}
+            ${field('Garantía hasta', a.garantia_hasta ? KoguUi.fmtDateOnly(a.garantia_hasta) : null)}
             ${field('Costo adquisición', a.costo_adquisicion != null ? KoguUi.fmtMoney(a.costo_adquisicion, a.moneda) : null)}
             ${field('Costo reposición est.', a.costo_reposicion_estimado != null ? KoguUi.fmtMoney(a.costo_reposicion_estimado, a.moneda) : null)}
             ${field('Custodio actual', a.custodio_nombre)}
@@ -673,7 +673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tr>
           <td><strong>${esc(p.nombre)}</strong>${p.instrucciones ? `<div class="muted" style="font-size:12px">${esc(p.instrucciones)}</div>` : ''}</td>
           <td>cada ${esc(String(p.frecuencia_valor))} ${esc(p.tipo_frecuencia)}</td>
-          <td>${esc(p.proxima_fecha)}</td>
+          <td>${p.proxima_fecha ? esc(KoguUi.fmtDateOnly(p.proxima_fecha)) : '<span class="muted">—</span>'}</td>
           <td>${p.activo !== false ? '<span class="badge success">Sí</span>' : '<span class="badge neutral">No</span>'}</td>
           <td class="actions-cell">
             ${canPlanesManage ? `<button class="btn ghost" data-plan-edit="${p.plan_id}">Editar</button>` : ''}
@@ -698,7 +698,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td>${ordenEstadoBadge(o.estado)}</td>
           <td>${esc(o.prioridad || '')}</td>
           <td>${KoguUi.fmtDate(o.fecha_apertura)}</td>
-          <td>${o.fecha_compromiso ? esc(o.fecha_compromiso) : '<span class="muted">—</span>'}</td>
+          <td>${o.fecha_compromiso ? esc(KoguUi.fmtDateOnly(o.fecha_compromiso)) : '<span class="muted">—</span>'}</td>
         </tr>`).join('');
       tbody.querySelectorAll('[data-ord]').forEach(tr => tr.onclick = () => { window.location.href = '/modules/act/orden-detalle.html?id=' + encodeURIComponent(tr.dataset.ord); });
     } catch (_err) { tbody.innerHTML = `<tr><td colspan="6" class="empty">No fue posible cargar las órdenes.</td></tr>`; }
