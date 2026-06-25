@@ -64,7 +64,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .chip { font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px }
   #reporte .ap { background:#dcfce7;color:#166534 } #reporte .inf { background:#e5e7eb;color:#6b7280 }
   @media print {
-    @page { size: letter; margin: 12mm; }
+    @page { size: letter; margin: 14mm; }
+    #reporte table.rt { width:100% !important; table-layout:fixed; }
+    #reporte table.rt td, #reporte table.rt th { overflow-wrap:anywhere; word-break:break-word; }
     html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body * { visibility: hidden !important; }
     #reporte, #reporte * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
