@@ -504,12 +504,8 @@ document.addEventListener('DOMContentLoaded', async () => {
              </div>${vig.observaciones ? field('Observaciones', vig.observaciones, { long: true }) : ''}`
           : `<div class="empty">Sin asignación vigente.</div>`}
       </div>
-      <div class="eyebrow" style="margin-top:16px">Historial</div>
-      <div class="table-wrap" style="margin-top:8px">
-        <table><thead><tr>
-          <th>Custodio</th><th>Ubicación</th><th>Motivo</th><th>Asignación</th><th>Devolución</th><th>Entregó / Recibió</th><th>Observaciones</th>
-        </tr></thead><tbody id="asgRows"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody></table>
-      </div>`;
+      <div class="eyebrow" style="margin-top:16px">Historial de custodia</div>
+      <div id="asgRows" style="margin-top:12px"><div class="empty">Cargando…</div></div>`;
 
     if (canManageAsg) {
       const a = $('asgAsignar'); if (a) a.onclick = () => openAsgModal('asignar');
@@ -520,24 +516,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadAsignaciones() {
-    const tbody = $('asgRows');
-    if (!tbody) return;
+    const cont = $('asgRows');
+    if (!cont) return;
+    const MOTIVO_COLOR = { asignacion: '#2563eb', transferencia: '#ca8a04', devolucion: '#16a34a', resguardo: '#7c3aed' };
     try {
       const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/asignaciones');
       const rows = KoguApi.unwrapRows(res, 'rows') || [];
-      if (!rows.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Sin movimientos de custodia.</td></tr>`; return; }
-      tbody.innerHTML = rows.map(r => `
-        <tr>
-          <td>${r.custodio_nombre ? esc(r.custodio_nombre) : '<span class="muted">—</span>'}</td>
-          <td>${r.ubicacion_clave ? esc(r.ubicacion_clave) + ' — ' + esc(r.ubicacion_nombre || '') : '<span class="muted">—</span>'}</td>
-          <td><span class="chip">${esc((r.motivo || '').replace(/_/g, ' '))}</span></td>
-          <td>${KoguUi.fmtDate(r.fecha_asignacion)}</td>
-          <td>${r.fecha_devolucion ? KoguUi.fmtDate(r.fecha_devolucion) : '<span class="badge success">Vigente</span>'}</td>
-          <td>${r.entregado_por_nombre ? esc(r.entregado_por_nombre) : '—'} / ${r.recibido_por_nombre ? esc(r.recibido_por_nombre) : '—'}</td>
-          <td>${r.observaciones ? esc(r.observaciones) : '<span class="muted">—</span>'}</td>
-        </tr>`).join('');
+      if (!rows.length) { cont.innerHTML = `<div class="empty">Sin movimientos de custodia.</div>`; return; }
+      cont.innerHTML = `<div class="ot-timeline">${rows.map(r => {
+        const color = MOTIVO_COLOR[r.motivo] || '#64748b';
+        const ubic = r.ubicacion_clave ? (esc(r.ubicacion_clave) + (r.ubicacion_nombre ? ' — ' + esc(r.ubicacion_nombre) : '')) : '';
+        const custodio = r.custodio_nombre ? esc(r.custodio_nombre) : '<span class="muted">—</span>';
+        const entrega = `Entregó ${r.entregado_por_nombre ? esc(r.entregado_por_nombre) : '—'} · Recibió ${r.recibido_por_nombre ? esc(r.recibido_por_nombre) : '—'}`;
+        return `<div class="ot-ev">
+          <div class="ot-evdot" style="border-color:${color}"></div>
+          <div class="ot-evhead">
+            <span style="display:flex;gap:6px;align-items:center"><span class="chip">${esc((r.motivo || '').replace(/_/g, ' '))}</span>${r.fecha_devolucion ? '' : '<span class="badge success">Vigente</span>'}</span>
+            <span class="muted" style="font-size:12px">${KoguUi.fmtDate(r.fecha_asignacion)}</span>
+          </div>
+          <div class="ot-evtext">${custodio}${ubic ? ' · ' + ubic : ''}</div>
+          <div class="ot-evby">${entrega}${r.fecha_devolucion ? ' · Devuelto ' + KoguUi.fmtDate(r.fecha_devolucion) : ''}</div>
+          ${r.observaciones ? `<div class="ot-evby">${esc(r.observaciones)}</div>` : ''}
+        </div>`;
+      }).join('')}</div>`;
     } catch (_err) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty">No fue posible cargar el historial.</td></tr>`;
+      cont.innerHTML = `<div class="empty">No fue posible cargar el historial.</div>`;
     }
   }
 
