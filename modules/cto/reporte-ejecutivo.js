@@ -65,13 +65,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .ap { background:#dcfce7;color:#166534 } #reporte .inf { background:#e5e7eb;color:#6b7280 }
   @media print {
     @page { size: letter; margin: 14mm; }
+    html, body { background:#fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    /* Ocultar el shell (menú + barra) y controles; el reporte fluye en flujo
+       normal para que el margen de @page (14mm) aplique en TODOS los lados/páginas.
+       (Antes: position:absolute pegaba el contenido al borde físico → sin margen.) */
+    .sidebar, .topbar, .no-print { display: none !important; }
+    body, #app, #app > *, main, .content, .app-main, .app-shell, .layout, .page, #pageContent {
+      display:block !important; margin:0 !important; padding:0 !important; width:auto !important; max-width:none !important; box-shadow:none !important; border:0 !important; }
+    #reporte, #reporte * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     #reporte table.rt { width:100% !important; table-layout:fixed; }
     #reporte table.rt td, #reporte table.rt th { overflow-wrap:anywhere; word-break:break-word; }
-    html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body * { visibility: hidden !important; }
-    #reporte, #reporte * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    #reporte { position:absolute; left:0; top:0; width:100%; }
-    .no-print { display:none !important; }
     #reporte .pb { page-break-before: always; }
     #reporte tr, #reporte .kc, #reporte .band, #reporte .mini > div { page-break-inside: avoid; }
   }
