@@ -69,20 +69,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderShell() {
     const a = ficha.activo;
+    const mtr = [
+      { k: 'Custodio actual',  v: a.custodio_nombre || '—' },
+      { k: 'Ubicación actual', v: a.ubicacion_nombre || '—' },
+      { k: 'Documentos',       v: String(ficha.adjuntos_count != null ? ficha.adjuntos_count : 0) },
+      { k: 'Órdenes abiertas', v: String((ficha.ordenes_abiertas && ficha.ordenes_abiertas.total) || 0) },
+    ];
     pc.innerHTML = `
 <div class="card">
   <div class="row">
     <div>
       <div class="eyebrow"><a class="link" href="/modules/act/activos.html">← Activos</a></div>
       <h2 style="margin:4px 0">${esc(a.codigo)} · ${esc(a.nombre)}</h2>
-      <div style="display:flex;gap:8px;align-items:center">${estadoBadge(a.estado)}<span class="chip">${esc(a.categoria_nombre || 'Sin categoría')}</span><span class="chip">Criticidad: ${esc(a.criticidad || '—')}</span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${estadoBadge(a.estado)}<span class="chip">${esc(a.categoria_nombre || 'Sin categoría')}</span><span class="chip">Criticidad: ${esc(a.criticidad || '—')}</span></div>
     </div>
     <div style="display:flex;gap:8px">
       ${canUpdate ? '<button class="btn" id="editBtn">Editar</button>' : ''}
       ${canUpdate && a.estado !== 'baja' ? '<button class="btn" id="bajaBtn">Dar de baja</button>' : ''}
     </div>
   </div>
-  <div class="tabs" style="margin-top:16px">
+</div>
+
+<div class="ot-metrics">
+  ${mtr.map(m => `<div class="ot-metric"><div class="m-k">${esc(m.k)}</div><div class="m-v">${esc(m.v)}</div></div>`).join('')}
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="tabs">
     <button class="tab" data-tab="datos">Datos</button>
     <button class="tab" data-tab="expediente">Expediente</button>
     <button class="tab" data-tab="asignaciones">Asignaciones</button>
@@ -823,25 +836,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rows = KoguApi.unwrapRows(res, 'rows') || [];
       const el = $('comCount'); if (el) el.textContent = rows.length ? `(${rows.length})` : '';
       if (!rows.length) { list.innerHTML = `<div class="empty">Sin comentarios.</div>`; return; }
-      list.innerHTML = rows.map(c => {
+      list.innerHTML = `<div class="ot-timeline">${rows.map(c => {
         const t = COM_TIPO[c.tipo] || COM_TIPO.nota;
         const mine = c.created_by && myUserId && c.created_by === myUserId;
-        return `<div class="card" style="padding:12px;border-left:4px solid ${t.color}">
-          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
-            <div style="display:flex;gap:8px;align-items:center">
+        return `<div class="ot-ev">
+          <div class="ot-evdot" style="border-color:${t.color}"></div>
+          <div class="ot-evhead">
+            <span style="display:flex;gap:6px;align-items:center">
               ${c.fijado ? '<span title="Fijado">📌</span>' : ''}
               <span class="chip" style="background:${t.color}1a;color:${t.color};border:1px solid ${t.color}55">${esc(t.label)}</span>
-              <span class="muted" style="font-size:12px">${c.autor_nombre ? esc(c.autor_nombre) : '—'} · ${KoguUi.fmtDate(c.created_at)}</span>
-            </div>
-            ${(canComentariosWrite && mine) ? `<div class="actions-cell">
-              <button class="btn ghost" data-com-fijar="${c.comentario_id}" data-fij="${c.fijado ? '1' : '0'}">${c.fijado ? 'Desfijar' : 'Fijar'}</button>
-              <button class="btn ghost" data-com-edit="${c.comentario_id}">Editar</button>
-              <button class="btn ghost" data-com-del="${c.comentario_id}">Eliminar</button>
-            </div>` : ''}
+            </span>
+            <span class="muted" style="font-size:12px">${c.autor_nombre ? esc(c.autor_nombre) : '—'} · ${KoguUi.fmtDate(c.created_at)}</span>
           </div>
-          <div style="margin-top:8px" data-com-text="${c.comentario_id}">${esc(c.texto)}</div>
+          <div class="ot-evtext" data-com-text="${c.comentario_id}">${esc(c.texto)}</div>
+          ${(canComentariosWrite && mine) ? `<div class="actions-cell" style="margin-top:8px">
+            <button class="btn ghost" data-com-fijar="${c.comentario_id}" data-fij="${c.fijado ? '1' : '0'}">${c.fijado ? 'Desfijar' : 'Fijar'}</button>
+            <button class="btn ghost" data-com-edit="${c.comentario_id}">Editar</button>
+            <button class="btn ghost" data-com-del="${c.comentario_id}">Eliminar</button>
+          </div>` : ''}
         </div>`;
-      }).join('');
+      }).join('')}</div>`;
       if (canComentariosWrite) {
         list.querySelectorAll('[data-com-fijar]').forEach(btn => btn.onclick = () => toggleFijar(btn.dataset.comFijar, btn.dataset.fij !== '1', rows));
         list.querySelectorAll('[data-com-edit]').forEach(btn => btn.onclick = () => editComentario(btn.dataset.comEdit, rows));
