@@ -56,10 +56,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<div class="kv-row${long}"><span class="kv-k">${esc(label)}</span><span class="kv-v">${v}</span></div>`;
   }
 
+  function renderStepper(estado) {
+    if (estado === 'cancelada') {
+      return `<div class="ot-stepper">
+        <div class="ot-step done"><div class="ot-dot">✓</div><div class="ot-lbl">Abierta</div></div>
+        <div class="ot-line"></div>
+        <div class="ot-step cancel"><div class="ot-dot">✕</div><div class="ot-lbl">Cancelada</div></div>
+      </div>`;
+    }
+    const steps = ['Abierta', estado === 'en_espera' ? 'En espera' : 'En proceso', 'Cerrada'];
+    const cur = estado === 'cerrada' ? 3 : (estado === 'abierta' ? 0 : 1);
+    let html = '<div class="ot-stepper">';
+    steps.forEach((label, i) => {
+      if (i > 0) html += `<div class="ot-line${i <= cur ? ' done' : ''}"></div>`;
+      const cls = i < cur ? 'done' : (i === cur ? 'current' : 'pending');
+      const inner = i < cur ? '✓' : String(i + 1);
+      html += `<div class="ot-step ${cls}"><div class="ot-dot">${inner}</div><div class="ot-lbl">${esc(label)}</div></div>`;
+    });
+    return html + '</div>';
+  }
+
   function render() {
     const o = data.orden;
-    const eventos = (data.eventos || []).slice().sort((a, c) => new Date(a.created_at) - new Date(c.created_at));
+    const eventos = (data.eventos || []).slice().sort((a, c) => new Date(c.created_at) - new Date(a.created_at));
     const backHref = o.tipo === 'reparacion' ? '/modules/act/reparaciones.html' : '/modules/act/mantenimiento.html';
+    const titulo = o.tipo === 'reparacion' ? 'Reparación' : 'Orden';
 
     // Acciones según estado
     let acciones = '';
@@ -71,51 +92,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (canClose && o.estado === 'en_proceso') acciones += `<button class="btn primary" id="cerrarBtn">Cerrar</button>`;
     if (canUpdate && o.estado !== 'cerrada' && o.estado !== 'cancelada') acciones += `<button class="btn" id="notaBtn">+ Nota</button>`;
 
+    const metrics = [
+      { k: 'Costo',      v: o.costo != null ? KoguUi.fmtMoney(o.costo, o.moneda) : '—' },
+      { k: 'Apertura',   v: o.fecha_apertura ? KoguUi.fmtDateOnly(o.fecha_apertura) : '—' },
+      { k: 'Compromiso', v: o.fecha_compromiso ? KoguUi.fmtDateOnly(o.fecha_compromiso) : '—' },
+      { k: 'Cierre',     v: o.fecha_cierre ? KoguUi.fmtDateOnly(o.fecha_cierre) : '—' },
+    ];
+    const evClase = t => (['cierre', 'cambio_estado', 'costo', 'nota'].includes(t) ? 'ev-' + t : 'ev-otro');
+
     pc.innerHTML = `
 <div class="card">
   <div class="row">
     <div>
       <div class="eyebrow"><a class="link" href="${backHref}">← Volver</a></div>
-      <h2 style="margin:4px 0">${o.tipo === 'reparacion' ? 'Reparación' : 'Orden'} #${esc(String(o.id_mov))} · ${esc(o.activo_codigo || '')}</h2>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <h2 style="margin:4px 0">${titulo} #${esc(String(o.id_mov))} · ${esc(o.activo_codigo || '')}</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
         ${estadoBadge(o.estado)}<span class="chip">${esc(o.tipo)}</span><span class="chip">Prioridad: ${esc(o.prioridad || '—')}</span>
         ${o.activo_id ? `<a class="link" href="/modules/act/activo-detalle.html?id=${encodeURIComponent(o.activo_id)}">Ver activo →</a>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${acciones}</div>
   </div>
+  ${renderStepper(o.estado)}
+</div>
 
-  <div class="split" style="margin-top:16px">
-    <div class="stack">
+<div class="ot-metrics">
+  ${metrics.map(m => `<div class="ot-metric"><div class="m-k">${esc(m.k)}</div><div class="m-v">${esc(m.v)}</div></div>`).join('')}
+</div>
+
+<div class="split" style="margin-top:14px">
+  <div class="stack">
+    <div class="card">
       ${field('Descripción del problema', o.descripcion_problema, { long: true })}
       ${o.diagnostico ? field('Diagnóstico', o.diagnostico, { long: true }) : ''}
       ${o.trabajo_realizado ? field('Trabajo realizado', o.trabajo_realizado, { long: true }) : ''}
+    </div>
+    <div class="card">
       <div class="kv kv-2">
         ${field('Activo', (o.activo_codigo || '') + (o.activo_nombre ? ' · ' + o.activo_nombre : ''))}
         ${field('Proveedor / taller', o.proveedor_nombre)}
         ${field('Responsable', o.responsable_nombre)}
-        ${field('Costo', o.costo != null ? KoguUi.fmtMoney(o.costo, o.moneda) : null)}
-        ${field('Apertura', KoguUi.fmtDate(o.fecha_apertura))}
-        ${field('Compromiso', o.fecha_compromiso ? KoguUi.fmtDateOnly(o.fecha_compromiso) : null)}
-        ${field('Cierre', o.fecha_cierre ? KoguUi.fmtDate(o.fecha_cierre) : null)}
-        ${o.plan_nombre ? field('Plan', o.plan_nombre) : ''}
+        ${field('Plan', o.plan_nombre)}
       </div>
     </div>
-    <div>
-      <div class="eyebrow">Bitácora</div>
-      <div class="stack" style="margin-top:8px">
-        ${eventos.length ? eventos.map(ev => `
-          <div class="card" style="padding:12px">
-            <div style="display:flex;justify-content:space-between;gap:8px">
-              <span class="chip">${esc((ev.tipo_evento || '').replace(/_/g, ' '))}</span>
-              <span class="muted" style="font-size:12px">${KoguUi.fmtDate(ev.created_at)}</span>
-            </div>
-            <div style="margin-top:6px">${esc(ev.descripcion || '')}</div>
-            ${ev.estado_anterior || ev.estado_nuevo ? `<div class="muted" style="font-size:12px;margin-top:4px">${esc(ev.estado_anterior || '—')} → ${esc(ev.estado_nuevo || '—')}</div>` : ''}
-            ${ev.created_by_nombre ? `<div class="muted" style="font-size:12px;margin-top:4px">por ${esc(ev.created_by_nombre)}</div>` : ''}
-          </div>`).join('') : '<div class="empty">Sin eventos en la bitácora.</div>'}
-      </div>
-    </div>
+  </div>
+  <div class="card">
+    <div class="eyebrow" style="margin-bottom:14px">Bitácora</div>
+    ${eventos.length ? `<div class="ot-timeline">
+      ${eventos.map(ev => `<div class="ot-ev ${evClase(ev.tipo_evento)}">
+        <div class="ot-evdot"></div>
+        <div class="ot-evhead"><span class="chip">${esc((ev.tipo_evento || '').replace(/_/g, ' '))}</span><span class="muted" style="font-size:12px">${KoguUi.fmtDate(ev.created_at)}</span></div>
+        <div class="ot-evtext">${esc(ev.descripcion || '')}</div>
+        ${ev.estado_anterior || ev.estado_nuevo ? `<div class="ot-evby">${esc(ev.estado_anterior || '—')} → ${esc(ev.estado_nuevo || '—')}</div>` : ''}
+        ${ev.created_by_nombre ? `<div class="ot-evby">por ${esc(ev.created_by_nombre)}</div>` : ''}
+      </div>`).join('')}
+    </div>` : '<div class="empty">Sin eventos en la bitácora.</div>'}
   </div>
 </div>`;
 
@@ -213,8 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     banner.style.cssText = 'background:#fffbeb;border:1px solid #f59e0b;color:#92400e;border-radius:10px;padding:12px 14px;margin:0 0 14px;display:flex;justify-content:space-between;gap:12px';
     banner.innerHTML = `<div>⚠️ <strong>Aviso reparar-vs-reemplazar:</strong> ${esc(aviso.mensaje)}</div><button class="btn ghost" style="flex-shrink:0;padding:2px 8px">✕</button>`;
     banner.querySelector('button').onclick = () => banner.remove();
-    const card = pc.querySelector('.card');
-    if (card) card.insertBefore(banner, card.firstChild);
+    pc.insertBefore(banner, pc.firstChild);
   }
 
   // ── Init ────────────────────────────────────────────────────────────────────

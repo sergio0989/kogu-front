@@ -378,6 +378,36 @@ thead th{
   .kv.kv-2, .kv.kv-3{ grid-template-columns:1fr; }
 }
 
+/* ── Orden de trabajo · detalle (act_) ────────────────────────────────────── */
+.card > .kv-row:last-child{ border-bottom:none; }
+.ot-metrics{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px; }
+.ot-metric{ background:var(--panel2); border-radius:12px; padding:12px 14px; }
+.ot-metric .m-k{ font-size:12px; color:var(--muted); margin-bottom:4px; }
+.ot-metric .m-v{ font-size:18px; font-weight:700; word-break:break-word; }
+.ot-stepper{ display:flex; align-items:center; margin-top:16px; }
+.ot-step{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+.ot-dot{ width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; background:#fff; border:2px solid var(--line); color:var(--muted); }
+.ot-lbl{ font-size:11px; color:var(--muted); }
+.ot-step.done .ot-dot{ background:var(--success); border-color:var(--success); color:#fff; }
+.ot-step.current .ot-dot{ background:#2563eb; border-color:#2563eb; color:#fff; }
+.ot-step.current .ot-lbl{ color:var(--text); font-weight:600; }
+.ot-step.cancel .ot-dot{ background:var(--danger); border-color:var(--danger); color:#fff; }
+.ot-step.cancel .ot-lbl{ color:var(--danger); font-weight:600; }
+.ot-line{ flex:1; height:2px; background:var(--line); margin:0 6px 16px; }
+.ot-line.done{ background:var(--success); }
+.ot-timeline{ position:relative; padding-left:22px; }
+.ot-timeline::before{ content:''; position:absolute; left:6px; top:4px; bottom:4px; width:2px; background:var(--line); }
+.ot-ev{ position:relative; padding-bottom:16px; }
+.ot-ev:last-child{ padding-bottom:0; }
+.ot-evdot{ position:absolute; left:-22px; top:3px; width:14px; height:14px; border-radius:50%; background:#fff; border:2px solid var(--muted); }
+.ot-ev.ev-cierre .ot-evdot, .ot-ev.ev-cambio_estado .ot-evdot{ border-color:var(--success); }
+.ot-ev.ev-costo .ot-evdot{ border-color:var(--warn); }
+.ot-ev.ev-nota .ot-evdot{ border-color:var(--muted); }
+.ot-evhead{ display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.ot-evtext{ font-size:13px; margin-top:5px; line-height:1.45; }
+.ot-evby{ font-size:12px; color:var(--muted); margin-top:2px; }
+@media (max-width:700px){ .ot-metrics{ grid-template-columns:repeat(2,1fr); } }
+
 .btns{
   display:flex;
   gap:8px;
