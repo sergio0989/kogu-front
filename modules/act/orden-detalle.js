@@ -50,8 +50,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function field(label, val) {
-    return `<div><div class="label-text">${esc(label)}</div><div>${val == null || val === '' ? '<span class="muted">—</span>' : esc(String(val))}</div></div>`;
+  function field(label, val, opts) {
+    const v = (val == null || val === '') ? '<span class="muted">—</span>' : esc(String(val));
+    const long = (opts && opts.long) ? ' kv-long' : '';
+    return `<div class="kv-row${long}"><span class="kv-k">${esc(label)}</span><span class="kv-v">${v}</span></div>`;
   }
 
   function render() {
@@ -85,10 +87,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <div class="split" style="margin-top:16px">
     <div class="stack">
-      <div>${field('Descripción del problema', o.descripcion_problema)}</div>
-      ${o.diagnostico ? `<div>${field('Diagnóstico', o.diagnostico)}</div>` : ''}
-      ${o.trabajo_realizado ? `<div>${field('Trabajo realizado', o.trabajo_realizado)}</div>` : ''}
-      <div class="grid-2">
+      ${field('Descripción del problema', o.descripcion_problema, { long: true })}
+      ${o.diagnostico ? field('Diagnóstico', o.diagnostico, { long: true }) : ''}
+      ${o.trabajo_realizado ? field('Trabajo realizado', o.trabajo_realizado, { long: true }) : ''}
+      <div class="kv kv-2">
         ${field('Activo', (o.activo_codigo || '') + (o.activo_nombre ? ' · ' + o.activo_nombre : ''))}
         ${field('Proveedor / taller', o.proveedor_nombre)}
         ${field('Responsable', o.responsable_nombre)}

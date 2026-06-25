@@ -349,6 +349,35 @@ thead th{
   margin-bottom:6px;
 }
 
+/* ── KV · filas de lectura etiqueta/valor (patrón ficha act_) ──────────────── */
+.kv{ display:grid; grid-template-columns:1fr; }
+.kv.kv-2{ grid-template-columns:1fr 1fr; column-gap:40px; }
+.kv.kv-3{ grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:32px; }
+.kv-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:16px;
+  padding:11px 2px;
+  border-bottom:1px solid var(--line);
+  min-width:0;
+}
+.kv-row .kv-k{ color:var(--muted); font-size:13px; flex:none; }
+.kv-row .kv-v{
+  font-weight:600;
+  font-size:14px;
+  color:var(--text);
+  text-align:right;
+  word-break:break-word;
+  min-width:0;
+}
+.kv-row.kv-long{ flex-direction:column; align-items:stretch; gap:5px; }
+.kv-row.kv-long .kv-k{ font-size:12px; }
+.kv-row.kv-long .kv-v{ text-align:left; font-weight:500; line-height:1.5; }
+@media (max-width:700px){
+  .kv.kv-2, .kv.kv-3{ grid-template-columns:1fr; }
+}
+
 .btns{
   display:flex;
   gap:8px;

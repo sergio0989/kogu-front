@@ -108,8 +108,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     pc.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
   }
 
-  function field(label, val) {
-    return `<div><div class="label-text">${esc(label)}</div><div>${val == null || val === '' ? '<span class="muted">—</span>' : esc(String(val))}</div></div>`;
+  function field(label, val, opts) {
+    const v = (val == null || val === '') ? '<span class="muted">—</span>' : esc(String(val));
+    const long = (opts && opts.long) ? ' kv-long' : '';
+    return `<div class="kv-row${long}"><span class="kv-k">${esc(label)}</span><span class="kv-v">${v}</span></div>`;
   }
 
   function renderTab() {
@@ -131,7 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     body.innerHTML = `
       <div class="split">
         <div class="stack">
-          <div class="grid-2">
+          <div class="kv kv-2">
             ${field('Código', a.codigo)}
             ${field('Estado', (a.estado || '').replace(/_/g, ' '))}
             ${field('Categoría', a.categoria_nombre)}
@@ -147,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${field('Custodio actual', a.custodio_nombre)}
             ${field('Ubicación actual', a.ubicacion_nombre)}
           </div>
-          ${a.descripcion ? `<div>${field('Descripción', a.descripcion)}</div>` : ''}
+          ${a.descripcion ? field('Descripción', a.descripcion, { long: true }) : ''}
         </div>
         <div class="card" style="text-align:center">
           <div class="eyebrow">Etiqueta QR</div>
@@ -481,12 +483,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div class="card" style="margin-top:8px">
         ${vig
-          ? `<div class="grid-2">
+          ? `<div class="kv kv-2">
                ${field('Custodio vigente', vig.custodio_nombre)}
                ${field('Ubicación vigente', vig.ubicacion_clave ? (vig.ubicacion_clave + ' — ' + (vig.ubicacion_nombre || '')) : null)}
                ${field('Motivo', (vig.motivo || '').replace(/_/g, ' '))}
                ${field('Desde', KoguUi.fmtDate(vig.fecha_asignacion))}
-             </div>${vig.observaciones ? `<div style="margin-top:8px">${field('Observaciones', vig.observaciones)}</div>` : ''}`
+             </div>${vig.observaciones ? field('Observaciones', vig.observaciones, { long: true }) : ''}`
           : `<div class="empty">Sin asignación vigente.</div>`}
       </div>
       <div class="eyebrow" style="margin-top:16px">Historial</div>
