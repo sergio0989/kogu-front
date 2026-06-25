@@ -66,6 +66,7 @@
       {href:'/modules/cto/dashboard-bruta.html',label:'📊 Dirección · Utilidad Bruta',perm:'screen.costo'},
       {href:'/modules/cto/dashboard-operacion.html',label:'📊 Dirección · Utilidad Operación',perm:'screen.costo'},
       {href:'/modules/cto/reporte-ejecutivo.html',label:'📄 Reporte ejecutivo (PDF)',perm:'screen.costo'},
+      {href:'/modules/cto/eficiencia-comercial.html',label:'🎯 Eficiencia comercial',perm:'screen.costo'},
       {href:'/modules/cto/cargas.html',label:'Cargas / Importación',perm:'screen.costo'},
       {href:'/modules/cto/captura-abc.html',label:'Captura ABC (gastos)',perm:'screen.costo'},
       {href:'/modules/cto/captura-gastos-venta.html',label:'Captura Gastos de Venta',perm:'screen.costo'},
