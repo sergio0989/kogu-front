@@ -121,6 +121,7 @@
       {href:'/modules/act/mantenimiento.html', label:'Mantenimiento', perm:'act.ordenes.read'},
       {href:'/modules/act/reparaciones.html',  label:'Reparaciones',  perm:'act.ordenes.read'},
       {href:'/modules/act/inventario.html',    label:'Inventario',    perm:'act.inventario.read'},
+      {href:'/modules/act/gestoria.html',      label:'Gestoría',      perm:'act.gestoria.read'},
       {href:'/modules/act/proveedores.html',   label:'Proveedores',   perm:'act.proveedores.read'},
     ]},
     {section:'Activos · Catálogos',items:[

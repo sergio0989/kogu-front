@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canOrdenesCreate = KoguShell.hasPerm(b, 'act.ordenes.create');
   const canComentariosRead  = KoguShell.hasPerm(b, 'act.comentarios.read');
   const canComentariosWrite = KoguShell.hasPerm(b, 'act.comentarios.write');
+  const canGestoriaRead   = KoguShell.hasPerm(b, 'act.gestoria.read');
+  const canGestoriaCreate = KoguShell.hasPerm(b, 'act.gestoria.create');
+  const canGestoriaUpdate = KoguShell.hasPerm(b, 'act.gestoria.update');
+  const canGestoriaCumplir = KoguShell.hasPerm(b, 'act.gestoria.cumplir');
+  const canGestoriaDelete = KoguShell.hasPerm(b, 'act.gestoria.delete');
   const _meSession = (typeof KoguApi.getSession === 'function' ? (KoguApi.getSession() || {}) : {});
   const myUserId = (b.user && (b.user.user_id || b.user.id)) || _meSession.user?.user_id || _meSession.user?.id || _meSession.user_id || null;
 
@@ -100,6 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <button class="tab" data-tab="expediente">Expediente</button>
     <button class="tab" data-tab="asignaciones">Asignaciones</button>
     <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
+    ${canGestoriaRead ? '<button class="tab" data-tab="gestoria">Gestoría <span id="gesCount"></span></button>' : ''}
     ${canComentariosRead ? '<button class="tab" data-tab="comentarios">Comentarios <span id="comCount"></span></button>' : ''}
   </div>
   <div id="tabBody"></div>
@@ -115,6 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     paintTabs();
     renderTab();
     if (canComentariosRead) refreshComentariosCount();
+    if (canGestoriaRead) refreshGestoriaCount();
   }
 
   function paintTabs() {
@@ -133,6 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activeTab === 'expediente')    return renderExpediente(body);
     if (activeTab === 'asignaciones')  return renderAsignaciones(body);
     if (activeTab === 'mantenimiento') return renderMantenimiento(body);
+    if (activeTab === 'gestoria')      return renderGestoria(body);
     if (activeTab === 'comentarios')   return renderComentarios(body);
   }
 
@@ -914,11 +922,268 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_err) { /* apiFetch toast (403 si no es propio) */ }
   }
 
+  // ── Tab Gestoría ─────────────────────────────────────────────────────────────
+  let gestoriaTipos = null;
+  async function ensureGestoriaTipos() {
+    if (gestoriaTipos) return gestoriaTipos;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/gestoria/tipos');
+      gestoriaTipos = KoguApi.unwrapRows(res, 'rows') || [];
+    } catch (_e) { gestoriaTipos = []; }
+    return gestoriaTipos;
+  }
+
+  function gestoriaSemaforo(g) {
+    if (g.estado === 'cumplido')  return { color: '#16a34a', label: 'Cumplida' };
+    if (g.estado === 'no_aplica') return { color: '#64748b', label: 'No aplica' };
+    if (!g.fecha_vencimiento)     return { color: '#64748b', label: 'Sin fecha' };
+    const venc = String(g.fecha_vencimiento).slice(0, 10);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const dias = Math.round((new Date(venc + 'T00:00:00Z') - new Date(hoy + 'T00:00:00Z')) / 86400000);
+    if (dias < 0)   return { color: '#dc2626', label: `Vencida (${Math.abs(dias)}d)` };
+    if (dias <= 30) return { color: '#ca8a04', label: `Vence en ${dias}d` };
+    return { color: '#2563eb', label: 'Vigente' };
+  }
+
+  async function refreshGestoriaCount() {
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/gestoria');
+      const n = (KoguApi.unwrapRows(res, 'rows') || []).length;
+      const el = $('gesCount'); if (el) el.textContent = n ? `(${n})` : '';
+    } catch (_e) {}
+  }
+
+  function renderGestoria(body) {
+    body.innerHTML = `
+      <div class="row">
+        <div><div class="eyebrow">Obligaciones y trámites de cumplimiento</div></div>
+        <div>${canGestoriaCreate ? '<button class="btn primary" id="gesAddBtn">+ Nueva obligación</button>' : ''}</div>
+      </div>
+      <div id="gesList" style="margin-top:14px"><div class="empty">Cargando…</div></div>`;
+    if (canGestoriaCreate) $('gesAddBtn').onclick = () => openGestoria(null);
+    loadGestoria();
+  }
+
+  async function loadGestoria() {
+    const cont = $('gesList'); if (!cont) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/gestoria');
+      const rows = KoguApi.unwrapRows(res, 'rows') || [];
+      const el = $('gesCount'); if (el) el.textContent = rows.length ? `(${rows.length})` : '';
+      if (!rows.length) { cont.innerHTML = `<div class="empty">Sin obligaciones registradas para este activo.</div>`; return; }
+      cont.innerHTML = `<div class="ot-timeline">${rows.map(g => {
+        const s = gestoriaSemaforo(g);
+        const tipo = g.tipo_nombre ? esc(g.tipo_nombre) : '<span class="muted">Sin tipo</span>';
+        const venc = g.fecha_vencimiento ? 'Vence ' + esc(KoguUi.fmtDateOnly(g.fecha_vencimiento)) : 'Sin fecha';
+        const meta = [];
+        if (g.costo != null) meta.push('Costo ' + esc(KoguUi.fmtMoney(g.costo, g.moneda)));
+        if (g.responsable_nombre) meta.push('Resp. ' + esc(g.responsable_nombre));
+        if (g.proveedor_nombre) meta.push('Gestor ' + esc(g.proveedor_nombre));
+        if (g.recurrente && g.frecuencia_meses) meta.push('Recurrente c/' + g.frecuencia_meses + 'm');
+        if (g.referencia) meta.push('Folio ' + esc(g.referencia));
+        const pendiente = g.estado === 'pendiente' || g.estado === 'en_tramite';
+        let acc = '';
+        if (canGestoriaCumplir && pendiente) acc += `<button class="btn ghost" data-ges-cumplir="${g.gestoria_id}">Cumplir</button>`;
+        if (canGestoriaUpdate) acc += `<button class="btn ghost" data-ges-edit="${g.gestoria_id}">Editar</button>`;
+        if (canGestoriaDelete) acc += `<button class="btn ghost" data-ges-del="${g.gestoria_id}">Eliminar</button>`;
+        return `<div class="ot-ev">
+          <div class="ot-evdot" style="border-color:${s.color}"></div>
+          <div class="ot-evhead">
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="chip">${tipo}</span><span class="chip" style="background:${s.color}1a;color:${s.color};border:1px solid ${s.color}55">${esc(g.estado.replace(/_/g, ' '))}</span></span>
+            <span class="muted" style="font-size:12px">${venc} · ${s.label}</span>
+          </div>
+          <div class="ot-evtext" style="font-weight:600">${esc(g.titulo)}</div>
+          ${g.descripcion ? `<div class="ot-evby">${esc(g.descripcion)}</div>` : ''}
+          ${meta.length ? `<div class="ot-evby">${meta.join(' · ')}</div>` : ''}
+          ${acc ? `<div class="actions-cell" style="margin-top:8px">${acc}</div>` : ''}
+        </div>`;
+      }).join('')}</div>`;
+      const map = {};
+      rows.forEach(g => { map[g.gestoria_id] = g; });
+      if (canGestoriaCumplir) cont.querySelectorAll('[data-ges-cumplir]').forEach(b => b.onclick = () => openCumplirGes(map[b.dataset.gesCumplir]));
+      if (canGestoriaUpdate)  cont.querySelectorAll('[data-ges-edit]').forEach(b => b.onclick = () => openGestoria(map[b.dataset.gesEdit]));
+      if (canGestoriaDelete)  cont.querySelectorAll('[data-ges-del]').forEach(b => b.onclick = () => delGestoria(b.dataset.gesDel));
+    } catch (_err) { cont.innerHTML = `<div class="empty">No fue posible cargar la gestoría.</div>`; }
+  }
+
+  async function delGestoria(id) {
+    if (!window.confirm('¿Eliminar esta obligación de gestoría?')) return;
+    try {
+      await KoguApi.apiFetch('/protected/act/gestoria/' + encodeURIComponent(id), { method: 'DELETE' });
+      KoguApi.toast('Obligación eliminada', 'success');
+      await loadGestoria();
+    } catch (_err) { /* apiFetch toast */ }
+  }
+
+  // ── Modal alta/edición de obligación ──────────────────────────
+  function buildGestoriaModal() {
+    if (!canGestoriaCreate && !canGestoriaUpdate) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'gesModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:560px;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#0f172a;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center">
+          <h2 id="gesTitle" style="margin:0;font-size:18px">Nueva obligación</h2><button class="btn ghost" id="gesClose" style="padding:6px 10px">✕</button>
+        </div>
+        <div style="padding:20px"><div class="stack">
+          <input type="hidden" id="ges_id"/>
+          <div class="grid-2">
+            <div><div class="label-text">Tipo</div><select class="select" id="ges_tipo"><option value="">Sin tipo</option></select></div>
+            <div><div class="label-text">Vencimiento</div><input class="input" id="ges_venc" type="date"/></div>
+          </div>
+          <div><div class="label-text">Título</div><input class="input" id="ges_titulo" maxlength="160" placeholder="Ej. Tenencia 2026"/></div>
+          <div><div class="label-text">Descripción <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="ges_desc"/></div>
+          <div class="grid-2">
+            <div><div class="label-text">Autoridad <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="ges_autoridad" placeholder="SAT, Finanzas, Tránsito…"/></div>
+            <div><div class="label-text">Folio / referencia <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="ges_ref"/></div>
+          </div>
+          <div class="grid-3">
+            <div><div class="label-text">Costo <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="ges_costo" type="number" min="0" step="0.01"/></div>
+            <div><div class="label-text">Moneda</div><input class="input" id="ges_moneda" maxlength="3" placeholder="MXN"/></div>
+            <div><div class="label-text">Frecuencia (meses)</div><input class="input" id="ges_frec" type="number" min="1" step="1" placeholder="—"/></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ges_recurrente"/> <span>Recurrente (al cumplir, genera la siguiente)</span></label>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" id="gesCancel">Cancelar</button><button class="btn primary" id="gesSave">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeGestoria(); });
+    $('gesClose').onclick = closeGestoria; $('gesCancel').onclick = closeGestoria; $('gesSave').onclick = saveGestoria;
+    // Al elegir tipo, prefijar recurrencia/frecuencia con los defaults del tipo.
+    $('ges_tipo').onchange = () => {
+      const t = (gestoriaTipos || []).find(x => x.tipo_id === $('ges_tipo').value);
+      if (t) {
+        $('ges_recurrente').checked = t.recurrente_default === true;
+        if (t.frecuencia_meses_default) $('ges_frec').value = t.frecuencia_meses_default;
+      }
+    };
+  }
+  function closeGestoria() { const m = $('gesModal'); if (m) m.style.display = 'none'; }
+  async function openGestoria(g) {
+    await ensureGestoriaTipos();
+    const sel = $('ges_tipo');
+    sel.innerHTML = '<option value="">Sin tipo</option>' +
+      (gestoriaTipos || []).map(t => `<option value="${t.tipo_id}">${esc(t.nombre)} (${esc(t.ambito)})</option>`).join('');
+    $('ges_id').value = g ? g.gestoria_id : '';
+    $('ges_tipo').value = g && g.tipo_id ? g.tipo_id : '';
+    $('ges_venc').value = g && g.fecha_vencimiento ? String(g.fecha_vencimiento).slice(0, 10) : '';
+    $('ges_titulo').value = g ? (g.titulo || '') : '';
+    $('ges_desc').value = g ? (g.descripcion || '') : '';
+    $('ges_autoridad').value = g ? (g.autoridad || '') : '';
+    $('ges_ref').value = g ? (g.referencia || '') : '';
+    $('ges_costo').value = g && g.costo != null ? g.costo : '';
+    $('ges_moneda').value = g ? (g.moneda || '') : '';
+    $('ges_frec').value = g && g.frecuencia_meses != null ? g.frecuencia_meses : '';
+    $('ges_recurrente').checked = g ? g.recurrente === true : false;
+    $('gesTitle').textContent = g ? 'Editar obligación' : 'Nueva obligación';
+    $('gesModal').style.display = 'flex';
+  }
+  async function saveGestoria() {
+    const id = $('ges_id').value;
+    const titulo = $('ges_titulo').value.trim();
+    if (!titulo) { KoguApi.toast('El título es obligatorio.', 'error'); return; }
+    const recurrente = $('ges_recurrente').checked;
+    const frec = $('ges_frec').value ? Number($('ges_frec').value) : null;
+    if (recurrente && (!frec || frec <= 0)) { KoguApi.toast('Una obligación recurrente requiere frecuencia en meses.', 'error'); return; }
+    const payload = {
+      tipo_id: $('ges_tipo').value || null,
+      titulo,
+      descripcion: $('ges_desc').value.trim() || null,
+      autoridad: $('ges_autoridad').value.trim() || null,
+      referencia: $('ges_ref').value.trim() || null,
+      fecha_vencimiento: $('ges_venc').value || null,
+      recurrente,
+      frecuencia_meses: recurrente ? frec : null,
+      costo: $('ges_costo').value ? Number($('ges_costo').value) : null,
+      moneda: $('ges_moneda').value.trim() || null,
+    };
+    await KoguUi.withLoading(this, async () => {
+      try {
+        if (id) {
+          await KoguApi.apiFetch('/protected/act/gestoria/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(payload) });
+          KoguApi.toast('Obligación actualizada', 'success');
+        } else {
+          await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/gestoria', { method: 'POST', body: JSON.stringify(payload) });
+          KoguApi.toast('Obligación registrada', 'success');
+        }
+        closeGestoria();
+        await loadGestoria();
+      } catch (_err) { /* apiFetch toast (422) */ }
+    }, 'Guardando…');
+  }
+
+  // ── Modal cumplir ─────────────────────────────────────────────
+  function buildCumplirGesModal() {
+    if (!canGestoriaCumplir) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'gesCumplirModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:480px;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#0f172a;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0;font-size:18px">Marcar cumplida</h2><button class="btn ghost" id="cumGesClose" style="padding:6px 10px">✕</button>
+        </div>
+        <div style="padding:20px"><div class="stack">
+          <input type="hidden" id="cum_ges_id"/>
+          <div class="muted" id="cum_ges_info" style="font-size:13px"></div>
+          <div class="grid-2">
+            <div><div class="label-text">Fecha de cumplimiento</div><input class="input" id="cum_fecha" type="date"/></div>
+            <div><div class="label-text">Folio / referencia <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="cum_ref"/></div>
+          </div>
+          <div class="grid-2">
+            <div><div class="label-text">Costo <span class="muted" style="font-size:11px">(opcional)</span></div><input class="input" id="cum_costo" type="number" min="0" step="0.01"/></div>
+            <div><div class="label-text">Moneda</div><input class="input" id="cum_moneda" maxlength="3" placeholder="MXN"/></div>
+          </div>
+          <div class="muted" id="cum_ges_rec" style="font-size:12px"></div>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" id="cumGesCancel">Cancelar</button><button class="btn primary" id="cumGesSave">Marcar cumplida</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeCumplirGes(); });
+    $('cumGesClose').onclick = closeCumplirGes; $('cumGesCancel').onclick = closeCumplirGes; $('cumGesSave').onclick = doCumplirGes;
+  }
+  function closeCumplirGes() { const m = $('gesCumplirModal'); if (m) m.style.display = 'none'; }
+  function openCumplirGes(g) {
+    if (!g) return;
+    $('cum_ges_id').value = g.gestoria_id;
+    $('cum_ges_info').textContent = (g.titulo || '') + (g.fecha_vencimiento ? ' · vence ' + KoguUi.fmtDateOnly(g.fecha_vencimiento) : '');
+    $('cum_fecha').value = new Date().toISOString().slice(0, 10);
+    $('cum_ref').value = ''; $('cum_costo').value = ''; $('cum_moneda').value = g.moneda || '';
+    $('cum_ges_rec').textContent = (g.recurrente && g.frecuencia_meses)
+      ? `Recurrente: al cumplir se generará la siguiente (+${g.frecuencia_meses} meses).` : '';
+    $('gesCumplirModal').style.display = 'flex';
+  }
+  async function doCumplirGes() {
+    const id = $('cum_ges_id').value;
+    const payload = {
+      fecha_cumplimiento: $('cum_fecha').value || null,
+      referencia: $('cum_ref').value.trim() || null,
+      costo: $('cum_costo').value ? Number($('cum_costo').value) : null,
+      moneda: $('cum_moneda').value.trim() || null,
+    };
+    await KoguUi.withLoading(this, async () => {
+      try {
+        const res = await KoguApi.apiFetch('/protected/act/gestoria/' + encodeURIComponent(id) + '/cumplir', { method: 'POST', body: JSON.stringify(payload) });
+        const out = KoguApi.unwrapData(res);
+        KoguApi.toast(out && out.siguiente ? 'Cumplida · siguiente generada' : 'Obligación cumplida', 'success');
+        closeCumplirGes();
+        await loadGestoria();
+      } catch (_err) { /* apiFetch toast (422) */ }
+    }, 'Guardando…');
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────────
   buildUploadModal();
   buildEditModal();
   buildAsgModal();
   buildPlanModal();
+  buildGestoriaModal();
+  buildCumplirGesModal();
 
   KoguShell.subscribeEmpresaActivaChange(() => {
     // Un activo es de una empresa; al cambiar, vuelve a la bandeja para no
