@@ -64,7 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .chip { font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px }
   #reporte .ap { background:#dcfce7;color:#166534 } #reporte .inf { background:#e5e7eb;color:#6b7280 }
   @media print {
-    @page { size: letter; margin: 14mm; }
+    @page { size: letter; margin: 12mm 0; }
+    /* Margen LATERAL garantizado con padding del propio reporte: sobrevive aunque
+       el diálogo de impresión ponga "Márgenes: Ninguno". Top/bottom vía @page. */
+    #reporte { padding: 8mm 14mm !important; box-sizing: border-box !important; width:100% !important; }
     html, body { background:#fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     /* Ocultar el shell (menú + barra) y controles; el reporte fluye en flujo
        normal para que el margen de @page (14mm) aplique en TODOS los lados/páginas.
