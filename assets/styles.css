@@ -1032,6 +1032,11 @@ thead th{
   overflow-wrap: anywhere;
 }
 
+/* Tablas con columna de acciones: botones legibles, sin corte letra por letra */
+.actions-cell .btn{ white-space:nowrap; }
+.table-wrap td.actions-cell{ word-break:normal; overflow-wrap:normal; }
+.table-wrap table.kogu-actions-table{ table-layout:auto; }
+
 .table-wrap thead th{
   font-size: 12px;
   line-height: 1.1;

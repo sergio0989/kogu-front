@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
   <div class="table-wrap" style="margin-top:16px">
-    <table><thead><tr>
+    <table class="kogu-actions-table"><thead><tr>
       <th>Nombre</th><th>Alcance</th><th>Estado</th><th>Inicio</th><th>Cierre</th><th>Responsable</th><th>Acciones</th>
     </tr></thead><tbody id="rows"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody></table>
   </div>
