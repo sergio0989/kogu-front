@@ -97,30 +97,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   function band(n, title) { return `<div class="band"><h2>${title}</h2><span class="n">${n}</span></div>`; }
   function kc(l, v, s, dark) { return `<div class="kc${dark ? ' dark' : ''}"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`; }
 
-  function secEjecutivo(r, f, ag) {
-    const T = r.total_ventas || (ag && ag.totales && ag.totales.total_ventas) || 0;
-    let h = `<div class="sec">${band('1', 'Reporte ejecutivo de Costo y Utilidad')}`;
+  // Sección 1 — UTILIDAD BRUTA (informe que se entrega primero, SIN gasto de venta).
+  function secBruta(r, f) {
+    let h = `<div class="sec">${band('1', 'Utilidad Bruta')}`;
     h += `<div class="kgrid">
       ${kc('Total ventas', mon2(r.total_ventas))}
+      ${kc('Σ Costo MP (sistema)', mon2(r.costo_mp))}
       ${kc('Costo integrado (MP + factores)', mon2(r.costo_integrado))}
-      ${kc('Utilidad bruta', mon2(r.utilidad_bruta), pct(r.utilidad_bruta_pct))}
-      ${kc('Gastos de venta', mon2(r.gastos_venta))}
-      ${kc('Utilidad de operación', mon2(r.utilidad_operacion), pct(r.utilidad_operacion_pct), true)}
+      ${kc('Utilidad bruta', mon2(r.utilidad_bruta), pct(r.utilidad_bruta_pct), true)}
       ${kc('Kilos / Facturas', num(r.kilos) + ' kg', num(r.recuento_facturas) + ' facturas')}
     </div>`;
-    // puente de utilidad
     const tv = Number(r.total_ventas) || 0;
     const pp = (v) => tv ? pct1(v / tv) : '—';
     h += `<table class="rt" style="margin-top:14px">
-      <tr><th>Ventas</th><th>(−) Costo integrado</th><th>= Utilidad bruta</th><th>(−) Gasto de venta</th><th>= Utilidad operación</th></tr>
-      <tr><td style="text-align:right">${mon(r.total_ventas)}</td><td>${mon(r.costo_integrado)}</td><td class="pos">${mon(r.utilidad_bruta)}</td><td>${mon(r.gastos_venta)}</td><td class="pos">${mon(r.utilidad_operacion)}</td></tr>
-      <tr style="color:#64748b;font-size:10px"><td style="text-align:right">100%</td><td>${pp(r.costo_integrado)}</td><td>${pct1(r.utilidad_bruta_pct)}</td><td>${pp(r.gastos_venta)}</td><td>${pct1(r.utilidad_operacion_pct)}</td></tr>
+      <tr><th>Ventas</th><th>(−) Costo integrado</th><th>= Utilidad bruta</th></tr>
+      <tr><td style="text-align:right">${mon(r.total_ventas)}</td><td>${mon(r.costo_integrado)}</td><td class="pos">${mon(r.utilidad_bruta)}</td></tr>
+      <tr style="color:#64748b;font-size:10px"><td style="text-align:right">100%</td><td>${pp(r.costo_integrado)}</td><td>${pct1(r.utilidad_bruta_pct)}</td></tr>
     </table>`;
-    // ABC
     if (f) {
       const rowf = (l, v, tag) => `<tr><td style="text-align:left;padding:4px 8px">${l}${tag || ''}</td><td style="padding:4px 8px">${v}</td></tr>`;
       const tab = (rows) => `<table class="rt"><tbody>${rows}</tbody></table>`;
-      h += `<div class="mini" style="margin-top:16px">
+      h += `<h4 style="margin:16px 0 6px;color:#0f172a">Indicadores ABC del periodo</h4>
+        <div class="mini">
         <div><h4>Importes capturados</h4>${tab(
           rowf('Importe A', mon(f.importe_a)) + rowf('Importe B', mon(f.importe_b)) + rowf('Importe B fijo', mon(f.importe_b_fijo)) + rowf('Importe B prorrateo', mon(f.importe_b_prorrateo)) + rowf('Importe C', mon(f.importe_c)))}</div>
         <div><h4>Kilos calculados por KOGU</h4>${tab(
@@ -129,7 +127,23 @@ document.addEventListener('DOMContentLoaded', async () => {
           rowf('Factor A', fac(f.factor_a), '<span class="chip ap">aplicado</span>') + rowf('Factor B fijo', fac(f.factor_b_fijo), '<span class="chip ap">aplicado</span>') + rowf('Factor B', fac(f.factor_b), '<span class="chip inf">inf</span>') + rowf('Factor C', fac(f.factor_c), '<span class="chip inf">inf</span>') + rowf('Factor B almacén', fac(f.factor_b_alm), '<span class="chip inf">inf</span>'))}</div>
       </div>`;
     }
-    // por agente
+    return h + `</div>`;
+  }
+
+  // Sección 2 — UTILIDAD DE OPERACIÓN (parte sobre la bruta el gasto de venta).
+  function secOperacion(r, ag) {
+    let h = `<div class="sec pb">${band('2', 'Utilidad de Operación')}`;
+    h += `<p style="font-size:12px;color:#334155;margin:0 0 12px">Sobre la utilidad bruta se descuenta el <b>gasto de venta</b> (comisiones, sueldo, gasto y carga social) prorrateado por kilo vendido de cada agente.</p>`;
+    h += `<div class="kgrid">
+      ${kc('Utilidad bruta', mon2(r.utilidad_bruta), pct(r.utilidad_bruta_pct))}
+      ${kc('(−) Gastos de venta', mon2(r.gastos_venta), pct1((Number(r.gastos_venta) || 0) / (Number(r.total_ventas) || 1)) + ' de ventas')}
+      ${kc('= Utilidad de operación', mon2(r.utilidad_operacion), pct(r.utilidad_operacion_pct), true)}
+    </div>`;
+    h += `<table class="rt" style="margin-top:14px">
+      <tr><th>Utilidad bruta</th><th>(−) Gasto de venta</th><th>= Utilidad de operación</th></tr>
+      <tr><td style="text-align:right" class="pos">${mon(r.utilidad_bruta)}</td><td>${mon(r.gastos_venta)}</td><td class="pos">${mon(r.utilidad_operacion)}</td></tr>
+      <tr style="color:#64748b;font-size:10px"><td style="text-align:right">${pct1(r.utilidad_bruta_pct)}</td><td>${pct1((Number(r.gastos_venta) || 0) / (Number(r.total_ventas) || 1))}</td><td>${pct1(r.utilidad_operacion_pct)}</td></tr>
+    </table>`;
     const ags = (ag && ag.agentes || []).filter(a => Number(a.total_ventas) !== 0);
     if (ags.length) {
       let body = '';
@@ -150,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pr = (prod.items || []).slice();
     const c4 = ci.slice(0, 4).reduce((s, x) => s + x.ventas, 0);
     const c10 = ci.slice(0, 10).reduce((s, x) => s + x.ventas, 0);
-    let h = `<div class="sec pb">${band('2', 'Análisis de Rentabilidad')}`;
+    let h = `<div class="sec pb">${band('3', 'Análisis de Rentabilidad')}`;
     h += `<p style="font-size:12px;color:#334155;line-height:1.5">
       &bull; Los <b>4 clientes principales</b> concentran <b>${pct1(c4 / T)}</b> de la venta (${mon(c4)}).<br/>
       &bull; Los <b>10 principales</b> = <b>${pct1(c10 / T)}</b>. ${ci.length > 10 ? `El resto (${ci.length - 10} clientes) aporta ${pct1(1 - c10 / T)}.` : ''}<br/>
@@ -179,7 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function secDrill(cp) {
-    let h = `<div class="sec pb">${band('3', 'Detalle Rentabilidad por Cliente y Producto')}`;
+    let h = `<div class="sec pb">${band('4', 'Detalle Rentabilidad por Cliente y Producto')}`;
     h += `<table class="rt"><tr><th>Cliente / Producto</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th></tr>`;
     for (const cl of (cp.clientes || [])) {
       h += `<tr class="clir"><td>${esc(cl.nombre || cl.clave)}</td><td>${mon(cl.ventas)}</td><td>${mon(cl.utilidad_bruta)}</td><td>${pct1(cl.margen)}</td><td>${num(cl.kilos)}</td></tr>`;
@@ -211,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><div style="font-size:20px;font-weight:800">Paquete de Cierre — Costo de Ventas y Utilidad</div>
           <div style="font-size:12px;color:#cbd5e1;margin-top:2px">${esc(emp.razon_social || emp.nombre_corto || 'Empresa')} · ${MESES[Number(mes)] || mes} ${anio}</div></div>
         <div style="text-align:right"><div style="font-size:15px;font-weight:800">KOGU</div><div style="font-size:10px;color:#94a3b8">Reporte para Dirección</div></div></div>`;
-      $('reporte').innerHTML = head + secEjecutivo(r, f, ag) + secAnalisis(cli, prod, T) + secDrill(cp);
+      $('reporte').innerHTML = head + secBruta(r, f) + secOperacion(r, ag) + secAnalisis(cli, prod, T) + secDrill(cp);
       $('msg').innerHTML = 'Reporte generado. Pulsa <b>Imprimir / Guardar PDF</b> (Ctrl/Cmd+P → Guardar como PDF).';
     } catch (e) {
       $('msg').innerHTML = '';
