@@ -65,12 +65,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .ap { background:#dcfce7;color:#166534 } #reporte .inf { background:#e5e7eb;color:#6b7280 }
   @media print {
     @page { size: letter; margin: 12mm; }
+    html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body * { visibility: hidden !important; }
-    #reporte, #reporte * { visibility: visible !important; }
+    #reporte, #reporte * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     #reporte { position:absolute; left:0; top:0; width:100%; }
     .no-print { display:none !important; }
-    #reporte .sec { page-break-before: always; }
-    #reporte .sec:first-child { page-break-before: avoid; }
+    #reporte .pb { page-break-before: always; }
+    #reporte tr, #reporte .kc, #reporte .band, #reporte .mini > div { page-break-inside: avoid; }
   }
 </style>
 <div class="card no-print">
@@ -147,7 +148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pr = (prod.items || []).slice();
     const c4 = ci.slice(0, 4).reduce((s, x) => s + x.ventas, 0);
     const c10 = ci.slice(0, 10).reduce((s, x) => s + x.ventas, 0);
-    let h = `<div class="sec">${band('2', 'Análisis de Rentabilidad')}`;
+    let h = `<div class="sec pb">${band('2', 'Análisis de Rentabilidad')}`;
     h += `<p style="font-size:12px;color:#334155;line-height:1.5">
       &bull; Los <b>4 clientes principales</b> concentran <b>${pct1(c4 / T)}</b> de la venta (${mon(c4)}).<br/>
       &bull; Los <b>10 principales</b> = <b>${pct1(c10 / T)}</b>. ${ci.length > 10 ? `El resto (${ci.length - 10} clientes) aporta ${pct1(1 - c10 / T)}.` : ''}<br/>
@@ -176,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function secDrill(cp) {
-    let h = `<div class="sec">${band('3', 'Detalle Rentabilidad por Cliente y Producto')}`;
+    let h = `<div class="sec pb">${band('3', 'Detalle Rentabilidad por Cliente y Producto')}`;
     h += `<table class="rt"><tr><th>Cliente / Producto</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th></tr>`;
     for (const cl of (cp.clientes || [])) {
       h += `<tr class="clir"><td>${esc(cl.nombre || cl.clave)}</td><td>${mon(cl.ventas)}</td><td>${mon(cl.utilidad_bruta)}</td><td>${pct1(cl.margen)}</td><td>${num(cl.kilos)}</td></tr>`;
