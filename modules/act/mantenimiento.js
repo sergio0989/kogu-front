@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${estadoBadge(r.estado)}</td>
         <td>${esc(r.prioridad || '')}</td>
         <td>${KoguUi.fmtDate(r.fecha_apertura)}</td>
-        <td>${r.fecha_compromiso ? esc(r.fecha_compromiso) : '<span class="muted">—</span>'}</td>
+        <td>${r.fecha_compromiso ? esc(KoguUi.fmtDateOnly(r.fecha_compromiso)) : '<span class="muted">—</span>'}</td>
       </tr>`).join('');
     tbody.querySelectorAll('[data-id]').forEach(tr => tr.onclick = () => { window.location.href = '/modules/act/orden-detalle.html?id=' + encodeURIComponent(tr.dataset.id); });
     $('ordPg').innerHTML = `<span>${total} orden${total === 1 ? '' : 'es'} · página ${page} de ${totalPages}</span>

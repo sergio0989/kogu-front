@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td>${r.proveedor_nombre ? esc(r.proveedor_nombre) : '<span class="muted">—</span>'}</td>
           <td>${r.costo != null ? KoguUi.fmtMoney(r.costo, r.moneda) : '<span class="muted">—</span>'}</td>
           <td>${KoguUi.fmtDate(r.fecha_apertura)}</td>
-          <td>${r.fecha_compromiso ? esc(r.fecha_compromiso) : '<span class="muted">—</span>'}</td>
+          <td>${r.fecha_compromiso ? esc(KoguUi.fmtDateOnly(r.fecha_compromiso)) : '<span class="muted">—</span>'}</td>
         </tr>`).join('');
       tbody.querySelectorAll('[data-id]').forEach(tr => tr.onclick = () => { window.location.href = '/modules/act/orden-detalle.html?id=' + encodeURIComponent(tr.dataset.id); });
       $('repPg').innerHTML = `<span>${total} reparación${total === 1 ? '' : 'es'} · página ${page} de ${totalPages}</span>

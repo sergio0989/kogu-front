@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row">
     <div>
       <div class="eyebrow"><a class="link" href="${backHref}">← Volver</a></div>
-      <h2 style="margin:4px 0">Orden #${esc(String(o.id_mov))} · ${esc(o.activo_codigo || '')}</h2>
+      <h2 style="margin:4px 0">${o.tipo === 'reparacion' ? 'Reparación' : 'Orden'} #${esc(String(o.id_mov))} · ${esc(o.activo_codigo || '')}</h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         ${estadoBadge(o.estado)}<span class="chip">${esc(o.tipo)}</span><span class="chip">Prioridad: ${esc(o.prioridad || '—')}</span>
         ${o.activo_id ? `<a class="link" href="/modules/act/activo-detalle.html?id=${encodeURIComponent(o.activo_id)}">Ver activo →</a>` : ''}
