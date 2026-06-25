@@ -40,18 +40,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   c.innerHTML = `
 <style>
   #reporte { background:#fff; color:#0f172a; }
-  #reporte .band { background:#0f172a; color:#fff; padding:12px 16px; border-radius:8px; margin:18px 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  #reporte .band { background:#0e7490; color:#fff; padding:12px 16px; border-radius:8px; margin:18px 0 12px; display:flex; justify-content:space-between; align-items:center; }
   #reporte .band h2 { margin:0; font-size:16px; }
   #reporte .band .n { font-size:24px; font-weight:800; opacity:.35; }
   #reporte .kgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   #reporte .kc { background:#f1f5f9; border-radius:8px; padding:12px 14px; }
-  #reporte .kc.dark { background:#0f172a; color:#fff; }
+  #reporte .kc.dark { background:#0e7490; color:#fff; }
   #reporte .kc .l { font-size:11px; color:#64748b; }
   #reporte .kc.dark .l { color:#cbd5e1; }
   #reporte .kc .v { font-size:19px; font-weight:800; margin-top:3px; }
   #reporte .kc .s { font-size:11px; font-weight:700; color:#059669; margin-top:2px; }
   #reporte table.rt { width:100%; border-collapse:collapse; font-size:12px; }
-  #reporte table.rt th { background:#0f172a; color:#fff; padding:6px 8px; text-align:right; font-size:10.5px; }
+  #reporte table.rt th { background:#0e7490; color:#fff; padding:6px 8px; text-align:right; font-size:10.5px; }
   #reporte table.rt th:first-child { text-align:left; }
   #reporte table.rt td { padding:5px 8px; text-align:right; border-bottom:1px solid #eef2f6; }
   #reporte table.rt td:first-child { text-align:left; }
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ]);
       if (!r || !r.total_ventas) { $('msg').innerHTML = 'No hay resultado calculado para ese periodo. Calcula primero en “Costo de ventas / Utilidad”.'; return; }
       const T = Number(r.total_ventas) || 1;
-      const head = `<div style="background:#0f172a;color:#fff;padding:16px;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+      const head = `<div style="background:#0e7490;color:#fff;padding:16px;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
         <div><div style="font-size:20px;font-weight:800">Paquete de Cierre — Costo de Ventas y Utilidad</div>
           <div style="font-size:12px;color:#cbd5e1;margin-top:2px">${esc(emp.razon_social || emp.nombre_corto || 'Empresa')} · ${MESES[Number(mes)] || mes} ${anio}</div></div>
         <div style="text-align:right"><div style="font-size:15px;font-weight:800">KOGU</div><div style="font-size:10px;color:#94a3b8">Reporte para Dirección</div></div></div>`;
