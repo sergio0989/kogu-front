@@ -3,7 +3,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentPage: '/modules/core/contexto/cambio-empresa.html',
     title: 'Cambio de empresa',
     description: 'Selector de empresa activa conectado a core/context como fuente de verdad.',
-    requiredPermission: 'screen.root.index'
+    // Sin permiso específico: cualquier usuario autenticado debe poder elegir
+    // su empresa activa (solo ve y opera sus propias empresas autorizadas).
+    // Antes exigía screen.root.index, lo que dejaba a los usuarios no-admin
+    // atrapados tras el redirect del 409 ("Acceso denegado").
+    requiredPermission: null
   });
   if (!bootstrap) return;
 
