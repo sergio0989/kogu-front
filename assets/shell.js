@@ -178,6 +178,7 @@
       environment: d.environment || null,
       permissions: d.permissions || d.permisos || [],
       screens: d.screens || [],
+      pagina_inicio: d.pagina_inicio || (d.user && d.user.pagina_inicio) || null,
       source: 'core'
     };
   }
@@ -291,6 +292,20 @@
     return perms.includes(perm);
   }
 
+  // Resuelve la "página de inicio" del usuario para el botón Mi inicio:
+  // 1) pagina_inicio del perfil (si es ruta válida), 2) primer ítem del
+  // menú al que tiene permiso, 3) login como último recurso.
+  function resolveHome(bootstrap){
+    const pi = bootstrap && (bootstrap.pagina_inicio || (bootstrap.user && bootstrap.user.pagina_inicio));
+    if (typeof pi === 'string' && pi.startsWith('/')) return pi;
+    for (const s of NAV){
+      for (const it of (s.items || [])){
+        if (hasPerm(bootstrap, it.perm)) return it.href;
+      }
+    }
+    return '/login.html';
+  }
+
   function sectionHtml(current,section){
     const items=section.items.filter(x=>hasPerm(_bootstrap,x.perm));
     if(!items.length) return '';
@@ -359,6 +374,7 @@
       <button class="topbar-back" id="sidebarToggleBtnTopbar" type="button" aria-label="Ocultar menú" title="Ocultar menú">
         <span class="topbar-back__icon">‹</span>
       </button>
+      <button class="btn" id="homeBtnTopbar" type="button" aria-label="Mi inicio" title="Ir a mi página de inicio" style="margin:0 12px 0 4px;white-space:nowrap;padding:8px 12px">⌂ Mi inicio</button>
       <div class="topbar-heading">
         <div class="topbar-heading__row1">
           <span class="topbar-heading__kicker" data-kogu-kicker>${kicker}</span>
@@ -599,6 +615,8 @@
     _currentPagePath = currentPage || '';
     document.getElementById('app').innerHTML=`<div class="layout ${getSidebarHidden() ? 'sidebar-hidden' : ''}">${renderSidebar(currentPage,bootstrap)}<main class="main">${renderTopbar(title,description,bootstrap)}<section class="content" id="pageContent"></section></main></div>`;
     const btn=document.getElementById('logoutBtn'); if(btn) btn.onclick=()=>KoguAuth.logout();
+    const homeBtn=document.getElementById('homeBtnTopbar');
+    if(homeBtn){ const home=resolveHome(bootstrap); homeBtn.onclick=()=>{ window.location.href=home; }; }
     bindSidebarToggle();
     bindNavCollapse();
     bindEmpresaChip();

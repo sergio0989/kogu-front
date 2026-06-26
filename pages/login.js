@@ -27,6 +27,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const boot = (res && (res.data || res)) || {};
     const perms = boot.permissions || boot.permisos || [];
 
+    // Página de inicio configurada en el perfil (cat_perfiles.pagina_inicio).
+    // Tiene prioridad sobre la cascada por permisos. Debe ser ruta relativa.
+    const home = boot.pagina_inicio || (boot.user && boot.user.pagina_inicio) || null;
+    if (typeof home === 'string' && home.startsWith('/')) {
+      return home;
+    }
+
     if (Array.isArray(perms) && perms.includes('screen.root.index')) {
       return '/modules/core/dashboard/index.html';
     }
