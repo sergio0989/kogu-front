@@ -97,6 +97,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${esc(e.nombre)}${removable ? `<span style="cursor:pointer;font-weight:700" data-rm-etq="${esc(e.etiqueta_id)}" title="Quitar">✕</span>` : ''}</span>`;
   };
 
+  // ── Patrón de detalle (KOGU_core_PatronPantallaDetalle_v1) ───────────────
+  // Fecha-pura (DATE) y timestamps con el helper centralizado; '—' si vacío.
+  const fmtDay = iso => iso ? (KoguUi.fmtDateOnly ? KoguUi.fmtDateOnly(iso) : fechaCorta(iso)) : '—';
+  // Fila etiqueta/valor (.kv-row); long = etiqueta arriba, valor abajo.
+  const field = (label, val, long = false) => {
+    const v = (val == null || val === '') ? '<span style="color:var(--muted)">—</span>' : esc(String(val));
+    return `<div class="kv-row${long ? ' kv-long' : ''}"><span class="kv-k">${esc(label)}</span><span class="kv-v">${v}</span></div>`;
+  };
+  // Chip coloreado del patrón: fondo c1a, texto c, borde c55.
+  const chipColor = (c, txt, small = false) =>
+    `<span style="display:inline-flex;align-items:center;padding:${small ? '3px 9px' : '3px 11px'};border-radius:999px;font-size:${small ? '10px' : '11px'};font-weight:700;color:${c};background:${c}1a;border:1px solid ${c}55">${esc(txt)}</span>`;
+  const chipEstado = estado => chipColor(EST[estado] || EST.abierta, EST_TXT[estado] || estado);
+  const chipSev = sev => sev ? chipColor(SEV[sev] || SEV.info, SEV_TXT[sev] || sev, true) : '';
+  const metric = (k, v, color = '') =>
+    `<div class="ot-metric"><div class="m-k">${esc(k)}</div><div class="m-v"${color ? ` style="color:${color}"` : ''}>${esc(v)}</div></div>`;
+  // Stepper del ciclo: Abierta → En proceso → Cerrada; Cancelada = ruta roja.
+  const stepperAct = estado => {
+    const step = (cls, mark, lbl) => `<div class="ot-step ${cls}"><div class="ot-dot">${mark}</div><div class="ot-lbl">${lbl}</div></div>`;
+    const line = done => `<div class="ot-line${done ? ' done' : ''}"></div>`;
+    if (estado === 'cancelada')
+      return `<div class="ot-stepper" style="margin-top:14px">${step('done', '✓', 'Abierta')}${line(true)}${step('cancel', '✕', 'Cancelada')}</div>`;
+    const cur = estado === 'cerrada' ? 2 : (estado === 'en_proceso' ? 1 : 0);
+    const cls = i => i < cur ? 'done' : (i === cur ? 'current' : '');
+    const mark = i => i < cur ? '✓' : (i + 1);
+    return `<div class="ot-stepper" style="margin-top:14px">
+      ${step(cls(0), mark(0), 'Abierta')}${line(cur >= 1)}
+      ${step(cls(1), mark(1), 'En proceso')}${line(cur >= 2)}
+      ${step(cls(2), estado === 'cerrada' ? '✓' : 3, 'Cerrada')}</div>`;
+  };
+
   async function loadEtiquetas() {
     try { const res = await KoguApi.apiFetch(`${BASE}/etiquetas`); catalogo = res?.data || res || []; }
     catch (_) { catalogo = []; }
@@ -144,7 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function vigBadge(a) {
     if (a.estado === 'cerrada' || a.estado === 'cancelada') return '';
-    if (a.vencida) return `<span style="display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;background:var(--danger,#dc2626)">Vencida</span>`;
+    if (a.vencida) return chipColor('var(--danger,#dc2626)', 'Vencida', true);
     if (a.fecha_limite) return `<span style="font-size:11px;color:var(--muted)">vence ${fechaCorta(a.fecha_limite)}</span>`;
     return '';
   }
@@ -152,14 +182,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function render() {
     if (!items.length) { document.getElementById('lista').innerHTML = '<div class="empty">Sin actividades para el filtro.</div>'; return; }
     document.getElementById('lista').innerHTML = items.map(a => {
-      const sevC = SEV[a.severidad] || SEV.info;
       const estC = EST[a.estado] || EST.abierta;
       return `<div style="border:1px solid var(--line);border-left:4px solid ${a.vencida ? 'var(--danger,#dc2626)' : estC};border-radius:12px;padding:13px 15px;margin-bottom:9px;cursor:pointer" data-act="${esc(a.actividad_id)}">
         <div class="row" style="align-items:center">
           <div style="flex:1">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${estC}">${EST_TXT[a.estado] || a.estado}</span>
-              ${a.severidad ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:${sevC}">${SEV_TXT[a.severidad] || a.severidad}</span>` : ''}
+              ${chipEstado(a.estado)}
+              ${chipSev(a.severidad)}
               <span style="font-weight:700">${esc(a.cliente_nombre || a.cliente_ref || a.titulo)}</span>
               ${a.cliente_ref ? `<span style="font-size:11px;color:var(--muted)">· ${esc(a.cliente_ref)}</span>` : '<span style="font-size:11px;color:var(--muted)">· general</span>'}
               ${vigBadge(a)}
@@ -213,14 +242,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderDetalle(d) {
-    const estC = EST[d.estado] || EST.abierta;
     const kb = n => n ? `${(Number(n) / 1024).toFixed(0)} KB` : '';
-    const coments = (d.comentarios || []).map(x => `
-      <div style="border-left:3px solid var(--line);padding:6px 0 6px 10px;margin:6px 0">
-        <div style="font-size:11px;color:var(--muted)">${esc(x.autor_nombre || 'Usuario')} · ${fechaCorta(x.created_at)}</div>
-        ${x.comentario ? `<div style="font-size:13px;white-space:pre-wrap">${resaltarMenciones(esc(x.comentario))}</div>` : ''}
-        ${x.tiene_adjunto ? `<div style="margin-top:4px"><a href="#" data-dl-adj="${esc(x.comentario_id)}" style="font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--brand,#2563eb);text-decoration:none">📎 ${esc(x.adjunto_nombre || 'archivo')} <span style="color:var(--muted)">${kb(x.adjunto_size)}</span></a></div>` : ''}
-      </div>`).join('') || '<div class="hint" style="color:var(--muted);font-size:12px">Sin comentarios aún.</div>';
+    const coments = (d.comentarios || []).length ? `<div class="ot-timeline">${(d.comentarios || []).map(x => `
+      <div class="ot-ev ev-nota">
+        <div class="ot-evdot"></div>
+        <div class="ot-evhead"><span style="font-weight:600;font-size:13px">${esc(x.autor_nombre || 'Usuario')}</span><span class="muted" style="font-size:12px">${fmtDay(x.created_at)}</span></div>
+        ${x.comentario ? `<div class="ot-evtext" style="white-space:pre-wrap">${resaltarMenciones(esc(x.comentario))}</div>` : ''}
+        ${x.tiene_adjunto ? `<div style="margin-top:5px"><a href="#" data-dl-adj="${esc(x.comentario_id)}" style="font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--brand,#2563eb);text-decoration:none">📎 ${esc(x.adjunto_nombre || 'archivo')} <span class="muted">${kb(x.adjunto_size)}</span></a></div>` : ''}
+      </div>`).join('')}</div>` : '<div class="empty">Sin comentarios aún.</div>';
     const recs = (d.recordatorios || []).map(r => `
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
         <span>${fechaCorta(r.fecha_programada)} · ${esc(r.canal)}</span>
@@ -228,44 +257,68 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`).join('') || '<div class="hint" style="color:var(--muted);font-size:12px">Sin recordatorios.</div>';
     const activa = d.estado === 'abierta' || d.estado === 'en_proceso';
 
-    const sevPill = d.severidad ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:${SEV[d.severidad] || SEV.info}">${SEV_TXT[d.severidad] || d.severidad}</span>` : '';
     const html = `
       <div id="crmActModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:28px 16px">
         <style>
-          #crmActModal .crm-card{background:var(--panel,#fff);border-radius:16px;max-width:1000px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
-          #crmActModal .crm-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-          #crmActModal .crm-body{display:grid;grid-template-columns:1fr 330px}
-          #crmActModal .crm-main{padding:20px 24px;min-width:0}
-          #crmActModal .crm-side{padding:20px 22px;background:var(--panel2,#f8fafc);border-left:1px solid var(--line)}
+          #crmActModal .crm-card{background:var(--panel,#fff);border-radius:16px;max-width:1040px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
+          #crmActModal .crm-head{padding:20px 24px 16px;border-bottom:1px solid var(--line)}
+          #crmActModal .crm-metrics{padding:14px 24px 2px}
+          #crmActModal .crm-body{display:grid;grid-template-columns:1.1fr .9fr}
+          #crmActModal .crm-main{padding:18px 24px;min-width:0;display:flex;flex-direction:column;gap:14px}
+          #crmActModal .crm-side{padding:18px 22px;background:var(--panel2,#f8fafc);border-left:1px solid var(--line)}
           #crmActModal .crm-sech{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 8px}
           #crmActModal .crm-block{margin-bottom:20px}
           #crmActModal .crm-block:last-child{margin-bottom:0}
+          #crmActModal .crm-card .card{box-shadow:none}
           #crmActModal .crm-side .input,#crmActModal .crm-side .select{width:100%}
           @media(max-width:860px){#crmActModal .crm-body{grid-template-columns:1fr}#crmActModal .crm-side{border-left:0;border-top:1px solid var(--line)}}
         </style>
         <div class="crm-card">
 
           <div class="crm-head">
-            <div style="min-width:0">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <span style="display:inline-block;padding:3px 11px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${estC}">${EST_TXT[d.estado] || d.estado}</span>
-                ${sevPill}
-                ${d.vencida ? '<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;background:var(--danger,#dc2626)">Vencida</span>' : ''}
+            <div class="row" style="align-items:flex-start;gap:16px">
+              <div style="min-width:0">
+                <div class="eyebrow">CRM · Seguimiento</div>
+                <h2 style="margin:4px 0 0;font-size:22px;line-height:1.2">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+                  ${chipEstado(d.estado)}
+                  ${chipSev(d.severidad)}
+                  ${d.vencida ? chipColor('var(--danger,#dc2626)', 'Vencida', true) : ''}
+                  <span class="chip">${esc(ORIGEN_TXT[d.origen] || d.origen || '—')}</span>
+                  ${d.cliente_ref ? `<span class="muted" style="font-size:12px">${esc(d.titulo)}</span>` : '<span class="muted" style="font-size:12px">General</span>'}
+                </div>
               </div>
-              <h2 style="margin:8px 0 0;font-size:22px;line-height:1.2">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:3px">${esc(d.titulo)} · vence ${fechaCorta(d.fecha_limite)}${d.monto_riesgo != null ? ` · <b style="color:var(--danger,#dc2626)">${money(d.monto_riesgo)}</b> en riesgo` : ''}${d.cliente_ref ? '' : ' · sin cliente'} · origen ${esc(ORIGEN_TXT[d.origen] || d.origen || '—')}</div>
-              <div class="hint" style="color:var(--muted);font-size:11px;margin-top:2px">${d.created_by_nombre ? `Creada por ${esc(d.created_by_nombre)}` : ''}${d.tomada_por_nombre ? `${d.created_by_nombre ? ' · ' : ''}Tomada por <b>${esc(d.tomada_por_nombre)}</b>${d.tomada_at ? ' (' + fechaCorta(d.tomada_at) + ')' : ''}` : ''}</div>
+              <button class="btn" id="crmActClose">Cerrar ✕</button>
             </div>
-            <button class="btn" id="crmActClose">Cerrar ✕</button>
+            ${stepperAct(d.estado)}
+          </div>
+
+          <div class="crm-metrics">
+            <div class="ot-metrics">
+              ${metric('En riesgo', d.monto_riesgo != null ? money(d.monto_riesgo) : '—', d.monto_riesgo != null ? 'var(--danger,#dc2626)' : '')}
+              ${metric('Apertura', fmtDay(d.created_at))}
+              ${metric('Vence', fmtDay(d.fecha_limite), d.vencida ? 'var(--danger,#dc2626)' : '')}
+              ${d.estado === 'cerrada'
+                ? metric('Cierre', fmtDay(d.fecha_cierre), 'var(--ok,#16a34a)')
+                : (d.tomada_at ? metric('Tomada', fmtDay(d.tomada_at)) : metric('Cierre', '—'))}
+            </div>
           </div>
 
           <div class="crm-body">
             <div class="crm-main">
-              ${d.descripcion ? `<div class="crm-block"><div class="crm-sech">Nota / plan de acción</div><div style="font-size:13.5px;line-height:1.5">${esc(d.descripcion)}</div></div>` : ''}
+              <div class="card">
+                ${field('Nota / plan de acción', d.descripcion, true)}
+                <div class="kv kv-2" style="margin-top:2px">
+                  ${field('Cliente', d.cliente_ref ? `${d.cliente_nombre || d.cliente_ref} · ${d.cliente_ref}` : 'General')}
+                  ${field('Creada por', d.created_by_nombre)}
+                  ${field('Tomada por', d.tomada_por_nombre ? `${d.tomada_por_nombre}${d.tomada_at ? ' · ' + fmtDay(d.tomada_at) : ''}` : null)}
+                  ${field('Resultado', d.resultado ? (RES_TXT[d.resultado] || d.resultado) : null)}
+                </div>
+              </div>
 
-              ${snapshotHtml(d.snapshot) ? `<div class="crm-block">${snapshotHtml(d.snapshot)}</div>` : ''}
+              ${snapshotHtml(d.snapshot) ? `<div class="card">${snapshotHtml(d.snapshot)}</div>` : ''}
 
-              <div class="crm-block">
+              <div class="card">
                 <div class="crm-sech">Bitácora</div>
                 <div id="crmComents">${coments}</div>
                 <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
