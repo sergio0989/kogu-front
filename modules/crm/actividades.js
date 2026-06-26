@@ -339,8 +339,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div id="crmComents">${coments}</div>
                 <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
                   <div style="position:relative;flex:1;min-width:200px">
-                    <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…  (@ para mencionar)" style="width:100%"/>
-                    <div id="crmMentionBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:190px;overflow:auto;margin-top:2px"></div>
+                    <input class="input" id="crmNuevoComent" placeholder="Agregar comentario…  (@ para mencionar)" autocomplete="off" style="width:100%"/>
+                    <div id="crmMentionBox" style="display:none;position:absolute;left:0;right:0;bottom:100%;z-index:50;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 -8px 24px rgba(0,0,0,.18);max-height:220px;overflow:auto;margin-bottom:4px"></div>
                   </div>
                   <input type="file" id="crmComentFile" style="max-width:170px;font-size:12px"/>
                   <button class="btn primary" id="crmAddComent">Comentar</button>
