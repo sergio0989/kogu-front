@@ -230,26 +230,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function closeDetalle() { document.getElementById('crmActModal')?.remove(); }
 
+  // Filas del snapshot según la métrica: 'importe' ($) o 'kg' (cantidad).
+  function snapshotRows(prods, metric) {
+    const kgM = metric === 'kg';
+    return (prods || []).slice(0, 60).map(pr => {
+      const v1 = kgM ? (pr.cant_p1 ?? null) : (pr.importe_p1 ?? pr.p1);
+      const v2 = kgM ? (pr.cant_p2 ?? null) : (pr.importe_p2 ?? pr.p2);
+      const fmt = v => v == null ? '—' : (kgM ? `${nf0.format(Number(v))} kg` : money(v));
+      return `<tr><td>${pr.cve_prod ? `<span class="chip-compact">${esc(pr.cve_prod)}</span>` : ''}</td>
+        <td>${esc(pr.desc_prod || '')}${pr.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">abandonado</span>' : ''}</td>
+        <td style="text-align:right">${fmt(v1)}</td>
+        <td style="text-align:right">${fmt(v2)}</td></tr>`;
+    }).join('');
+  }
+
   function snapshotHtml(snap) {
     if (!snap || typeof snap !== 'object') return '';
     const p = snap.periodos || {};
     const prods = Array.isArray(snap.productos) ? snap.productos : [];
     if (!prods.length) return '';   // sin productos (p.ej. actividad general) → ocultar sección
     const rango = (p.p1d && p.p2d) ? `${mesIso(p.p1d)} vs ${mesIso(p.p2d)}` : '';
-    const filas = prods.slice(0, 30).map(pr => {
-      const v1 = pr.importe_p1 ?? pr.p1, v2 = pr.importe_p2 ?? pr.p2;
-      return `<tr><td>${pr.cve_prod ? `<span class="chip-compact">${esc(pr.cve_prod)}</span>` : ''}</td>
-        <td>${esc(pr.desc_prod || '')}${pr.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">abandonado</span>' : ''}</td>
-        <td style="text-align:right">${v1 != null ? money(v1) : '—'}</td>
-        <td style="text-align:right">${v2 != null ? money(v2) : '—'}</td></tr>`;
-    }).join('');
+    // Métrica inicial: la que tenía el panel al crear (snapshot.metrica); por defecto importe.
+    const metricaIni = snap.metrica === 'cantidad' ? 'kg' : 'importe';
+    const hayKg = prods.some(pr => pr.cant_p1 != null || pr.cant_p2 != null);
+    const filas = snapshotRows(prods, metricaIni);
     return `
       <details class="crm-snap" open>
-        <summary style="cursor:pointer;margin-bottom:6px">
+        <summary style="cursor:pointer;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:10px">
           <span class="eyebrow">Snapshot al crear ${rango ? `· ${rango}` : ''} · ${prods.length} partida${prods.length === 1 ? '' : 's'}</span>
+          ${hayKg ? `<select class="select" id="crmSnapMetric" onclick="event.preventDefault()" style="font-size:11px;padding:2px 6px;width:auto">
+            <option value="importe"${metricaIni === 'importe' ? ' selected' : ''}>$ Importe</option>
+            <option value="kg"${metricaIni === 'kg' ? ' selected' : ''}>⚖ Cantidad (kg)</option>
+          </select>` : ''}
         </summary>
-        ${filas ? `<div class="table-wrap" style="max-height:260px;overflow:auto;margin-top:6px"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th></tr></thead><tbody>${filas}</tbody></table></div>`
-                 : '<div class="hint" style="color:var(--muted);font-size:12px">Sin detalle de productos en el snapshot.</div>'}
+        <div class="table-wrap" style="max-height:260px;overflow:auto;margin-top:6px"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th></tr></thead><tbody id="crmSnapBody">${filas}</tbody></table></div>
       </details>`;
   }
 
@@ -442,6 +456,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.insertAdjacentHTML('beforeend', html);
     document.getElementById('crmActClose').onclick = closeDetalle;
     document.getElementById('crmActModal').onclick = e => { if (e.target.id === 'crmActModal') closeDetalle(); };
+
+    // Switch Importe / Cantidad (kg) del snapshot.
+    const snapSel = document.getElementById('crmSnapMetric');
+    if (snapSel) snapSel.onchange = (e) => {
+      const body = document.getElementById('crmSnapBody');
+      if (body) body.innerHTML = snapshotRows((d.snapshot && d.snapshot.productos) || [], e.target.value);
+    };
 
     // Pestañas del panel derecho (folder): t1 Acciones·Etiquetas / t2 Recordatorios·Avisos.
     document.querySelectorAll('#crmActModal .crm-tab').forEach(t => t.onclick = () => {
