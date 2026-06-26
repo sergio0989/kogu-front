@@ -48,6 +48,7 @@
       {href:'/modules/rc/bandeja.html',label:'Bandeja de Riesgo',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/cumplimiento.html',label:'Cumplimiento de agentes',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/mi-panel.html',label:'Mi panel (Vendedor)',perm:'screen.ventas.vendedor'},
+      {href:'/modules/rc/mi-panel.html',label:'Panel por agente',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion.html',label:'Asignar clientes',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion-pp.html',label:'Asignación PP',perm:'screen.ventas.direccion'},

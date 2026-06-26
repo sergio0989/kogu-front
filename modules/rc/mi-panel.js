@@ -165,10 +165,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const res = await KoguApi.apiFetch(`${BASE}/mi-panel${qsAgenteAnio()}`);
     panel = res?.data || res;
     if (!panel.agente) {
-      document.getElementById('tituloPanel').textContent = 'Mi panel';
+      document.getElementById('tituloPanel').textContent = 'Panel por agente';
       document.getElementById('metaInfo').textContent = '';
-      document.getElementById('cumplCard').innerHTML =
-        '<div class="empty">Tu usuario no está vinculado a un agente. Pide al administrador que lo vincule en <b>Agentes comerciales</b> (campo "Usuario KOGU vinculado").</div>';
+      // Si el selector tiene más de "Mi cartera", el usuario puede elegir
+      // (Dirección): lo invitamos a seleccionar. Si no, es un vendedor sin
+      // ficha de agente vinculada.
+      const selEl = document.getElementById('agenteSel');
+      const puedeElegir = selEl && selEl.options.length > 1;
+      document.getElementById('cumplCard').innerHTML = puedeElegir
+        ? '<div class="empty">Selecciona un agente en el menú de arriba para ver su panel, o entra desde <b>Cumplimiento de agentes</b> haciendo clic en un agente.</div>'
+        : '<div class="empty">Tu usuario no está vinculado a un agente. Pide al administrador que lo vincule en <b>Agentes comerciales</b> (campo "Usuario KOGU vinculado").</div>';
       document.getElementById('alertas').innerHTML = '';
       return;
     }
