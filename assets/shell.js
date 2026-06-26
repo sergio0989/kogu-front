@@ -97,7 +97,7 @@
     ]},
     {section:'Lab QA',items:[
       // ── Vista ejecutiva ──
-      {href:'/modules/lab/lab-kpis.html',             label:'📊 Dashboard KPIs',   perm:'screen.lab.maestros'},
+      {href:'/modules/lab/lab-kpis.html',             label:'📊 Dashboard KPIs',   perm:'screen.lab.kpis'},
       // ── Entrada (compras) ──
       {href:'/modules/lab/lab-imp-compras.html',         label:'Inspección compras',    perm:'screen.lab.inspeccion_compras'},
       {href:'/modules/lab/lab-cert-proveedor.html',      label:'CofA proveedor',        perm:'screen.lab.inspeccion_compras'},

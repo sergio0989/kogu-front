@@ -14,7 +14,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/lab/lab-kpis.html';
-  const PERM = 'screen.lab.maestros';   // reusamos por ahora; en v1.2 será screen.lab.kpis
+  const PERM = 'screen.lab.kpis';   // permiso dedicado (V137): separa KPIs de Maestros analíticos
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
