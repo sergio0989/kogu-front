@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canGestoriaUpdate = KoguShell.hasPerm(b, 'act.gestoria.update');
   const canGestoriaCumplir = KoguShell.hasPerm(b, 'act.gestoria.cumplir');
   const canGestoriaDelete = KoguShell.hasPerm(b, 'act.gestoria.delete');
+  const canInspeccionesRead   = KoguShell.hasPerm(b, 'act.inspecciones.read');
+  const canInspeccionesCreate = KoguShell.hasPerm(b, 'act.inspecciones.create');
   const _meSession = (typeof KoguApi.getSession === 'function' ? (KoguApi.getSession() || {}) : {});
   const myUserId = (b.user && (b.user.user_id || b.user.id)) || _meSession.user?.user_id || _meSession.user?.id || _meSession.user_id || null;
 
@@ -105,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <button class="tab" data-tab="expediente">Expediente</button>
     <button class="tab" data-tab="asignaciones">Asignaciones</button>
     <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
+    ${canInspeccionesRead ? '<button class="tab" data-tab="inspecciones">Inspecciones <span id="insCount"></span></button>' : ''}
     ${canGestoriaRead ? '<button class="tab" data-tab="gestoria">Gestoría <span id="gesCount"></span></button>' : ''}
     ${canComentariosRead ? '<button class="tab" data-tab="comentarios">Comentarios <span id="comCount"></span></button>' : ''}
   </div>
@@ -122,6 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTab();
     if (canComentariosRead) refreshComentariosCount();
     if (canGestoriaRead) refreshGestoriaCount();
+    if (canInspeccionesRead) refreshInspeccionesCount();
   }
 
   function paintTabs() {
@@ -140,6 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activeTab === 'expediente')    return renderExpediente(body);
     if (activeTab === 'asignaciones')  return renderAsignaciones(body);
     if (activeTab === 'mantenimiento') return renderMantenimiento(body);
+    if (activeTab === 'inspecciones')  return renderInspecciones(body);
     if (activeTab === 'gestoria')      return renderGestoria(body);
     if (activeTab === 'comentarios')   return renderComentarios(body);
   }
@@ -922,6 +927,121 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_err) { /* apiFetch toast (403 si no es propio) */ }
   }
 
+  // ── Tab Inspecciones ─────────────────────────────────────────────────────────
+  let inspPlantillas = null;
+  const INSP_ESTADO = { programada: '#2563eb', en_proceso: '#ca8a04', cerrada: '#16a34a', cancelada: '#dc2626' };
+  const INSP_RESULTADO = { aprobado: '#16a34a', condicionado: '#ca8a04', rechazado: '#dc2626' };
+
+  async function ensureInspPlantillas() {
+    if (inspPlantillas) return inspPlantillas;
+    try { inspPlantillas = KoguApi.unwrapRows(await KoguApi.apiFetch('/protected/act/inspeccion-plantillas'), 'rows') || []; }
+    catch (_e) { inspPlantillas = []; }
+    return inspPlantillas;
+  }
+
+  async function refreshInspeccionesCount() {
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/inspecciones');
+      const n = (KoguApi.unwrapRows(res, 'rows') || []).length;
+      const el = $('insCount'); if (el) el.textContent = n ? `(${n})` : '';
+    } catch (_e) {}
+  }
+
+  function renderInspecciones(body) {
+    body.innerHTML = `
+      <div class="row">
+        <div><div class="eyebrow">Inspecciones de condición y seguridad</div></div>
+        <div>${canInspeccionesCreate ? '<button class="btn primary" id="insAddBtn">+ Nueva inspección</button>' : ''}</div>
+      </div>
+      <div id="insList" style="margin-top:14px"><div class="empty">Cargando…</div></div>`;
+    if (canInspeccionesCreate) $('insAddBtn').onclick = openInspModal;
+    loadInspecciones();
+  }
+
+  async function loadInspecciones() {
+    const cont = $('insList'); if (!cont) return;
+    try {
+      const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/inspecciones');
+      const rows = KoguApi.unwrapRows(res, 'rows') || [];
+      const el = $('insCount'); if (el) el.textContent = rows.length ? `(${rows.length})` : '';
+      if (!rows.length) { cont.innerHTML = `<div class="empty">Sin inspecciones para este activo.</div>`; return; }
+      cont.innerHTML = `<div class="ot-timeline">${rows.map(i => {
+        const ec = INSP_ESTADO[i.estado] || '#64748b';
+        const rc = i.resultado ? `<span class="chip" style="background:${INSP_RESULTADO[i.resultado]}1a;color:${INSP_RESULTADO[i.resultado]};border:1px solid ${INSP_RESULTADO[i.resultado]}55">${esc(i.resultado)}</span>` : '';
+        const meta = [];
+        if (i.odometro != null) meta.push('Odómetro ' + esc(String(i.odometro)) + ' ' + esc(i.odometro_unidad || ''));
+        if (i.inspector_nombre) meta.push('Inspector ' + esc(i.inspector_nombre));
+        return `<div class="ot-ev" data-insp="${i.inspeccion_id}" style="cursor:pointer">
+          <div class="ot-evdot" style="border-color:${ec}"></div>
+          <div class="ot-evhead">
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="chip">${esc((i.estado || '').replace(/_/g, ' '))}</span>${rc}</span>
+            <span class="muted" style="font-size:12px">#${esc(String(i.id_mov))} · ${i.fecha ? esc(KoguUi.fmtDateOnly(i.fecha)) : ''}</span>
+          </div>
+          <div class="ot-evtext" style="font-weight:600">${i.plantilla_nombre ? esc(i.plantilla_nombre) : 'Inspección'}</div>
+          ${meta.length ? `<div class="ot-evby">${meta.join(' · ')}</div>` : ''}
+        </div>`;
+      }).join('')}</div>`;
+      cont.querySelectorAll('[data-insp]').forEach(el2 => el2.onclick = () => { window.location.href = '/modules/act/inspeccion-detalle.html?id=' + encodeURIComponent(el2.dataset.insp); });
+    } catch (_err) { cont.innerHTML = `<div class="empty">No fue posible cargar las inspecciones.</div>`; }
+  }
+
+  function buildInspModal() {
+    if (!canInspeccionesCreate) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'inspModal';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="width:100%;max-width:520px;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#0f172a;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0;font-size:18px">Nueva inspección</h2><button class="btn ghost" id="inspClose" style="padding:6px 10px">✕</button>
+        </div>
+        <div style="padding:20px"><div class="stack">
+          <div><div class="label-text">Plantilla (checklist)</div><select class="select" id="insp_plantilla"><option value="">Sin plantilla</option></select></div>
+          <div class="grid-3">
+            <div><div class="label-text">Fecha</div><input class="input" id="insp_fecha" type="date"/></div>
+            <div><div class="label-text">Odómetro</div><input class="input" id="insp_odo" type="number" min="0" step="0.1"/></div>
+            <div><div class="label-text">Unidad</div><select class="select" id="insp_unidad"><option value="km">km</option><option value="hr">hr</option></select></div>
+          </div>
+        </div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" id="inspCancel">Cancelar</button><button class="btn primary" id="inspSave">Crear y ejecutar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeInsp(); });
+    $('inspClose').onclick = closeInsp; $('inspCancel').onclick = closeInsp; $('inspSave').onclick = saveInspeccion;
+  }
+  function closeInsp() { const m = $('inspModal'); if (m) m.style.display = 'none'; }
+  async function openInspModal() {
+    await ensureInspPlantillas();
+    const sel = $('insp_plantilla');
+    sel.innerHTML = '<option value="">Sin plantilla</option>' +
+      (inspPlantillas || []).map(p => `<option value="${p.plantilla_id}">${esc(p.nombre)} (${p.items_count} ítems)</option>`).join('');
+    if (inspPlantillas && inspPlantillas.length) sel.value = inspPlantillas[0].plantilla_id;
+    $('insp_fecha').value = new Date().toISOString().slice(0, 10);
+    $('insp_odo').value = ''; $('insp_unidad').value = 'km';
+    $('inspModal').style.display = 'flex';
+  }
+  async function saveInspeccion() {
+    const payload = {
+      plantilla_id: $('insp_plantilla').value || null,
+      fecha: $('insp_fecha').value || null,
+      odometro: $('insp_odo').value ? Number($('insp_odo').value) : null,
+      odometro_unidad: $('insp_unidad').value,
+    };
+    await KoguUi.withLoading(this, async () => {
+      try {
+        const res = await KoguApi.apiFetch('/protected/act/activos/' + encodeURIComponent(activoId) + '/inspecciones', { method: 'POST', body: JSON.stringify(payload) });
+        const out = KoguApi.unwrapData(res);
+        const id = out && out.inspeccion && out.inspeccion.inspeccion_id;
+        KoguApi.toast('Inspección creada', 'success');
+        closeInsp();
+        if (id) window.location.href = '/modules/act/inspeccion-detalle.html?id=' + encodeURIComponent(id);
+        else await loadInspecciones();
+      } catch (_err) { /* apiFetch toast */ }
+    }, 'Creando…');
+  }
+
   // ── Tab Gestoría ─────────────────────────────────────────────────────────────
   let gestoriaTipos = null;
   async function ensureGestoriaTipos() {
@@ -1184,6 +1304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   buildPlanModal();
   buildGestoriaModal();
   buildCumplirGesModal();
+  buildInspModal();
 
   KoguShell.subscribeEmpresaActivaChange(() => {
     // Un activo es de una empresa; al cambiar, vuelve a la bandeja para no
