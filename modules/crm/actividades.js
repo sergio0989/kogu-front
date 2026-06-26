@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <option value="kg"${metricaIni === 'kg' ? ' selected' : ''}>⚖ Cantidad (kg)</option>
           </select>` : ''}
         </summary>
-        <div class="table-wrap" style="max-height:260px;overflow:auto;margin-top:6px"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th></tr></thead><tbody id="crmSnapBody">${filas}</tbody></table></div>
+        <div class="table-wrap" style="max-height:230px;overflow:auto;margin-top:6px"><table><thead style="position:sticky;top:0;z-index:1"><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th></tr></thead><tbody id="crmSnapBody">${filas}</tbody></table></div>
       </details>`;
   }
 
