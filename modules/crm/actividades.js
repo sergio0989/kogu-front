@@ -78,6 +78,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const puedeGestEtq = KoguShell.hasPerm(b, 'crm.etiquetas.manage');
   const puedeCrearAct = KoguShell.hasPerm(b, 'crm.actividades.create');
   const puedeAdmin = KoguShell.hasPerm(b, 'crm.actividades.admin');
+  // Quien puede asignar (top-down) sin ser admin: ej. Director de Ventas.
+  // Sin cartera propia, debe elegir el agente responsable al crear.
+  const puedeAsignar = KoguShell.hasPerm(b, 'crm.actividades.assign');
+  const puedeElegirAgente = puedeAdmin || puedeAsignar;
   const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
   // Texto blanco/negro según luminancia del color de fondo.
@@ -577,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="background:var(--panel,#fff);border-radius:16px;max-width:580px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden">
           <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
             <div><div class="eyebrow">CRM · Nueva actividad</div><h2 style="margin:4px 0 0;font-size:21px">Crear actividad</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:2px">Seguimiento manual${puedeAdmin ? '' : ' de tu cartera'}. Solo título, nota y vigencia son obligatorios.</div></div>
+              <div class="hint" style="color:var(--muted);font-size:12px;margin-top:2px">Seguimiento manual${puedeElegirAgente ? '' : ' de tu cartera'}. Solo título, nota y vigencia son obligatorios.</div></div>
             <button class="btn" id="crmNuevaClose">✕</button>
           </div>
           <div style="padding:20px 24px;display:flex;flex-direction:column;gap:15px">
@@ -589,8 +593,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
               <div id="crmNuevaCliSel" class="hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
             </div>
-            ${puedeAdmin ? `<div><div class="label-text">Agente responsable <span style="color:var(--muted);font-weight:400">(opcional)</span></div>
-              <select class="select" id="crmNuevaAgente" style="width:100%;margin-top:4px"><option value="">— sin agente (general) —</option></select></div>` : ''}
+            ${puedeElegirAgente ? `<div><div class="label-text">Agente responsable <span style="color:var(--muted);font-weight:400">(${puedeAdmin ? 'opcional' : 'requerido'})</span></div>
+              <select class="select" id="crmNuevaAgente" style="width:100%;margin-top:4px"><option value="">${puedeAdmin ? '— sin agente (general) —' : '— selecciona agente —'}</option></select></div>` : ''}
             <div><div class="label-text">Título</div><input class="input" id="crmNuevaTitulo" placeholder="Título de la actividad" style="width:100%;margin-top:4px"/></div>
             <div><div class="label-text">Nota / plan de acción</div><textarea class="input" id="crmNuevaNota" rows="3" placeholder="¿Qué se va a hacer?" style="width:100%;margin-top:4px"></textarea></div>
             <div><div class="label-text">Vigencia (fecha límite)</div><input class="input" id="crmNuevaFecha" type="date" value="${hoyMas(15)}" style="width:100%;margin-top:4px"/></div>
@@ -608,11 +612,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('crmNuevaCancel').onclick = close;
     document.getElementById('crmNuevaModal').onclick = e => { if (e.target.id === 'crmNuevaModal') close(); };
 
-    if (puedeAdmin) {
+    if (puedeElegirAgente) {
       KoguApi.apiFetch(`${BASE}/agentes`).then(res => {
         const ags = res?.data || res || [];
         const s = document.getElementById('crmNuevaAgente');
-        if (s) s.innerHTML = '<option value="">— selecciona agente —</option>' + ags.map(a => `<option value="${esc(a.agente_id)}">${esc(a.agente_nombre)}</option>`).join('');
+        const ph = puedeAdmin ? '— sin agente (general) —' : '— selecciona agente —';
+        if (s) s.innerHTML = `<option value="">${ph}</option>` + ags.map(a => `<option value="${esc(a.agente_id)}">${esc(a.agente_nombre)}</option>`).join('');
       }).catch(() => {});
     }
 
@@ -637,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('crmNuevaCliSel').textContent = `Cliente ${el.dataset.cref}`;
             const tit = document.getElementById('crmNuevaTitulo');
             if (!tit.value.trim()) tit.value = `Seguimiento ${el.dataset.nom}`;
-            if (puedeAdmin && selCli.agente_id) { const s = document.getElementById('crmNuevaAgente'); if (s) s.value = selCli.agente_id; }
+            if (puedeElegirAgente && selCli.agente_id) { const s = document.getElementById('crmNuevaAgente'); if (s) s.value = selCli.agente_id; }
             hide();
           });
         } catch (_) { hide(); }
@@ -654,9 +659,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!fecha) { KoguApi.toast('Indica una vigencia', 'error'); return; }
       const body = { origen: 'manual', titulo, descripcion: nota, fecha_limite: fecha };
       if (selCli) { body.cliente_ref = selCli.cliente_ref; body.cliente_nombre = selCli.nombre; }
-      if (puedeAdmin) {
+      if (puedeElegirAgente) {
         const ag = document.getElementById('crmNuevaAgente')?.value || (selCli ? selCli.agente_id : '');
-        if (ag) body.agente_id = ag;   // opcional: si se deja vacío, queda general
+        // Admin: agente opcional (vacío = general). Asignador sin cartera
+        // propia (ej. Director de Ventas): el agente es obligatorio.
+        if (!ag && puedeAsignar && !puedeAdmin) { KoguApi.toast('Selecciona el agente responsable', 'error'); return; }
+        if (ag) body.agente_id = ag;
       }
       try {
         await KoguApi.apiFetch(`${BASE}/actividades`, { method: 'POST', body: JSON.stringify(body) });
