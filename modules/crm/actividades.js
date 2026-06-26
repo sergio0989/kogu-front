@@ -244,9 +244,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right">${v2 != null ? money(v2) : '—'}</td></tr>`;
     }).join('');
     return `
-      <div class="eyebrow" style="margin:14px 0 6px">Snapshot al crear ${rango ? `· ${rango}` : ''}</div>
-      ${filas ? `<div class="table-wrap"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th></tr></thead><tbody>${filas}</tbody></table></div>`
-               : '<div class="hint" style="color:var(--muted);font-size:12px">Sin detalle de productos en el snapshot.</div>'}`;
+      <details class="crm-snap" open>
+        <summary style="cursor:pointer;margin-bottom:6px">
+          <span class="eyebrow">Snapshot al crear ${rango ? `· ${rango}` : ''} · ${prods.length} partida${prods.length === 1 ? '' : 's'}</span>
+        </summary>
+        ${filas ? `<div class="table-wrap" style="max-height:260px;overflow:auto;margin-top:6px"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th></tr></thead><tbody>${filas}</tbody></table></div>`
+                 : '<div class="hint" style="color:var(--muted);font-size:12px">Sin detalle de productos en el snapshot.</div>'}
+      </details>`;
   }
 
   function renderDetalle(d) {
