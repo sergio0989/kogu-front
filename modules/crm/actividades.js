@@ -258,20 +258,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const activa = d.estado === 'abierta' || d.estado === 'en_proceso';
 
     const html = `
-      <div id="crmActModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:28px 16px">
+      <div id="crmActModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:18px 16px">
         <style>
-          #crmActModal .crm-card{background:var(--panel,#fff);border-radius:16px;max-width:1040px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
-          #crmActModal .crm-head{padding:20px 24px 16px;border-bottom:1px solid var(--line)}
-          #crmActModal .crm-metrics{padding:14px 24px 2px}
-          #crmActModal .crm-body{display:grid;grid-template-columns:1.1fr .9fr}
-          #crmActModal .crm-main{padding:18px 24px;min-width:0;display:flex;flex-direction:column;gap:14px}
-          #crmActModal .crm-side{padding:18px 22px;background:var(--panel2,#f8fafc);border-left:1px solid var(--line)}
+          #crmActModal .crm-card{background:var(--panel,#fff);border-radius:16px;max-width:1340px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
+          #crmActModal .crm-head{padding:16px 24px 12px;border-bottom:1px solid var(--line)}
+          #crmActModal .crm-metrics{padding:12px 24px 0}
+          #crmActModal .crm-body{display:grid;grid-template-columns:1fr 360px}
+          #crmActModal .crm-main{padding:14px 22px;min-width:0;display:flex;flex-direction:column;gap:12px}
+          #crmActModal .crm-main-top{display:grid;gap:12px;align-items:start}
+          #crmActModal .crm-side{padding:14px 20px;background:var(--panel2,#f8fafc);border-left:1px solid var(--line)}
           #crmActModal .crm-sech{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 8px}
-          #crmActModal .crm-block{margin-bottom:20px}
+          #crmActModal .crm-block{margin-bottom:16px}
           #crmActModal .crm-block:last-child{margin-bottom:0}
           #crmActModal .crm-card .card{box-shadow:none}
           #crmActModal .crm-side .input,#crmActModal .crm-side .select{width:100%}
-          @media(max-width:860px){#crmActModal .crm-body{grid-template-columns:1fr}#crmActModal .crm-side{border-left:0;border-top:1px solid var(--line)}}
+          @media(max-width:980px){#crmActModal .crm-body{grid-template-columns:1fr}#crmActModal .crm-main-top{grid-template-columns:1fr!important}#crmActModal .crm-side{border-left:0;border-top:1px solid var(--line)}}
         </style>
         <div class="crm-card">
 
@@ -306,17 +307,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <div class="crm-body">
             <div class="crm-main">
-              <div class="card">
-                ${field('Nota / plan de acción', d.descripcion, true)}
-                <div class="kv kv-2" style="margin-top:2px">
-                  ${field('Cliente', d.cliente_ref ? `${d.cliente_nombre || d.cliente_ref} · ${d.cliente_ref}` : 'General')}
-                  ${field('Creada por', d.created_by_nombre)}
-                  ${field('Tomada por', d.tomada_por_nombre ? `${d.tomada_por_nombre}${d.tomada_at ? ' · ' + fmtDay(d.tomada_at) : ''}` : null)}
-                  ${field('Resultado', d.resultado ? (RES_TXT[d.resultado] || d.resultado) : null)}
+              <div class="crm-main-top" style="grid-template-columns:${snapshotHtml(d.snapshot) ? '1fr 1fr' : '1fr'}">
+                <div class="card">
+                  ${field('Nota / plan de acción', d.descripcion, true)}
+                  <div class="kv kv-2" style="margin-top:2px">
+                    ${field('Cliente', d.cliente_ref ? `${d.cliente_nombre || d.cliente_ref} · ${d.cliente_ref}` : 'General')}
+                    ${field('Creada por', d.created_by_nombre)}
+                    ${field('Tomada por', d.tomada_por_nombre ? `${d.tomada_por_nombre}${d.tomada_at ? ' · ' + fmtDay(d.tomada_at) : ''}` : null)}
+                    ${field('Resultado', d.resultado ? (RES_TXT[d.resultado] || d.resultado) : null)}
+                  </div>
                 </div>
-              </div>
 
-              ${snapshotHtml(d.snapshot) ? `<div class="card">${snapshotHtml(d.snapshot)}</div>` : ''}
+                ${snapshotHtml(d.snapshot) ? `<div class="card">${snapshotHtml(d.snapshot)}</div>` : ''}
+              </div>
 
               <div class="card">
                 <div class="crm-sech">Bitácora</div>
