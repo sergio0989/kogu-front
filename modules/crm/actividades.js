@@ -271,6 +271,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           #crmActModal .crm-block{margin-bottom:16px}
           #crmActModal .crm-block:last-child{margin-bottom:0}
           #crmActModal .crm-card .card{box-shadow:none}
+          #crmActModal .crm-tabs{display:flex;gap:4px;margin:-2px 0 14px;border-bottom:1px solid var(--line)}
+          #crmActModal .crm-tab{flex:1;appearance:none;background:none;border:1px solid transparent;border-bottom:0;border-radius:9px 9px 0 0;padding:8px 6px;margin-bottom:-1px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;letter-spacing:.01em}
+          #crmActModal .crm-tab.active{color:var(--ink,#0f172a);background:var(--panel,#fff);border-color:var(--line);border-bottom-color:var(--panel,#fff)}
           #crmActModal .crm-side .input,#crmActModal .crm-side .select{width:100%}
           @media(max-width:980px){#crmActModal .crm-body{grid-template-columns:1fr}#crmActModal .crm-main-top{grid-template-columns:1fr!important}#crmActModal .crm-side{border-left:0;border-top:1px solid var(--line)}}
         </style>
@@ -337,6 +340,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
 
             <div class="crm-side">
+              <div class="crm-tabs">
+                <button type="button" class="crm-tab active" data-tab="t1">Acciones · Etiquetas</button>
+                <button type="button" class="crm-tab" data-tab="t2">Recordatorios · Avisos</button>
+              </div>
+              <div class="crm-tabp" data-tabp="t1">
               ${activa ? `
               <div class="crm-block">
                 <div class="crm-sech">Acciones</div>
@@ -381,7 +389,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                   ${d.seguidores.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel,#fff);border:1px solid var(--line);color:var(--ink,#0f172a)" title="${esc(s.email || '')}">@${esc(s.nombre)}<span style="cursor:pointer;color:var(--muted)" data-rm-seg="${esc(s.user_id)}" title="Quitar">✕</span></span>`).join('')}
                 </div>
               </div>` : ''}
+              </div>
 
+              <div class="crm-tabp" data-tabp="t2" style="display:none">
               <div class="crm-block">
                 <div class="crm-sech">Recordatorios</div>
                 <div>${recs}</div>
@@ -399,6 +409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </summary>
                 <div id="crmEnvios" style="max-height:220px;overflow:auto;margin-top:10px">Cargando…</div>
               </details>
+              </div>
             </div>
           </div>
         </div>
@@ -407,6 +418,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.insertAdjacentHTML('beforeend', html);
     document.getElementById('crmActClose').onclick = closeDetalle;
     document.getElementById('crmActModal').onclick = e => { if (e.target.id === 'crmActModal') closeDetalle(); };
+
+    // Pestañas del panel derecho (folder): t1 Acciones·Etiquetas / t2 Recordatorios·Avisos.
+    document.querySelectorAll('#crmActModal .crm-tab').forEach(t => t.onclick = () => {
+      const id = t.dataset.tab;
+      document.querySelectorAll('#crmActModal .crm-tab').forEach(x => x.classList.toggle('active', x === t));
+      document.querySelectorAll('#crmActModal .crm-tabp').forEach(p => { p.style.display = p.dataset.tabp === id ? '' : 'none'; });
+    });
 
     // Bitácora de envíos (respuesta del proveedor) — carga diferida.
     (async () => {
