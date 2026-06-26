@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           #crmActModal .ot-metric{padding:7px 11px}
           #crmActModal .ot-metric .m-k{font-size:10px;margin-bottom:1px}
           #crmActModal .ot-metric .m-v{font-size:15px}
-          #crmActModal .crm-body{display:grid;grid-template-columns:1fr 360px}
+          #crmActModal .crm-body{display:grid;grid-template-columns:1fr 360px;margin-top:10px}
           #crmActModal .crm-main{padding:14px 22px;min-width:0;display:flex;flex-direction:column;gap:12px}
           #crmActModal .crm-main-top{display:grid;gap:12px;align-items:start}
           #crmActModal .crm-side{padding:14px 20px;background:var(--panel2,#f8fafc);border-left:1px solid var(--line)}
@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           #crmActModal .crm-card table th,#crmActModal .crm-card table td{padding:5px 8px;font-size:12px}
           #crmActModal .crm-card .table-wrap{margin-top:6px}
           #crmActModal .crm-tabs{display:flex;gap:4px;margin:-2px 0 14px;border-bottom:1px solid var(--line)}
-          #crmActModal .crm-tab{flex:1;appearance:none;background:none;border:1px solid transparent;border-bottom:0;border-radius:9px 9px 0 0;padding:8px 6px;margin-bottom:-1px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;letter-spacing:.01em}
+          #crmActModal .crm-tab{flex:1;appearance:none;background:none;border:1px solid transparent;border-bottom:0;border-radius:12px 12px 0 0;padding:8px 6px;margin-bottom:-1px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;letter-spacing:.01em}
           #crmActModal .crm-tab.active{color:var(--ink,#0f172a);background:var(--panel,#fff);border-color:var(--line);border-bottom-color:var(--panel,#fff)}
           #crmActModal .crm-side .input,#crmActModal .crm-side .select{width:100%}
           @media(max-width:980px){#crmActModal .crm-body{grid-template-columns:1fr}#crmActModal .crm-main-top{grid-template-columns:1fr!important}#crmActModal .crm-side{border-left:0;border-top:1px solid var(--line)}}
