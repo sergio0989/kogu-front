@@ -274,7 +274,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           #crmActModal .crm-sech{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 8px}
           #crmActModal .crm-block{margin-bottom:16px}
           #crmActModal .crm-block:last-child{margin-bottom:0}
-          #crmActModal .crm-card .card{box-shadow:none}
+          #crmActModal .crm-card .card{box-shadow:none;padding:11px 13px}
+          #crmActModal .crm-card .kv-row{padding:6px 2px}
+          #crmActModal .crm-card .kv-k{font-size:12px}
+          #crmActModal .crm-card .kv-v{font-size:13px}
+          #crmActModal .crm-card .kv-row.kv-long{padding:4px 2px 7px}
+          #crmActModal .crm-card table th,#crmActModal .crm-card table td{padding:5px 8px;font-size:12px}
+          #crmActModal .crm-card .table-wrap{margin-top:6px}
           #crmActModal .crm-tabs{display:flex;gap:4px;margin:-2px 0 14px;border-bottom:1px solid var(--line)}
           #crmActModal .crm-tab{flex:1;appearance:none;background:none;border:1px solid transparent;border-bottom:0;border-radius:9px 9px 0 0;padding:8px 6px;margin-bottom:-1px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;letter-spacing:.01em}
           #crmActModal .crm-tab.active{color:var(--ink,#0f172a);background:var(--panel,#fff);border-color:var(--line);border-bottom-color:var(--panel,#fff)}
