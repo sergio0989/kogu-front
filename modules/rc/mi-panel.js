@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/rc/mi-panel.html';
   const BASE = '/protected/rc';
-  const PERM = 'screen.ventas.vendedor';
+  // Vendedor (su cartera) o Dirección (consulta la de cualquier agente).
+  const PERM = ['screen.ventas.vendedor', 'screen.ventas.direccion'];
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
@@ -538,5 +539,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, exportarAgente, 'Generando…');
   KoguShell.subscribeEmpresaActivaChange(async () => { await loadAgentesSel(); await load(); });
   await loadAgentesSel();
+  // Drill-down de Dirección: ?agente_id=… abre directo la cartera de ese
+  // agente (preselecciona el selector; si el usuario no tiene el agente en
+  // su lista, el backend responde 403/empty y se muestra "Mi cartera").
+  const urlAgente = new URLSearchParams(location.search).get('agente_id');
+  if (urlAgente) {
+    const selEl = document.getElementById('agenteSel');
+    if (selEl && [...selEl.options].some(o => o.value === urlAgente)) selEl.value = urlAgente;
+  }
   await load();
 });

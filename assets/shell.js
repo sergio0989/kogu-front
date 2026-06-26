@@ -593,7 +593,12 @@
   async function initShell({currentPage,title,description,requiredPermission}){
     if(!KoguAuth.requireAuth()) return null;
     const bootstrap=await loadBootstrap();
-    if(requiredPermission && !hasPerm(bootstrap,requiredPermission)){
+    // requiredPermission puede ser string (exacto) o arreglo (any-of: basta
+    // tener uno). Útil en pantallas compartidas por más de un perfil.
+    const permDenied = requiredPermission && (Array.isArray(requiredPermission)
+      ? !requiredPermission.some(p=>hasPerm(bootstrap,p))
+      : !hasPerm(bootstrap,requiredPermission));
+    if(permDenied){
       document.body.innerHTML=`
         <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;box-sizing:border-box">
           <div style="max-width:440px;width:100%;text-align:center;background:var(--panel,#fff);border:1px solid var(--line,#e2e8f0);border-radius:16px;padding:32px 28px;box-shadow:0 12px 40px rgba(0,0,0,.08)">

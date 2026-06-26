@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const avColor = r.semaforo === 'rojo' ? 'var(--danger,#dc2626)' : (r.semaforo === 'verde' ? 'var(--ok,#16a34a)' : 'inherit');
       return `<tr>
         <td>
-          <div style="font-weight:600">${KoguUi.escapeHtml(r.agente_nombre)}</div>
+          <a href="/modules/rc/mi-panel.html?agente_id=${encodeURIComponent(r.agente_id)}" title="Ver el panel de este agente" style="font-weight:600;color:var(--brand,#2563eb);text-decoration:none">${KoguUi.escapeHtml(r.agente_nombre)}</a>
           <div style="font-size:11px;color:var(--muted)">cve ${r.cve_agente} · ${r.tipo_agente}</div>
         </td>
         <td><span class="badge neutral">${r.cartera}</span> <span style="font-size:11px;color:var(--muted)">${r.clientes_activos} activos</span></td>
