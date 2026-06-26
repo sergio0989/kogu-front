@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">
           <span style="width:8px;height:8px;border-radius:50%;background:${col};flex:none"></span>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${KoguUi.escapeHtml(r.agente_nombre || r.cve_agente)}</div>
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.agente_id ? `<a href="/modules/rc/mi-panel.html?agente_id=${encodeURIComponent(r.agente_id)}" title="Ver el panel de este agente" style="color:var(--brand,#2563eb);text-decoration:none">${KoguUi.escapeHtml(r.agente_nombre || r.cve_agente)}</a>` : KoguUi.escapeHtml(r.agente_nombre || r.cve_agente)}</div>
             <div style="font-size:11px;color:var(--muted)">${fmtMeta(r)}</div>
           </div>
           <div style="font-weight:800;color:${col}">${pct0(r.avance)}</div>
