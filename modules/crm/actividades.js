@@ -290,8 +290,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="crm-card">
 
           <div class="crm-head">
-            <div class="row" style="align-items:flex-start;gap:16px">
-              <div style="min-width:0">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:28px;flex-wrap:wrap">
+              <div style="flex:1 1 360px;min-width:240px">
                 <div class="eyebrow">CRM · Seguimiento</div>
                 <h2 style="margin:4px 0 0;font-size:22px;line-height:1.2">${esc(d.cliente_nombre || d.cliente_ref || d.titulo)}</h2>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
@@ -302,9 +302,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                   ${d.cliente_ref ? `<span class="muted" style="font-size:12px">${esc(d.titulo)}</span>` : '<span class="muted" style="font-size:12px">General</span>'}
                 </div>
               </div>
-              <button class="btn" id="crmActClose">Cerrar ✕</button>
+              <div style="flex:1 1 440px;min-width:300px;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                <button class="btn" id="crmActClose">Cerrar ✕</button>
+                <div style="width:100%">${stepperAct(d.estado)}</div>
+              </div>
             </div>
-            ${stepperAct(d.estado)}
           </div>
 
           <div class="crm-metrics">
