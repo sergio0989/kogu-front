@@ -48,6 +48,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = v => KoguUi.money(Number(v || 0));
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
   const esc = s => KoguUi.escapeHtml(String(s ?? ''));
+  const fmtKg = v => `${nf0.format(Number(v || 0))} kg`;
+  // Riesgo combinado: kg · $; muestra solo lo que exista (actividades viejas no traen kg).
+  const fmtRiesgo = (monto, kg) => {
+    const parts = [];
+    if (kg != null) parts.push(fmtKg(kg));
+    if (monto != null) parts.push(money(monto));
+    return parts.length ? parts.join(' · ') : '—';
+  };
   // Resalta @menciones dentro de un texto YA escapado (HTML-safe).
   const resaltarMenciones = html => String(html).replace(
     /@([\p{L}\p{N}._-]+)/gu,
@@ -147,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${miniCard('Abiertas', String(k.abiertas || 0), 'en seguimiento')}
           ${miniCard('Vencidas', String(k.vencidas || 0), 'fuera de vigencia', (k.vencidas > 0) ? 'var(--danger,#dc2626)' : '')}
           ${miniCard('Por vencer', String(k.por_vencer || 0), 'próximos 7 días', (k.por_vencer > 0) ? 'var(--warning,#d97706)' : '')}
-          ${miniCard('Monto en seguimiento', money(k.monto_en_seguimiento), `${k.recuperadas || 0} recuperadas`)}
+          ${miniCard('En seguimiento', fmtKg(k.kg_en_seguimiento), `${money(k.monto_en_seguimiento)} · ${k.recuperadas || 0} recuperadas`)}
         </div>`;
     } catch (_) { document.getElementById('kpis').innerHTML = ''; }
   }
@@ -203,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div style="text-align:right;min-width:130px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
-            <div style="font-size:17px;font-weight:800;color:var(--danger,#dc2626)">${a.monto_riesgo != null ? money(a.monto_riesgo) : '—'}</div>
+            <div style="font-size:15px;font-weight:800;color:var(--danger,#dc2626)">${(a.monto_riesgo != null || a.kg_riesgo != null) ? fmtRiesgo(a.monto_riesgo, a.kg_riesgo) : '—'}</div>
           </div>
         </div>
       </div>`;
@@ -311,7 +319,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           <div class="crm-metrics">
             <div class="ot-metrics">
-              ${metric('En riesgo', d.monto_riesgo != null ? money(d.monto_riesgo) : '—', d.monto_riesgo != null ? 'var(--danger,#dc2626)' : '')}
+              ${metric('En riesgo', (d.monto_riesgo != null || d.kg_riesgo != null) ? fmtRiesgo(d.monto_riesgo, d.kg_riesgo) : '—', (d.monto_riesgo != null || d.kg_riesgo != null) ? 'var(--danger,#dc2626)' : '')}
               ${metric('Apertura', fmtDay(d.created_at))}
               ${metric('Vence', fmtDay(d.fecha_limite), d.vencida ? 'var(--danger,#dc2626)' : '')}
               ${d.estado === 'cerrada'

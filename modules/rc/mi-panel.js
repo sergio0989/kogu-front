@@ -310,8 +310,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Crear actividad de seguimiento (CRM) desde una tarjeta de riesgo ─────────
   const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   function closeActModal() { document.getElementById('rcCrearActModal')?.remove(); }
+  // Riesgo en una base explícita (no depende del toggle de métrica activo).
+  const riesgoEn = (cl, base) => {
+    if (base === 'dinero') {
+      if (cl.caida) return Math.max(0, Number(cl.caida.venta_p1) - Number(cl.caida.venta_p2));
+      return (cl.productos || []).reduce((s, p) => s + Math.max(0, Number(p.importe_p1) - Number(p.importe_p2)), 0);
+    }
+    if (cl.caida) return Math.max(0, Number(cl.caida.cant_p1) - Number(cl.caida.cant_p2));
+    return (cl.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
+  };
   function openCrearActividad(c) {
-    const monto = riesgoCli(c);
+    const montoMXN = riesgoEn(c, 'dinero');   // monto en MXN
+    const kg = riesgoEn(c, 'kg');             // volumen en kg
+    const riesgoTxt = `${nf0.format(kg)} kg · ${money(montoMXN)}`;
     const nombre = c.nombre || c.cliente_ref;
     const prods = (c.productos || []).slice(0, 8).map(pr =>
       `<div style="font-size:12px;color:var(--muted)">${pr.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(pr.desc_prod || '')}</div>`).join('');
@@ -320,7 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
           <div class="row" style="align-items:flex-start;margin-bottom:8px">
             <div><div class="eyebrow">CRM · Nueva actividad</div><h2 style="margin:4px 0 0">${KoguUi.escapeHtml(nombre)}</h2>
-              <div class="hint" style="color:var(--muted);font-size:12px">En riesgo: <b>${fmtVal(monto)}</b> · severidad ${c.severidad || '—'} · se congela el comparativo actual</div>
+              <div class="hint" style="color:var(--muted);font-size:12px">En riesgo: <b>${riesgoTxt}</b> · severidad ${c.severidad || '—'} · se congela el comparativo actual</div>
             </div>
             <button class="btn" id="rcActCancel">✕</button>
           </div>
@@ -349,14 +360,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         cliente_nombre: c.nombre,
         origen: 'mi-panel',
         severidad: c.severidad || null,
-        monto_riesgo: monto,
+        monto_riesgo: montoMXN,
+        kg_riesgo: kg,
         metrica,
         titulo: document.getElementById('rcActTitulo').value.trim(),
         descripcion: document.getElementById('rcActNota').value.trim() || null,
         fecha_limite: document.getElementById('rcActFecha').value || null,
         snapshot: {
           capturado_at: new Date().toISOString(),
-          metrica, severidad: c.severidad || null, monto_riesgo: monto,
+          metrica, severidad: c.severidad || null, monto_riesgo: montoMXN, kg_riesgo: kg,
           periodos: comp.periodos || null,
           caida: c.caida || null, dormancia: c.dormancia || null,
           productos: c.productos || [],
