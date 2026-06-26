@@ -262,7 +262,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <style>
           #crmActModal .crm-card{background:var(--panel,#fff);border-radius:16px;max-width:1340px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
           #crmActModal .crm-head{padding:16px 24px 12px;border-bottom:1px solid var(--line)}
-          #crmActModal .crm-metrics{padding:12px 24px 0}
+          #crmActModal .crm-metrics{padding:10px 24px 0}
+          #crmActModal .ot-metrics{gap:8px}
+          #crmActModal .ot-metric{padding:7px 11px}
+          #crmActModal .ot-metric .m-k{font-size:10px;margin-bottom:1px}
+          #crmActModal .ot-metric .m-v{font-size:15px}
           #crmActModal .crm-body{display:grid;grid-template-columns:1fr 360px}
           #crmActModal .crm-main{padding:14px 22px;min-width:0;display:flex;flex-direction:column;gap:12px}
           #crmActModal .crm-main-top{display:grid;gap:12px;align-items:start}
