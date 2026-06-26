@@ -578,7 +578,22 @@
     if(!KoguAuth.requireAuth()) return null;
     const bootstrap=await loadBootstrap();
     if(requiredPermission && !hasPerm(bootstrap,requiredPermission)){
-      document.body.innerHTML=`<div style="padding:32px"><h1>Acceso denegado</h1><p>No tienes permiso para entrar a esta pantalla.</p><a href="/modules/core/dashboard/index.html">Volver</a></div>`;
+      document.body.innerHTML=`
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;box-sizing:border-box">
+          <div style="max-width:440px;width:100%;text-align:center;background:var(--panel,#fff);border:1px solid var(--line,#e2e8f0);border-radius:16px;padding:32px 28px;box-shadow:0 12px 40px rgba(0,0,0,.08)">
+            <div class="eyebrow" style="color:var(--muted,#64748b)">KOGU Multiempresa</div>
+            <h1 style="margin:8px 0 6px;font-size:22px">Acceso denegado</h1>
+            <p style="color:var(--muted,#64748b);margin:0 0 22px">No tienes permiso para entrar a esta pantalla. Usa el menú o cierra sesión para entrar con otra cuenta.</p>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+              <button class="btn" id="denegadoBack">Volver</button>
+              <button class="btn primary" id="denegadoLogout">Cerrar sesión</button>
+            </div>
+          </div>
+        </div>`;
+      const back=document.getElementById('denegadoBack');
+      if(back) back.onclick=()=>{ if(history.length>1) history.back(); else window.location.href='/login.html'; };
+      const out=document.getElementById('denegadoLogout');
+      if(out) out.onclick=()=>KoguAuth.logout();
       return null;
     }
     _currentPagePath = currentPage || '';

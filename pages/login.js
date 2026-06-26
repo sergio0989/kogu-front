@@ -71,6 +71,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    // ── Comercial — Radar Comercial / CRM ──
+    // Perfiles comerciales (director_ventas, vendedor, etc.) no tienen CFDI:
+    // aterrizan en la pantalla más ejecutiva a la que sí tienen acceso.
+    if (Array.isArray(perms)) {
+      if (perms.includes('screen.ventas.direccion') || perms.includes('screen.ventas.gerencia')) {
+        return '/modules/rc/tablero.html';
+      }
+      if (perms.includes('screen.ventas.vendedor')) {
+        return '/modules/rc/mi-panel.html';
+      }
+      if (perms.includes('screen.ventas.agentes')) {
+        return '/modules/rc/agentes.html';
+      }
+      if (perms.includes('crm.actividades.read')) {
+        return '/modules/crm/actividades.html';
+      }
+    }
+
     return '/modules/cfdi/dashboard/resumen.html';
   }
 
