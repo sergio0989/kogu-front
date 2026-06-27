@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row"><div><div class="eyebrow">Costo · Exposición cambiaria</div><h2 style="margin:2px 0">Tipo de cambio promedio mensual</h2>
     <div class="muted" style="font-size:12px">TC ponderado por valor de las ventas en dólares (USD → MXN)</div></div></div>
   <div id="tcKpis" class="grid-3" style="margin-top:14px;gap:12px"></div>
-  <div style="position:relative;height:260px;margin-top:14px"><canvas id="chartTc"></canvas></div>
+  <div style="position:relative;height:170px;margin-top:14px;max-width:760px"><canvas id="chartTc"></canvas></div>
   <div class="muted" style="font-size:11px;margin-top:8px" id="tcNota"></div>
 </div>
 
