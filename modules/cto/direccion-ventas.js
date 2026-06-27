@@ -57,13 +57,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   let tcChart = null;
   let mercadoChart = null;
 
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if ([...document.scripts].some(s => s.src === src)) return resolve();
-      const s = document.createElement('script'); s.src = src; s.onload = resolve;
-      s.onerror = () => reject(new Error('No se pudo cargar ' + src));
-      document.head.appendChild(s);
+  // Carga Chart.js una sola vez y resuelve SOLO cuando window.Chart existe.
+  // Deduplica: si dos gráficas lo piden a la vez comparten la misma promesa
+  // (evita el race donde la 2a veía el <script> ya inyectado pero aún sin cargar).
+  let _chartPromise = null;
+  function ensureChart() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (_chartPromise) return _chartPromise;
+    _chartPromise = new Promise((resolve, reject) => {
+      const existing = [...document.scripts].find(s => s.src === CHART_SRC);
+      const el = existing || document.createElement('script');
+      el.addEventListener('load', () => resolve(window.Chart));
+      el.addEventListener('error', () => { _chartPromise = null; reject(new Error('No se pudo cargar Chart.js')); });
+      if (!existing) { el.src = CHART_SRC; document.head.appendChild(el); }
+      if (window.Chart) resolve(window.Chart);
     });
+    return _chartPromise;
   }
 
   // Tarjetas homologadas con el Radar.
@@ -455,8 +464,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function drawTcChart(rows) {
-    try { await loadScript(CHART_SRC); } catch (_e) { return; }
-    const Chart = window.Chart;
+    const Chart = await ensureChart().catch(() => null);
+    if (!Chart) return;
     if (tcChart) { tcChart.destroy(); tcChart = null; }
     if (!rows.length) return;
     tcChart = new Chart($('chartTc'), {
@@ -494,8 +503,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function drawMercadoChart(meses) {
-    try { await loadScript(CHART_SRC); } catch (_e) { return; }
-    const Chart = window.Chart;
+    const Chart = await ensureChart().catch(() => null);
+    if (!Chart) return;
     if (mercadoChart) { mercadoChart.destroy(); mercadoChart = null; }
     mercadoChart = new Chart($('chartMercado'), {
       type: 'bar',
@@ -595,8 +604,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function pintarChart(p) {
-    try { await loadScript(CHART_SRC); } catch (_e) { return; }
-    const Chart = window.Chart;
+    const Chart = await ensureChart().catch(() => null);
+    if (!Chart) return;
     if (chart) { chart.destroy(); chart = null; }
     const top = p.rows.slice(0, topN);
     const labels = top.map(r => r.nombre ? (r.nombre.length > 22 ? r.nombre.slice(0, 21) + '…' : r.nombre) : r.clave);
