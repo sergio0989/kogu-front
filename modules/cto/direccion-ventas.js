@@ -53,6 +53,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ppOpen = new Set();
   let ppTablaOpen = false;
   let rcOk = true;        // ¿el usuario tiene acceso a Radar?
+  let mtc = null;         // mercado NAL/EXT + tipo de cambio (cto)
+  let tcChart = null;
+  let mercadoChart = null;
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -104,6 +107,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <!-- ── 2) Cumplimiento vs PP (Radar) ── -->
 <div class="card" id="ppCard" style="margin-top:16px;display:none"></div>
+
+<!-- ── 2b) Tipo de cambio promedio mensual (Costo) ── -->
+<div class="card" id="tcCard" style="margin-top:16px;display:none">
+  <div class="row"><div><div class="eyebrow">Costo · Exposición cambiaria</div><h2 style="margin:2px 0">Tipo de cambio promedio mensual</h2>
+    <div class="muted" style="font-size:12px">TC ponderado por valor de las ventas en dólares (USD → MXN)</div></div></div>
+  <div id="tcKpis" class="grid-3" style="margin-top:14px;gap:12px"></div>
+  <div style="position:relative;height:260px;margin-top:14px"><canvas id="chartTc"></canvas></div>
+  <div class="muted" style="font-size:11px;margin-top:8px" id="tcNota"></div>
+</div>
+
+<!-- ── 2c) Nacional vs Exportación (Costo) ── -->
+<div class="card" id="mercadoCard" style="margin-top:16px;display:none">
+  <div class="row"><div><div class="eyebrow">Costo · Mercado</div><h2 style="margin:2px 0">Nacional vs Exportación</h2>
+    <div class="muted" style="font-size:12px">Composición mensual de la venta por mercado</div></div></div>
+  <div id="mercadoKpis" class="grid-4" style="margin-top:14px;gap:12px"></div>
+  <div style="position:relative;height:300px;margin-top:14px"><canvas id="chartMercado"></canvas></div>
+  <div style="overflow-x:auto;margin-top:14px"><table class="table" id="mercadoTabla" style="width:100%;font-size:13px;font-variant-numeric:tabular-nums"></table></div>
+</div>
 
 <!-- ── 3) Análisis 80/20 (Costo) ── -->
 <div class="card" id="paretoHead" style="margin-top:16px;display:none">
@@ -407,6 +428,131 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
+  // 2b/2c) Tipo de cambio + Nacional vs Exportación (Costo)
+  // ============================================================
+  const fmtTC = (v) => v == null ? '—' : '$' + Number(v).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const fmtKg = (v) => `${nf0.format(Number(v) || 0)} kg`;
+
+  function renderTC() {
+    const card = $('tcCard');
+    if (!mtc || !mtc.totales || mtc.totales.tc_prom == null) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const t = mtc.totales;
+    const rango = (t.tc_min != null && t.tc_max != null) ? `${fmtTC(t.tc_min)} – ${fmtTC(t.tc_max)}` : '—';
+    $('tcKpis').innerHTML = [
+      kpi('TC promedio del año', fmtTC(t.tc_prom), 'ponderado por venta USD', '#d97706'),
+      kpi('Rango mensual', rango, 'mínimo – máximo del año', '#0ea5e9'),
+      kpi('Venta en USD', money(t.usd_mxn), `${pct0(t.usd_pct)} de la venta · ${money(t.usd_orig)} USD`, '#4f46e5'),
+    ].join('');
+
+    const conTC = mtc.meses.filter(m => m.tc_prom != null);
+    drawTcChart(conTC);
+    const min = conTC.length ? conTC.reduce((a, m) => m.tc_prom < a.tc_prom ? m : a) : null;
+    const max = conTC.length ? conTC.reduce((a, m) => m.tc_prom > a.tc_prom ? m : a) : null;
+    $('tcNota').textContent = (min && max && min !== max)
+      ? `Menor en ${min.mes_nombre} (${fmtTC(min.tc_prom)}), mayor en ${max.mes_nombre} (${fmtTC(max.tc_prom)}). El TC se pondera por el peso de cada venta USD, no es un promedio simple.`
+      : 'El TC se pondera por el valor de cada venta en dólares.';
+  }
+
+  async function drawTcChart(rows) {
+    try { await loadScript(CHART_SRC); } catch (_e) { return; }
+    const Chart = window.Chart;
+    if (tcChart) { tcChart.destroy(); tcChart = null; }
+    if (!rows.length) return;
+    tcChart = new Chart($('chartTc'), {
+      data: {
+        labels: rows.map(m => MES3[m.mes] || m.mes),
+        datasets: [{ type: 'line', label: 'TC promedio', data: rows.map(m => m.tc_prom), borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.12)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => 'TC: ' + fmtTC(c.raw) } },
+        },
+        scales: {
+          y: { ticks: { callback: (v) => '$' + Number(v).toFixed(2), font: { size: 12 } }, grid: { color: '#f1f5f9' } },
+          x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+        },
+      },
+    });
+  }
+
+  function renderMercado() {
+    const card = $('mercadoCard');
+    if (!mtc || !mtc.meses || !mtc.meses.length || !mtc.totales.total_mxn) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const t = mtc.totales;
+    $('mercadoKpis').innerHTML = [
+      kpi('Nacional', fmtMM(t.nacional_mxn), `${pct0(1 - (t.expo_pct || 0))} de la venta · ${fmtNum(t.nacional_fac)} fact.`, '#059669'),
+      kpi('Exportación', fmtMM(t.expo_mxn), `${pct0(t.expo_pct)} de la venta · ${fmtNum(t.expo_fac)} fact.`, '#4f46e5'),
+      kpi('Kg exportación', fmtKg(t.expo_kg), `de ${fmtKg(t.nacional_kg + t.expo_kg)} totales`, '#7c3aed'),
+      kpi('Venta total', fmtMM(t.total_mxn), 'nacional + exportación (MXN)', '#2563eb'),
+    ].join('');
+    drawMercadoChart(mtc.meses);
+    pintarMercadoTabla(mtc.meses, t);
+  }
+
+  async function drawMercadoChart(meses) {
+    try { await loadScript(CHART_SRC); } catch (_e) { return; }
+    const Chart = window.Chart;
+    if (mercadoChart) { mercadoChart.destroy(); mercadoChart = null; }
+    mercadoChart = new Chart($('chartMercado'), {
+      type: 'bar',
+      data: {
+        labels: meses.map(m => MES3[m.mes] || m.mes),
+        datasets: [
+          { label: 'Nacional', data: meses.map(m => m.nacional_mxn), backgroundColor: '#059669', stack: 's', maxBarThickness: 38 },
+          { label: 'Exportación', data: meses.map(m => m.expo_mxn), backgroundColor: '#4f46e5', stack: 's', maxBarThickness: 38 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 } } },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmtMon(c.raw)}` } },
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { font: { size: 12 } } },
+          y: { stacked: true, ticks: { callback: (v) => '$' + (v / 1e6).toFixed(0) + 'M', font: { size: 12 } }, grid: { color: '#f1f5f9' } },
+        },
+      },
+    });
+  }
+
+  function pintarMercadoTabla(meses, t) {
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      <th style="text-align:left;padding:6px">Mes</th><th style="padding:6px">Nacional</th>
+      <th style="padding:6px">Exportación</th><th style="padding:6px">% Expo</th>
+      <th style="padding:6px">Kg expo</th><th style="padding:6px">Fact. expo</th></tr></thead>`;
+    const rows = meses.map(m => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+      <td style="text-align:left;padding:6px;font-weight:600">${m.mes_nombre}</td>
+      <td style="padding:6px">${fmtMon(m.nacional_mxn)}</td>
+      <td style="padding:6px">${fmtMon(m.expo_mxn)}</td>
+      <td style="padding:6px">${pct0(m.expo_pct)}</td>
+      <td style="padding:6px">${fmtNum(Math.round(m.expo_kg))}</td>
+      <td style="padding:6px">${fmtNum(m.expo_fac)}</td></tr>`).join('');
+    const total = `<tr style="border-top:2px solid #cbd5e1;background:#f8fafc;font-weight:700;text-align:right">
+      <td style="text-align:left;padding:6px">TOTAL ${mtc.anio}</td>
+      <td style="padding:6px">${fmtMon(t.nacional_mxn)}</td>
+      <td style="padding:6px">${fmtMon(t.expo_mxn)}</td>
+      <td style="padding:6px">${pct0(t.expo_pct)}</td>
+      <td style="padding:6px">${fmtNum(Math.round(t.expo_kg))}</td>
+      <td style="padding:6px">${fmtNum(t.expo_fac)}</td></tr>`;
+    $('mercadoTabla').innerHTML = head + '<tbody>' + rows + total + '</tbody>';
+  }
+
+  async function cargarMercadoTc() {
+    const anio = parseInt($('anio').value, 10);
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/dashboard/${anio}/mercado-tc`);
+      mtc = KoguApi.unwrapData(res);
+    } catch (_e) { mtc = null; }
+    renderTC();
+    renderMercado();
+  }
+
+  // ============================================================
   // 3) Análisis 80/20 (Costo)
   // ============================================================
   function syncTabs() {
@@ -543,6 +689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('paretoHead').style.display = 'block';
     try {
       await cargarRC();
+      await cargarMercadoTc();
       await cargarPareto();
     } finally { $('refreshBtn').disabled = false; }
   }
