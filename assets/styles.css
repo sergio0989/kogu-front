@@ -3195,3 +3195,9 @@ thead th{
   .topbar-v2 .topbar-heading__desc{display:none;}
   .empresa-chip__v{max-width:120px;}
 }
+
+/* ─── Paginación de Solicitudes SAT (cfdi/solicitudes) ───────────────────── */
+.solicitudes-pager{justify-content:flex-end;align-items:center;margin-top:14px}
+.solicitudes-pager .pager-size{width:auto;min-width:72px;padding:6px 10px}
+.solicitudes-pager .pager-size-label{display:inline-flex;align-items:center;gap:6px}
+.solicitudes-pager .btn[disabled]{opacity:.5;cursor:not-allowed}

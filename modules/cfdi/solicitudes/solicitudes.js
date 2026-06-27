@@ -104,6 +104,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tbody>
             </table>
           </div>
+
+          <div class="page-actions solicitudes-pager" id="procesoPager"></div>
         </div>
       </div>
 
@@ -143,6 +145,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             </tbody>
           </table>
         </div>
+
+        <div class="page-actions solicitudes-pager" id="donePager"></div>
       </div>
     </div>
   `;
@@ -162,6 +166,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     onlyZip: document.getElementById('onlyZip'),
     processRows: document.getElementById('processRows'),
     doneRows: document.getElementById('doneRows'),
+    procesoPager: document.getElementById('procesoPager'),
+    donePager: document.getElementById('donePager'),
   };
 
   const now = new Date();
@@ -177,6 +183,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     en_proceso: [],
     terminadas: [],
     paquetesByRequestId: new Map(),
+  };
+
+  // Paginación server-side por tabla. Cada auto-recarga trae solo la página
+  // visible (limit), no las 100 filas. 'total' viene del endpoint de
+  // pendientes; las terminadas no traen total, así que 'hasNext' se infiere
+  // por página llena (filas devueltas === limit).
+  const PAGE_SIZES = [20, 50, 100];
+  const page = {
+    proceso: { limit: 20, offset: 0, total: 0, loaded: 0 },
+    terminadas: { limit: 20, offset: 0, loaded: 0, hasNext: false },
   };
 
   function fmtDate(v) {
@@ -298,25 +314,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, { zips: 0, procesados: 0, xmls: 0, metas: 0, errores: 0 });
   }
 
+  // En proceso (status 1/2): endpoint con total → paginación exacta.
+  async function fetchProceso() {
+    const { limit, offset } = page.proceso;
+    const res = await KoguApi.apiFetch(`/cfdi/protected/cfdi/solicitudes/pendientes?limit=${limit}&offset=${offset}`);
+    const data = KoguApi.unwrapData(res) || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    state.en_proceso = items;
+    page.proceso.total = Number(data.total ?? items.length) || 0;
+    page.proceso.loaded = items.length;
+  }
+
+  // Terminadas (status 3) enriquecidas: ya incluyen paquetes embebidos.
+  // No traen total → 'hasNext' por página llena.
+  async function fetchTerminadas() {
+    const { limit, offset } = page.terminadas;
+    const res = await KoguApi.apiFetch(`/cfdi/protected/cfdi/solicitudes/terminadas/enriquecidas?limit=${limit}&offset=${offset}`);
+    const data = KoguApi.unwrapData(res);
+    const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+    state.terminadas = items;
+    page.terminadas.loaded = items.length;
+    page.terminadas.hasNext = items.length === limit;
+    state.paquetesByRequestId = new Map(
+      items.map((item) => [String(item.request_id || ''), Array.isArray(item.paquetes) ? item.paquetes : []])
+    );
+  }
+
   async function fetchHistorial() {
     try {
-      const res = await KoguApi.apiFetch('/cfdi/protected/cfdi/solicitudes/historial?limit=100&offset=0');
-      const data = KoguApi.unwrapData(res) || {};
-      state.en_proceso = Array.isArray(data.en_proceso) ? data.en_proceso : [];
-      state.terminadas = Array.isArray(data.terminadas) ? data.terminadas : [];
+      await Promise.all([fetchProceso(), fetchTerminadas()]);
       state.all = [...state.en_proceso, ...state.terminadas];
-      state.paquetesByRequestId = new Map(
-        state.terminadas.map((item) => [String(item.request_id || ''), Array.isArray(item.paquetes) ? item.paquetes : []])
-      );
       return;
     } catch (_err) {
-      // Fallback temporal mientras el backend se actualiza.
+      // Fallback: endpoints simples mientras la página dedicada no responde.
     }
 
     await Promise.all([
       fetchSolicitudes(),
       fetchPaquetesPendientes()
     ]);
+  }
+
+  // Anti-duplicado: trae las en-proceso sin importar la página actual (hasta
+  // 200) para no dejar pasar una equivalente que viva en otra página.
+  async function fetchEnProcesoParaCheck() {
+    try {
+      const res = await KoguApi.apiFetch('/cfdi/protected/cfdi/solicitudes/pendientes?limit=200&offset=0');
+      const data = KoguApi.unwrapData(res) || {};
+      return Array.isArray(data.items) ? data.items : [];
+    } catch (_err) {
+      return Array.isArray(state.en_proceso) ? state.en_proceso : [];
+    }
   }
 
   function attachVerifyHandlers() {
@@ -469,6 +517,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ─── Paginación (controles) ───────────────────────────────────────────────
+  function buildPagerHtml(p, hasTotal) {
+    const start = p.loaded ? p.offset + 1 : 0;
+    const end = p.offset + p.loaded;
+    const prevDisabled = p.offset <= 0 ? 'disabled' : '';
+    const nextDisabled = (hasTotal ? (p.offset + p.limit >= p.total) : !p.hasNext) ? 'disabled' : '';
+    const label = hasTotal
+      ? `${start}–${end} de ${p.total}`
+      : (p.loaded ? `${start}–${end}` : '0');
+    const sizeOpts = PAGE_SIZES
+      .map((s) => `<option value="${s}"${s === p.limit ? ' selected' : ''}>${s}</option>`)
+      .join('');
+    return `
+      <span class="muted">${label}</span>
+      <label class="muted pager-size-label">Por página
+        <select class="select pager-size">${sizeOpts}</select>
+      </label>
+      <button class="btn pager-prev" ${prevDisabled}>← Anterior</button>
+      <button class="btn pager-next" ${nextDisabled}>Siguiente →</button>
+    `;
+  }
+
+  function bindPagerHandlers(container, kind) {
+    const p = page[kind];
+    const refetch = kind === 'proceso'
+      ? async () => { await fetchProceso(); renderProceso(); renderProcesoPager(); }
+      : async () => { await fetchTerminadas(); renderTerminadas(); renderTerminadasPager(); };
+
+    const prev = container.querySelector('.pager-prev');
+    const next = container.querySelector('.pager-next');
+    const size = container.querySelector('.pager-size');
+
+    if (prev) prev.onclick = async () => {
+      if (p.offset <= 0) return;
+      p.offset = Math.max(0, p.offset - p.limit);
+      await refetch();
+    };
+    if (next) next.onclick = async () => {
+      const canNext = kind === 'proceso' ? (p.offset + p.limit < p.total) : p.hasNext;
+      if (!canNext) return;
+      p.offset += p.limit;
+      await refetch();
+    };
+    if (size) size.onchange = async () => {
+      p.limit = Number(size.value) || p.limit;
+      p.offset = 0;
+      await refetch();
+    };
+  }
+
+  function renderProcesoPager() {
+    if (!els.procesoPager) return;
+    els.procesoPager.innerHTML = buildPagerHtml(page.proceso, true);
+    bindPagerHandlers(els.procesoPager, 'proceso');
+  }
+
+  function renderTerminadasPager() {
+    if (!els.donePager) return;
+    els.donePager.innerHTML = buildPagerHtml(page.terminadas, false);
+    bindPagerHandlers(els.donePager, 'terminadas');
+  }
+
   // Guard anti-solape: evita que la auto-recarga y un refresh manual se encimen.
   let refreshing = false;
 
@@ -479,6 +589,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await fetchHistorial();
       renderProceso();
       renderTerminadas();
+      renderProcesoPager();
+      renderTerminadasPager();
     } finally {
       refreshing = false;
     }
@@ -523,9 +635,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     ].join('|');
   }
 
-  function findSolicitudSimilarEnProceso(payload) {
+  function findSolicitudSimilarEnProceso(payload, list) {
     const sig = solicitudSignatureFromForm(payload);
-    return state.en_proceso.find((x) => solicitudSignatureFromRow(x) === sig) || null;
+    const arr = Array.isArray(list) ? list : state.en_proceso;
+    return arr.find((x) => solicitudSignatureFromRow(x) === sig) || null;
   }
 
   async function createSolicitud() {
@@ -547,9 +660,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error('Captura fecha inicial y fecha final.');
       }
 
-      // Refresca el estado y verifica que no haya una equivalente en proceso.
-      await fetchHistorial();
-      const similar = findSolicitudSimilarEnProceso(payload);
+      // Verifica contra TODAS las en-proceso (no solo la página visible).
+      const enProcesoActual = await fetchEnProcesoParaCheck();
+      const similar = findSolicitudSimilarEnProceso(payload, enProcesoActual);
       if (similar) {
         const proceed = window.confirm(
           `Ya existe una solicitud equivalente en proceso (request ${similar.request_id || 's/folio'}, estatus ${similar.status_solicitud}).\n\n` +
@@ -558,8 +671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
         if (!proceed) {
           KoguApi.toast('Creación cancelada: ya hay una solicitud equivalente en proceso.', 'info');
-          renderProceso();
-          renderTerminadas();
+          await refreshAll();
           return;
         }
       }
@@ -586,6 +698,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   els.onlyZip.onchange = renderTerminadas;
 
   KoguShell.subscribeEmpresaActivaChange(async () => {
+    page.proceso.offset = 0;
+    page.terminadas.offset = 0;
     await refreshAll();
     KoguApi.toast('Solicitudes actualizadas por cambio de empresa', 'success');
   });
