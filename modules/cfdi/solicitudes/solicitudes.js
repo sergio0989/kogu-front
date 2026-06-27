@@ -469,10 +469,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Guard anti-solape: evita que la auto-recarga y un refresh manual se encimen.
+  let refreshing = false;
+
   async function refreshAll() {
-    await fetchHistorial();
-    renderProceso();
-    renderTerminadas();
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      await fetchHistorial();
+      renderProceso();
+      renderTerminadas();
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  // ─── Detección de solicitud equivalente en proceso ───────────────────────
+  // Una solicitud se considera "equivalente" si comparte scope, formato,
+  // estatus, tipo de CFDI y rango de fechas (solo la parte de día). Sirve para
+  // avisar al usuario antes de duplicar una descarga que el SAT aún procesa.
+  function dateKey(v) {
+    const s = String(v ?? '');
+    const m = s.match(/^\d{4}-\d{2}-\d{2}/);
+    return m ? m[0] : s;
+  }
+
+  function solicitudSignatureFromForm(payload) {
+    return [
+      String(payload.scope || '').toLowerCase(),
+      String(payload.format || '').toLowerCase(),
+      String(payload.status || 'todos').toLowerCase(),
+      String(payload.docType || '').toLowerCase(),
+      dateKey(payload.dateStart),
+      dateKey(payload.dateEnd),
+    ].join('|');
+  }
+
+  function solicitudSignatureFromRow(item) {
+    const filtros = item.filtros_json || item.filtros || {};
+    const scope = item.scope || filtros.scope || '';
+    const format = item.formato || item.format || filtros.format || '';
+    const status = item.status_normal || filtros.status || filtros.estatus || 'todos';
+    const docType = filtros.docType || filtros.tipo_cfdi || '';
+    const dateStart = filtros.dateStart || filtros.date_from || '';
+    const dateEnd = filtros.dateEnd || filtros.date_to || '';
+    return [
+      String(scope).toLowerCase(),
+      String(format).toLowerCase(),
+      String(status).toLowerCase(),
+      String(docType).toLowerCase(),
+      dateKey(dateStart),
+      dateKey(dateEnd),
+    ].join('|');
+  }
+
+  function findSolicitudSimilarEnProceso(payload) {
+    const sig = solicitudSignatureFromForm(payload);
+    return state.en_proceso.find((x) => solicitudSignatureFromRow(x) === sig) || null;
   }
 
   async function createSolicitud() {
@@ -492,6 +545,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (!els.date_from.value || !els.date_to.value) {
         throw new Error('Captura fecha inicial y fecha final.');
+      }
+
+      // Refresca el estado y verifica que no haya una equivalente en proceso.
+      await fetchHistorial();
+      const similar = findSolicitudSimilarEnProceso(payload);
+      if (similar) {
+        const proceed = window.confirm(
+          `Ya existe una solicitud equivalente en proceso (request ${similar.request_id || 's/folio'}, estatus ${similar.status_solicitud}).\n\n` +
+          `Coincide en scope, formato, estatus, tipo y rango de fechas.\n\n` +
+          `¿Deseas crearla de todos modos?`
+        );
+        if (!proceed) {
+          KoguApi.toast('Creación cancelada: ya hay una solicitud equivalente en proceso.', 'info');
+          renderProceso();
+          renderTerminadas();
+          return;
+        }
       }
 
       await KoguApi.apiFetch('/cfdi/protected/cfdi/solicitudes', {
@@ -520,6 +590,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     KoguApi.toast('Solicitudes actualizadas por cambio de empresa', 'success');
   });
 
+  // ─── Auto-recarga (solo esta pantalla) ────────────────────────────────────
+  // Refresca historial y paquetes en segundo plano sin perder los filtros de
+  // búsqueda ni interrumpir al usuario. Se pausa cuando la pestaña no está
+  // visible y cuando ya hay un refresh en curso (refreshing). Silenciosa: no
+  // emite toasts.
+  const AUTO_REFRESH_MS = 60000;
+  let autoRefreshTimer = null;
+
+  async function autoRefreshTick() {
+    if (document.hidden || refreshing) return;
+    try {
+      await refreshAll();
+    } catch (_err) {
+      // La auto-recarga no debe molestar con errores en pantalla.
+    }
+  }
+
+  function startAutoRefresh() {
+    if (autoRefreshTimer) return;
+    autoRefreshTimer = setInterval(autoRefreshTick, AUTO_REFRESH_MS);
+  }
+
+  function stopAutoRefresh() {
+    if (!autoRefreshTimer) return;
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh();
+      autoRefreshTick();
+    }
+  });
+
+  window.addEventListener('pagehide', stopAutoRefresh);
+
   setSatRuleStatus();
   await refreshAll();
+  startAutoRefresh();
 });
