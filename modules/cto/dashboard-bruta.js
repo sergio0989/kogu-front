@@ -22,6 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = (id) => document.getElementById(id);
   const now = new Date();
   let chart = null;
+  let paretoChart = null;
+  let paretoDim = 'cliente';     // dimensión del Pareto doble
+  let paretoData = null;         // { dim, items, totales } de rentabilidad
   let data = null; // { anio, meses, totales }
 
   const fmtMon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -83,6 +86,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row"><h3 style="margin:0">Costo integrado + Utilidad bruta por mes</h3>
     <span class="muted" style="font-size:12px">Cada barra suma el total de ventas del mes</span></div>
   <div style="position:relative;height:340px;margin-top:12px;max-width:880px"><canvas id="chartMeses"></canvas></div>
+</div>
+
+<div class="card" id="paretoCard" style="margin-top:16px;display:none">
+  <div class="row">
+    <div><h3 style="margin:0">Pareto doble — venta vs utilidad</h3>
+      <div class="muted" style="font-size:12px" id="paretoSub">Dónde está la venta… y dónde la utilidad</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="tab" id="pTabCliente">Por cliente</button>
+      <button class="tab" id="pTabProducto">Por producto</button>
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;margin:10px 0 4px;font-size:12px;color:#64748b">
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#185FA5"></span>Venta ($)</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:0;border-top:2px solid #0d9488"></span>% acum. venta</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:0;border-top:2px dashed #d97706"></span>% acum. utilidad</span>
+  </div>
+  <div style="position:relative;height:360px;margin-top:6px"><canvas id="chartPareto"></canvas></div>
+  <div class="muted" style="font-size:11px;margin-top:8px" id="paretoNota"></div>
 </div>
 
 <div class="card" id="tablaCard" style="margin-top:16px;display:none">
@@ -240,6 +261,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ---- Pareto doble (venta vs utilidad) --------------------------------
+  function syncParetoTabs() {
+    $('pTabCliente').className = 'tab' + (paretoDim === 'cliente' ? ' active' : '');
+    $('pTabProducto').className = 'tab' + (paretoDim === 'producto' ? ' active' : '');
+  }
+
+  async function cargarPareto() {
+    const anio = parseInt($('anio').value, 10);
+    const mes = $('mes').value; // 'acum' | número
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/rentabilidad/${paretoDim}/${anio}?mes=${encodeURIComponent(mes)}`);
+      paretoData = KoguApi.unwrapData(res);
+    } catch (_e) { paretoData = null; }
+    pintarPareto();
+  }
+
+  async function pintarPareto() {
+    if (!paretoData || !paretoData.items || !paretoData.items.length) { $('paretoCard').style.display = 'none'; return; }
+    $('paretoCard').style.display = 'block';
+    try { await loadScript(CHART_SRC); } catch (_e) { return; }
+    const Chart = window.Chart;
+    if (paretoChart) { paretoChart.destroy(); paretoChart = null; }
+
+    const arr = [...paretoData.items].filter(r => Number(r.ventas) > 0).sort((a, b) => b.ventas - a.ventas);
+    const totV = arr.reduce((s, r) => s + Number(r.ventas), 0);
+    const totU = arr.reduce((s, r) => s + Number(r.utilidad_bruta), 0);
+    let aV = 0, aU = 0;
+    const rows = arr.map(r => { aV += Number(r.ventas); aU += Number(r.utilidad_bruta); return { ...r, acumV: totV ? aV / totV * 100 : 0, acumU: totU ? aU / totU * 100 : 0 }; });
+    const topN = 18;
+    const top = rows.slice(0, topN);
+    const etq = paretoDim === 'cliente' ? 'clientes' : 'productos';
+    const labels = top.map(r => r.nombre ? (r.nombre.length > 20 ? r.nombre.slice(0, 19) + '…' : r.nombre) : r.clave);
+
+    paretoChart = new Chart($('chartPareto'), {
+      data: {
+        labels,
+        datasets: [
+          { type: 'bar', label: 'Venta', data: top.map(r => Number(r.ventas)), backgroundColor: '#185FA5', yAxisID: 'y', order: 3, maxBarThickness: 30 },
+          { type: 'line', label: '% acum. venta', data: top.map(r => r.acumV), borderColor: '#0d9488', backgroundColor: '#0d9488', yAxisID: 'y1', tension: 0.2, pointRadius: 2, borderWidth: 2, order: 1 },
+          { type: 'line', label: '% acum. utilidad', data: top.map(r => r.acumU), borderColor: '#d97706', backgroundColor: '#d97706', borderDash: [5, 4], yAxisID: 'y1', tension: 0.2, pointRadius: 2, borderWidth: 2, order: 1 },
+          { type: 'line', label: '80%', data: top.map(() => 80), borderColor: '#cbd5e1', borderDash: [3, 3], yAxisID: 'y1', pointRadius: 0, borderWidth: 1, order: 2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => { const r = top[items[0].dataIndex]; return (r.nombre || r.clave) + ' · ' + r.clave; },
+              label: (c) => c.dataset.type === 'bar' ? 'Venta: ' + fmtMon(c.raw) : c.dataset.label + ': ' + Number(c.raw).toFixed(1) + '%',
+            },
+          },
+        },
+        scales: {
+          y: { position: 'left', beginAtZero: true, ticks: { callback: (v) => '$' + (v / 1e6).toFixed(1) + 'M', font: { size: 12 } }, grid: { display: false } },
+          y1: { position: 'right', min: 0, max: 100, ticks: { callback: (v) => v + '%', font: { size: 12 } }, grid: { display: false } },
+          x: { ticks: { autoSkip: false, maxRotation: 55, minRotation: 45, font: { size: 10 } }, grid: { display: false } },
+        },
+      },
+    });
+
+    // Insight automático: primer renglón donde la utilidad acumulada va por
+    // debajo de la venta acumulada con brecha relevante = cuenta grande de bajo margen.
+    const n80real = rows.findIndex(r => r.acumV >= 80) + 1 || rows.length;
+    const margenTot = totV ? (totU / totV) * 100 : 0;
+    let ancla = null, gap = 0;
+    rows.slice(0, Math.max(n80real, 5)).forEach(r => { const g = r.acumV - r.acumU; if (g > gap) { gap = g; ancla = r; } });
+    const per = ($('mes').value && $('mes').value !== 'acum') ? '' : '';
+    let nota = `${n80real} ${etq} concentran el 80% de la venta · margen global ${margenTot.toFixed(1)} %.`;
+    if (ancla && gap >= 1.5) nota += ` La línea de utilidad va por debajo de la de venta: ${ancla.nombre || ancla.clave} pesa en venta pero rinde menos margen — cuenta grande de bajo margen.`;
+    $('paretoNota').textContent = nota;
+    $('paretoSub').textContent = `${paretoDim === 'cliente' ? 'Clientes' : 'Productos'} · top ${Math.min(topN, rows.length)} de ${fmtNum(rows.length)}`;
+  }
+
   function pintarTabla() {
     const head = `<thead><tr style="text-align:right;border-bottom:2px solid #e2e8f0">
       <th style="text-align:left;padding:6px">Mes</th><th style="padding:6px">Ventas</th>
@@ -289,7 +385,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await KoguApi.apiFetch(`${BASE}/dashboard/${anio}`);
       data = KoguApi.unwrapData(res);
       if (!data || !data.meses || !data.meses.length) {
-        $('kpis').style.display = $('chartCard').style.display = $('tablaCard').style.display = $('ppCard').style.display = 'none';
+        $('kpis').style.display = $('chartCard').style.display = $('tablaCard').style.display = $('ppCard').style.display = $('paretoCard').style.display = 'none';
         showMsg('Sin datos calculados para ' + anio + '. Calcula algún mes en "Costo de ventas / Utilidad".', 'warn');
         return;
       }
@@ -297,15 +393,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('chartCard').style.display = $('tablaCard').style.display = 'block';
       llenarSelectMes();
       pintarKpis(); pintarPP(); pintarTabla(); await pintarChart();
+      await cargarPareto();
     } catch (e) {
       showMsg('❌ ' + e.message, 'error');
       KoguApi.toast(e.message, 'error');
     } finally { $('refreshBtn').disabled = false; }
   }
 
+  function cambiarParetoDim(nuevo) { if (paretoDim === nuevo) return; paretoDim = nuevo; syncParetoTabs(); cargarPareto(); }
+
   $('refreshBtn').addEventListener('click', cargar);
   $('anio').addEventListener('change', cargar);
-  $('mes').addEventListener('change', pintarKpis);
+  $('mes').addEventListener('change', () => { pintarKpis(); cargarPareto(); });
+  $('pTabCliente').addEventListener('click', () => cambiarParetoDim('cliente'));
+  $('pTabProducto').addEventListener('click', () => cambiarParetoDim('producto'));
+  syncParetoTabs();
   KoguShell.subscribeEmpresaActivaChange(() => cargar());
 
   cargar();
