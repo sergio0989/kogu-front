@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (let m = 1; m <= maxMes; m++) { labels.push(MES_ABR[m]); dataMes.push(corridaDe(m)); }
     const serie = (k) => dataMes.map(m => m ? num(m[k]) : null);
     const bg = (hex) => dataMes.map((_, i) => (mesSel > 0 && i !== mesSel - 1) ? hex + '55' : hex);
-    const dTasa = dataMes.map(m => m && m.tasa_efectiva != null ? Number(m.tasa_efectiva) * 100 : null);
+    const fmtEje = (v) => Math.abs(v) >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + (v / 1000).toFixed(0) + 'k';
 
     if (chart) chart.destroy();
     chart = new Chart($('chartTend').getContext('2d'), {
@@ -244,26 +244,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       data: {
         labels,
         datasets: [
-          { label: 'Porcentaje', data: serie('comision_porcentaje'), backgroundColor: bg(COLOR.porcentaje), stack: 'com', yAxisID: 'y' },
-          { label: 'Espejo', data: serie('comision_espejo'), backgroundColor: bg(COLOR.espejo), stack: 'com', yAxisID: 'y' },
-          { label: 'Kg-USD', data: serie('comision_kg_usd'), backgroundColor: bg(COLOR.por_kg_usd), stack: 'com', yAxisID: 'y' },
-          { label: 'Adicional', data: serie('comision_adicional'), backgroundColor: bg(COLOR.adicional_cliente), stack: 'com', yAxisID: 'y' },
-          { label: 'Tasa efectiva', type: 'line', data: dTasa, yAxisID: 'y2', borderColor: '#7c3aed',
-            backgroundColor: '#7c3aed', borderDash: [5, 3], tension: 0.2, spanGaps: true, pointRadius: 3 },
+          { label: 'Total de pagos', data: serie('subtotal_periodo_raw'), backgroundColor: bg('#94a3b8'), yAxisID: 'y' },
+          { label: 'Base comisionable', data: serie('subtotal_con_espejos'), backgroundColor: bg(COLOR.porcentaje), yAxisID: 'y' },
+          { label: 'Comisión total', type: 'line', data: serie('comision_total'), yAxisID: 'y2',
+            borderColor: '#16a34a', backgroundColor: '#16a34a', tension: 0.2, spanGaps: true, pointRadius: 4 },
         ],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         scales: {
-          x: { stacked: true },
-          y: { stacked: true, ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } },
-          y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => Number(v).toFixed(2) + '%' } },
+          y: { ticks: { callback: fmtEje }, title: { display: true, text: 'Pagos / base' } },
+          y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: fmtEje },
+                title: { display: true, text: 'Comisión' }, beginAtZero: true },
         },
         plugins: {
           legend: { position: 'bottom' },
-          tooltip: { callbacks: { label: (ctx) => ctx.dataset.yAxisID === 'y2'
-            ? ` ${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)}%`
-            : ` ${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
         },
       },
     });
