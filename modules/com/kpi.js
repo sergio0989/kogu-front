@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const BASE = '/protected/com/comisiones';
   const PERM = 'screen.comisiones';
   const CHART_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+  const DATALABELS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
@@ -97,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   </div>
 
   <div class="card" id="tendCard" style="display:none">
-    <div class="row"><div><div class="eyebrow">Tendencia</div><h2>Comisión mensual y tasa efectiva</h2></div></div>
+    <div class="row"><div><div class="eyebrow">Tendencia</div><h2>Pagos, base comisionable y comisión</h2></div></div>
     <div style="position:relative;height:320px;margin-top:14px"><canvas id="chartTend"></canvas></div>
   </div>
 
@@ -230,6 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function renderChart() {
     $('tendCard').style.display = '';
     await loadScript(CHART_SRC);
+    await loadScript(DATALABELS_SRC);
     const maxMes = kpi.anio === now.getFullYear() ? Math.max(now.getMonth() + 1, ...mesesList(), 1) : 12;
     const labels = [];
     const dataMes = [];
@@ -241,6 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (chart) chart.destroy();
     chart = new Chart($('chartTend').getContext('2d'), {
       type: 'bar',
+      plugins: [window.ChartDataLabels],
       data: {
         labels,
         datasets: [
@@ -252,14 +255,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 22 } },
         scales: {
-          y: { ticks: { callback: fmtEje }, title: { display: true, text: 'Pagos / base' } },
+          y: { ticks: { callback: fmtEje }, title: { display: true, text: 'Pagos / base' }, grace: '8%' },
           y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: fmtEje },
-                title: { display: true, text: 'Comisión' }, beginAtZero: true },
+                title: { display: true, text: 'Comisión' }, beginAtZero: true, grace: '12%' },
         },
         plugins: {
           legend: { position: 'bottom' },
           tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
+          datalabels: {
+            anchor: 'end', align: 'top', offset: 2, clamp: true,
+            font: { size: 10, weight: '600' },
+            color: (ctx) => ctx.dataset.type === 'line' ? '#15803d' : '#475569',
+            formatter: (v) => v == null ? '' : fmtEje(v),
+          },
         },
       },
     });
