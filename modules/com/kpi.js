@@ -48,13 +48,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${hint ? `<div style="font-size:10px;color:var(--muted)">${esc(hint)}</div>` : ''}
     </div>`;
 
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if ([...document.scripts].some(s => s.src === src)) return resolve();
-      const s = document.createElement('script'); s.src = src; s.onload = resolve;
-      s.onerror = () => reject(new Error('No se pudo cargar ' + src));
+  // Carga de Chart.js con promesa cacheada: llamadas concurrentes esperan
+  // la MISMA descarga (evita "Chart is not defined" por condición de carrera).
+  let chartLibPromise = null;
+  function ensureChartLib() {
+    if (window.Chart) return Promise.resolve();
+    if (chartLibPromise) return chartLibPromise;
+    chartLibPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = CHART_SRC;
+      s.onload = resolve;
+      s.onerror = () => { chartLibPromise = null; reject(new Error('No se pudo cargar Chart.js')); };
       document.head.appendChild(s);
     });
+    return chartLibPromise;
   }
 
   // ── Estado ─────────────────────────────────────────────────
@@ -98,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <div class="card" id="tendCard" style="display:none">
     <div class="row"><div><div class="eyebrow">Tendencia</div><h2>Pagos, base comisionable y comisión</h2></div></div>
-    <div style="position:relative;height:320px;margin-top:14px"><canvas id="chartTend"></canvas></div>
+    <div style="position:relative;height:320px;margin-top:14px" id="chartHolder"><canvas id="chartTend"></canvas></div>
   </div>
 
   <div class="card" id="matCard" style="display:none">
@@ -229,7 +236,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Render: tendencia (Chart.js) ───────────────────────────
   async function renderChart() {
     $('tendCard').style.display = '';
-    await loadScript(CHART_SRC);
+    await ensureChartLib();
+    if (chart) { chart.destroy(); chart = null; }
+    $('chartHolder').innerHTML = '<canvas id="chartTend"></canvas>';
     const maxMes = kpi.anio === now.getFullYear() ? Math.max(now.getMonth() + 1, ...mesesList(), 1) : 12;
     const labels = [];
     const dataMes = [];
@@ -260,7 +269,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
     };
 
-    if (chart) chart.destroy();
     chart = new Chart($('chartTend').getContext('2d'), {
       type: 'bar',
       plugins: [valueLabels],
@@ -410,16 +418,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCards();
     renderChart().catch((err) => {
       $('tendCard').style.display = '';
-      const cv = $('chartTend');
-      if (cv && cv.parentElement) {
-        cv.parentElement.innerHTML =
-          `<div class="empty" style="padding:14px">No se pudo dibujar la gráfica: ${esc(err?.message || 'error')}</div>`;
-      }
+      $('chartHolder').innerHTML =
+        `<div class="empty" style="padding:14px">No se pudo dibujar la gráfica: ${esc(err?.message || 'error')}</div>`;
     });
     renderMatriz();
     renderRanking();
     renderFunnel();
   }
+
+  let firstLoad = true;
 
   async function loadKpi() {
     const anio = Number($('fAnio').value);
@@ -433,9 +440,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         $('statusLine').innerHTML = `<div class="empty" style="padding:14px">No hay corridas vigentes en ${anio} para esta empresa.</div>`;
         return;
       }
-      // Al cambiar de año, si el mes seleccionado no existe conserva Acumulado.
+      // Primera carga: preselecciona el último mes con corrida.
+      // Cambio de año: si el mes seleccionado no existe, cae a Acumulado.
       const meses = mesesList();
-      if (mesSel > 0 && !meses.includes(mesSel)) mesSel = 0;
+      if (firstLoad) { mesSel = meses[meses.length - 1] || 0; firstLoad = false; }
+      else if (mesSel > 0 && !meses.includes(mesSel)) mesSel = 0;
       $('fMes').value = String(mesSel);
       renderAll();
     } catch (err) {
@@ -454,11 +463,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadKpi();
   });
 
-  // Por defecto: último mes con corrida (si hay), si no Acumulado.
   await loadKpi();
-  if (kpi?.meses?.length) {
-    mesSel = mesesList().slice(-1)[0];
-    $('fMes').value = String(mesSel);
-    renderAll();
-  }
 });
