@@ -61,6 +61,7 @@
     ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
+      {href:'/modules/com/kpi.html',label:'KPI de Comisiones',perm:'screen.comisiones'},
       {href:'/modules/com/configuracion.html',label:'Configuración',perm:'screen.comisiones'},
     ]},
     {section:'Costo',items:[
