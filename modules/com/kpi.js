@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const BASE = '/protected/com/comisiones';
   const PERM = 'screen.comisiones';
   const CHART_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-  const DATALABELS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
@@ -231,7 +230,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function renderChart() {
     $('tendCard').style.display = '';
     await loadScript(CHART_SRC);
-    await loadScript(DATALABELS_SRC);
     const maxMes = kpi.anio === now.getFullYear() ? Math.max(now.getMonth() + 1, ...mesesList(), 1) : 12;
     const labels = [];
     const dataMes = [];
@@ -240,10 +238,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const bg = (hex) => dataMes.map((_, i) => (mesSel > 0 && i !== mesSel - 1) ? hex + '55' : hex);
     const fmtEje = (v) => Math.abs(v) >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + (v / 1000).toFixed(0) + 'k';
 
+    // Plugin propio: dibuja el valor sobre cada barra / punto (sin CDN extra).
+    const valueLabels = {
+      id: 'valueLabels',
+      afterDatasetsDraw(ch) {
+        const { ctx } = ch;
+        ctx.save();
+        ctx.font = '600 10px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ch.data.datasets.forEach((ds, di) => {
+          const meta = ch.getDatasetMeta(di);
+          if (meta.hidden) return;
+          meta.data.forEach((el, i) => {
+            const v = ds.data[i];
+            if (v == null || !el) return;
+            ctx.fillStyle = ds.type === 'line' ? '#15803d' : '#475569';
+            ctx.fillText(fmtEje(Number(v)), el.x, el.y - 6);
+          });
+        });
+        ctx.restore();
+      },
+    };
+
     if (chart) chart.destroy();
     chart = new Chart($('chartTend').getContext('2d'), {
       type: 'bar',
-      plugins: [window.ChartDataLabels],
+      plugins: [valueLabels],
       data: {
         labels,
         datasets: [
@@ -264,12 +284,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         plugins: {
           legend: { position: 'bottom' },
           tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
-          datalabels: {
-            anchor: 'end', align: 'top', offset: 2, clamp: true,
-            font: { size: 10, weight: '600' },
-            color: (ctx) => ctx.dataset.type === 'line' ? '#15803d' : '#475569',
-            formatter: (v) => v == null ? '' : fmtEje(v),
-          },
         },
       },
     });
@@ -394,7 +408,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Data / orquestación ────────────────────────────────────
   function renderAll() {
     renderCards();
-    renderChart().catch(() => { $('tendCard').style.display = 'none'; });
+    renderChart().catch((err) => {
+      $('tendCard').style.display = '';
+      const cv = $('chartTend');
+      if (cv && cv.parentElement) {
+        cv.parentElement.innerHTML =
+          `<div class="empty" style="padding:14px">No se pudo dibujar la gráfica: ${esc(err?.message || 'error')}</div>`;
+      }
+    });
     renderMatriz();
     renderRanking();
     renderFunnel();
