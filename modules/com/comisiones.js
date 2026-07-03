@@ -14,8 +14,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Helpers ────────────────────────────────────────────────────────────
   const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const ESQUEMA = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD' };
-  const ESQ_BADGE = { porcentaje: 'primary', espejo: 'warn', por_kg_usd: 'neutral' };
+  const ESQUEMA = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD', adicional_cliente: 'Adicional' };
+  const ESQ_BADGE = { porcentaje: 'primary', espejo: 'warn', por_kg_usd: 'neutral', adicional_cliente: 'success' };
   const MOTIVO = {
     tipo_pago_no_valido: 'Tipo de pago no válido', base_no_positiva: 'Base ≤ 0',
     cliente_excluido: 'Cliente excluido', producto_excluido: 'Producto excluido',
@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="porcentaje">Porcentaje</option>
         <option value="espejo">Espejo</option>
         <option value="por_kg_usd">Kg-USD</option>
+        <option value="adicional_cliente">Adicional</option>
       </select>
       <select class="select" id="detAgente"><option value="">Todos los agentes</option></select>
       <div style="display:flex;align-items:center;justify-content:flex-end;color:var(--muted);font-size:13px" id="detCounter"></div>
@@ -201,19 +202,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     eb.textContent = (k.vigente ? 'Vigente' : 'Histórico') + (k.estado ? ` · ${k.estado}` : '');
     eb.className = 'badge ' + (k.vigente ? 'success' : 'neutral');
 
-    elById('kpis').innerHTML = `
-      <div class="grid-4" style="gap:10px">
-        ${miniCard('Comisión total', money(k.comision_total), `${k.num_detalle} renglones`, 'var(--accent,#2563eb)')}
-        ${miniCard('Porcentaje', money(k.comision_porcentaje), 'esquema base')}
-        ${miniCard('Espejo', money(k.comision_espejo), 'clones')}
-        ${miniCard('Kg-USD', money(k.comision_kg_usd), `USD ${Number(k.comision_kg_usd_divisa || 0).toFixed(2)}`)}
-      </div>
-      <div class="grid-4" style="gap:10px;margin-top:10px">
-        ${miniCard('Base comisionable', money(k.subtotal_base), 'esquema %')}
-        ${miniCard('Base + clones', money(k.subtotal_con_espejos), 'incl. espejo/kg')}
-        ${miniCard('Excluidos', String(k.num_excluidos), 'cobros sin comisión')}
-        ${miniCard('No mapeados', String(k.num_nomapeados), 'sin agente/%', Number(k.num_nomapeados) > 0 ? 'var(--danger,#dc2626)' : '')}
-      </div>`;
+    const cards = [
+      miniCard('Comisión total', money(k.comision_total), `${k.num_detalle} renglones`, 'var(--accent,#2563eb)'),
+      miniCard('Porcentaje', money(k.comision_porcentaje), 'esquema base'),
+      miniCard('Espejo', money(k.comision_espejo), 'clones'),
+    ];
+    if (Number(k.comision_adicional || 0) > 0) {
+      cards.push(miniCard('Adicional', money(k.comision_adicional), 'por cliente'));
+    }
+    cards.push(
+      miniCard('Kg-USD', money(k.comision_kg_usd), `USD ${Number(k.comision_kg_usd_divisa || 0).toFixed(2)}`),
+      miniCard('Base comisionable', money(k.subtotal_base), 'esquema %'),
+      miniCard('Base + clones', money(k.subtotal_con_espejos), 'incl. clones'),
+      miniCard('Excluidos', String(k.num_excluidos), 'cobros sin comisión'),
+      miniCard('No mapeados', String(k.num_nomapeados), 'sin agente/%', Number(k.num_nomapeados) > 0 ? 'var(--danger,#dc2626)' : ''),
+    );
+    const kpiRows = [];
+    for (let i = 0; i < cards.length; i += 4) kpiRows.push(cards.slice(i, i + 4));
+    elById('kpis').innerHTML = kpiRows.map((r, i) =>
+      `<div class="grid-4" style="gap:10px${i ? ';margin-top:10px' : ''}">${r.join('')}</div>`).join('');
 
     elById('meta').textContent =
       `TC de pago: ${k.tc_pago != null ? Number(k.tc_pago).toFixed(4) : '—'}  ·  ` +

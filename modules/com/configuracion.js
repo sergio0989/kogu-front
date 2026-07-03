@@ -84,6 +84,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Agente</th><th>Producto</th><th style="text-align:right">%</th><th>Motivo</th><th></th></tr></thead><tbody id="ovRows"></tbody></table></div>
   </div>
 
+  <!-- ── Comisión adicional por cliente ── -->
+  <div class="card">
+    <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Comisión adicional por cliente</h2></div></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">El cliente comisiona, <b>además</b> de su agente primario, a este agente adicional con el % capturado. Aplica solo sobre los pagos que sí comisionaron al agente primario (hereda exclusiones).</div>
+    <div class="grid-4" style="margin-top:12px;gap:10px;align-items:end">
+      <div><div class="label-text">Clave cliente</div><input class="input" id="ccCte" placeholder="Ej: 2" /></div>
+      <div><div class="label-text">Clave agente</div><input class="input" id="ccAge" type="number" min="1" placeholder="Ej: 14" /></div>
+      <div><div class="label-text">% comisión</div><input class="input" id="ccPct" type="number" step="0.01" min="0" placeholder="Ej: 1 = 1%" /></div>
+      <div><button class="btn primary" id="ccAdd" style="width:100%">Agregar</button></div>
+    </div>
+    <div class="grid-4" style="margin-top:8px;gap:10px">
+      <div style="grid-column:span 4"><div class="label-text">Motivo</div><input class="input" id="ccMot" placeholder="Opcional (ej: Cliente comisiona a dos agentes)" /></div>
+    </div>
+    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Agente</th><th style="text-align:right">%</th><th>Motivo</th><th></th></tr></thead><tbody id="ccRows"></tbody></table></div>
+  </div>
+
   <!-- ── Clientes con comisión kg-USD ── -->
   <div class="card">
     <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Clientes con comisión kg-USD</h2></div></div>
@@ -128,6 +144,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td><span class="chip-compact">${esc(r.cve_prod)}</span></td><td style="text-align:right;font-weight:700">${fracToPct(r.porcom_override)}</td>
       <td>${esc(r.motivo || '')}</td><td>${delCell('ov:' + r.override_id)}</td></tr>`).join('') : empty(6, 'Sin excepciones por producto');
   }
+  async function loadCc() {
+    const rows = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/comision-cliente`)) || [];
+    document.getElementById('ccRows').innerHTML = rows.length ? rows.map(r => `
+      <tr><td><span class="chip-compact">${esc(r.cve_cte)}</span> ${esc(r.cliente_nombre || '')}</td>
+      <td><span class="chip-compact">${esc(String(r.cve_age))}</span> ${esc(r.agente_nombre || '')}</td>
+      <td style="text-align:right;font-weight:700">${fracToPct(r.porcom)}</td>
+      <td>${esc(r.motivo || '')}</td><td>${delCell('cc:' + r.comcli_id)}</td></tr>`).join('') : empty(5, 'Sin comisiones adicionales por cliente');
+  }
   async function loadKgAgentes() {
     const rows = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/kg-agentes`)) || [];
     document.getElementById('kgAge').innerHTML = '<option value="">—</option>' +
@@ -139,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tr><td><span class="chip-compact">${esc(r.cve_cte)}</span></td><td>${esc(r.nombre || '')}</td>
       <td>${esc(`${r.kg_cve_agente} · ${r.kg_agente_nombre}`)}</td><td>${delCell('kg:' + r.cliente_id)}</td></tr>`).join('') : empty(4, 'Sin clientes con comisión kg-USD');
   }
-  async function loadAll() { await Promise.all([loadTc(), loadEc(), loadEp(), loadOv(), loadKgAgentes(), loadKg()]); }
+  async function loadAll() { await Promise.all([loadTc(), loadEc(), loadEp(), loadOv(), loadCc(), loadKgAgentes(), loadKg()]); }
 
   // ── Alta ────────────────────────────────────────────────────────────────
   async function post(path, body, reload, okMsg) {
@@ -177,6 +201,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('ovCte', ''); setV('ovAge', ''); setV('ovProd', ''); setV('ovPct', ''); setV('ovMot', '');
   }, 'Guardando...');
 
+  document.getElementById('ccAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    if (!val('ccCte') || !val('ccAge') || val('ccPct') === '') return KoguApi.toast('Cliente, agente y % son obligatorios', 'error');
+    await post('/comision-cliente', {
+      cve_cte: val('ccCte'), cve_age: Number(val('ccAge')),
+      porcom: pctToFrac(val('ccPct')), motivo: val('ccMot'),
+    }, loadCc, 'Comisión adicional guardada');
+    setV('ccCte', ''); setV('ccAge', ''); setV('ccPct', ''); setV('ccMot', '');
+  }, 'Guardando...');
+
   document.getElementById('kgAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('kgCte') || !sel('kgAge')) return KoguApi.toast('Captura cliente y selecciona el agente kg', 'error');
     await post('/kg-clientes', { cve_cte: val('kgCte'), cve_age: Number(sel('kgAge')) }, loadKg, 'Cliente kg-USD agregado');
@@ -187,6 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const DEL = {
     tc: { path: '/tc', reload: loadTc }, ec: { path: '/exclusion-clientes', reload: loadEc },
     ep: { path: '/exclusion-productos', reload: loadEp }, ov: { path: '/comision-producto', reload: loadOv },
+    cc: { path: '/comision-cliente', reload: loadCc },
     kg: { path: '/kg-clientes', reload: loadKg },
   };
   c.addEventListener('click', async (ev) => {
