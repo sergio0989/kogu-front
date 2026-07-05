@@ -84,6 +84,9 @@
       {href:'/modules/cto/productos-b.html',label:'Productos B (producidos)',perm:'screen.costo'},
       {href:'/modules/cto/cierre.html',label:'Validación / Cierre de periodo',perm:'screen.costo'},
     ]},
+    {section:'Comercio Exterior',items:[
+      {href:'/modules/comex/costeo-teorico.html',label:'🌐 Costeo teórico (importación)',perm:'screen.comex'},
+    ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
       // operación, al final el CFDI es la materialización fiscal.
