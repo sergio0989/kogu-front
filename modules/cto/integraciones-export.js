@@ -103,12 +103,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function nueva() {
-    const folio = prompt('Folio de la integración (ej. 126/26):', '');
-    if (folio === null) return;
     try {
       const hoy = new Date().toISOString().slice(0, 10);
-      const r = data(await api('/integraciones', { method: 'POST', body: JSON.stringify({ folio: folio.trim() || null, tipo: 'exportacion', fecha: hoy }) }));
-      KoguApi.toast('Integración creada', 'success');
+      // Folio automático (NNN/YY) lo asigna el backend; queda editable en el detalle.
+      const r = data(await api('/integraciones', { method: 'POST', body: JSON.stringify({ tipo: 'exportacion', fecha: hoy }) }));
+      KoguApi.toast('Integración ' + (r.folio || '') + ' creada', 'success');
       openDetail(r.integracion_id);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
