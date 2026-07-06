@@ -141,7 +141,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><label class="muted" style="font-size:12px;display:block">Fecha</label><input class="input" type="date" id="cFecha" value="${fdate(it.fecha)}"/></div>
     <div><label class="muted" style="font-size:12px;display:block">Transporte</label>
       <select class="input" id="cTrans">${['general', 'aereo', 'maritimo', 'terrestre'].map(t => `<option value="${t}" ${t === it.modo_transporte ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-    <div style="grid-column:span 2"><label class="muted" style="font-size:12px;display:block">Origen / proveedor</label><input class="input" id="cOrig" value="${esc(it.origen_proveedor || '')}"/></div>
+    <div style="grid-column:span 2"><label class="muted" style="font-size:12px;display:block">Origen / proveedor</label>
+      <div style="display:flex;gap:6px">
+        <input class="input" id="cOrig" value="${esc(it.origen_proveedor || '')}" readonly placeholder="(selecciona del catálogo)" style="flex:1;background:#f8fafc;cursor:pointer"/>
+        <button class="btn ghost" id="cOrigBtn" type="button" title="Buscar proveedor">🔍</button>
+      </div></div>
     <div><label class="muted" style="font-size:12px;display:block">Tipo de cambio</label><input class="input" id="cTc" value="${it.tip_cam != null ? it.tip_cam : ''}"/></div>
     <div><label class="muted" style="font-size:12px;display:block">KGS a importar</label><input class="input" id="cKg" value="${it.kg != null ? it.kg : ''}"/></div>
     <div><label class="muted" style="font-size:12px;display:block">Costo unit EXW (USD/kg)</label><input class="input" id="cExw" value="${it.costo_unit_exw != null ? it.costo_unit_exw : ''}"/></div>
@@ -176,8 +180,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (['tip_cam', 'kg', 'costo_unit_exw'].includes(field)) renderResultados();
       deb('cab_' + field, () => patchCab({ [field]: D.costeo[field] }));
     });
-    bindCab('cFolio', 'folio'); bindCab('cFecha', 'fecha'); bindCab('cOrig', 'origen_proveedor');
+    bindCab('cFolio', 'folio'); bindCab('cFecha', 'fecha');
     bindCab('cTc', 'tip_cam', true); bindCab('cKg', 'kg', true); bindCab('cExw', 'costo_unit_exw', true);
+    // Origen/proveedor = selector del catálogo de proveedores
+    const selProv = () => pickerProveedor((p) => {
+      D.costeo.proveedor_id = p.proveedor_id; D.costeo.origen_proveedor = p.nombre;
+      $('cOrig').value = p.nombre; patchCab({ proveedor_id: p.proveedor_id, origen_proveedor: p.nombre });
+    });
+    $('cOrig').addEventListener('click', selProv);
+    $('cOrigBtn').addEventListener('click', selProv);
     $('cTrans').addEventListener('change', () => { D.costeo.modo_transporte = $('cTrans').value; patchCab({ modo_transporte: D.costeo.modo_transporte }); });
 
     renderResp(); renderConceptos(); renderResultados();
@@ -328,6 +339,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const rows = data(await api('/productos' + qs({ q: term }))) || [];
         list.innerHTML = rows.length ? rows.map((p, i) => `<button class="btn ghost" data-i="${i}" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px"><strong>${esc(p.cve_prod)}</strong> <span class="muted" style="font-size:11px">${esc(p.nombre_corto || '')}</span></button>`).join('') : '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>';
+        list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { close(); onPick(rows[+bn.dataset.i]); }));
+      } catch (e) { list.innerHTML = `<div style="padding:12px;color:#991b1b">${esc(e.message)}</div>`; }
+    });
+  }
+  function pickerProveedor(onPick) {
+    modal('Selecciona proveedor', 'Catálogo de proveedores', async (term, list, close) => {
+      try {
+        const rows = data(await api('/proveedores' + qs({ q: term }))) || [];
+        list.innerHTML = rows.length ? rows.map((p, i) => `<button class="btn ghost" data-i="${i}" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px"><strong>${esc(p.nombre)}</strong> <span class="muted" style="font-size:11px">${esc(p.rfc || '')}</span></button>`).join('') : '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>';
         list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { close(); onPick(rows[+bn.dataset.i]); }));
       } catch (e) { list.innerHTML = `<div style="padding:12px;color:#991b1b">${esc(e.message)}</div>`; }
     });
