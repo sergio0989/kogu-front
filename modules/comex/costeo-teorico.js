@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // cabecera → persistir + recalc
     const bindCab = (id, field, num) => $(id).addEventListener('input', () => {
       D.costeo[field] = num ? (parseFloat($(id).value) || 0) : $(id).value;
-      if (['tip_cam', 'kg', 'costo_unit_exw'].includes(field)) renderResultados();
+      if (['tip_cam', 'kg', 'costo_unit_exw'].includes(field)) updateComputed();
       deb('cab_' + field, () => patchCab({ [field]: D.costeo[field] }));
     });
     bindCab('cFolio', 'folio'); bindCab('cFecha', 'fecha');
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="text-align:left;padding:6px">Concepto</th><th style="text-align:left;padding:6px">Capa</th>
       <th style="text-align:left;padding:6px">Modo</th><th>Captura</th><th>Importe USD</th><th></th></tr></thead>`;
-    let body = `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">Valor EXW (mercancía)</td><td style="padding:6px">${capaTag('exw')}</td><td class="muted" style="text-align:left;padding:6px">${money(r.exwUnit)}/kg × ${n2(r.kg)}</td><td></td><td style="text-align:right;padding:6px">${money(r.exwTotal)}</td><td></td></tr>`;
+    let body = `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">Valor EXW (mercancía)</td><td style="padding:6px">${capaTag('exw')}</td><td class="muted" style="text-align:left;padding:6px" id="cExwDesc">${money(r.exwUnit)}/kg × ${n2(r.kg)}</td><td></td><td style="text-align:right;padding:6px" id="cExwTot">${money(r.exwTotal)}</td><td></td></tr>`;
     const lastCfr = D.conceptos.map(x => x.capa_incoterm).lastIndexOf('cfr');
     D.conceptos.forEach((x, i) => {
       const cap = x.modo_captura.startsWith('mxn') ? 'MXN' : (x.modo_captura === 'pct_base' ? '%' : 'USD');
@@ -223,14 +223,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px">${capaTag(x.capa_incoterm)}</td>
         <td style="text-align:left;padding:6px"><select class="cmodo" data-i="${i}" style="border:1px solid var(--line);border-radius:6px;padding:3px 5px;font-size:11px">${Object.entries(MODOS).map(([k, v]) => `<option value="${k}" ${k === x.modo_captura ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
         <td style="text-align:right;padding:6px">${x.es_arancel ? '<span class="muted">por escenario</span>' : `<input class="cval" data-i="${i}" value="${x.valor_captura}" style="width:92px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px"/> <span class="muted" style="font-size:10px">${cap}</span>`}</td>
-        <td style="text-align:right;padding:6px">${imp == null ? '—' : money(imp)}</td>
+        <td style="text-align:right;padding:6px" id="cImp${i}">${imp == null ? '—' : money(imp)}</td>
         <td style="padding:6px"><button class="btn ghost cdel" data-i="${i}" style="color:#991b1b;padding:2px 7px">✕</button></td></tr>`;
-      if (i === lastCfr) body += `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">= Valor en aduana (CFR)</td><td style="padding:6px">${capaTag('cfr')}</td><td class="muted" style="text-align:left;padding:6px">base del arancel</td><td></td><td style="text-align:right;padding:6px">${money(r.base)}</td><td></td></tr>`;
+      if (i === lastCfr) body += `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">= Valor en aduana (CFR)</td><td style="padding:6px">${capaTag('cfr')}</td><td class="muted" style="text-align:left;padding:6px">base del arancel</td><td></td><td style="text-align:right;padding:6px" id="cCfrTot">${money(r.base)}</td><td></td></tr>`;
     });
     $('tConc').innerHTML = head + '<tbody>' + body + '</tbody>';
     $('tConc').querySelectorAll('.cval').forEach(inp => inp.addEventListener('input', () => {
       const i = +inp.dataset.i; D.conceptos[i].valor_captura = parseFloat(inp.value) || 0;
-      renderResultados(); renderConceptImportes();
+      updateComputed();  // actualiza celdas sin re-render → no pierde el foco
       deb('conc_' + D.conceptos[i].linea_id, () => patchConc(D.conceptos[i].linea_id, { valor_captura: D.conceptos[i].valor_captura }));
     }));
     $('tConc').querySelectorAll('.cmodo').forEach(sel => sel.addEventListener('change', () => {
@@ -243,7 +243,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       catch (e) { KoguApi.toast(e.message, 'error'); }
     }));
   }
-  function renderConceptImportes() { /* importes viven en la tabla; recomputa liviano */ renderConceptos(); }
+  // Actualiza SOLO las celdas calculadas (EXW, importes, CFR) + resultados,
+  // sin reconstruir la tabla → conserva el foco/cursor al teclear.
+  function updateComputed() {
+    const r = calcular();
+    if ($('cExwDesc')) $('cExwDesc').textContent = money(r.exwUnit) + '/kg × ' + n2(r.kg);
+    if ($('cExwTot')) $('cExwTot').textContent = money(r.exwTotal);
+    if ($('cCfrTot')) $('cCfrTot').textContent = money(r.base);
+    D.conceptos.forEach((x, i) => { const cell = $('cImp' + i); if (cell) cell.textContent = x.es_arancel ? '—' : money(importeUSD(x, r.tc, r.kg)); });
+    renderResultados();
+  }
 
   function renderResultados() {
     const r = calcular();
