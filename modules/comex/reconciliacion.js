@@ -227,8 +227,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const s = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/run', { method: 'POST', body: JSON.stringify({ periodo }) })) || {};
       renderKpis(s);
       $('reconMsg').textContent = '';
-      if (s.crm_actividad_id) KoguApi.toast('Reconciliado. Se generó una actividad CRM con las desviaciones.', 'success');
-      else KoguApi.toast('Reconciliado. Sin operaciones fuera de banda.', 'success');
+      if (!s.teoricos) {
+        KoguApi.toast('Sin costeos teóricos cargados: no hay contra qué comparar.', 'warn');
+      } else if (s.sin_teorico === s.operaciones) {
+        KoguApi.toast('Ningún costeo teórico coincide por transporte con estas operaciones.', 'warn');
+      } else if (s.crm_actividad_id) {
+        KoguApi.toast('Reconciliado. Se generó una actividad CRM con las desviaciones.', 'success');
+      } else {
+        KoguApi.toast('Reconciliado. Sin operaciones fuera de banda.', 'success');
+      }
       await cargarRecon(periodo);
     } catch (e) { $('reconMsg').textContent = ''; KoguApi.toast(e.message, 'error'); }
     finally { $('reconBtn').disabled = false; }
@@ -243,6 +250,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       + kpi('↑ Sobre', s.sobre, '#991b1b') + kpi('↓ Bajo', s.bajo, '#1e40af')
       + kpi('Sin teórico', s.sin_teorico, '#475569') + kpi('Sin datos', s.sin_datos, '#854d0e')
       + `<div style="align-self:center;font-size:12px;color:#64748b">Banda ±: +${(s.banda?.sup * 100).toFixed(1)}% / -${(s.banda?.inf * 100).toFixed(1)}%</div>`;
+    const t = s.teoricos_por_transporte || {};
+    const detalle = Object.keys(t).length ? Object.entries(t).map(([k, v]) => `${k}: ${v}`).join(' · ') : 'ninguno';
+    const warn = !s.teoricos;
+    box.insertAdjacentHTML('beforeend',
+      `<div style="flex-basis:100%;font-size:12px;margin-top:4px;color:${warn ? '#991b1b' : '#64748b'}">
+        Costeos teóricos disponibles: <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${warn ? ' — <strong>crea costeos teóricos por transporte en “Costeo teórico (importación)” para poder comparar.</strong>' : ''}</div>`);
   }
 
   function renderFiltros() {
