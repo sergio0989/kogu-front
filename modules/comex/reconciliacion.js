@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const warn = !s.teoricos;
     box.insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;font-size:12px;margin-top:4px;color:${warn ? '#991b1b' : '#64748b'}">
-        Costeos teóricos disponibles: <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${warn ? ' — <strong>crea costeos teóricos por transporte en “Costeo teórico (importación)” para poder comparar.</strong>' : ''}</div>`);
+        Tabulador teórico (escalones por transporte): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${warn ? ' — <strong>el tabulador no está cargado; aplica la migración del tabulador para poder comparar.</strong>' : ''}</div>`);
   }
 
   function renderFiltros() {
@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderReconTable() {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
-      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Transporte</th>
+      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Cat. compra</th>
       <th>Kg</th><th>Real flete/kg</th><th>Real otros/kg</th><th>Real total/kg</th><th>Teórico total/kg</th>
       <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
     let rows = reconState.rows;
@@ -279,9 +279,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="10" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
     $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
       const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
+      const cat = r.cat_compra || (r.transporte ? String(r.transporte).charAt(0).toUpperCase() + String(r.transporte).slice(1) : '—');
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
-        <td style="text-align:left;padding:6px;text-transform:capitalize">${esc(r.transporte || '')}</td>
+        <td style="text-align:left;padding:6px">${esc(cat)}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
         <td style="padding:6px">${usdkg(r.real_flete_kg_usd)}</td>
         <td style="padding:6px">${usdkg(r.real_otros_kg_usd)}</td>
