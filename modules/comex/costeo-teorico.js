@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row"><div><h3 style="margin:0">Escenarios de arancel</h3><span class="muted" style="font-size:12px">arancel sobre el valor en aduana (EXW + flete int'l + gastos origen)</span></div>
     <button class="btn ghost" id="addEscBtn">＋ Escenario</button></div>
   <div id="escGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:8px"></div>
-  <div style="margin-top:14px"><div class="muted" style="font-size:11px;font-weight:700;margin-bottom:4px">Escalera de incoterm (por kg · USD, sin arancel)</div>
+  <div style="margin-top:14px"><div class="muted" style="font-size:11px;font-weight:700;margin-bottom:4px">Escalera de incoterm (por kg · USD, sin arancel) · % = participación de cada tramo en el DDP</div>
     <div id="ladder" style="display:flex;gap:8px;flex-wrap:wrap"></div></div>
 </div>`;
 
@@ -297,8 +297,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size:22px;font-weight:800;margin-top:8px;border-top:1px solid var(--line);padding-top:8px">${money(e.ddp_kg)} <span style="font-size:13px;color:var(--muted)">DDP US$/kg</span></div>
       <div class="muted" style="font-size:11px">Factor ${e.factor.toFixed(2)}× · MXN ${money(e.ddp_kg_mxn)}/kg</div>
     </div>`).join('') || '<div class="muted" style="font-size:13px">Sin escenarios.</div>';
-    const rung = (l, v, bg) => `<div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:${bg || '#fff'};font-size:12px">${l}<b style="display:block;font-size:16px">${v}</b></div>`;
-    $('ladder').innerHTML = rung('EXW/kg', money(r.exwUnit)) + rung('CFR/kg', money(r.cfr_kg)) + rung('DDP/kg', money(r.escs[0] ? r.escs[0].ddp_kg : 0)) +
+    const total0 = r.escs[0] ? r.escs[0].total : 0;
+    const pct = (part) => total0 > 0 ? (part / total0 * 100).toFixed(1) + '% del DDP' : '';
+    const rung = (l, v, p) => `<div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff;font-size:12px">${l}<b style="display:block;font-size:16px">${v}</b>${p ? `<span style="font-size:11px;color:var(--muted)">${p}</span>` : ''}</div>`;
+    $('ladder').innerHTML =
+      rung('EXW/kg · mercancía', money(r.exwUnit), pct(r.exwTotal)) +
+      rung('CFR/kg · internacional', money(r.cfr_kg), pct(r.base - r.exwTotal)) +
+      rung('DDP/kg · destino', money(r.escs[0] ? r.escs[0].ddp_kg : 0), pct(total0 - r.base)) +
       `<div style="border:none;border-radius:8px;padding:8px 12px;background:#0f172a;color:#fff;font-size:12px">Factor DDP<b style="display:block;font-size:16px">${(r.escs[0] ? r.escs[0].factor : 0).toFixed(2)}×</b></div>`;
     $('escGrid').querySelectorAll('.epct').forEach(inp => inp.addEventListener('input', () => {
       const e = D.escenarios.find(x => x.escenario_id === inp.dataset.e); if (!e) return;
