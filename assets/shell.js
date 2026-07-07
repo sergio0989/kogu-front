@@ -87,6 +87,7 @@
     {section:'Comercio Exterior',items:[
       {href:'/modules/comex/costeo-teorico.html',label:'🌐 Costeo teórico (importación)',perm:'screen.comex'},
       {href:'/modules/comex/pedimentos-sat.html',label:'📥 Pedimentos SAT (matriz)',perm:'screen.comex.pedimentos'},
+      {href:'/modules/comex/reconciliacion.html',label:'⚖️ Reconciliación (real vs teórico)',perm:'screen.comex.reconciliacion'},
     ]},
     {section:'Materialidad',items:[
       // Flujo bottom-up: primero conoces al tercero, después clasificas la
