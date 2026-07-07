@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const warn = !s.teoricos;
     box.insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;font-size:12px;margin-top:4px;color:${warn ? '#991b1b' : '#64748b'}">
-        Tabulador teórico (escalones por transporte): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${warn ? ' — <strong>el tabulador no está cargado; aplica la migración del tabulador para poder comparar.</strong>' : ''}</div>`);
+        Escalones teóricos (de tus costeos Fase 1): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${warn ? ' — <strong>crea costeos teóricos por transporte y kg en “Costeo teórico (importación)” para poder comparar.</strong>' : ''}</div>`);
   }
 
   function renderFiltros() {
