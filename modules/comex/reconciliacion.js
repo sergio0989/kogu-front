@@ -204,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'],
     BajoTabulador:  ['#dbeafe', '#1e40af', '↓ Bajo'],
     SinTeorico:     ['#f1f5f9', '#475569', 'Sin teórico'],
+    SinProveedor:   ['#f3e8ff', '#6b21a8', 'Sin proveedor'],
     SinDatos:       ['#fef9c3', '#854d0e', 'Sin datos'],
   };
   const resChip = (r) => { const m = RES_META[r] || RES_META.SinDatos; return `<span class="chip" style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px">${m[2]}</span>`; };
@@ -229,8 +230,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('reconMsg').textContent = '';
       if (!s.teoricos) {
         KoguApi.toast('Sin costeos teóricos cargados: no hay contra qué comparar.', 'warn');
-      } else if (s.sin_teorico === s.operaciones) {
-        KoguApi.toast('Ningún costeo teórico coincide por transporte con estas operaciones.', 'warn');
+      } else if ((s.sin_teorico + s.sin_proveedor) === s.operaciones) {
+        KoguApi.toast('Ninguna operación empató con un costeo teórico de su proveedor.', 'warn');
       } else if (s.crm_actividad_id) {
         KoguApi.toast('Reconciliado. Se generó una actividad CRM con las desviaciones.', 'success');
       } else {
@@ -248,14 +249,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size:20px;font-weight:800;color:${col || '#0f172a'}">${n0(val)}</div></div>`;
     box.innerHTML = kpi('Operaciones', s.operaciones) + kpi('Dentro', s.dentro_banda, '#166534')
       + kpi('↑ Sobre', s.sobre, '#991b1b') + kpi('↓ Bajo', s.bajo, '#1e40af')
-      + kpi('Sin teórico', s.sin_teorico, '#475569') + kpi('Sin datos', s.sin_datos, '#854d0e')
-      + `<div style="align-self:center;font-size:12px;color:#64748b">Banda ±: +${(s.banda?.sup * 100).toFixed(1)}% / -${(s.banda?.inf * 100).toFixed(1)}%</div>`;
-    const t = s.teoricos_por_transporte || {};
+      + kpi('Sin teórico', s.sin_teorico, '#475569') + kpi('Sin proveedor', s.sin_proveedor, '#6b21a8')
+      + kpi('Sin datos', s.sin_datos, '#854d0e')
+      + `<div style="align-self:center;font-size:12px;color:#64748b">Banda ±: +${(s.banda?.sup * 100).toFixed(1)}% / -${(s.banda?.inf * 100).toFixed(1)}%${s.multi_proveedor ? ` · ${n0(s.multi_proveedor)} multi-proveedor` : ''}</div>`;
+    const t = s.teoricos_por_proveedor || {};
     const detalle = Object.keys(t).length ? Object.entries(t).map(([k, v]) => `${k}: ${v}`).join(' · ') : 'ninguno';
     const warn = !s.teoricos;
+    const sinProv = s.teoricos_sin_proveedor ? ` · ${n0(s.teoricos_sin_proveedor)} costeo(s) sin proveedor (ignorados)` : '';
     box.insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;font-size:12px;margin-top:4px;color:${warn ? '#991b1b' : '#64748b'}">
-        Escalones teóricos (de tus costeos Fase 1): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${warn ? ' — <strong>crea costeos teóricos por transporte y kg en “Costeo teórico (importación)” para poder comparar.</strong>' : ''}</div>`);
+        Escalas teóricas por proveedor (Fase 1): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${esc(sinProv)}${warn ? ' — <strong>da de alta costeos teóricos por proveedor y escala de kg en “Costeo teórico (importación)”.</strong>' : ''}</div>`);
   }
 
   function renderFiltros() {
@@ -271,18 +274,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderReconTable() {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
-      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Cat. compra</th>
+      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th>
+      <th style="text-align:right;padding:6px">Escala</th>
       <th>Kg</th><th>Real flete/kg</th><th>Real otros/kg</th><th>Real total/kg</th><th>Teórico total/kg</th>
       <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
     let rows = reconState.rows;
     if (reconState.filtro) rows = rows.filter(r => r.resultado === reconState.filtro);
-    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="10" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
+    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="11" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
     $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
       const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
-      const cat = r.cat_compra || (r.transporte ? String(r.transporte).charAt(0).toUpperCase() + String(r.transporte).slice(1) : '—');
+      const prov = r.proveedor_nombre || '—';
+      const revisar = r.match_status === 'multi_proveedor'
+        ? ' <span title="Operación con más de un proveedor de mercancía; se tomó el de mayor valor" style="background:#fef9c3;color:#854d0e;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px">revisar</span>' : '';
+      const escala = r.escala_kg != null ? kg(r.escala_kg) + ' kg' : '—';
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
-        <td style="text-align:left;padding:6px">${esc(cat)}</td>
+        <td style="text-align:left;padding:6px">${esc(prov)}${revisar}</td>
+        <td style="text-align:right;padding:6px">${escala}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
         <td style="padding:6px">${usdkg(r.real_flete_kg_usd)}</td>
         <td style="padding:6px">${usdkg(r.real_otros_kg_usd)}</td>
