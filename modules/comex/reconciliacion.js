@@ -259,6 +259,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     box.insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;font-size:12px;margin-top:4px;color:${warn ? '#991b1b' : '#64748b'}">
         Escalas teóricas por proveedor (Fase 1): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${esc(sinProv)}${warn ? ' — <strong>da de alta costeos teóricos por proveedor y escala de kg en “Costeo teórico (importación)”.</strong>' : ''}</div>`);
+    const cvs = s.cve_prov_sin_mapear || [];
+    if (cvs.length || s.ops_sin_cve_prov) {
+      const partes = [];
+      if (cvs.length) partes.push(`cve_prov reales sin mapear al catálogo (falta <strong>id_sai</strong>): <strong>${cvs.map(esc).join(', ')}</strong>`);
+      if (s.ops_sin_cve_prov) partes.push(`${n0(s.ops_sin_cve_prov)} operación(es) sin proveedor de mercancía (sin com_gas='C')`);
+      box.insertAdjacentHTML('beforeend',
+        `<div style="flex-basis:100%;font-size:12px;margin-top:2px;color:#b45309">⚠ ${partes.join(' · ')}.</div>`);
+    }
   }
 
   function renderFiltros() {
@@ -283,13 +291,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="11" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
     $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
       const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
-      const prov = r.proveedor_nombre || '—';
+      const prov = r.proveedor_nombre
+        ? esc(r.proveedor_nombre)
+        : (r.cve_prov != null
+          ? `<span title="cve_prov real de SAI sin mapear a cat_proveedores (falta id_sai)" style="color:#b45309">cve ${esc(r.cve_prov)} · sin mapear</span>`
+          : '<span style="color:#94a3b8">sin cve_prov</span>');
       const revisar = r.match_status === 'multi_proveedor'
         ? ' <span title="Operación con más de un proveedor de mercancía; se tomó el de mayor valor" style="background:#fef9c3;color:#854d0e;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px">revisar</span>' : '';
       const escala = r.escala_kg != null ? kg(r.escala_kg) + ' kg' : '—';
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
-        <td style="text-align:left;padding:6px">${esc(prov)}${revisar}</td>
+        <td style="text-align:left;padding:6px">${prov}${revisar}</td>
         <td style="text-align:right;padding:6px">${escala}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
         <td style="padding:6px">${usdkg(r.real_flete_kg_usd)}</td>
