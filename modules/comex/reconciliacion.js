@@ -30,16 +30,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card">
   <div class="row">
     <div><div class="eyebrow">Comercio Exterior · Reconciliación</div><h2>Costeo real (SAI)</h2>
-      <div class="muted" style="font-size:12px">Sube las DBF <strong>COSTEOS / COSTEOC / COSTEOD</strong> (sueltas o en zip). Se filtran cancelados y borrados.</div></div>
+      <div class="muted" style="font-size:12px">Sube las DBF <strong>COSTEOS / COSTEOC / COSTEOD</strong> (sueltas o en zip). Es un <strong>snapshot acumulado</strong>: cada carga reemplaza la anterior. Se filtran cancelados y borrados.</div></div>
   </div>
   <div style="display:flex;gap:12px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
     <div><label class="muted" style="font-size:12px;display:block">DBF (o zip)</label>
-      <input type="file" id="file" accept=".dbf,.zip" multiple class="input" style="max-width:340px"/></div>
-    <div><label class="muted" style="font-size:12px;display:block">Año</label><input type="number" id="anio" class="input" style="width:100px" value="${new Date().getFullYear()}"/></div>
-    <div><label class="muted" style="font-size:12px;display:block">Mes</label><input type="number" id="mes" class="input" style="width:80px" min="1" max="12" value="${new Date().getMonth() + 1}"/></div>
+      <input type="file" id="file" accept=".dbf,.zip" multiple class="input" style="max-width:360px"/></div>
     <button class="btn primary" id="procBtn" style="background:#0891b2">📥 Procesar DBF</button>
     <span id="proc" class="muted" style="font-size:12px"></span>
   </div>
+  <div class="muted" style="font-size:11px;margin-top:6px">La reconciliación es por mes, pero la guía la matriz SAT (mensual): cruza los pedimentos del mes contra este snapshot real.</div>
   <div id="msg" style="display:none;margin-top:12px;padding:10px;border-radius:6px;font-size:13px"></div>
 </div>
 
@@ -70,13 +69,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function procesar() {
     const files = $('file').files;
     if (!files || !files.length) return KoguApi.toast('Elige las DBF o un zip.', 'error');
-    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
-    const periodo = (anio && mes) ? anio + '-' + String(mes).padStart(2, '0') : '';
     $('procBtn').disabled = true; $('proc').textContent = '⏳ Procesando…';
     try {
       const fd = new FormData();
       for (const f of files) fd.append('archivos', f);
-      if (periodo) fd.append('periodo', periodo);
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/cargar', { method: 'POST', body: fd })) || {};
       const r = d.resumen || {};
       showMsg(`✅ Procesado: ${n0(r.costeos?.activos)} costeos activos (${n0(r.costeos?.cancelados)} cancelados) · ${n0(d.n_partidas)} partidas · ${n0(d.n_gastos)} gastos.`, 'ok');
