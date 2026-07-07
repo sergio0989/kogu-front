@@ -65,6 +65,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card" id="realCard" style="margin-top:14px;display:none">
   <div class="row"><div><h3 style="margin:0" id="realTit">Costeo real</h3>
     <span class="muted" style="font-size:12px">DIRECTO = mercancía (se excluye) · flete int'l = INDICANTID · otros = INDIPESO</span></div></div>
+  <div id="realTools" style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+    <input id="realQ" class="input" placeholder="🔍 Buscar pedimento o No. costeo…" style="max-width:300px"/>
+    <label class="muted" style="font-size:12px">Por página
+      <select id="realPageSize" class="input" style="width:auto;display:inline-block;margin-left:4px">
+        <option>25</option><option selected>50</option><option>100</option><option>250</option></select></label>
+    <span style="flex:1"></span>
+    <button class="btn ghost" id="realPrev" style="padding:2px 11px">‹</button>
+    <span id="realPager" class="muted" style="font-size:12px;min-width:110px;text-align:center"></span>
+    <button class="btn ghost" id="realNext" style="padding:2px 11px">›</button>
+  </div>
   <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tReal" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
 </div>`;
 
@@ -119,24 +129,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
+  const REAL_COLS = [
+    { k: 'no_costeo', lab: 'No. costeo', align: 'left', fmt: (r) => `<span style="font-weight:700">${esc(r.no_costeo)}</span>`, sv: (r) => Number(r.no_costeo) || 0 },
+    { k: 'referencia', lab: 'Pedimento (REFERENCIA)', align: 'left', fmt: (r) => esc(r.referencia || ''), sv: (r) => String(r.referencia || '') },
+    { k: 'kg', lab: 'Kg', align: 'right', fmt: (r) => kg(r.kg), sv: (r) => Number(r.kg) || 0 },
+    { k: 'flete_int', lab: "Flete int'l", align: 'right', fmt: (r) => money(r.flete_int), sv: (r) => Number(r.flete_int) || 0 },
+    { k: 'otros', lab: 'Otros', align: 'right', fmt: (r) => money(r.otros), sv: (r) => Number(r.otros) || 0 },
+    { k: 'arancel', lab: 'Arancel', align: 'right', fmt: (r) => money(r.arancel), sv: (r) => Number(r.arancel) || 0 },
+    { k: 'directo', lab: 'Mercancía (DIRECTO)', align: 'right', fmt: (r) => `<span style="color:#94a3b8">${money(r.directo)}</span>`, sv: (r) => Number(r.directo) || 0 },
+    { k: 'ctotot', lab: 'DDP total', align: 'right', fmt: (r) => `<span style="font-weight:700">${money(r.ctotot)}</span>`, sv: (r) => Number(r.ctotot) || 0 },
+  ];
+  const realState = { rows: [], filtro: '', sortKey: 'no_costeo', sortDir: 'asc', page: 1, pageSize: 50 };
+
+  function realFiltradas() {
+    let rows = realState.rows;
+    const q = realState.filtro.trim().toLowerCase();
+    if (q) rows = rows.filter(r => String(r.referencia || '').toLowerCase().includes(q) || String(r.no_costeo).includes(q));
+    const col = REAL_COLS.find(c => c.k === realState.sortKey);
+    if (col) {
+      const dir = realState.sortDir === 'asc' ? 1 : -1;
+      rows = [...rows].sort((a, b) => { const va = col.sv(a), vb = col.sv(b); return va < vb ? -dir : va > vb ? dir : 0; });
+    }
+    return rows;
+  }
+
+  function renderReal() {
+    const rows = realFiltradas();
+    const ps = realState.pageSize, total = rows.length;
+    const pages = Math.max(1, Math.ceil(total / ps));
+    if (realState.page > pages) realState.page = pages;
+    const start = (realState.page - 1) * ps;
+    const pageRows = rows.slice(start, start + ps);
+    const head = '<thead><tr style="border-bottom:2px solid #e2e8f0">' + REAL_COLS.map(c => {
+      const arrow = realState.sortKey === c.k ? (realState.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+      return `<th data-sort="${c.k}" style="cursor:pointer;padding:6px;text-align:${c.align};user-select:none;white-space:nowrap">${c.lab}${arrow}</th>`;
+    }).join('') + '</tr></thead>';
+    const body = pageRows.length
+      ? pageRows.map(r => '<tr style="border-bottom:1px solid #f1f5f9">' + REAL_COLS.map(c => `<td style="padding:6px;text-align:${c.align}">${c.fmt(r)}</td>`).join('') + '</tr>').join('')
+      : `<tr><td colspan="${REAL_COLS.length}" style="text-align:center;padding:16px;color:var(--muted)">Sin resultados.</td></tr>`;
+    $('tReal').innerHTML = head + '<tbody>' + body + '</tbody>';
+    $('tReal').querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      if (realState.sortKey === k) realState.sortDir = realState.sortDir === 'asc' ? 'desc' : 'asc';
+      else { realState.sortKey = k; realState.sortDir = (k === 'no_costeo' || k === 'referencia') ? 'asc' : 'desc'; }
+      renderReal();
+    }));
+    $('realPager').textContent = total ? `${n0(start + 1)}–${n0(Math.min(start + ps, total))} de ${n0(total)}` : '0 de 0';
+    $('realPrev').disabled = realState.page <= 1;
+    $('realNext').disabled = realState.page >= pages;
+  }
+
   async function verReal(cargaId) {
     try {
-      const rows = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/costeos?carga_id=' + encodeURIComponent(cargaId))) || [];
+      realState.rows = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/costeos?carga_id=' + encodeURIComponent(cargaId))) || [];
+      realState.page = 1; realState.filtro = ''; const q = $('realQ'); if (q) q.value = '';
       $('realCard').style.display = 'block';
-      $('realTit').textContent = 'Costeo real · ' + n0(rows.length) + ' operaciones';
-      const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
-        <th style="text-align:left;padding:6px">No. costeo</th><th style="text-align:left;padding:6px">Pedimento (REFERENCIA)</th>
-        <th>Kg</th><th>Flete int'l</th><th>Otros</th><th>Arancel</th><th>Mercancía (DIRECTO)</th><th>DDP total</th></tr></thead>`;
-      if (!rows.length) { $('tReal').innerHTML = head + '<tbody><tr><td colspan="8" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones.</td></tr></tbody>'; return; }
-      $('tReal').innerHTML = head + '<tbody>' + rows.map(r => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
-        <td style="text-align:left;padding:6px;font-weight:700">${esc(r.no_costeo)}</td>
-        <td style="text-align:left;padding:6px">${esc(r.referencia || '')}</td>
-        <td style="padding:6px">${kg(r.kg)}</td>
-        <td style="padding:6px">${money(r.flete_int)}</td>
-        <td style="padding:6px">${money(r.otros)}</td>
-        <td style="padding:6px">${money(r.arancel)}</td>
-        <td style="padding:6px;color:#94a3b8">${money(r.directo)}</td>
-        <td style="padding:6px;font-weight:700">${money(r.ctotot)}</td></tr>`).join('') + '</tbody>';
+      $('realTit').textContent = 'Costeo real · ' + n0(realState.rows.length) + ' operaciones';
+      renderReal();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
@@ -241,6 +290,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('reconBtn').addEventListener('click', reconciliar);
   $('periodo').addEventListener('change', () => { const p = $('periodo').value; if (p) cargarRecon(p); });
+
+  // Toolbar del costeo real (búsqueda + tamaño de página + paginación)
+  let realQTimer = null;
+  $('realQ').addEventListener('input', (e) => {
+    clearTimeout(realQTimer);
+    realQTimer = setTimeout(() => { realState.filtro = e.target.value; realState.page = 1; renderReal(); }, 200);
+  });
+  $('realPageSize').addEventListener('change', (e) => { realState.pageSize = Number(e.target.value) || 50; realState.page = 1; renderReal(); });
+  $('realPrev').addEventListener('click', () => { if (realState.page > 1) { realState.page--; renderReal(); } });
+  $('realNext').addEventListener('click', () => { realState.page++; renderReal(); });
 
   $('procBtn').addEventListener('click', procesar);
   KoguShell.subscribeEmpresaActivaChange(() => {
