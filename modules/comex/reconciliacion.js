@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/comex/reconciliacion.html';
   const PERM = 'screen.comex.reconciliacion';
   const BASE = '/protected/comex/real';
+  const RECON = '/protected/comex/reconciliacion';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
@@ -45,6 +46,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card" style="margin-top:14px">
   <div class="row"><h3 style="margin:0">Cargas</h3><span class="muted" style="font-size:12px">costeos reales por periodo</span></div>
   <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tCargas" style="width:100%;font-size:13px;font-variant-numeric:tabular-nums"></table></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="row"><div><div class="eyebrow">Comercio Exterior · Reconciliación</div><h3 style="margin:0">Reconciliación del mes</h3>
+    <div class="muted" style="font-size:12px">Cruza la <strong>matriz SAT</strong> del periodo contra el costeo real y compara gastos/kg vs el <strong>costeo teórico</strong> (mismo transporte, kg-piso). Fuera de banda → <strong>CRM automático</strong>.</div></div></div>
+  <div style="display:flex;gap:12px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
+    <div><label class="muted" style="font-size:12px;display:block">Periodo (matriz SAT)</label>
+      <select id="periodo" class="input" style="min-width:220px"></select></div>
+    <button class="btn primary" id="reconBtn" style="background:#0891b2">⚖️ Reconciliar mes</button>
+    <span id="reconMsg" class="muted" style="font-size:12px"></span>
+  </div>
+  <div id="reconKpis" style="display:none;gap:8px;margin-top:14px;flex-wrap:wrap"></div>
+  <div id="reconFiltros" style="display:none;gap:6px;margin-top:12px;flex-wrap:wrap"></div>
+  <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tRecon" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
 </div>
 
 <div class="card" id="realCard" style="margin-top:14px;display:none">
@@ -132,7 +147,106 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
+  // ── Reconciliación del mes ──────────────────────────────────
+  const usdkg = (v) => (v == null ? '—' : (Number(v)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const pct = (v) => (v == null ? '—' : (Number(v) * 100).toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%');
+  const RES_META = {
+    DentroBanda:    ['#dcfce7', '#166534', 'Dentro'],
+    SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'],
+    BajoTabulador:  ['#dbeafe', '#1e40af', '↓ Bajo'],
+    SinTeorico:     ['#f1f5f9', '#475569', 'Sin teórico'],
+    SinDatos:       ['#fef9c3', '#854d0e', 'Sin datos'],
+  };
+  const resChip = (r) => { const m = RES_META[r] || RES_META.SinDatos; return `<span class="chip" style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px">${m[2]}</span>`; };
+  const reconState = { rows: [], filtro: null };
+
+  async function cargarPeriodos() {
+    try {
+      const rows = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/periodos')) || [];
+      const sel = $('periodo');
+      if (!rows.length) { sel.innerHTML = '<option value="">— sin matriz SAT cargada —</option>'; $('reconBtn').disabled = true; return; }
+      $('reconBtn').disabled = false;
+      sel.innerHTML = rows.map(r => `<option value="${esc(r.periodo)}">${esc(r.periodo)} · ${n0(r.n_pedimentos)} pedimentos</option>`).join('');
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  async function reconciliar() {
+    const periodo = $('periodo').value;
+    if (!periodo) return KoguApi.toast('Elige un periodo con matriz SAT.', 'error');
+    $('reconBtn').disabled = true; $('reconMsg').textContent = '⏳ Reconciliando…';
+    try {
+      const s = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/run', { method: 'POST', body: JSON.stringify({ periodo }) })) || {};
+      renderKpis(s);
+      $('reconMsg').textContent = '';
+      if (s.crm_actividad_id) KoguApi.toast('Reconciliado. Se generó una actividad CRM con las desviaciones.', 'success');
+      else KoguApi.toast('Reconciliado. Sin operaciones fuera de banda.', 'success');
+      await cargarRecon(periodo);
+    } catch (e) { $('reconMsg').textContent = ''; KoguApi.toast(e.message, 'error'); }
+    finally { $('reconBtn').disabled = false; }
+  }
+
+  function renderKpis(s) {
+    const box = $('reconKpis'); box.style.display = 'flex';
+    const kpi = (lab, val, col) => `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;min-width:96px">
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.03em">${lab}</div>
+      <div style="font-size:20px;font-weight:800;color:${col || '#0f172a'}">${n0(val)}</div></div>`;
+    box.innerHTML = kpi('Operaciones', s.operaciones) + kpi('Dentro', s.dentro_banda, '#166534')
+      + kpi('↑ Sobre', s.sobre, '#991b1b') + kpi('↓ Bajo', s.bajo, '#1e40af')
+      + kpi('Sin teórico', s.sin_teorico, '#475569') + kpi('Sin datos', s.sin_datos, '#854d0e')
+      + `<div style="align-self:center;font-size:12px;color:#64748b">Banda ±: +${(s.banda?.sup * 100).toFixed(1)}% / -${(s.banda?.inf * 100).toFixed(1)}%</div>`;
+  }
+
+  function renderFiltros() {
+    const box = $('reconFiltros'); box.style.display = 'flex';
+    const counts = reconState.rows.reduce((a, r) => { a[r.resultado] = (a[r.resultado] || 0) + 1; return a; }, {});
+    const opts = [['', 'Todas', reconState.rows.length], ...Object.keys(RES_META).map(k => [k, RES_META[k][2], counts[k] || 0])];
+    box.innerHTML = opts.map(([v, lab, n]) => {
+      const on = (reconState.filtro || '') === v;
+      return `<button class="btn ${on ? 'primary' : 'ghost'}" style="padding:3px 11px;font-size:12px${on ? ';background:#0891b2' : ''}" data-f="${v}">${lab} · ${n}</button>`;
+    }).join('');
+    box.querySelectorAll('button[data-f]').forEach(bn => bn.addEventListener('click', () => { reconState.filtro = bn.dataset.f || null; renderFiltros(); renderReconTable(); }));
+  }
+
+  function renderReconTable() {
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Transporte</th>
+      <th>Kg</th><th>Real flete/kg</th><th>Real otros/kg</th><th>Real total/kg</th><th>Teórico total/kg</th>
+      <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
+    let rows = reconState.rows;
+    if (reconState.filtro) rows = rows.filter(r => r.resultado === reconState.filtro);
+    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="10" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
+    $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
+      const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
+      return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
+        <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
+        <td style="text-align:left;padding:6px;text-transform:capitalize">${esc(r.transporte || '')}</td>
+        <td style="padding:6px">${kg(r.kg_total)}</td>
+        <td style="padding:6px">${usdkg(r.real_flete_kg_usd)}</td>
+        <td style="padding:6px">${usdkg(r.real_otros_kg_usd)}</td>
+        <td style="padding:6px;font-weight:700">${usdkg(r.real_total_kg_usd)}</td>
+        <td style="padding:6px;color:#64748b">${usdkg(r.teo_total_kg_usd)}</td>
+        <td style="padding:6px;color:${fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a'}">${usdkg(r.desv_total_usd)}</td>
+        <td style="padding:6px;font-weight:700;color:${fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a'}">${pct(r.desv_total_pct)}</td>
+        <td style="text-align:center;padding:6px">${resChip(r.resultado)}</td></tr>`;
+    }).join('') + '</tbody>';
+  }
+
+  async function cargarRecon(periodo) {
+    try {
+      reconState.rows = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '?periodo=' + encodeURIComponent(periodo))) || [];
+      reconState.filtro = null;
+      renderFiltros(); renderReconTable();
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  $('reconBtn').addEventListener('click', reconciliar);
+  $('periodo').addEventListener('change', () => { const p = $('periodo').value; if (p) cargarRecon(p); });
+
   $('procBtn').addEventListener('click', procesar);
-  KoguShell.subscribeEmpresaActivaChange(() => { $('realCard').style.display = 'none'; cargarCargas(); });
+  KoguShell.subscribeEmpresaActivaChange(() => {
+    $('realCard').style.display = 'none'; $('reconKpis').style.display = 'none'; $('reconFiltros').style.display = 'none';
+    reconState.rows = []; renderReconTable(); cargarCargas(); cargarPeriodos();
+  });
   cargarCargas();
+  cargarPeriodos();
 });
