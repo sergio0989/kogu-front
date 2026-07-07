@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let CATS = [];       // catálogo de conceptos
   let D = null;        // detalle en memoria
+  let collapsed = { cfr: false, ddp: false };  // secciones plegables por capa
 
   // ── Motor (idéntico al backend) ──
   function importeUSD(x, tc, kg) {
@@ -218,29 +219,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="text-align:left;padding:6px">Concepto</th><th style="text-align:left;padding:6px">Capa</th>
       <th style="text-align:left;padding:6px">Base</th><th style="text-align:left;padding:6px">Moneda</th><th>Captura</th><th>Importe USD</th><th></th></tr></thead>`;
-    let body = `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">Valor EXW (mercancía)</td><td style="padding:6px">${capaTag('exw')}</td><td class="muted" style="text-align:left;padding:6px" id="cExwDesc" colspan="3">${money(r.exwUnit)}/kg × ${n2(r.kg)}</td><td style="text-align:right;padding:6px" id="cExwTot">${money(r.exwTotal)}</td><td></td></tr>`;
-    const lastCfr = D.conceptos.map(x => x.capa_incoterm).lastIndexOf('cfr');
-    D.conceptos.forEach((x, i) => {
+    const iSt = 'border:1px solid var(--line);border-radius:6px;padding:3px 5px;font-size:11px';
+    const rowHtml = (x, i) => {
       const bm = modoToBaseMon(x.modo_captura);
       const imp = x.es_arancel ? null : importeUSD(x, r.tc, r.kg);
-      const iSt = 'border:1px solid var(--line);border-radius:6px;padding:3px 5px;font-size:11px';
       const baseCell = x.es_arancel ? '<span class="muted">% s/aduana</span>'
         : `<select class="cbase" data-i="${i}" style="${iSt}"><option value="fijo" ${bm.base === 'fijo' ? 'selected' : ''}>Fijo</option><option value="kg" ${bm.base === 'kg' ? 'selected' : ''}>Por kg</option></select>`;
       const monCell = x.es_arancel ? '<span class="muted">—</span>'
         : `<select class="cmon" data-i="${i}" style="${iSt}"><option value="USD" ${bm.mon === 'USD' ? 'selected' : ''}>USD</option><option value="MXN" ${bm.mon === 'MXN' ? 'selected' : ''}>MXN</option></select>`;
       const capCell = x.es_arancel ? '<span class="muted">por escenario</span>'
         : `<input class="cval" data-i="${i}" value="${x.valor_captura}" style="width:92px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px"/>`;
-      body += `<tr style="border-bottom:1px solid #f1f5f9">
-        <td style="text-align:left;padding:6px">${esc(x.nombre || '')}</td>
+      return `<tr style="border-bottom:1px solid #f1f5f9">
+        <td style="text-align:left;padding:6px 6px 6px 24px">${esc(x.nombre || '')}</td>
         <td style="padding:6px">${capaTag(x.capa_incoterm)}</td>
         <td style="text-align:left;padding:6px">${baseCell}</td>
         <td style="text-align:left;padding:6px">${monCell}</td>
         <td style="text-align:right;padding:6px">${capCell}</td>
         <td style="text-align:right;padding:6px" id="cImp${i}">${imp == null ? '—' : money(imp)}</td>
         <td style="padding:6px"><button class="btn ghost cdel" data-i="${i}" style="color:#991b1b;padding:2px 7px">✕</button></td></tr>`;
-      if (i === lastCfr) body += `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">= Valor en aduana (CFR)</td><td style="padding:6px">${capaTag('cfr')}</td><td class="muted" style="text-align:left;padding:6px" colspan="3">base del arancel</td><td style="text-align:right;padding:6px" id="cCfrTot">${money(r.base)}</td><td></td></tr>`;
-    });
+    };
+    const grp = (g, label, n, sum, coll) => `<tr class="grp" data-g="${g}" style="cursor:pointer;background:#eef2f7"><td style="padding:7px" colspan="2"><span style="font-weight:800;color:#334155">${coll ? '▸' : '▾'} ${label}</span> <span class="muted" style="font-size:11px">· ${n} conceptos${coll ? ' (contraído)' : ''}</span></td><td colspan="3"></td><td style="text-align:right;padding:7px;font-weight:800;color:#475569" id="cGrp${g}">${money(sum)}</td><td></td></tr>`;
+    const cfrItems = D.conceptos.map((x, i) => ({ x, i })).filter(o => o.x.capa_incoterm === 'cfr');
+    const ddpItems = D.conceptos.map((x, i) => ({ x, i })).filter(o => o.x.capa_incoterm === 'ddp');
+    const ddpSum = ddpItems.reduce((a, o) => a + (o.x.es_arancel ? 0 : importeUSD(o.x, r.tc, r.kg)), 0);
+    let body = `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">Valor EXW (mercancía)</td><td style="padding:6px">${capaTag('exw')}</td><td class="muted" style="text-align:left;padding:6px" id="cExwDesc" colspan="3">${money(r.exwUnit)}/kg × ${n2(r.kg)}</td><td style="text-align:right;padding:6px" id="cExwTot">${money(r.exwTotal)}</td><td></td></tr>`;
+    body += grp('cfr', 'Hasta frontera (CFR)', cfrItems.length, r.base - r.exwTotal, collapsed.cfr);
+    if (!collapsed.cfr) cfrItems.forEach(o => { body += rowHtml(o.x, o.i); });
+    body += `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:6px">= Valor en aduana (CFR)</td><td style="padding:6px">${capaTag('cfr')}</td><td class="muted" style="text-align:left;padding:6px" colspan="3">base del arancel</td><td style="text-align:right;padding:6px" id="cCfrTot">${money(r.base)}</td><td></td></tr>`;
+    body += grp('ddp', 'Puesto en destino (DDP)', ddpItems.length, ddpSum, collapsed.ddp);
+    if (!collapsed.ddp) ddpItems.forEach(o => { body += rowHtml(o.x, o.i); });
     $('tConc').innerHTML = head + '<tbody>' + body + '</tbody>';
+    $('tConc').querySelectorAll('.grp').forEach(row => row.addEventListener('click', () => { collapsed[row.dataset.g] = !collapsed[row.dataset.g]; renderConceptos(); }));
     $('tConc').querySelectorAll('.cval').forEach(inp => inp.addEventListener('input', () => {
       const i = +inp.dataset.i; D.conceptos[i].valor_captura = parseFloat(inp.value) || 0;
       updateComputed();  // actualiza celdas sin re-render → no pierde el foco
@@ -269,6 +278,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('cExwDesc')) $('cExwDesc').textContent = money(r.exwUnit) + '/kg × ' + n2(r.kg);
     if ($('cExwTot')) $('cExwTot').textContent = money(r.exwTotal);
     if ($('cCfrTot')) $('cCfrTot').textContent = money(r.base);
+    if ($('cGrpcfr')) $('cGrpcfr').textContent = money(r.base - r.exwTotal);
+    if ($('cGrpddp')) $('cGrpddp').textContent = money(D.conceptos.reduce((a, x) => a + (x.capa_incoterm === 'ddp' && !x.es_arancel ? importeUSD(x, r.tc, r.kg) : 0), 0));
     D.conceptos.forEach((x, i) => { const cell = $('cImp' + i); if (cell) cell.textContent = x.es_arancel ? '—' : money(importeUSD(x, r.tc, r.kg)); });
     renderResultados();
   }
