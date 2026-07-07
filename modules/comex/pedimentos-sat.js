@@ -31,11 +31,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><div class="eyebrow">Comercio Exterior · SAT</div><h2>Pedimentos SAT (matriz)</h2>
       <div class="muted" style="font-size:12px">Sube el zip mensual (archivos .asc: 501, 502, 505, 510, 551, 557, 701). KOGU arma la matriz FM_ped.</div></div>
   </div>
-  <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
-    <input type="file" id="file" accept=".zip" class="input" style="max-width:360px"/>
+  <div style="display:flex;gap:12px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
+    <div><label class="muted" style="font-size:12px;display:block">Archivo (.zip)</label>
+      <input type="file" id="file" accept=".zip" class="input" style="max-width:340px"/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Año</label>
+      <input type="number" id="anio" class="input" style="width:100px" value="${new Date().getFullYear()}"/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Mes</label>
+      <input type="number" id="mes" class="input" style="width:80px" min="1" max="12" value="${new Date().getMonth() + 1}"/></div>
     <button class="btn primary" id="procBtn" style="background:#0891b2">📥 Procesar zip</button>
     <span id="proc" class="muted" style="font-size:12px"></span>
   </div>
+  <div class="muted" style="font-size:11px;margin-top:6px">El año/mes se detectan del nombre del zip; ajústalos si es necesario.</div>
   <div id="msg" style="display:none;margin-top:12px;padding:10px;border-radius:6px;font-size:13px"></div>
 </div>
 
@@ -66,13 +72,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let SELCARGA = null;
 
+  // Detecta {anio, mes} del nombre del zip (ej. ..._06_26.zip → 2026-06).
+  function detectPer(name) {
+    const s = String(name || '');
+    let m = s.match(/(\d{4})[_\-](\d{2})/);
+    if (m) return { anio: +m[1], mes: +m[2] };
+    m = s.match(/_(\d{2})_(\d{2})(?:\D|$)/);
+    if (m) return { anio: 2000 + (+m[2]), mes: +m[1] };
+    return null;
+  }
+
   async function procesar() {
     const f = $('file').files[0];
     if (!f) return KoguApi.toast('Elige el zip primero.', 'error');
     if (!/\.zip$/i.test(f.name)) return KoguApi.toast('Debe ser un archivo .zip', 'error');
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    if (!anio || !mes || mes < 1 || mes > 12) return KoguApi.toast('Indica año y mes válidos.', 'error');
+    const periodo = anio + '-' + String(mes).padStart(2, '0');
     $('procBtn').disabled = true; $('proc').textContent = '⏳ Procesando ' + f.name + '…';
     try {
-      const fd = new FormData(); fd.append('archivo', f);
+      const fd = new FormData(); fd.append('archivo', f); fd.append('periodo', periodo);
       const res = await KoguApi.apiFetch(BASE + '/cargar', { method: 'POST', body: fd });
       const d = KoguApi.unwrapData(res) || {};
       showMsg(`✅ Procesado: ${n0(d.n_pedimentos)} pedimentos · ${n0(d.n_staging)} filas (periodo ${esc(d.periodo || '—')}).`, 'ok');
@@ -151,6 +170,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
+  $('file').addEventListener('change', () => {
+    const f = $('file').files[0]; if (!f) return;
+    const p = detectPer(f.name);
+    if (p) { $('anio').value = p.anio; $('mes').value = p.mes; }
+  });
   $('procBtn').addEventListener('click', procesar);
   $('dlBtn').addEventListener('click', descargar);
   KoguShell.subscribeEmpresaActivaChange(() => { $('matrizCard').style.display = 'none'; cargarCargas(); });
