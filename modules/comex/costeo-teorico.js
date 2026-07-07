@@ -136,7 +136,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn ghost" id="volverBtn">← Volver</button>
       <button class="btn ghost" id="histBtn">🕑 Historial</button>
       <button class="btn ghost" id="dupBtn">⎘ Duplicar</button>
-      <button class="btn primary" id="verBtn" style="background:#0891b2">💾 Guardar versión</button>
+      <button class="btn" id="saveBtn" style="border-color:#0891b2;color:#0e7490;font-weight:700">💾 Guardar datos</button>
+      <button class="btn primary" id="verBtn" style="background:#0891b2">🔖 Guardar versión</button>
     </div>
   </div>
   <div class="grid-3" style="margin-top:14px;gap:12px">
@@ -173,6 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('volverBtn').addEventListener('click', renderList);
     $('dupBtn').addEventListener('click', duplicar);
+    $('saveBtn').addEventListener('click', guardarDatos);
     $('verBtn').addEventListener('click', guardarVersion);
     $('histBtn').addEventListener('click', toggleHist);
     $('addConcBtn').addEventListener('click', addConcepto);
@@ -320,6 +322,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pct = parseFloat(prompt('Arancel %:', '0')) || 0;
     try { await api('/costeos/' + D.costeo.costeo_id + '/escenarios', { method: 'POST', body: JSON.stringify({ nombre, arancel_pct: pct, orden: (D.escenarios.length + 1) * 10 }) }); openDetail(D.costeo.costeo_id); }
     catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+  // Persiste el borrador completo al instante (flush del auto-guardado), sin versión.
+  async function guardarDatos() {
+    const it = D.costeo;
+    Object.keys(debTimers).forEach(k => clearTimeout(debTimers[k]));
+    try {
+      await Promise.all([
+        patchCab({ folio: it.folio, fecha: it.fecha, origen_proveedor: it.origen_proveedor, proveedor_id: it.proveedor_id, modo_transporte: it.modo_transporte, tip_cam: it.tip_cam, kg: it.kg, costo_unit_exw: it.costo_unit_exw }),
+        ...D.conceptos.map(x => patchConc(x.linea_id, { valor_captura: x.valor_captura, modo_captura: x.modo_captura, moneda: x.moneda })),
+        ...D.escenarios.map(e => patchEsc(e.escenario_id, { nombre: e.nombre, arancel_pct: e.arancel_pct })),
+      ]);
+      KoguApi.toast('Datos guardados', 'success');
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
   async function guardarVersion() {
     const motivo = prompt('Motivo de esta versión:', '');
