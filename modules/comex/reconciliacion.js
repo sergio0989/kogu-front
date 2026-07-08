@@ -419,18 +419,29 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="padding:3px 6px;text-align:right">$${(Number(t.gasto_usd) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })} USD</td></tr>`).join('');
       box.innerHTML = `
         <div style="border-top:1px solid #eef2f7;padding-top:12px">
-          <div class="eyebrow">Peso vs valor · dónde pesa el gasto de importación</div>
-          <div class="muted" style="font-size:12px;margin-bottom:10px">Kg del periodo clasificados por <strong>Gastos/MP</strong> (gasto import ÷ materia prima). El rojo = productos que absorben desproporcionado el flete.</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            ${zona('🔴 Rojo', z.kg_rojo, z.gasto_rojo, '#fef2f2', '#991b1b', 'Gastos/MP > 60%')}
-            ${zona('🟡 Ámbar', z.kg_ambar, z.gasto_ambar, '#fefce8', '#854d0e', '30% – 60%')}
-            ${zona('🟢 Verde', z.kg_verde, z.gasto_verde, '#f0fdf4', '#166534', '< 30%')}
+          <button id="gmpToggle" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;padding:4px;background:none;border:none;cursor:pointer">
+            <span id="gmpCaret" style="font-size:12px;color:#64748b">▸</span>
+            <span class="eyebrow" style="margin:0">Peso vs valor · dónde pesa el gasto de importación</span>
+            <span style="font-size:12px;font-weight:700;color:#991b1b;margin-left:auto">🔴 ${kg(z.kg_rojo)} kg · ${pctKg(z.kg_rojo)}</span>
+          </button>
+          <div id="gmpContent" style="display:none;margin-top:10px">
+            <div class="muted" style="font-size:12px;margin-bottom:10px">Kg del periodo clasificados por <strong>Gastos/MP</strong> (gasto import ÷ materia prima). El rojo = productos que absorben desproporcionado el flete.</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              ${zona('🔴 Rojo', z.kg_rojo, z.gasto_rojo, '#fef2f2', '#991b1b', 'Gastos/MP > 60%')}
+              ${zona('🟡 Ámbar', z.kg_ambar, z.gasto_ambar, '#fefce8', '#854d0e', '30% – 60%')}
+              ${zona('🟢 Verde', z.kg_verde, z.gasto_verde, '#f0fdf4', '#166534', '< 30%')}
+            </div>
+            ${top ? `<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px">Top productos que más sufren el gasto (zona roja)</div>
+              <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">
+                <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b"><th style="text-align:left;padding:3px 6px">Producto</th><th style="text-align:right;padding:3px 6px">Kg</th><th style="text-align:right;padding:3px 6px">Gastos/MP</th><th style="text-align:right;padding:3px 6px">Gasto import</th></tr></thead>
+                <tbody>${top}</tbody></table></div>` : ''}
           </div>
-          ${top ? `<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px">Top productos que más sufren el gasto (zona roja)</div>
-            <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">
-              <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b"><th style="text-align:left;padding:3px 6px">Producto</th><th style="text-align:right;padding:3px 6px">Kg</th><th style="text-align:right;padding:3px 6px">Gastos/MP</th><th style="text-align:right;padding:3px 6px">Gasto import</th></tr></thead>
-              <tbody>${top}</tbody></table></div>` : ''}
         </div>`;
+      $('gmpToggle').addEventListener('click', () => {
+        const c = $('gmpContent'), open = c.style.display !== 'none';
+        c.style.display = open ? 'none' : 'block';
+        $('gmpCaret').textContent = open ? '▸' : '▾';
+      });
     } catch (e) { box.style.display = 'none'; }
   }
 
