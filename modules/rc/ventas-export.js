@@ -101,16 +101,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function kpi(v, l, h) { return `<div class="kpi"><div class="value">${v}</div><div class="label">${esc(l)}</div><div class="hint">${esc(h)}</div></div>`; }
 
+  function pintarAviso(msg) {
+    $('kpis').innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">${esc(msg)}</div>`;
+    if (chart) { try { chart.destroy(); } catch (_) {} chart = null; }
+    $('tblClientes').innerHTML = '';
+  }
+
   async function load() {
     let D;
     try {
       const res = await KoguApi.apiFetch(BASE + '/ventas-export/dashboard' + dashQuery());
       D = KoguApi.unwrapData(res);
-    } catch (_) { return; }
+    } catch (e) {
+      pintarAviso('No se pudo cargar el análisis. Verifica que el servicio esté desplegado e inténtalo de nuevo.');
+      return;
+    }
     if (!D || D.empty) {
-      $('kpis').innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">No hay ventas de exportación (mercado EXT) registradas en el ERP para esta empresa.</div>`;
-      if (chart) { try { chart.destroy(); } catch (_) {} chart = null; }
-      $('tblClientes').innerHTML = '';
+      pintarAviso('No hay ventas de exportación (mercado EXT) registradas en el ERP para esta empresa.');
       return;
     }
     poblarSelectores(D);
