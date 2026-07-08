@@ -244,12 +244,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cl = D.clientes || [];
     const totUsd = cl.reduce((a, r) => a + (r.usd || 0), 0) || 1;
     const maxUsd = cl.length ? Math.max(...cl.map((r) => r.usd || 0)) : 1;
+    let acum = 0;
     $('tblClientes').innerHTML = `<thead><tr>
       <th style="width:26px"></th><th>Cliente</th><th>Agente</th><th style="text-align:right">Facturas</th>
-      <th style="text-align:right">USD</th><th style="text-align:right">MXN</th><th style="text-align:right">Kg</th>
-      <th style="text-align:right">US$/kg</th><th style="min-width:120px">Participación</th>
+      <th style="text-align:right">USD</th><th style="text-align:right">% total</th><th style="text-align:right">% acum.</th>
+      <th style="text-align:right">MXN</th><th style="text-align:right">Kg</th><th style="text-align:right">US$/kg</th>
+      <th style="min-width:110px">Participación</th>
       </tr></thead><tbody>${cl.map((r, i) => {
-        const share = Math.round((r.usd / totUsd) * 100);
+        const shareRaw = (r.usd / totUsd) * 100;
+        const share = Math.round(shareRaw * 10) / 10;
+        acum += shareRaw;
         const w = Math.max(3, Math.round((r.usd / maxUsd) * 100));
         const ukg = r.kg ? r.usd / r.kg : 0;
         return `<tr>
@@ -258,10 +262,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${esc(r.agente)}</td>
         <td style="text-align:right">${nf0.format(r.facturas)}</td>
         <td style="text-align:right;font-weight:600">${money(r.usd, 'USD')}</td>
+        <td style="text-align:right;font-weight:600;color:var(--primary)">${nf1.format(share)}%</td>
+        <td style="text-align:right;color:var(--muted)">${nf0.format(Math.round(acum))}%</td>
         <td style="text-align:right;color:var(--muted)">${money(r.mxn, 'MXN')}</td>
         <td style="text-align:right">${nf0.format(r.kg)}</td>
         <td style="text-align:right">US$${nf1.format(ukg)}</td>
-        <td><div style="display:flex;align-items:center;gap:8px"><div class="ve-bar-wrap"><div class="ve-bar" style="width:${w}%"></div></div><span style="font-size:12px;color:var(--muted);width:34px;text-align:right">${share}%</span></div></td>
+        <td><div class="ve-bar-wrap"><div class="ve-bar" style="width:${w}%"></div></div></td>
         </tr>`;
       }).join('')}</tbody>`;
   }
