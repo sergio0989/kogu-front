@@ -108,6 +108,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card">
     <div class="eyebrow">2 · Cobertura</div>
     <h3 style="margin:2px 0 8px">Clientes y proyectos por agente</h3>
+    <div style="background:var(--panel2,#f8fafc);border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--muted)">
+      <b style="color:var(--text)">Cómo se clasifica cada evento</b> — las tres columnas suman el total de eventos:
+      <div style="margin-top:6px;line-height:1.7">
+        <span><b style="color:var(--primary)">Contacto directo</b>: Visita, Llamada, Videoconferencia y Correo (gestión con el cliente).</span><br/>
+        <span><b style="color:var(--warn,#d97706)">Comentarios</b>: tipo "Comentario" — notas que el agente sí escribe.</span><br/>
+        <span><b style="color:var(--slate,#64748b)">Sistema</b>: tipo "Actividad" (hitos automáticos del flujo: entregas, finalización, aprobación…) + "Apoyo".</span>
+      </div>
+    </div>
     <div style="overflow-x:auto"><table class="table" id="tblCobertura"></table></div>
   </div>
 
