@@ -91,8 +91,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   <div class="card">
     <div class="eyebrow">Tendencia</div>
-    <h3 style="margin:2px 0 8px">Exportación mensual (<span id="curLabel">USD</span>)</h3>
-    <div style="position:relative;height:320px"><canvas id="c_mensual"></canvas></div>
+    <h3 style="margin:2px 0 8px">Exportación mensual por cliente (<span id="curLabel">USD</span>)</h3>
+    <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:6px">Cada columna se secciona por cliente (top 8 + "Otros"). El número es el total del mes.</div>
+    <div style="position:relative;height:380px"><canvas id="c_mensual"></canvas></div>
   </div>
 
   <div class="card">
@@ -215,17 +216,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     Chart.defaults.font.family = 'Inter,system-ui,sans-serif'; Chart.defaults.color = '#64748b'; Chart.defaults.font.size = 12;
     [chartTrend, chartTop].forEach((c) => { if (c) { try { c.destroy(); } catch (_) {} } });
 
-    const serie = moneda === 'MXN' ? D.mensual.mxn : D.mensual.usd;
-    const grad = (ctx) => { const g = ctx.createLinearGradient(0, 0, 0, 320); g.addColorStop(0, CO.primary); g.addColorStop(1, '#67e8f9'); return g; };
+    // Tendencia apilada por cliente (top 8 + Otros).
+    const skey = moneda === 'MXN' ? 'mxn' : 'usd';
+    const PAL = ['#0891b2', '#0e7490', '#22d3ee', '#16a34a', '#d97706', '#6366f1', '#db2777', '#0ea5e9'];
+    const stack = (D.mensual_stack && D.mensual_stack.series && D.mensual_stack.series.length)
+      ? D.mensual_stack
+      : { labels: D.mensual.labels, series: [{ cliente: 'Total', usd: D.mensual.usd, mxn: D.mensual.mxn }] };
+    const datasets = stack.series.map((s, i) => ({
+      label: s.cliente.length > 22 ? s.cliente.slice(0, 21) + '…' : s.cliente,
+      data: s[skey],
+      backgroundColor: s.cliente === 'Otros' ? CO.slate : PAL[i % PAL.length],
+      borderRadius: 3, maxBarThickness: 60,
+    }));
+    // Plugin: total de la columna encima de la pila.
+    const stackTotals = {
+      id: 'veStackTotals',
+      afterDatasetsDraw(c) {
+        const ds = c.data.datasets; if (!ds.length) return;
+        const cur = c.$cur || 'USD'; const { ctx } = c;
+        const last = c.getDatasetMeta(ds.length - 1);
+        ctx.save(); ctx.font = '700 11px Inter, sans-serif'; ctx.fillStyle = '#334155'; ctx.textAlign = 'center';
+        last.data.forEach((bar, i) => {
+          let tot = 0; ds.forEach((d) => { tot += Number(d.data[i]) || 0; });
+          if (tot > 0) ctx.fillText(moneyC(tot, cur), bar.x, bar.y - 6);
+        });
+        ctx.restore();
+      },
+    };
     chartTrend = new Chart($('c_mensual'), {
       type: 'bar',
-      data: { labels: D.mensual.labels, datasets: [{ label: `Exportación ${moneda}`, data: serie, backgroundColor: (c) => grad(c.chart.ctx), borderRadius: 6, maxBarThickness: 64 }] },
+      data: { labels: stack.labels, datasets },
       options: {
         maintainAspectRatio: false, layout: { padding: { top: 22 } },
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => money(c.raw, moneda) } } },
-        scales: { y: { ticks: { callback: (v) => moneyC(v, moneda) }, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${money(c.raw, moneda)}` } },
+        },
+        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: (v) => moneyC(v, moneda) }, grid: { color: '#f1f5f9' } } },
       },
-      plugins: [barLabels],
+      plugins: [stackTotals],
     });
     chartTrend.$cur = moneda;
 
