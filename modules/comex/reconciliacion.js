@@ -358,6 +358,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dpct = (rT != null && teoT) ? (rT - teoT) / teoT : null;
             const dc = dUsd == null ? '#0f172a' : (dUsd > 0 ? '#991b1b' : dUsd < 0 ? '#1e40af' : '#0f172a');
             const gmp = (rT != null && merc > 0) ? rT / merc : null;
+            const gmpBg = gmp == null ? 'transparent' : (gmp < 0.30 ? '#dcfce7' : gmp <= 0.60 ? '#fef9c3' : '#fee2e2');
+            const gmpC = gmp == null ? '#94a3b8' : (gmp < 0.30 ? '#166534' : gmp <= 0.60 ? '#854d0e' : '#991b1b');
             return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
               <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
               <td style="padding:4px 6px">${kg(p.cant)}</td>
@@ -370,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <td style="padding:4px 6px;${T}">${usdkg(teoT)}</td>
               <td style="padding:4px 6px;font-weight:700;color:${dc}">${usdkg(dUsd)}</td>
               <td style="padding:4px 6px;color:${dc}">${pct(dpct)}</td>
-              <td style="padding:4px 6px;font-weight:700;${M}">${pct(gmp)}</td>
+              <td style="padding:4px 6px"><span style="font-weight:700;background:${gmpBg};color:${gmpC};padding:1px 8px;border-radius:999px">${pct(gmp)}</span></td>
               <td style="text-align:center;padding:4px 6px">${rw.resultado ? resChip(rw.resultado) : '—'}</td></tr>`;
           }).join('') +
           '</tbody></table>';
