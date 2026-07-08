@@ -221,17 +221,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     return '?usuarios=' + encodeURIComponent([...seleccion].join(','));
   }
 
+  function pintarVacio() {
+    $('kpis').innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">Aún no hay datos del CRM cargados para esta empresa.${puedeImportar ? ' Sube los exports arriba para comenzar.' : ''}</div>`;
+    destroyCharts();
+  }
+
   async function loadDashboard() {
     let D;
     try {
       const res = await KoguApi.apiFetch(BASE + '/crm/dashboard' + usuariosParam());
       D = KoguApi.unwrapData(res);
-    } catch (e) {
-      if (String(e.message).includes('SIN_CARGA') || String(e).includes('409')) {
-        $('kpis').innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">Aún no hay datos del CRM cargados para esta empresa.${puedeImportar ? ' Sube los exports arriba para comenzar.' : ''}</div>`;
-      }
-      return;
+    } catch (_) {
+      return; // errores 401/403/409 reales ya los maneja el cliente API
     }
+    if (!D || D.empty) { pintarVacio(); return; }
     renderKpis(D);
     await renderCharts(D);
     renderTablas(D);
