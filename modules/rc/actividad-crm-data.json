@@ -1,0 +1,362 @@
+{
+ "meta": {
+  "gen": "2026-07-07",
+  "ev_total": 4128,
+  "pr_total": 1836,
+  "ev_min": "2026-01-02",
+  "ev_max": "2026-07-07",
+  "usuarios": 6,
+  "clientes": 381,
+  "proyectos_tocados": 899
+ },
+ "clase": {
+  "Sistema/hito": 1860,
+  "Nota/seguimiento": 1433,
+  "Contacto directo": 835
+ },
+ "tipo": {
+  "Actividad": 1859,
+  "Comentario": 1433,
+  "Llamada": 352,
+  "Visita": 221,
+  "Correo": 139,
+  "Videoconferencia": 123,
+  "Sin tipo": 1
+ },
+ "mes_labels": [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul"
+ ],
+ "mes_total": [
+  622,
+  721,
+  366,
+  468,
+  443,
+  1035,
+  473
+ ],
+ "mes_clase": {
+  "Contacto directo": [
+   155,
+   136,
+   75,
+   162,
+   129,
+   139,
+   39
+  ],
+  "Nota/seguimiento": [
+   217,
+   269,
+   120,
+   134,
+   136,
+   382,
+   175
+  ],
+  "Sistema/hito": [
+   250,
+   316,
+   171,
+   172,
+   178,
+   514,
+   259
+  ]
+ },
+ "contacto_agente": {
+  "labels": [
+   "Isela Rodríguez",
+   "Alejandra González",
+   "Belén Escandón",
+   "Laura Elisa Morales",
+   "Ana Karen Ramírez"
+  ],
+  "Visita": [
+   100,
+   65,
+   16,
+   31,
+   9
+  ],
+  "Llamada": [
+   264,
+   31,
+   53,
+   2,
+   2
+  ],
+  "Videoconferencia": [
+   44,
+   73,
+   1,
+   5,
+   0
+  ],
+  "Correo": [
+   92,
+   4,
+   39,
+   4,
+   0
+  ],
+  "TOTAL": [
+   500,
+   173,
+   109,
+   42,
+   11
+  ]
+ },
+ "cobertura": [
+  {
+   "u": "Isela Rodríguez",
+   "eventos": 1442,
+   "clientes": 119,
+   "proyectos": 249,
+   "contacto": 500,
+   "ev_cli": 12.1,
+   "pct_contacto": 35.0
+  },
+  {
+   "u": "Alejandra González",
+   "eventos": 764,
+   "clientes": 35,
+   "proyectos": 174,
+   "contacto": 173,
+   "ev_cli": 21.8,
+   "pct_contacto": 23.0
+  },
+  {
+   "u": "Ana Karen Ramírez",
+   "eventos": 588,
+   "clientes": 52,
+   "proyectos": 149,
+   "contacto": 11,
+   "ev_cli": 11.3,
+   "pct_contacto": 2.0
+  },
+  {
+   "u": "Andrés Moreno",
+   "eventos": 501,
+   "clientes": 62,
+   "proyectos": 138,
+   "contacto": 0,
+   "ev_cli": 8.1,
+   "pct_contacto": 0.0
+  },
+  {
+   "u": "Laura Elisa Morales",
+   "eventos": 488,
+   "clientes": 53,
+   "proyectos": 103,
+   "contacto": 42,
+   "ev_cli": 9.2,
+   "pct_contacto": 9.0
+  },
+  {
+   "u": "Belén Escandón",
+   "eventos": 345,
+   "clientes": 60,
+   "proyectos": 91,
+   "contacto": 109,
+   "ev_cli": 5.8,
+   "pct_contacto": 32.0
+  }
+ ],
+ "mes_agente": {
+  "labels": [
+   "Ene",
+   "Feb",
+   "Mar",
+   "Abr",
+   "May",
+   "Jun",
+   "Jul"
+  ],
+  "series": {
+   "Isela Rodríguez": [
+    172,
+    332,
+    177,
+    228,
+    186,
+    249,
+    98
+   ],
+   "Alejandra González": [
+    136,
+    154,
+    22,
+    102,
+    100,
+    147,
+    103
+   ],
+   "Ana Karen Ramírez": [
+    117,
+    73,
+    47,
+    29,
+    54,
+    257,
+    11
+   ],
+   "Andrés Moreno": [
+    2,
+    85,
+    38,
+    14,
+    22,
+    150,
+    190
+   ],
+   "Laura Elisa Morales": [
+    98,
+    61,
+    56,
+    41,
+    47,
+    123,
+    62
+   ],
+   "Belén Escandón": [
+    97,
+    16,
+    26,
+    54,
+    34,
+    109,
+    9
+   ]
+  }
+ },
+ "pipeline_agente": [
+  {
+   "u": "Alejandra González",
+   "proyectos": 63,
+   "pipeline": 6435993
+  },
+  {
+   "u": "Isela Rodríguez",
+   "proyectos": 84,
+   "pipeline": 2843763
+  },
+  {
+   "u": "Belén Escandón",
+   "proyectos": 36,
+   "pipeline": 2511750
+  },
+  {
+   "u": "Laura Elisa Morales",
+   "proyectos": 46,
+   "pipeline": 2176263
+  },
+  {
+   "u": "Ana Karen Ramírez",
+   "proyectos": 36,
+   "pipeline": 1630236
+  },
+  {
+   "u": "Andrés Moreno",
+   "proyectos": 31,
+   "pipeline": 640380
+  }
+ ],
+ "funnel": {
+  "Cerrado/Finalizado": 1136,
+  "En cliente": 396,
+  "Detenido/Hold": 125,
+  "Eliminado": 74,
+  "Perdido": 65,
+  "Generado": 22,
+  "En desarrollo": 18
+ },
+ "top_clientes": [
+  {
+   "c": "PRODEA SA DE CV",
+   "eventos": 159,
+   "proyectos": 35
+  },
+  {
+   "c": "AGROPARQUE SAN MIGUEL VIA VERDE",
+   "eventos": 108,
+   "proyectos": 20
+  },
+  {
+   "c": "MAGDA IRAM MUÑOZ ESPINOSA",
+   "eventos": 104,
+   "proyectos": 20
+  },
+  {
+   "c": "SANA PREMIUN FOODS",
+   "eventos": 95,
+   "proyectos": 18
+  },
+  {
+   "c": "NUTRITION FACT DE MEXICO",
+   "eventos": 87,
+   "proyectos": 9
+  },
+  {
+   "c": "PRAKTIKO, S.A. DE C.V.",
+   "eventos": 73,
+   "proyectos": 16
+  },
+  {
+   "c": "GRUPO ZUMITAM",
+   "eventos": 65,
+   "proyectos": 7
+  },
+  {
+   "c": "MAGADELI",
+   "eventos": 50,
+   "proyectos": 9
+  },
+  {
+   "c": "INDUSTRIAS ALIMENTICIAS FABP SA DE CV",
+   "eventos": 47,
+   "proyectos": 12
+  },
+  {
+   "c": "PRODUCTOS ALIMENTICIOS LA MORENA DE HUAMANTLA SA DE CV",
+   "eventos": 47,
+   "proyectos": 12
+  },
+  {
+   "c": "HELA SPICE MÉXICO",
+   "eventos": 45,
+   "proyectos": 8
+  },
+  {
+   "c": "INGREDIENTES Y SOLUCIONES",
+   "eventos": 43,
+   "proyectos": 8
+  },
+  {
+   "c": "INDUSTRIAS CAMPO FRESCO, S.A. DE C.V.",
+   "eventos": 42,
+   "proyectos": 12
+  },
+  {
+   "c": "MEAT ADDITIVES AND FOOD BUSINESS",
+   "eventos": 40,
+   "proyectos": 5
+  },
+  {
+   "c": "CENTURY LABORATORIES S.A. DE C.V.",
+   "eventos": 40,
+   "proyectos": 9
+  }
+ ],
+ "pipeline_total": 16238386,
+ "proyectos_2026": 296,
+ "cerrados": 1136,
+ "pct_contacto_global": 20
+}

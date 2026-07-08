@@ -1,0 +1,157 @@
+<!DOCTYPE html><html lang="es"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Actividad de Ventas en el CRM · Radar Comercial · KOGU</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f3f6fb;--panel:#fff;--panel2:#f8fafc;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--primary:#0891b2;--primary2:#06b6d4;--success:#16a34a;--success-bg:#dcfce7;--warn:#d97706;--warn-bg:#fef3c7;--danger:#dc2626;--danger-bg:#fee2e2;--ink:#020617;--shadow:0 10px 25px rgba(15,23,42,.06);}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 24px 64px}
+.eyebrow{color:var(--primary);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin:0 0 6px}
+h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 14px;font-size:15px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12.5px;color:var(--muted);box-shadow:var(--shadow)}
+.chip b{color:var(--text)}
+.callout{background:linear-gradient(135deg,#0e7490,#0891b2);color:#fff;border-radius:16px;padding:22px 24px;margin-bottom:28px;box-shadow:var(--shadow)}
+.callout h3{margin:0 0 10px;font-size:16px;letter-spacing:.02em}
+.callout .cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:6px}
+.callout .cmp>div{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:14px 16px}
+.callout .lab{font-size:11px;text-transform:uppercase;letter-spacing:.1em;opacity:.85;margin-bottom:6px}
+.callout ul{margin:0;padding-left:18px;font-size:13.5px;opacity:.95} .callout li{margin:3px 0}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:30px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.kpi .v{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.kpi .l{color:var(--muted);font-size:12.5px;margin-top:2px}
+.kpi .h{font-size:11.5px;color:var(--primary);margin-top:6px;font-weight:600}
+section{margin-bottom:34px}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
+.sec-h .n{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#67e8f9;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.sec-h h2{font-size:19px;margin:0;letter-spacing:-.01em}
+.sec-d{color:var(--muted);font-size:14px;margin:6px 0 16px 36px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.card h4{margin:0 0 2px;font-size:14.5px}
+.card .cd{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+.chartbox{position:relative;height:300px} .chartbox.tall{height:360px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums} td.u{font-weight:600}
+tbody tr:hover{background:var(--panel2)}
+.note{background:var(--warn-bg);border:1px solid #fde68a;border-radius:12px;padding:14px 16px;font-size:13px;color:#92400e} .note b{color:#7c2d12}
+.foot{color:var(--muted);font-size:12px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+.insight{background:#ecfeff;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;padding:10px 14px;font-size:13.5px;margin:12px 0 0}
+@media(max-width:860px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.callout .cmp{grid-template-columns:1fr}}
+</style></head>
+<body><div class="wrap">
+<p class="eyebrow">Radar Comercial · CRM I+D</p>
+<h1>Actividad de ventas en el CRM — 2026</h1>
+<p class="sub">Seguimiento comercial de los 6 agentes de ventas · Adegermex</p>
+<div class="chips">
+<span class="chip">Periodo: <b>2026-01-02 → 2026-07-07</b></span>
+<span class="chip"><b>4,128</b> eventos de ventas</span>
+<span class="chip"><b>6</b> agentes · <b>381</b> clientes</span>
+<span class="chip"><b>899</b> proyectos con seguimiento</span>
+<span class="chip">Generado: <b>2026-07-07</b></span>
+</div>
+
+<div class="callout">
+<h3>Del conteo plano al seguimiento con contexto</h3>
+<div class="cmp">
+<div><div class="lab">Reporte actual</div><ul>
+<li><b>5</b> tipos de evento, en conteo plano</li>
+<li>Corte a <b>mayo</b> (1,533 registros)</li>
+<li>Sin cliente, proyecto ni valor asociado</li>
+</ul></div>
+<div><div class="lab">Este análisis</div><ul>
+<li>Mismos 6 agentes · <b>ene–jul</b> · <b>4,128</b> eventos</li>
+<li>Separa <b>contacto directo</b> vs comentario vs hito</li>
+<li>Ligado a <b>381</b> clientes, <b>899</b> proyectos y <b>pipeline USD</b></li>
+</ul></div>
+</div></div>
+
+<div class="kpis">
+<div class="kpi"><div class="v">4,128</div><div class="l">Eventos de ventas 2026</div><div class="h">ene–jul YTD</div></div>
+<div class="kpi"><div class="v">835</div><div class="l">Contacto directo</div><div class="h">20% del total registrado</div></div>
+<div class="kpi"><div class="v">381</div><div class="l">Clientes atendidos</div><div class="h">899 proyectos con seguimiento</div></div>
+<div class="kpi"><div class="v">$16,238,386</div><div class="l">Pipeline 2026 (USD)</div><div class="h">296 proyectos nuevos</div></div>
+<div class="kpi"><div class="v">1,136</div><div class="l">Proyectos cerrados</div><div class="h">62% de la cartera de ventas</div></div>
+</div>
+
+<section>
+<div class="sec-h"><span class="n">1</span><h2>Productividad por agente</h2></div>
+<p class="sec-d">Contacto directo con cliente (visita, llamada, videoconferencia, correo) — el esfuerzo comercial tipificado, separado del comentario libre.</p>
+<div class="grid2">
+<div class="card"><h4>Contacto directo por agente</h4><p class="cd">Desglose por tipo · 2026 YTD</p><div class="chartbox tall"><canvas id="c_contacto"></canvas></div></div>
+<div class="card"><h4>Ritmo mensual por agente</h4><p class="cd">Eventos totales registrados por mes</p><div class="chartbox tall"><canvas id="c_ritmo"></canvas></div></div>
+</div>
+<p class="insight"><b>Lectura:</b> Isela Rodríguez concentra el 60% del contacto directo (500 de 835), con perfil telefónico. Alejandra González lidera videoconferencias y Belén Escandón equilibra visita/llamada. <b>Andrés Moreno no registra contacto tipificado</b>: todo su seguimiento entra como comentario — una brecha de captura, no necesariamente de actividad.</p>
+</section>
+
+<section>
+<div class="sec-h"><span class="n">2</span><h2>Cobertura de clientes y proyectos</h2></div>
+<p class="sec-d">Cuántos clientes y proyectos únicos toca cada agente, qué tan tipificado está su seguimiento (% contacto) y cuántos eventos dedica por cliente.</p>
+<div class="card"><div style="overflow-x:auto">
+<table><thead><tr><th>Agente</th><th class="num">Eventos</th><th class="num">Contacto dir.</th><th class="num">% contacto</th><th class="num">Clientes</th><th class="num">Proyectos</th><th class="num">Ev/cliente</th></tr></thead>
+<tbody><tr><td class='u'>Isela Rodríguez</td><td class='num'>1,442</td><td class='num'>500</td><td class='num'>35%</td><td class='num'>119</td><td class='num'>249</td><td class='num'>12.1</td></tr><tr><td class='u'>Alejandra González</td><td class='num'>764</td><td class='num'>173</td><td class='num'>23%</td><td class='num'>35</td><td class='num'>174</td><td class='num'>21.8</td></tr><tr><td class='u'>Ana Karen Ramírez</td><td class='num'>588</td><td class='num'>11</td><td class='num'>2%</td><td class='num'>52</td><td class='num'>149</td><td class='num'>11.3</td></tr><tr><td class='u'>Andrés Moreno</td><td class='num'>501</td><td class='num'>0</td><td class='num'>0%</td><td class='num'>62</td><td class='num'>138</td><td class='num'>8.1</td></tr><tr><td class='u'>Laura Elisa Morales</td><td class='num'>488</td><td class='num'>42</td><td class='num'>9%</td><td class='num'>53</td><td class='num'>103</td><td class='num'>9.2</td></tr><tr><td class='u'>Belén Escandón</td><td class='num'>345</td><td class='num'>109</td><td class='num'>32%</td><td class='num'>60</td><td class='num'>91</td><td class='num'>5.8</td></tr></tbody></table></div></div>
+<p class="insight"><b>Lectura:</b> Alejandra González trabaja la cartera más concentrada e intensiva (mayor eventos/cliente sobre pocas cuentas), mientras Isela cubre la mayor amplitud de clientes y proyectos. El <b>% contacto</b> revela quién documenta su gestión como contacto real vs. como nota libre — clave para estandarizar el registro comercial.</p>
+</section>
+
+<section>
+<div class="sec-h"><span class="n">3</span><h2>Calidad y ritmo del seguimiento</h2></div>
+<p class="sec-d">Naturaleza de la actividad y su evolución mensual. "Sistema/hito" son movimientos del flujo (entregas, finalizaciones); "Nota" son comentarios; "Contacto directo" es gestión comercial tipificada.</p>
+<div class="grid2">
+<div class="card"><h4>Composición de la actividad</h4><p class="cd">4,128 eventos por naturaleza</p><div class="chartbox"><canvas id="c_clase"></canvas></div></div>
+<div class="card"><h4>Evolución mensual por naturaleza</h4><p class="cd">Volumen por mes · 2026</p><div class="chartbox"><canvas id="c_mesclase"></canvas></div></div>
+</div>
+<p class="insight"><b>Lectura:</b> 20% de la actividad es contacto directo tipificado, 35% comentarios y 45% hitos de sistema. Jun fue el pico de actividad (1,035 eventos). Oportunidad: al tipificar el comentario que hoy esconde llamadas y visitas, el esfuerzo comercial real medible sube de forma inmediata.</p>
+</section>
+
+<section>
+<div class="sec-h"><span class="n">4</span><h2>Vínculo con ventas</h2></div>
+<p class="sec-d">Proyectos nuevos 2026 generados por el equipo y su valor potencial (Venta Anual USD, acotado al p99 por un outlier de $348M), más el estado de la cartera comercial.</p>
+<div class="grid2">
+<div class="card"><h4>Pipeline 2026 por agente (USD)</h4><p class="cd">Proyectos generados en 2026 · valor potencial</p><div class="chartbox"><canvas id="c_pipe"></canvas></div></div>
+<div class="card"><h4>Estado de la cartera de ventas</h4><p class="cd">1,836 proyectos generados por ventas</p><div class="chartbox"><canvas id="c_funnel"></canvas></div></div>
+</div>
+<p class="insight"><b>Lectura:</b> Alejandra González genera el mayor pipeline potencial 2026 ($6,435,993 en 63 proyectos). Isela lidera en volumen pero con ticket promedio menor. El 62% de la cartera comercial está cerrada/finalizada y solo un 4% marcada como perdida — embudo sano en ejecución.</p>
+</section>
+
+<section>
+<div class="sec-h"><span class="n">5</span><h2>Cuentas más activas</h2></div>
+<p class="sec-d">Top 15 clientes por eventos de ventas en 2026 — dónde se concentra el esfuerzo del equipo comercial.</p>
+<div class="card"><div style="overflow-x:auto">
+<table><thead><tr><th>Cliente</th><th class="num">Eventos</th><th class="num">Proyectos</th></tr></thead>
+<tbody><tr><td>PRODEA SA DE CV</td><td class='num'>159</td><td class='num'>35</td></tr><tr><td>AGROPARQUE SAN MIGUEL VIA VERDE</td><td class='num'>108</td><td class='num'>20</td></tr><tr><td>MAGDA IRAM MUÑOZ ESPINOSA</td><td class='num'>104</td><td class='num'>20</td></tr><tr><td>SANA PREMIUN FOODS</td><td class='num'>95</td><td class='num'>18</td></tr><tr><td>NUTRITION FACT DE MEXICO</td><td class='num'>87</td><td class='num'>9</td></tr><tr><td>PRAKTIKO, S.A. DE C.V.</td><td class='num'>73</td><td class='num'>16</td></tr><tr><td>GRUPO ZUMITAM</td><td class='num'>65</td><td class='num'>7</td></tr><tr><td>MAGADELI</td><td class='num'>50</td><td class='num'>9</td></tr><tr><td>INDUSTRIAS ALIMENTICIAS FABP SA DE CV</td><td class='num'>47</td><td class='num'>12</td></tr><tr><td>PRODUCTOS ALIMENTICIOS LA MORENA DE HUAMANTLA SA DE CV</td><td class='num'>47</td><td class='num'>12</td></tr><tr><td>HELA SPICE MÉXICO</td><td class='num'>45</td><td class='num'>8</td></tr><tr><td>INGREDIENTES Y SOLUCIONES</td><td class='num'>43</td><td class='num'>8</td></tr><tr><td>INDUSTRIAS CAMPO FRESCO, S.A. DE C.V.</td><td class='num'>42</td><td class='num'>12</td></tr><tr><td>MEAT ADDITIVES AND FOOD BUSINESS</td><td class='num'>40</td><td class='num'>5</td></tr><tr><td>CENTURY LABORATORIES S.A. DE C.V.</td><td class='num'>40</td><td class='num'>9</td></tr></tbody></table></div></div>
+</section>
+
+<div class="note"><b>Notas metodológicas.</b> Filtrado a los 6 agentes de ventas (Alejandra González, Ana Karen Ramírez, Andrés Moreno, Belén Escandón, Isela Rodríguez, Laura Elisa Morales). El registro de <i>Eventos</i> cubre solo <b>2026 (2-ene a 7-jul)</b>. El pipeline se acota al p99 para neutralizar un proyecto atípico (TECNOSOPAS, $347.9M). No se afirma causalidad "actividad → cierre": los proyectos finalizados de años previos no generan eventos en 2026. Cifras reconciliadas contra el reporte actual (ene–may, 5 tipos = 1,533 registros).</div>
+<div class="foot">KOGU Multiempresa · Radar Comercial · Base visual de la futura pantalla <code>modules/rc/actividad-crm</code>. Fuente: exports del CRM I+D (Proyectos + Eventos).</div>
+</div>
+
+<script>
+const D={"meta": {"gen": "2026-07-07", "ev_total": 4128, "pr_total": 1836, "ev_min": "2026-01-02", "ev_max": "2026-07-07", "usuarios": 6, "clientes": 381, "proyectos_tocados": 899}, "clase": {"Sistema/hito": 1860, "Nota/seguimiento": 1433, "Contacto directo": 835}, "tipo": {"Actividad": 1859, "Comentario": 1433, "Llamada": 352, "Visita": 221, "Correo": 139, "Videoconferencia": 123, "Sin tipo": 1}, "mes_labels": ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul"], "mes_total": [622, 721, 366, 468, 443, 1035, 473], "mes_clase": {"Contacto directo": [155, 136, 75, 162, 129, 139, 39], "Nota/seguimiento": [217, 269, 120, 134, 136, 382, 175], "Sistema/hito": [250, 316, 171, 172, 178, 514, 259]}, "contacto_agente": {"labels": ["Isela Rodríguez", "Alejandra González", "Belén Escandón", "Laura Elisa Morales", "Ana Karen Ramírez"], "Visita": [100, 65, 16, 31, 9], "Llamada": [264, 31, 53, 2, 2], "Videoconferencia": [44, 73, 1, 5, 0], "Correo": [92, 4, 39, 4, 0], "TOTAL": [500, 173, 109, 42, 11]}, "cobertura": [{"u": "Isela Rodríguez", "eventos": 1442, "clientes": 119, "proyectos": 249, "contacto": 500, "ev_cli": 12.1, "pct_contacto": 35.0}, {"u": "Alejandra González", "eventos": 764, "clientes": 35, "proyectos": 174, "contacto": 173, "ev_cli": 21.8, "pct_contacto": 23.0}, {"u": "Ana Karen Ramírez", "eventos": 588, "clientes": 52, "proyectos": 149, "contacto": 11, "ev_cli": 11.3, "pct_contacto": 2.0}, {"u": "Andrés Moreno", "eventos": 501, "clientes": 62, "proyectos": 138, "contacto": 0, "ev_cli": 8.1, "pct_contacto": 0.0}, {"u": "Laura Elisa Morales", "eventos": 488, "clientes": 53, "proyectos": 103, "contacto": 42, "ev_cli": 9.2, "pct_contacto": 9.0}, {"u": "Belén Escandón", "eventos": 345, "clientes": 60, "proyectos": 91, "contacto": 109, "ev_cli": 5.8, "pct_contacto": 32.0}], "mes_agente": {"labels": ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul"], "series": {"Isela Rodríguez": [172, 332, 177, 228, 186, 249, 98], "Alejandra González": [136, 154, 22, 102, 100, 147, 103], "Ana Karen Ramírez": [117, 73, 47, 29, 54, 257, 11], "Andrés Moreno": [2, 85, 38, 14, 22, 150, 190], "Laura Elisa Morales": [98, 61, 56, 41, 47, 123, 62], "Belén Escandón": [97, 16, 26, 54, 34, 109, 9]}}, "pipeline_agente": [{"u": "Alejandra González", "proyectos": 63, "pipeline": 6435993}, {"u": "Isela Rodríguez", "proyectos": 84, "pipeline": 2843763}, {"u": "Belén Escandón", "proyectos": 36, "pipeline": 2511750}, {"u": "Laura Elisa Morales", "proyectos": 46, "pipeline": 2176263}, {"u": "Ana Karen Ramírez", "proyectos": 36, "pipeline": 1630236}, {"u": "Andrés Moreno", "proyectos": 31, "pipeline": 640380}], "funnel": {"Cerrado/Finalizado": 1136, "En cliente": 396, "Detenido/Hold": 125, "Eliminado": 74, "Perdido": 65, "Generado": 22, "En desarrollo": 18}, "top_clientes": [{"c": "PRODEA SA DE CV", "eventos": 159, "proyectos": 35}, {"c": "AGROPARQUE SAN MIGUEL VIA VERDE", "eventos": 108, "proyectos": 20}, {"c": "MAGDA IRAM MUÑOZ ESPINOSA", "eventos": 104, "proyectos": 20}, {"c": "SANA PREMIUN FOODS", "eventos": 95, "proyectos": 18}, {"c": "NUTRITION FACT DE MEXICO", "eventos": 87, "proyectos": 9}, {"c": "PRAKTIKO, S.A. DE C.V.", "eventos": 73, "proyectos": 16}, {"c": "GRUPO ZUMITAM", "eventos": 65, "proyectos": 7}, {"c": "MAGADELI", "eventos": 50, "proyectos": 9}, {"c": "INDUSTRIAS ALIMENTICIAS FABP SA DE CV", "eventos": 47, "proyectos": 12}, {"c": "PRODUCTOS ALIMENTICIOS LA MORENA DE HUAMANTLA SA DE CV", "eventos": 47, "proyectos": 12}, {"c": "HELA SPICE MÉXICO", "eventos": 45, "proyectos": 8}, {"c": "INGREDIENTES Y SOLUCIONES", "eventos": 43, "proyectos": 8}, {"c": "INDUSTRIAS CAMPO FRESCO, S.A. DE C.V.", "eventos": 42, "proyectos": 12}, {"c": "MEAT ADDITIVES AND FOOD BUSINESS", "eventos": 40, "proyectos": 5}, {"c": "CENTURY LABORATORIES S.A. DE C.V.", "eventos": 40, "proyectos": 9}], "pipeline_total": 16238386, "proyectos_2026": 296, "cerrados": 1136, "pct_contacto_global": 20};
+const CO={primary:'#0891b2',cyan:'#06b6d4',teal:'#14b8a6',green:'#16a34a',amber:'#d97706',red:'#dc2626',slate:'#64748b',indigo:'#6366f1'};
+Chart.defaults.font.family="Inter,system-ui,sans-serif";Chart.defaults.color="#64748b";Chart.defaults.font.size=12;
+const money=n=>'$'+Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(n);
+new Chart(c_contacto,{type:'bar',data:{labels:D.contacto_agente.labels,datasets:[
+{label:'Visita',data:D.contacto_agente.Visita,backgroundColor:CO.primary},
+{label:'Llamada',data:D.contacto_agente.Llamada,backgroundColor:CO.cyan},
+{label:'Videoconferencia',data:D.contacto_agente.Videoconferencia,backgroundColor:CO.teal},
+{label:'Correo',data:D.contacto_agente.Correo,backgroundColor:CO.amber}]},
+options:{maintainAspectRatio:false,indexAxis:'y',scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
+const pal=[CO.primary,CO.amber,CO.green,CO.indigo,CO.red,CO.teal];
+new Chart(c_ritmo,{type:'line',data:{labels:D.mes_agente.labels,datasets:Object.entries(D.mes_agente.series).map((e,i)=>({label:e[0],data:e[1],borderColor:pal[i%6],backgroundColor:'transparent',tension:.35,borderWidth:2,pointRadius:2}))},options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}}}});
+new Chart(c_clase,{type:'doughnut',data:{labels:Object.keys(D.clase),datasets:[{data:Object.values(D.clase),backgroundColor:[CO.slate,CO.amber,CO.primary]}]},options:{maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'bottom'}}}});
+new Chart(c_mesclase,{type:'bar',data:{labels:D.mes_labels,datasets:[
+{label:'Sistema/hito',data:D.mes_clase['Sistema/hito'],backgroundColor:CO.slate},
+{label:'Nota/seguimiento',data:D.mes_clase['Nota/seguimiento'],backgroundColor:CO.amber},
+{label:'Contacto directo',data:D.mes_clase['Contacto directo'],backgroundColor:CO.primary}]},
+options:{maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
+new Chart(c_pipe,{type:'bar',data:{labels:D.pipeline_agente.map(x=>x.u),datasets:[{label:'Pipeline USD',data:D.pipeline_agente.map(x=>x.pipeline),backgroundColor:CO.primary}]},
+options:{maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>money(c.raw)+'  ·  '+D.pipeline_agente[c.dataIndex].proyectos+' proy'}}},scales:{x:{ticks:{callback:v=>money(v)}}}}});
+new Chart(c_funnel,{type:'bar',data:{labels:Object.keys(D.funnel),datasets:[{data:Object.values(D.funnel),backgroundColor:[CO.green,CO.cyan,CO.amber,CO.slate,CO.red,CO.indigo,CO.teal]}]},
+options:{maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}}}});
+</script>
+</body></html>
