@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th style="width:24px"></th>
       <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th>
       <th style="text-align:right;padding:6px">Escala</th>
-      <th>Kg</th><th>Real total/kg</th><th>Teórico total/kg</th>
+      <th>Kg</th><th style="background:#ecfeff;color:#0e7490;padding:6px">Real total/kg</th><th style="background:#fffbeb;color:#b45309;padding:6px">Teórico total/kg</th>
       <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
     let rows = reconState.rows;
     if (reconState.filtro) rows = rows.filter(r => r.resultado === reconState.filtro);
@@ -309,8 +309,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:left;padding:6px">${prov}${revisar}</td>
         <td style="text-align:right;padding:6px">${escala}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
-        <td style="padding:6px;font-weight:700">${usdkg(r.real_total_kg_usd)}</td>
-        <td style="padding:6px;color:#64748b">${usdkg(r.teo_total_kg_usd)}</td>
+        <td style="padding:6px;font-weight:700;background:#ecfeff;color:#0e7490">${usdkg(r.real_total_kg_usd)}</td>
+        <td style="padding:6px;background:#fffbeb;color:#b45309">${usdkg(r.teo_total_kg_usd)}</td>
         <td style="padding:6px;color:${col}">${usdkg(r.desv_total_usd)}</td>
         <td style="padding:6px;font-weight:700;color:${col}">${pct(r.desv_total_pct)}</td>
         <td style="text-align:center;padding:6px">${resChip(r.resultado)}</td></tr>
@@ -338,11 +338,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tcv = Number(rw.tc) || 0;
         const teoF = rw.teo_flete_kg_usd, teoO = rw.teo_otros_kg_usd, teoT = rw.teo_total_kg_usd;
         const rk = (mxn, cant) => (tcv > 0 && cant > 0) ? mxn / cant / tcv : null;
+        const R = 'background:#ecfeff;color:#0e7490';   // real → cian
+        const T = 'background:#fffbeb;color:#b45309';   // teórico → ámbar
         return `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
           <thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
             <th style="text-align:left;padding:4px 6px">Producto</th><th>Kg</th><th>Mercancía/kg</th>
-            <th>Flete real/kg</th><th>Flete teó/kg</th><th>Otros real/kg</th><th>Otros teó/kg</th>
-            <th>Total real/kg</th><th>Total teó/kg</th><th>Desv. %</th>
+            <th style="${R};padding:4px 6px">Flete real/kg</th><th style="${T};padding:4px 6px">Flete teó/kg</th>
+            <th style="${R};padding:4px 6px">Otros real/kg</th><th style="${T};padding:4px 6px">Otros teó/kg</th>
+            <th style="${R};padding:4px 6px">Total real/kg</th><th style="${T};padding:4px 6px">Total teó/kg</th><th>Desv. %</th>
             <th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
           parts.map(p => {
             const rF = rk(p.flete, p.cant), rO = rk(p.otros, p.cant);
@@ -352,12 +355,12 @@ document.addEventListener('DOMContentLoaded', async () => {
               <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
               <td style="padding:4px 6px">${kg(p.cant)}</td>
               <td style="padding:4px 6px;color:#94a3b8">${usdkg(rk(p.directo, p.cant))}</td>
-              <td style="padding:4px 6px">${usdkg(rF)}</td>
-              <td style="padding:4px 6px;color:#64748b">${usdkg(teoF)}</td>
-              <td style="padding:4px 6px">${usdkg(rO)}</td>
-              <td style="padding:4px 6px;color:#64748b">${usdkg(teoO)}</td>
-              <td style="padding:4px 6px;font-weight:700">${usdkg(rT)}</td>
-              <td style="padding:4px 6px;color:#64748b">${usdkg(teoT)}</td>
+              <td style="padding:4px 6px;${R}">${usdkg(rF)}</td>
+              <td style="padding:4px 6px;${T}">${usdkg(teoF)}</td>
+              <td style="padding:4px 6px;${R}">${usdkg(rO)}</td>
+              <td style="padding:4px 6px;${T}">${usdkg(teoO)}</td>
+              <td style="padding:4px 6px;font-weight:700;${R}">${usdkg(rT)}</td>
+              <td style="padding:4px 6px;${T}">${usdkg(teoT)}</td>
               <td style="padding:4px 6px">${pct(dpct)}</td>
               <td style="text-align:center;padding:4px 6px">${rw.resultado ? resChip(rw.resultado) : '—'}</td></tr>`;
           }).join('') +
