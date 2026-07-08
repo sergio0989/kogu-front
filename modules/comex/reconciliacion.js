@@ -345,12 +345,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th style="text-align:left;padding:4px 6px">Producto</th><th>Kg</th><th>Mercancía/kg</th>
             <th style="${R};padding:4px 6px">Flete real/kg</th><th style="${T};padding:4px 6px">Flete teó/kg</th>
             <th style="${R};padding:4px 6px">Otros real/kg</th><th style="${T};padding:4px 6px">Otros teó/kg</th>
-            <th style="${R};padding:4px 6px">Total real/kg</th><th style="${T};padding:4px 6px">Total teó/kg</th><th>Desv. %</th>
+            <th style="${R};padding:4px 6px">Total real/kg</th><th style="${T};padding:4px 6px">Total teó/kg</th>
+            <th>Desv. USD/kg</th><th>Desv. %</th>
             <th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
           parts.map(p => {
             const rF = rk(p.flete, p.cant), rO = rk(p.otros, p.cant);
             const rT = (rF != null && rO != null) ? rF + rO : null;
+            const dUsd = (rT != null && teoT != null) ? rT - teoT : null;
             const dpct = (rT != null && teoT) ? (rT - teoT) / teoT : null;
+            const dc = dUsd == null ? '#0f172a' : (dUsd > 0 ? '#991b1b' : dUsd < 0 ? '#1e40af' : '#0f172a');
             return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
               <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
               <td style="padding:4px 6px">${kg(p.cant)}</td>
@@ -361,7 +364,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               <td style="padding:4px 6px;${T}">${usdkg(teoO)}</td>
               <td style="padding:4px 6px;font-weight:700;${R}">${usdkg(rT)}</td>
               <td style="padding:4px 6px;${T}">${usdkg(teoT)}</td>
-              <td style="padding:4px 6px">${pct(dpct)}</td>
+              <td style="padding:4px 6px;font-weight:700;color:${dc}">${usdkg(dUsd)}</td>
+              <td style="padding:4px 6px;color:${dc}">${pct(dpct)}</td>
               <td style="text-align:center;padding:4px 6px">${rw.resultado ? resChip(rw.resultado) : '—'}</td></tr>`;
           }).join('') +
           '</tbody></table>';
