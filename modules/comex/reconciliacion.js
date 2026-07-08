@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <span id="reconMsg" class="muted" style="font-size:12px"></span>
   </div>
   <div id="reconKpis" style="display:none;gap:8px;margin-top:14px;flex-wrap:wrap"></div>
+  <div id="gastosMpBox" style="display:none;margin-top:14px"></div>
   <div id="reconFiltros" style="display:none;gap:6px;margin-top:12px;flex-wrap:wrap"></div>
   <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tRecon" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
 </div>
@@ -387,7 +388,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       reconState.rows = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '?periodo=' + encodeURIComponent(periodo))) || [];
       reconState.filtro = null;
       renderFiltros(); renderReconTable();
+      cargarGastosMp(periodo);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  // Bloque "peso vs valor": dónde pesa el gasto de importación (zonas Gastos/MP).
+  async function cargarGastosMp(periodo) {
+    const box = $('gastosMpBox');
+    try {
+      const d = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/gastos-mp?periodo=' + encodeURIComponent(periodo))) || {};
+      const z = d.zonas || {};
+      const ktot = Number(z.kg_total) || 0;
+      if (!ktot) { box.style.display = 'none'; return; }
+      box.style.display = 'block';
+      const gtot = Number(z.gasto_total) || 0;
+      const pctKg = (v) => ktot > 0 ? (Number(v) / ktot * 100).toFixed(1) + '%' : '—';
+      const zona = (lab, kgz, gz, bg, cc, hint) => {
+        const kv = Number(kgz) || 0, gv = Number(gz) || 0;
+        return `<div style="flex:1;min-width:150px;background:${bg};border-radius:10px;padding:10px 14px">
+          <div style="font-size:11px;font-weight:800;color:${cc};text-transform:uppercase;letter-spacing:.03em">${lab}</div>
+          <div style="font-size:12px;color:#334155;margin-top:2px">${hint}</div>
+          <div style="font-size:20px;font-weight:800;color:${cc};margin-top:4px">${kg(kv)} kg <span style="font-size:12px;font-weight:600;color:#64748b">· ${pctKg(kv)}</span></div>
+          <div style="font-size:12px;color:#334155">gasto import: <strong>$${(gv).toLocaleString('es-MX',{maximumFractionDigits:0})} USD</strong> · ${gtot>0?(gv/gtot*100).toFixed(0):'0'}% del total</div>
+        </div>`;
+      };
+      const top = (d.top_rojo || []).map(t =>
+        `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:3px 6px">${esc(t.cve_prod)}${t.nombre_corto ? ' · ' + esc(t.nombre_corto) : ''}</td>
+          <td style="padding:3px 6px;text-align:right">${kg(t.kg)} kg</td>
+          <td style="padding:3px 6px;text-align:right;font-weight:700;color:#991b1b">${(Number(t.ratio) * 100).toFixed(0)}%</td>
+          <td style="padding:3px 6px;text-align:right">$${(Number(t.gasto_usd) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })} USD</td></tr>`).join('');
+      box.innerHTML = `
+        <div style="border-top:1px solid #eef2f7;padding-top:12px">
+          <div class="eyebrow">Peso vs valor · dónde pesa el gasto de importación</div>
+          <div class="muted" style="font-size:12px;margin-bottom:10px">Kg del periodo clasificados por <strong>Gastos/MP</strong> (gasto import ÷ materia prima). El rojo = productos que absorben desproporcionado el flete.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            ${zona('🔴 Rojo', z.kg_rojo, z.gasto_rojo, '#fef2f2', '#991b1b', 'Gastos/MP > 60%')}
+            ${zona('🟡 Ámbar', z.kg_ambar, z.gasto_ambar, '#fefce8', '#854d0e', '30% – 60%')}
+            ${zona('🟢 Verde', z.kg_verde, z.gasto_verde, '#f0fdf4', '#166534', '< 30%')}
+          </div>
+          ${top ? `<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px">Top productos que más sufren el gasto (zona roja)</div>
+            <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">
+              <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b"><th style="text-align:left;padding:3px 6px">Producto</th><th style="text-align:right;padding:3px 6px">Kg</th><th style="text-align:right;padding:3px 6px">Gastos/MP</th><th style="text-align:right;padding:3px 6px">Gasto import</th></tr></thead>
+              <tbody>${top}</tbody></table></div>` : ''}
+        </div>`;
+    } catch (e) { box.style.display = 'none'; }
   }
 
   $('reconBtn').addEventListener('click', reconciliar);
@@ -405,7 +449,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('procBtn').addEventListener('click', procesar);
   KoguShell.subscribeEmpresaActivaChange(() => {
-    $('realCard').style.display = 'none'; $('reconKpis').style.display = 'none'; $('reconFiltros').style.display = 'none';
+    $('realCard').style.display = 'none'; $('reconKpis').style.display = 'none'; $('reconFiltros').style.display = 'none'; $('gastosMpBox').style.display = 'none';
     reconState.rows = []; renderReconTable(); cargarCargas(); cargarPeriodos();
   });
   cargarCargas();
