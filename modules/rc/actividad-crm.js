@@ -27,7 +27,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Estado ──────────────────────────────────────────────
   let usuarios = [];        // [{u, eventos, perfil}]
   let seleccion = null;     // Set<string> | null (null = todos)
+  let anioSel = null;       // año seleccionado (null → el más reciente)
+  let mesSel = null;        // mes 1..12 (null → acumulado del año)
+  let selectoresListos = false;
   let charts = [];
+  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const CO = { primary: '#0891b2', cyan: '#06b6d4', teal: '#14b8a6', green: '#16a34a', amber: '#d97706', red: '#dc2626', slate: '#64748b', indigo: '#6366f1' };
 
   // ── Helpers ─────────────────────────────────────────────
@@ -80,7 +84,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn" id="btnTodos" title="Incluir a todos los usuarios">Todos</button>
       </div>
     </div>
-    <div id="chipsUsuarios" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+    <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+      <div><label class="label-text">Año</label><select class="input" id="selAnio" style="min-width:120px"></select></div>
+      <div><label class="label-text">Mes</label><select class="input" id="selMes" style="min-width:170px"></select></div>
+    </div>
+    <div id="chipsUsuarios" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"></div>
   </div>
 
   <div id="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px"></div>
@@ -88,8 +96,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- Sección 1 -->
   <div class="card">
     <div class="eyebrow">1 · Productividad</div>
-    <h3 style="margin:2px 0 2px">Contacto directo por agente</h3>
-    <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:10px">Visita, llamada, videoconferencia y correo — esfuerzo comercial tipificado.</div>
+    <h3 style="margin:2px 0 2px">Actividad por agente</h3>
+    <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:10px">Visita, llamada, videoconferencia, correo (contacto directo) + comentario. El total iguala tu tabla dinámica; el tooltip muestra solo el contacto directo.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div style="position:relative;height:340px"><canvas id="c_contacto"></canvas></div>
       <div style="position:relative;height:340px"><canvas id="c_ritmo"></canvas></div>
@@ -215,10 +223,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderChips();
   }
 
+  // ── Periodo (Año + Mes, patrón CFDI) ────────────────────
+  $('selAnio').addEventListener('change', (e) => { anioSel = e.target.value ? Number(e.target.value) : null; loadDashboard(); });
+  $('selMes').addEventListener('change', (e) => { mesSel = e.target.value ? Number(e.target.value) : null; loadDashboard(); });
+
+  function poblarSelectores(D) {
+    // Mes: "Acumulado (año)" + los 12 meses (una sola vez).
+    if (!selectoresListos) {
+      $('selMes').innerHTML = `<option value="">Acumulado (año)</option>` + MESES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+      selectoresListos = true;
+    }
+    // Año: los años disponibles según la carga.
+    const anios = D.anios || [];
+    $('selAnio').innerHTML = anios.map((a) => `<option value="${a}">${a}</option>`).join('') || `<option value="">—</option>`;
+    anioSel = D.anio || (anios[0] || null);
+    $('selAnio').value = anioSel != null ? String(anioSel) : '';
+    $('selMes').value = D.mes != null ? String(D.mes) : '';
+  }
+
   // ── Dashboard ───────────────────────────────────────────
-  function usuariosParam() {
-    if (!seleccion || seleccion.size === 0 || seleccion.size === usuarios.length) return '';
-    return '?usuarios=' + encodeURIComponent([...seleccion].join(','));
+  function dashQuery() {
+    const parts = [];
+    if (seleccion && seleccion.size > 0 && seleccion.size !== usuarios.length) parts.push('usuarios=' + encodeURIComponent([...seleccion].join(',')));
+    if (anioSel) parts.push('anio=' + anioSel);
+    if (mesSel) parts.push('mes=' + mesSel);
+    return parts.length ? '?' + parts.join('&') : '';
   }
 
   function pintarVacio() {
@@ -229,12 +258,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadDashboard() {
     let D;
     try {
-      const res = await KoguApi.apiFetch(BASE + '/crm/dashboard' + usuariosParam());
+      const res = await KoguApi.apiFetch(BASE + '/crm/dashboard' + dashQuery());
       D = KoguApi.unwrapData(res);
     } catch (_) {
       return; // errores 401/403/409 reales ya los maneja el cliente API
     }
     if (!D || D.empty) { pintarVacio(); return; }
+    poblarSelectores(D);
     renderKpis(D);
     await renderCharts(D);
     renderTablas(D);
@@ -243,11 +273,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   function kpi(v, l, h) { return `<div class="kpi"><div class="value">${v}</div><div class="label">${esc(l)}</div><div class="hint">${esc(h)}</div></div>`; }
   function renderKpis(D) {
     const m = D.meta || {};
+    const per = D.mes ? `${MESES[D.mes - 1]} ${D.anio || ''}` : `${D.anio || 'todo'} (acum.)`;
     $('kpis').innerHTML = [
-      kpi(nf0.format(m.ev_total || 0), 'Eventos', `${m.ev_min || '—'} a ${m.ev_max || '—'}`),
+      kpi(nf0.format(m.ev_total || 0), 'Eventos', per),
       kpi(nf0.format((D.clase && D.clase['Contacto directo']) || 0), 'Contacto directo', `${D.pct_contacto_global || 0}% del total`),
       kpi(nf0.format(m.clientes || 0), 'Clientes', `${nf0.format(m.proyectos_tocados || 0)} proyectos`),
-      kpi(moneyC(D.pipeline_total || 0), 'Pipeline 2026 (USD)', `${nf0.format(D.proyectos_2026 || 0)} nuevos`),
+      kpi(moneyC(D.pipeline_total || 0), `Pipeline ${D.anio || ''} (USD)`, `${nf0.format(D.proyectos_nuevos || 0)} nuevos`),
       kpi(nf0.format(D.cerrados || 0), 'Proyectos cerrados', `de ${nf0.format(m.pr_total || 0)} en cartera`),
     ].join('');
   }
@@ -264,8 +295,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       { label: 'Visita', data: D.contacto_agente.Visita, backgroundColor: CO.primary },
       { label: 'Llamada', data: D.contacto_agente.Llamada, backgroundColor: CO.cyan },
       { label: 'Videoconferencia', data: D.contacto_agente.Videoconferencia, backgroundColor: CO.teal },
-      { label: 'Correo', data: D.contacto_agente.Correo, backgroundColor: CO.amber } ] },
-      options: { maintainAspectRatio: false, indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom' } } } }));
+      { label: 'Correo', data: D.contacto_agente.Correo, backgroundColor: CO.amber },
+      { label: 'Comentario', data: D.contacto_agente.Comentario, backgroundColor: CO.slate } ] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { footer: (items) => { const i = items[0].dataIndex; return 'Contacto directo: ' + (D.contacto_agente.CONTACTO[i] || 0); } } } } } }));
 
     charts.push(new Chart($('c_ritmo'), { type: 'line', data: { labels: D.mes_agente.labels, datasets: Object.entries(D.mes_agente.series).map((e, i) => ({ label: e[0], data: e[1], borderColor: pal[i % pal.length], backgroundColor: 'transparent', tension: .35, borderWidth: 2, pointRadius: 2 })) },
       options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } } }));
@@ -289,10 +321,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderTablas(D) {
     $('tblCobertura').innerHTML = `<thead><tr>
-      <th>Agente</th><th style="text-align:right">Eventos</th><th style="text-align:right">Contacto</th>
+      <th>Agente</th><th style="text-align:right">Eventos</th><th style="text-align:right">Contacto dir.</th><th style="text-align:right">Comentarios</th><th style="text-align:right">Sistema</th>
       <th style="text-align:right">% contacto</th><th style="text-align:right">Clientes</th><th style="text-align:right">Proyectos</th><th style="text-align:right">Ev/cliente</th>
       </tr></thead><tbody>${(D.cobertura || []).map((r) => `<tr>
-      <td><b>${esc(r.u)}</b></td><td style="text-align:right">${nf0.format(r.eventos)}</td><td style="text-align:right">${nf0.format(r.contacto)}</td>
+      <td><b>${esc(r.u)}</b></td><td style="text-align:right">${nf0.format(r.eventos)}</td><td style="text-align:right">${nf0.format(r.contacto)}</td><td style="text-align:right">${nf0.format(r.comentarios || 0)}</td><td style="text-align:right">${nf0.format(r.sistema || 0)}</td>
       <td style="text-align:right">${r.pct_contacto}%</td><td style="text-align:right">${nf0.format(r.clientes)}</td><td style="text-align:right">${nf0.format(r.proyectos)}</td><td style="text-align:right">${r.ev_cli}</td>
       </tr>`).join('')}</tbody>`;
 
