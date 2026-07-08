@@ -340,9 +340,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rk = (mxn, cant) => (tcv > 0 && cant > 0) ? mxn / cant / tcv : null;
         const R = 'background:#ecfeff;color:#0e7490';   // real → cian
         const T = 'background:#fffbeb;color:#b45309';   // teórico → ámbar
+        const M = 'background:#faf5ff;color:#7e22ce';   // mercancía → violeta
         return `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
           <thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
-            <th style="text-align:left;padding:4px 6px">Producto</th><th>Kg</th><th>Mercancía/kg</th>
+            <th style="text-align:left;padding:4px 6px">Producto</th><th>Kg</th><th style="${M};padding:4px 6px">Mercancía/kg</th>
             <th style="${R};padding:4px 6px">Flete real/kg</th><th style="${T};padding:4px 6px">Flete teó/kg</th>
             <th style="${R};padding:4px 6px">Otros real/kg</th><th style="${T};padding:4px 6px">Otros teó/kg</th>
             <th style="${R};padding:4px 6px">Total real/kg</th><th style="${T};padding:4px 6px">Total teó/kg</th>
@@ -357,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
               <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
               <td style="padding:4px 6px">${kg(p.cant)}</td>
-              <td style="padding:4px 6px;color:#94a3b8">${usdkg(rk(p.directo, p.cant))}</td>
+              <td style="padding:4px 6px;font-weight:600;${M}">${usdkg(rk(p.directo, p.cant))}</td>
               <td style="padding:4px 6px;${R}">${usdkg(rF)}</td>
               <td style="padding:4px 6px;${T}">${usdkg(teoF)}</td>
               <td style="padding:4px 6px;${R}">${usdkg(rO)}</td>
