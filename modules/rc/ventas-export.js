@@ -62,6 +62,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     .ve-bar-wrap{background:var(--panel2,#f1f5f9);border-radius:6px;height:8px;overflow:hidden;min-width:70px}
     .ve-bar{height:100%;background:linear-gradient(90deg,#0891b2,#22d3ee);border-radius:6px}
     .ve-rank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--panel2,#f1f5f9);color:var(--muted,#64748b);font-size:12px;font-weight:700;flex:none}
+    .ve-databar{position:absolute;right:6px;top:50%;transform:translateY(-50%);height:22px;border-radius:5px;pointer-events:none}
+    .ve-databar.usd{background:linear-gradient(90deg,rgba(8,145,178,.10),rgba(34,211,238,.22))}
+    .ve-databar.kg{background:linear-gradient(90deg,rgba(100,116,139,.08),rgba(100,116,139,.20))}
+    .ve-cell{position:relative}
+    .ve-cell span{position:relative;z-index:1}
   `;
   document.head.appendChild(style);
 
@@ -244,30 +249,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cl = D.clientes || [];
     const totUsd = cl.reduce((a, r) => a + (r.usd || 0), 0) || 1;
     const maxUsd = cl.length ? Math.max(...cl.map((r) => r.usd || 0)) : 1;
+    const maxKg = cl.length ? Math.max(...cl.map((r) => r.kg || 0)) : 1;
     let acum = 0;
     $('tblClientes').innerHTML = `<thead><tr>
       <th style="width:26px"></th><th>Cliente</th><th>Agente</th><th style="text-align:right">Facturas</th>
-      <th style="text-align:right">USD</th><th style="text-align:right">% total</th><th style="text-align:right">% acum.</th>
-      <th style="text-align:right">MXN</th><th style="text-align:right">Kg</th><th style="text-align:right">US$/kg</th>
-      <th style="min-width:110px">Participación</th>
+      <th style="text-align:right;min-width:150px">USD</th><th style="text-align:right">% total</th><th style="text-align:right">% acum.</th>
+      <th style="text-align:right">MXN</th><th style="text-align:right;min-width:120px">Kg</th><th style="text-align:right">US$/kg</th>
       </tr></thead><tbody>${cl.map((r, i) => {
         const shareRaw = (r.usd / totUsd) * 100;
         const share = Math.round(shareRaw * 10) / 10;
         acum += shareRaw;
-        const w = Math.max(3, Math.round((r.usd / maxUsd) * 100));
+        const wUsd = Math.max(4, Math.round((r.usd / maxUsd) * 100));
+        const wKg = Math.max(4, Math.round((r.kg / maxKg) * 100));
         const ukg = r.kg ? r.usd / r.kg : 0;
         return `<tr>
         <td><span class="ve-rank">${i + 1}</span></td>
         <td><b>${esc(r.cliente)}</b><div style="color:var(--muted);font-size:11px">${esc(r.cve_cte || '')}</div></td>
         <td>${esc(r.agente)}</td>
         <td style="text-align:right">${nf0.format(r.facturas)}</td>
-        <td style="text-align:right;font-weight:600">${money(r.usd, 'USD')}</td>
+        <td class="ve-cell" style="text-align:right;font-weight:600"><div class="ve-databar usd" style="width:${wUsd}%"></div><span>${money(r.usd, 'USD')}</span></td>
         <td style="text-align:right;font-weight:600;color:var(--primary)">${nf1.format(share)}%</td>
         <td style="text-align:right;color:var(--muted)">${nf0.format(Math.round(acum))}%</td>
         <td style="text-align:right;color:var(--muted)">${money(r.mxn, 'MXN')}</td>
-        <td style="text-align:right">${nf0.format(r.kg)}</td>
+        <td class="ve-cell" style="text-align:right"><div class="ve-databar kg" style="width:${wKg}%"></div><span>${nf0.format(r.kg)}</span></td>
         <td style="text-align:right">US$${nf1.format(ukg)}</td>
-        <td><div class="ve-bar-wrap"><div class="ve-bar" style="width:${w}%"></div></div></td>
         </tr>`;
       }).join('')}</tbody>`;
   }
