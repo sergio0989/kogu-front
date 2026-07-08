@@ -75,8 +75,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tcLo = tcs.length ? Math.min(...tcs) : 0, tcHi = tcs.length ? Math.max(...tcs) : 1, band = (tcHi - tcLo) || 1;
     const bw = Math.min((iw / n) * 0.5, 46);
     const x = (i) => padL + iw * (i + 0.5) / n;
-    const yBar = (v) => padT + ih - (v / maxUsd) * ih;
-    const yTc = (v) => padT + ih * 0.55 - ((v - tcLo) / band) * (ih * 0.45);
+    // Bandas separadas: barras crecen desde abajo (máx 60% de la altura);
+    // la línea de TC vive en una banda superior propia → no se enciman rótulos.
+    const maxBarH = ih * 0.60;
+    const tcTop = padT + 12, tcBot = padT + ih * 0.24;
+    const yBar = (v) => padT + ih - (v / maxUsd) * maxBarH;
+    const yTc = (v) => tcBot - ((v - tcLo) / band) * (tcBot - tcTop);
     let bars = '', labels = '', pts = [];
     rows.forEach((r, i) => {
       const v = Number(r.costo_usd) || 0, bx = x(i) - bw / 2, by = yBar(v), bh = padT + ih - by;
@@ -85,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const mm = String(r.periodo).slice(5);
       labels += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="11" fill="#64748b">${MES[+mm] || mm}</text>`;
       labels += `<text x="${x(i)}" y="${by - 4}" text-anchor="middle" font-size="10" fill="#0e7490" font-weight="700">${compact(v)}</text>`;
-      if (tc > 0) labels += `<text x="${x(i)}" y="${yTc(tc) - 7}" text-anchor="middle" font-size="10" fill="#b45309">${tc.toFixed(2)}</text>`;
+      if (tc > 0) labels += `<text x="${x(i)}" y="${yTc(tc) - 6}" text-anchor="middle" font-size="10" fill="#b45309">${tc.toFixed(2)}</text>`;
     });
     const line = pts.length > 1 ? `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#f59e0b" stroke-width="2"/>` : '';
     const dots = pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="#f59e0b"/>`).join('');
