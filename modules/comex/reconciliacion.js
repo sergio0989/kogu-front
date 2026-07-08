@@ -287,13 +287,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th style="width:24px"></th>
       <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th>
       <th style="text-align:right;padding:6px">Escala</th>
-      <th>Kg</th><th>Real flete/kg</th><th>Real otros/kg</th><th>Real total/kg</th><th>Teórico total/kg</th>
+      <th>Kg</th><th>Real total/kg</th><th>Teórico total/kg</th>
       <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
     let rows = reconState.rows;
     if (reconState.filtro) rows = rows.filter(r => r.resultado === reconState.filtro);
-    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="12" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
+    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="10" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
     $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
       const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
+      const col = fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a';
       const prov = r.proveedor_nombre
         ? esc(r.proveedor_nombre)
         : (r.cve_prov != null
@@ -303,53 +304,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? ' <span title="Operación con más de un proveedor de mercancía; se tomó el de mayor valor" style="background:#fef9c3;color:#854d0e;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px">revisar</span>' : '';
       const escala = r.escala_kg != null ? kg(r.escala_kg) + ' kg' : '—';
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
-        <td style="text-align:center;padding:6px"><button class="btn ghost" data-exp="${esc(r.no_costeo)}" data-tc="${esc(r.tc || '')}" title="Ver productos" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>
+        <td style="text-align:center;padding:6px"><button class="btn ghost" data-exp="${esc(r.no_costeo)}" title="Ver productos" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
         <td style="text-align:left;padding:6px">${prov}${revisar}</td>
         <td style="text-align:right;padding:6px">${escala}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
-        <td style="padding:6px">${usdkg(r.real_flete_kg_usd)}</td>
-        <td style="padding:6px">${usdkg(r.real_otros_kg_usd)}</td>
         <td style="padding:6px;font-weight:700">${usdkg(r.real_total_kg_usd)}</td>
         <td style="padding:6px;color:#64748b">${usdkg(r.teo_total_kg_usd)}</td>
-        <td style="padding:6px;color:${fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a'}">${usdkg(r.desv_total_usd)}</td>
-        <td style="padding:6px;font-weight:700;color:${fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a'}">${pct(r.desv_total_pct)}</td>
+        <td style="padding:6px;color:${col}">${usdkg(r.desv_total_usd)}</td>
+        <td style="padding:6px;font-weight:700;color:${col}">${pct(r.desv_total_pct)}</td>
         <td style="text-align:center;padding:6px">${resChip(r.resultado)}</td></tr>
-      <tr class="rec-det" data-det="${esc(r.no_costeo)}" style="display:none"><td colspan="12" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
+      <tr class="rec-det" data-det="${esc(r.no_costeo)}" style="display:none"><td colspan="10" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
     }).join('') + '</tbody>';
     $('tRecon').querySelectorAll('button[data-exp]').forEach(bn => bn.addEventListener('click', () => togglePartidas(bn)));
   }
 
   async function togglePartidas(bn) {
-    const nc = bn.dataset.exp, tc = Number(bn.dataset.tc) || 0;
+    const nc = bn.dataset.exp;
     const det = $('tRecon').querySelector(`tr.rec-det[data-det="${CSS.escape(nc)}"]`);
     if (!det) return;
-    const abierto = det.style.display !== 'none';
-    if (abierto) { det.style.display = 'none'; bn.textContent = '▸'; return; }
+    if (det.style.display !== 'none') { det.style.display = 'none'; bn.textContent = '▸'; return; }
     det.style.display = ''; bn.textContent = '▾';
     const cell = det.firstElementChild;
-    if (partidasCache[nc]) { cell.innerHTML = partidasCache[nc](tc); return; }
+    const row = reconState.rows.find(x => String(x.no_costeo) === String(nc)) || {};
+    if (partidasCache[nc]) { cell.innerHTML = partidasCache[nc](row); return; }
     cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Cargando productos…</div>';
     try {
       const parts = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/partidas?no_costeo=' + encodeURIComponent(nc))) || [];
-      const render = (tcv) => {
+      // Detalle por producto con comparación real vs teórico (el teórico viene de
+      // la escala emparejada: mismo flete/otros/kg para todos los productos).
+      const render = (rw) => {
         if (!parts.length) return '<div style="padding:8px;color:var(--muted);font-size:12px">Sin productos.</div>';
-        const usd = (mxn, cant) => (tcv > 0 && cant > 0) ? usdkg(mxn / cant / tcv) : '—';
+        const tcv = Number(rw.tc) || 0;
+        const teoF = rw.teo_flete_kg_usd, teoO = rw.teo_otros_kg_usd, teoT = rw.teo_total_kg_usd;
+        const rk = (mxn, cant) => (tcv > 0 && cant > 0) ? mxn / cant / tcv : null;
         return `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
           <thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
             <th style="text-align:left;padding:4px 6px">Producto</th><th>Kg</th><th>Mercancía/kg</th>
-            <th>Flete/kg</th><th>Otros/kg</th><th>DDP total (MXN)</th></tr></thead><tbody>` +
-          parts.map(p => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
-            <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
-            <td style="padding:4px 6px">${kg(p.cant)}</td>
-            <td style="padding:4px 6px;color:#94a3b8">${usd(p.directo, p.cant)}</td>
-            <td style="padding:4px 6px">${usd(p.flete, p.cant)}</td>
-            <td style="padding:4px 6px">${usd(p.otros, p.cant)}</td>
-            <td style="padding:4px 6px">${money(p.ctotot)}</td></tr>`).join('') +
+            <th>Flete real/kg</th><th>Flete teó/kg</th><th>Otros real/kg</th><th>Otros teó/kg</th>
+            <th>Total real/kg</th><th>Total teó/kg</th><th>Desv. %</th>
+            <th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
+          parts.map(p => {
+            const rF = rk(p.flete, p.cant), rO = rk(p.otros, p.cant);
+            const rT = (rF != null && rO != null) ? rF + rO : null;
+            const dpct = (rT != null && teoT) ? (rT - teoT) / teoT : null;
+            return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+              <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
+              <td style="padding:4px 6px">${kg(p.cant)}</td>
+              <td style="padding:4px 6px;color:#94a3b8">${usdkg(rk(p.directo, p.cant))}</td>
+              <td style="padding:4px 6px">${usdkg(rF)}</td>
+              <td style="padding:4px 6px;color:#64748b">${usdkg(teoF)}</td>
+              <td style="padding:4px 6px">${usdkg(rO)}</td>
+              <td style="padding:4px 6px;color:#64748b">${usdkg(teoO)}</td>
+              <td style="padding:4px 6px;font-weight:700">${usdkg(rT)}</td>
+              <td style="padding:4px 6px;color:#64748b">${usdkg(teoT)}</td>
+              <td style="padding:4px 6px">${pct(dpct)}</td>
+              <td style="text-align:center;padding:4px 6px">${rw.resultado ? resChip(rw.resultado) : '—'}</td></tr>`;
+          }).join('') +
           '</tbody></table>';
       };
       partidasCache[nc] = render;
-      cell.innerHTML = render(tc);
+      cell.innerHTML = render(row);
     } catch (e) { cell.innerHTML = `<div style="padding:8px;color:#991b1b;font-size:12px">${esc(e.message)}</div>`; }
   }
 
