@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const now = new Date();
   let agentes = [];
   let ventasPeriodo = 0; // Σ kg (cant_surt) de ventas del periodo en Costo; 0 = aún no cargadas
+  const MES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   const mon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numv = (v) => { const n = Number(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : 0; };
@@ -48,6 +49,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     <span class="muted" style="font-size:12px">KOGU deriva los kilos al calcular · solo capturas los importes</span></div>
   <div style="overflow:auto;margin-top:12px">
     <table style="width:100%;border-collapse:collapse;font-size:13px" id="tab"></table>
+  </div>
+</div>
+<div class="card" id="resCard" style="margin-top:16px;display:none">
+  <div class="row"><h3 style="margin:0">Consulta rápida · importes capturados del periodo</h3>
+    <span class="muted" style="font-size:12px">Solo agentes con captura · lectura</span></div>
+  <div style="overflow:auto;margin-top:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:13px" id="resTab"></table>
+  </div>
+</div>
+<div class="card" id="anualCard" style="margin-top:16px;display:none">
+  <div class="row">
+    <div><h3 style="margin:0">Consulta anual · total capturado por mes</h3>
+      <span class="muted" style="font-size:12px">Total = comisiones + sueldo + gasto + carga social, por agente y mes</span></div>
+    <button class="btn ghost" id="anualBtn">Cargar consulta anual</button>
+  </div>
+  <div id="anualMsg" class="muted" style="margin-top:8px;font-size:12px;display:none"></div>
+  <div style="overflow:auto;margin-top:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px" id="anualTab"></table>
   </div>
 </div>`;
 
@@ -98,6 +117,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (warn) warn.style.display = (ventasPeriodo > 0 && tot > 0 && Number(a.kg_surtido || 0) === 0) ? '' : 'none';
   }
 
+  // ── Consulta rápida: resumen read-only del periodo (solo capturados) ──
+  function renderResumenPeriodo() {
+    const cap = agentes.filter((a) => a.capturado);
+    const head = `<thead><tr style="text-align:right;border-bottom:2px solid #e2e8f0">
+      <th style="text-align:left;padding:8px">Agente</th>
+      <th style="padding:8px">Comisiones</th><th style="padding:8px">Sueldo</th>
+      <th style="padding:8px">Gasto</th><th style="padding:8px">Carga social</th>
+      <th style="padding:8px">Total</th></tr></thead>`;
+    if (!cap.length) {
+      $('resTab').innerHTML = head + `<tbody><tr><td colspan="6" class="muted" style="padding:12px;text-align:center">Sin capturas en el periodo.</td></tr></tbody>`;
+      return;
+    }
+    let tc = 0, ts = 0, tg = 0, tk = 0;
+    const body = cap.map((a) => {
+      const co = numv(a.comisiones_sv), su = numv(a.sueldo), ga = numv(a.gasto), cs = numv(a.carga_social);
+      tc += co; ts += su; tg += ga; tk += cs;
+      return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9">
+        <td style="text-align:left;padding:8px;font-weight:600">${esc(a.nombre)} <span class="muted" style="font-size:11px">(${esc(a.cve_agente)})</span></td>
+        <td style="padding:8px">${mon(co)}</td><td style="padding:8px">${mon(su)}</td>
+        <td style="padding:8px">${mon(ga)}</td><td style="padding:8px">${mon(cs)}</td>
+        <td style="padding:8px;font-weight:600">${mon(co + su + ga + cs)}</td></tr>`;
+    }).join('');
+    const foot = `<tr style="text-align:right;border-top:2px solid #e2e8f0;font-weight:700;background:#f8fafc">
+      <td style="text-align:left;padding:8px">TOTAL (${cap.length})</td>
+      <td style="padding:8px">${mon(tc)}</td><td style="padding:8px">${mon(ts)}</td>
+      <td style="padding:8px">${mon(tg)}</td><td style="padding:8px">${mon(tk)}</td>
+      <td style="padding:8px">${mon(tc + ts + tg + tk)}</td></tr>`;
+    $('resTab').innerHTML = head + '<tbody>' + body + foot + '</tbody>';
+  }
+
+  // ── Consulta anual: matriz agente × mes (endpoint /gastos-venta/:anio/resumen) ──
+  async function cargarAnual() {
+    const anio = $('anio').value;
+    if (!anio) return KoguApi.toast('Indica el año.', 'error');
+    $('anualMsg').style.display = 'block';
+    $('anualMsg').textContent = 'Cargando consulta anual…';
+    try {
+      const d = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/gastos-venta/${anio}/resumen`));
+      renderAnual(d);
+      $('anualMsg').textContent = `${(d.agentes || []).length} agentes con captura en ${d.anio} · total anual ${mon(d.total_anual)}.`;
+    } catch (e) { $('anualMsg').style.display = 'none'; KoguApi.toast(e.message, 'error'); }
+  }
+
+  function renderAnual(d) {
+    const meses = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const head = `<thead><tr style="text-align:right;border-bottom:2px solid #e2e8f0">
+      <th style="text-align:left;padding:6px 8px;position:sticky;left:0;background:#fff">Agente</th>
+      ${meses.map((m) => `<th style="padding:6px 8px">${MES[m]}</th>`).join('')}
+      <th style="padding:6px 8px">Anual</th></tr></thead>`;
+    const body = (d.agentes || []).map((a) => {
+      const tds = meses.map((m) => {
+        const v = Number(a.meses[m] || 0);
+        return `<td style="padding:6px 8px${v ? '' : ';color:#cbd5e1'}">${v ? mon(v) : '—'}</td>`;
+      }).join('');
+      return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9">
+        <td style="text-align:left;padding:6px 8px;font-weight:600;position:sticky;left:0;background:#fff">${esc(a.nombre)}${a.cve_agente != null ? ` <span class="muted" style="font-size:10px">(${esc(a.cve_agente)})</span>` : ''}</td>
+        ${tds}
+        <td style="padding:6px 8px;font-weight:700">${mon(a.total)}</td></tr>`;
+    }).join('');
+    const tm = d.totales_mes || {};
+    const foot = `<tr style="text-align:right;border-top:2px solid #e2e8f0;font-weight:700;background:#f8fafc">
+      <td style="text-align:left;padding:6px 8px;position:sticky;left:0;background:#f8fafc">TOTAL</td>
+      ${meses.map((m) => `<td style="padding:6px 8px">${Number(tm[m] || 0) ? mon(tm[m]) : '—'}</td>`).join('')}
+      <td style="padding:6px 8px">${mon(d.total_anual || 0)}</td></tr>`;
+    const empty = `<tr><td colspan="14" class="muted" style="padding:12px;text-align:center">Sin capturas en ${d.anio}.</td></tr>`;
+    $('anualTab').innerHTML = head + '<tbody>' + (body ? body + foot : empty) + '</tbody>';
+  }
+
   async function cargar() {
     const anio = $('anio').value, mes = $('mes').value;
     if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
@@ -110,6 +197,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       ventasPeriodo = agentes.reduce((s, a) => s + (Number(a.kg_surtido) || 0), 0);
       $('tabCard').style.display = 'block';
       render();
+      renderResumenPeriodo();
+      $('resCard').style.display = 'block';
+      $('anualCard').style.display = 'block';
       const cap = agentes.filter((a) => a.capturado).length;
       const nota = ventasPeriodo > 0 ? '' :
         ` · <span style="color:#b45309">aún no hay ventas del periodo cargadas en Costo: los importes se distribuirán cuando cargues las ventas del mes y pulses Calcular.</span>`;
@@ -142,4 +232,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('loadBtn').onclick = cargar;
   $('saveBtn').onclick = guardar;
+  $('anualBtn').onclick = cargarAnual;
 });
