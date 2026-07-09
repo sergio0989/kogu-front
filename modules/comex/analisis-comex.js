@@ -108,7 +108,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rows = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/reconciliacion/periodos')) || [];
       const sel = $('periodo');
       if (!rows.length) { sel.innerHTML = '<option value="">— sin periodos reconciliados —</option>'; $('expBtn').disabled = true; return; }
-      sel.innerHTML = rows.map(r => `<option value="${esc(r.periodo)}">${esc(r.periodo)} · ${n0(r.n_pedimentos)} pedimentos</option>`).join('');
+      const acum = `<option value="ACUM">📊 Acumulado (todos los periodos)</option>`;
+      sel.innerHTML = acum + rows.map(r => `<option value="${esc(r.periodo)}">${esc(r.periodo)} · ${n0(r.n_pedimentos)} pedimentos</option>`).join('');
+      sel.value = 'ACUM';
       periodo = sel.value; cargar();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
@@ -130,7 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `Analisis_Comex_${periodo}.xlsx`;
+      a.href = url; a.download = `Analisis_Comex_${periodo === 'ACUM' ? 'acumulado' : periodo}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
     finally { $('expBtn').disabled = false; $('expBtn').textContent = t; }
