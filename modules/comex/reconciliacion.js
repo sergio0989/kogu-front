@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderReconTable() {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
-      <th style="width:24px"></th>
+      <th style="width:56px"></th>
       <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th>
       <th style="text-align:right;padding:6px">Escala</th>
       <th>Kg</th><th style="background:#ecfeff;color:#0e7490;padding:6px">Real total/kg</th><th style="background:#fffbeb;color:#b45309;padding:6px">Teórico total/kg</th>
@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? ' <span title="Operación con más de un proveedor de mercancía; se tomó el de mayor valor" style="background:#fef9c3;color:#854d0e;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px">revisar</span>' : '';
       const escala = r.escala_kg != null ? kg(r.escala_kg) + ' kg' : '—';
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
-        <td style="text-align:center;padding:6px"><button class="btn ghost" data-exp="${esc(r.no_costeo)}" title="Ver productos" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>
+        <td style="text-align:center;padding:6px;white-space:nowrap"><button class="btn ghost" data-exp="${esc(r.no_costeo)}" title="Ver productos" style="padding:0 5px;font-size:12px;line-height:1.4">▸</button><button class="btn ghost" data-int="${esc(r.no_costeo)}" title="Descargar integración (Excel)" style="padding:0 5px;font-size:12px;line-height:1.4">📄</button></td>
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
         <td style="text-align:left;padding:6px">${prov}${revisar}</td>
         <td style="text-align:right;padding:6px">${escala}</td>
@@ -318,6 +318,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tr class="rec-det" data-det="${esc(r.no_costeo)}" style="display:none"><td colspan="10" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
     }).join('') + '</tbody>';
     $('tRecon').querySelectorAll('button[data-exp]').forEach(bn => bn.addEventListener('click', () => togglePartidas(bn)));
+    $('tRecon').querySelectorAll('button[data-int]').forEach(bn => bn.addEventListener('click', () => descargarIntegracion(bn)));
+  }
+
+  async function descargarIntegracion(bn) {
+    const nc = bn.dataset.int, periodo = $('periodo').value;
+    const prev = bn.textContent; bn.textContent = '⏳'; bn.disabled = true;
+    try {
+      const url = RECON + '/integracion/export?no_costeo=' + encodeURIComponent(nc) + (periodo ? '&periodo=' + encodeURIComponent(periodo) : '');
+      const res = await KoguApi.authFetchRaw(url);
+      if (!res.ok) throw new Error('No se pudo generar la integración');
+      const blob = await res.blob();
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = u; a.download = `Integracion_${nc}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+    finally { bn.textContent = prev; bn.disabled = false; }
   }
 
   async function togglePartidas(bn) {
