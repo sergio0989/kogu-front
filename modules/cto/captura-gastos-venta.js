@@ -195,4 +195,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('loadBtn').onclick = cargar;
   $('saveBtn').onclick = guardar;
   $('anualBtn').onclick = cargarAnual;
+
+  // La consulta anual se muestra desde que abre la página (año por defecto = actual).
+  $('anualCard').style.display = 'block';
+  cargarAnual();
 });
