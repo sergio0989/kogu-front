@@ -16,8 +16,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card">
   <div class="row">
     <div><div class="eyebrow">Catálogo</div><h2>Proveedores</h2></div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="newProvBtn">+ Nuevo proveedor</button>
+      <button class="btn"         id="vincSaiBtn">Vincular claves SAI</button>
       <button class="btn"         id="refreshBtn">Actualizar</button>
     </div>
   </div>
@@ -234,10 +235,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('bancoClose').onclick = () => { bancoOverlay.style.display = 'none'; };
   bancoOverlay.onclick = (e) => { if (e.target.id === 'bancoModal') bancoOverlay.style.display = 'none'; };
 
+  // ── Modal vinculación de claves SAI (carga masiva) ─────────────────────────
+  const vincOverlay = document.createElement('div');
+  vincOverlay.id = 'vincModal';
+  vincOverlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
+  vincOverlay.innerHTML = `
+    <div style="width:100%;max-width:900px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div><div class="eyebrow">Carga masiva</div><h2 style="margin:0;font-size:20px">Vincular claves SAI por RFC</h2></div>
+        <button class="btn ghost" id="vincClose" style="padding:6px 10px;font-size:16px">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:20px">
+        <p style="margin:0 0 12px;font-size:13px;color:var(--muted)">
+          Sube un Excel con dos columnas: <b>RFC</b> (columna 1) y <b>folio SAI</b> (columna 2). Cada proveedor se enlaza por RFC dentro de la empresa activa.
+          Solo se llenan las claves <b>vacías</b>; si un proveedor ya tiene clave, se respeta.
+        </p>
+        <div class="page-actions" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="vincPlantillaBtn">⬇ Descargar plantilla</button>
+          <input type="file" id="vincFile" accept=".xlsx,.xls" class="input" style="max-width:340px"/>
+          <span id="vincFileInfo" class="muted" style="font-size:12px"></span>
+        </div>
+        <div class="page-actions" style="gap:8px;margin-top:10px">
+          <button class="btn primary" id="vincPreviewBtn" disabled>Previsualizar</button>
+          <button class="btn"         id="vincApplyBtn"   disabled>Aplicar</button>
+        </div>
+        <div id="vincResumen" style="margin-top:14px"></div>
+        <div id="vincTabla" class="table-wrap" style="margin-top:8px;max-height:42vh;overflow:auto"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(vincOverlay);
+  const closeVinc = () => { vincOverlay.style.display = 'none'; };
+  document.getElementById('vincClose').onclick = closeVinc;
+  vincOverlay.addEventListener('click', e => { if (e.target === vincOverlay) closeVinc(); });
+
   // ── Estado ─────────────────────────────────────────────────────────────────
   const PAGE_SIZE = 50;
   let rows        = [];
   let currentPage = 1;
+  let vincRows    = [];  // filas parseadas del Excel: [{ rfc, cve_prov }]
 
   const val  = id => document.getElementById(id)?.value?.trim() ?? '';
   const sel  = id => document.getElementById(id)?.value ?? '';
@@ -454,6 +489,148 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (err) { KoguApi.toast(err.message, 'error'); }
     }, 'Guardando...');
   };
+
+  // ── Vinculación de claves SAI ──────────────────────────────────────────────
+  const VINC_STATUS = {
+    actualizar:        { label: 'Se vinculará',  color: '#16a34a' },
+    sin_cambio:        { label: 'Sin cambio',    color: '#64748b' },
+    ya_vinculado:      { label: 'Ya vinculado',  color: '#64748b' },
+    no_encontrado:     { label: 'Sin proveedor', color: '#dc2626' },
+    rfc_ambiguo:       { label: 'RFC ambiguo',   color: '#d97706' },
+    conflicto_clave:   { label: 'Conflicto',     color: '#dc2626' },
+    duplicado_archivo: { label: 'Duplicado',     color: '#d97706' },
+    dato_invalido:     { label: 'Dato inválido', color: '#dc2626' },
+  };
+  const VINC_ORDER = ['actualizar', 'sin_cambio', 'ya_vinculado', 'no_encontrado', 'rfc_ambiguo', 'conflicto_clave', 'duplicado_archivo', 'dato_invalido'];
+
+  function openVinc() {
+    vincRows = [];
+    document.getElementById('vincFile').value = '';
+    document.getElementById('vincFileInfo').textContent = '';
+    document.getElementById('vincResumen').innerHTML = '';
+    document.getElementById('vincTabla').innerHTML = '';
+    document.getElementById('vincPreviewBtn').disabled = true;
+    const applyBtn = document.getElementById('vincApplyBtn');
+    applyBtn.disabled = true; applyBtn.textContent = 'Aplicar';
+    vincOverlay.style.display = 'flex';
+  }
+
+  function descargarPlantilla() {
+    if (typeof XLSX === 'undefined') return KoguApi.toast('SheetJS no cargó; recarga la página.', 'error');
+    const aoa = [
+      ['RFC', 'folio_sai'],
+      ['XAXX010101000', '397'],
+      ['XEXX010101000', '15355'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 22 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'proveedores');
+    XLSX.writeFile(wb, 'plantilla_claves_sai.xlsx');
+  }
+
+  async function onVincFile() {
+    const file = document.getElementById('vincFile').files?.[0];
+    vincRows = [];
+    document.getElementById('vincResumen').innerHTML = '';
+    document.getElementById('vincTabla').innerHTML = '';
+    const applyBtn = document.getElementById('vincApplyBtn');
+    applyBtn.disabled = true; applyBtn.textContent = 'Aplicar';
+    const info = document.getElementById('vincFileInfo');
+    if (!file) { info.textContent = ''; document.getElementById('vincPreviewBtn').disabled = true; return; }
+    if (typeof XLSX === 'undefined') return KoguApi.toast('SheetJS no cargó; recarga la página.', 'error');
+    try {
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
+      const parsed = [];
+      for (const r of aoa) {
+        const c0 = String(r[0] ?? '').trim();
+        const c1 = r[1] ?? '';
+        if (!c0) continue;
+        if (/^rfc$/i.test(c0)) continue; // saltar encabezado
+        parsed.push({ rfc: c0, cve_prov: String(c1 ?? '').trim() });
+      }
+      vincRows = parsed;
+      info.textContent = `${file.name} · ${parsed.length} fila(s)`;
+      document.getElementById('vincPreviewBtn').disabled = parsed.length === 0;
+      if (!parsed.length) KoguApi.toast('El archivo no tiene filas de datos.', 'error');
+    } catch (e) {
+      KoguApi.toast('No se pudo leer el archivo: ' + e.message, 'error');
+    }
+  }
+
+  function renderVinc(plan, applied) {
+    const r = plan.resumen || {};
+    const chip = (s) => {
+      const m = VINC_STATUS[s] || { label: s, color: '#64748b' };
+      return `<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid ${m.color}33;color:${m.color};background:${m.color}14;border-radius:999px;padding:3px 10px;font-size:12px;margin:0 6px 6px 0">${m.label}: <b>${r[s]}</b></span>`;
+    };
+    const ap = plan.aplicado;
+    document.getElementById('vincResumen').innerHTML =
+      `<div style="margin-bottom:6px;font-size:13px;color:var(--muted)">${applied ? 'Resultado' : 'Previsualización'} · ${plan.total} fila(s)` +
+      (ap ? ` · <b style="color:#16a34a">${ap.actualizados} vinculados</b>${ap.omitidos ? ` · ${ap.omitidos} omitidos` : ''}${ap.errores?.length ? ` · <b style="color:#dc2626">${ap.errores.length} con error</b>` : ''}` : '') +
+      `</div>` +
+      VINC_ORDER.filter(s => r[s]).map(chip).join('');
+
+    const items = plan.items || [];
+    const CAP = 500;
+    const shown = items.slice(0, CAP);
+    document.getElementById('vincTabla').innerHTML = `
+      <table><thead><tr>
+        <th style="width:44px">#</th><th>RFC</th><th style="width:110px">Folio SAI</th><th>Proveedor</th><th style="width:120px">Estado</th><th>Detalle</th>
+      </tr></thead><tbody>
+        ${shown.map(it => {
+          const m = VINC_STATUS[it.status] || { label: it.status, color: '#64748b' };
+          return `<tr>
+            <td>${it.linea}</td>
+            <td style="font-family:monospace">${KoguUi.escapeHtml(it.rfc || '')}</td>
+            <td style="font-family:monospace">${KoguUi.escapeHtml(it.cve_prov || '')}</td>
+            <td style="font-size:12px">${KoguUi.escapeHtml(it.proveedor_nombre || '—')}${it.cve_actual ? ` <span class="muted">(actual: ${KoguUi.escapeHtml(it.cve_actual)})</span>` : ''}</td>
+            <td><span style="color:${m.color};font-weight:600;font-size:12px">${m.label}</span></td>
+            <td style="font-size:11px;color:var(--muted)">${KoguUi.escapeHtml(it.mensaje || '')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody></table>
+      ${items.length > CAP ? `<div class="muted" style="font-size:11px;padding:8px">Mostrando ${CAP} de ${items.length} filas.</div>` : ''}`;
+  }
+
+  async function vincPreview(e) {
+    if (!vincRows.length) return KoguApi.toast('Primero elige un archivo.', 'error');
+    await KoguUi.withLoading(e.target, async () => {
+      try {
+        const res  = await KoguApi.apiFetch(`${BASE}/cve/preview`, { method: 'POST', body: JSON.stringify({ rows: vincRows }) });
+        const plan = KoguApi.unwrapData(res);
+        renderVinc(plan, false);
+        const n = plan.resumen?.actualizar || 0;
+        const applyBtn = document.getElementById('vincApplyBtn');
+        applyBtn.disabled = n === 0;
+        applyBtn.textContent = n > 0 ? `Aplicar ${n} vínculo(s)` : 'Aplicar';
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    }, 'Analizando...');
+  }
+
+  async function vincApply(e) {
+    if (!vincRows.length) return;
+    await KoguUi.withLoading(e.target, async () => {
+      try {
+        const res  = await KoguApi.apiFetch(`${BASE}/cve/aplicar`, { method: 'POST', body: JSON.stringify({ rows: vincRows }) });
+        const data = KoguApi.unwrapData(res);
+        renderVinc(data, true);
+        const ap = data.aplicado || {};
+        KoguApi.toast(`Vinculados: ${ap.actualizados || 0}${ap.omitidos ? ` · omitidos: ${ap.omitidos}` : ''}`, 'success');
+        document.getElementById('vincApplyBtn').disabled = true;
+        await load(false);
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    }, 'Aplicando...');
+  }
+
+  document.getElementById('vincSaiBtn').onclick       = openVinc;
+  document.getElementById('vincPlantillaBtn').onclick = descargarPlantilla;
+  document.getElementById('vincFile').onchange        = onVincFile;
+  document.getElementById('vincPreviewBtn').onclick   = vincPreview;
+  document.getElementById('vincApplyBtn').onclick     = vincApply;
 
   // ── Eventos ────────────────────────────────────────────────────────────────
   document.getElementById('newProvBtn').onclick = () => { reset(); openM(); };
