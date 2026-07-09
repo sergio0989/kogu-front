@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pct = (v) => (v == null ? '—' : (Number(v) * 100).toFixed(1) + '%');
 
   let data = null, corte = 'proveedores', periodo = null;
+  let filtro = '', sortKey = 'costo_usd', sortDir = 'desc';
 
   c.innerHTML = `
 <div class="card">
@@ -38,10 +39,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="expBtn" style="background:#0891b2">⬇ Exportar Excel</button>
     </div>
   </div>
-  <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap">
-    <button class="btn" data-c="proveedores">Por proveedor</button>
-    <button class="btn" data-c="productos">Por producto</button>
-    <button class="btn" data-c="escalas">Por escala</button>
+  <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" data-c="proveedores">Por proveedor</button>
+      <button class="btn" data-c="productos">Por producto</button>
+      <button class="btn" data-c="escalas">Por escala</button>
+    </div>
+    <input id="anQ" class="input" placeholder="🔍 Buscar…" style="max-width:300px"/>
   </div>
   <div class="muted" id="cInfo" style="font-size:12px;margin-top:8px"></div>
   <div style="overflow-x:auto;margin-top:8px"><table class="table" id="tAn" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
@@ -74,18 +78,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       bn.className = 'btn ' + (on ? 'primary' : 'ghost');
       bn.style.background = on ? '#0891b2' : '';
     });
-    const rows = (data && data[corte]) || [];
     const meta = CORTES[corte];
     const expand = corte === 'proveedores';
-    $('cInfo').textContent = `${n0(rows.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total · gastos/kg y mercancía/kg ponderados por kg${expand ? ' · expande un proveedor para ver sus operaciones' : ''}`;
+    if ($('anQ')) $('anQ').placeholder = `🔍 Buscar ${meta.lab.toLowerCase()}…`;
+    const base = (data && data[corte]) || [];
+    const q = filtro.trim().toLowerCase();
+    let rows = q ? base.filter(r => String(r.grupo || '').toLowerCase().includes(q) || String(r.nombre || '').toLowerCase().includes(q)) : base.slice();
+    const dir = sortDir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => { const va = sortVal(a, sortKey), vb = sortVal(b, sortKey); return va < vb ? -dir : va > vb ? dir : 0; });
+    $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total${expand ? ' · expande un proveedor para ver sus operaciones' : ''}`;
+    const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
-      <th style="text-align:left;padding:6px">${esc(meta.lab)}</th>${meta.nombre ? '<th style="text-align:left;padding:6px">Nombre</th>' : ''}
-      <th>Ops</th><th>Kg</th><th>Costo USD</th>
-      <th style="${M};padding:6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
-      <th style="${M};padding:6px">Gastos/MP</th><th>UtiPor</th></tr></thead>`;
+      ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}
+      ${th('ops', 'Ops')}${th('kg', 'Kg')}${th('costo_usd', 'Costo USD')}
+      ${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', 'DDP/kg')}
+      ${th('gmp', 'Gastos/MP', M)}${th('uti', 'UtiPor')}</tr></thead>`;
     const ncol = (meta.nombre ? 10 : 9) + (expand ? 1 : 0);
-    if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">Sin datos. Reconcilia el periodo primero.</td></tr></tbody>`; return; }
+    if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin datos. Reconcilia el periodo primero.'}</td></tr></tbody>`; $('tAn').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk))); return; }
     $('tAn').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const kgv = Number(r.kg) || 0;
       const mpKg = kgv > 0 ? Number(r.mp_usd) / kgv : null;
@@ -106,6 +117,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px">${utiPill(r.uti == null ? null : Number(r.uti))}</td></tr>${det}`;
     }).join('') + '</tbody>';
     if (expand) $('tAn').querySelectorAll('button[data-op]').forEach(bn => bn.addEventListener('click', () => toggleOps(bn, rows[+bn.dataset.op])));
+    $('tAn').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk)));
+  }
+
+  function sortVal(r, key) {
+    const kgv = Number(r.kg) || 0;
+    switch (key) {
+      case 'grupo': return String(r.grupo || '').toLowerCase();
+      case 'nombre': return String(r.nombre || '').toLowerCase();
+      case 'ops': return Number(r.ops) || 0;
+      case 'kg': return kgv;
+      case 'costo_usd': return Number(r.costo_usd) || 0;
+      case 'mp_kg': return kgv > 0 ? Number(r.mp_usd) / kgv : 0;
+      case 'gastos_kg': return kgv > 0 ? Number(r.gastos_usd) / kgv : 0;
+      case 'ddp_kg': return kgv > 0 ? Number(r.costo_usd) / kgv : 0;
+      case 'gmp': return r.gmp == null ? -1 : Number(r.gmp);
+      case 'uti': return r.uti == null ? -1 : Number(r.uti);
+      default: return 0;
+    }
+  }
+  function clickSort(k) {
+    if (sortKey === k) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortKey = k; sortDir = (k === 'grupo' || k === 'nombre') ? 'asc' : 'desc'; }
+    render();
   }
 
   const opsCache = {};
@@ -187,7 +221,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   $('periodo').addEventListener('change', () => { periodo = $('periodo').value; cargar(); });
-  document.querySelectorAll('button[data-c]').forEach(bn => bn.addEventListener('click', () => { corte = bn.dataset.c; render(); }));
+  document.querySelectorAll('button[data-c]').forEach(bn => bn.addEventListener('click', () => { corte = bn.dataset.c; filtro = ''; if ($('anQ')) $('anQ').value = ''; sortKey = 'costo_usd'; sortDir = 'desc'; render(); }));
+  let anQTimer = null;
+  $('anQ').addEventListener('input', (e) => { clearTimeout(anQTimer); anQTimer = setTimeout(() => { filtro = e.target.value; render(); }, 180); });
   $('expBtn').addEventListener('click', exportar);
   KoguShell.subscribeEmpresaActivaChange(() => { data = null; $('periodo').innerHTML = ''; cargarPeriodos(); });
   cargarPeriodos();
