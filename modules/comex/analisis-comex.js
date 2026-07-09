@@ -79,14 +79,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       bn.style.background = on ? '#0891b2' : '';
     });
     const meta = CORTES[corte];
-    const expand = corte === 'proveedores' || corte === 'productos';
+    const expand = true;
     if ($('anQ')) $('anQ').placeholder = `🔍 Buscar ${meta.lab.toLowerCase()}…`;
     const base = (data && data[corte]) || [];
     const q = filtro.trim().toLowerCase();
     let rows = q ? base.filter(r => String(r.grupo || '').toLowerCase().includes(q) || String(r.nombre || '').toLowerCase().includes(q) || String(r.proveedor || '').toLowerCase().includes(q)) : base.slice();
     const dir = sortDir === 'asc' ? 1 : -1;
     rows.sort((a, b) => { const va = sortVal(a, sortKey), vb = sortVal(b, sortKey); return va < vb ? -dir : va > vb ? dir : 0; });
-    $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total${expand ? (corte === 'productos' ? ' · expande un producto para ver sus operaciones por escala' : ' · expande un proveedor para ver sus operaciones') : ''}`;
+    const hint = corte === 'productos' ? ' · expande un producto → operaciones por escala'
+      : corte === 'escalas' ? ' · expande una escala → operaciones por proveedor'
+        : ' · expande un proveedor → sus operaciones';
+    $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total${hint}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
@@ -181,26 +184,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (opsCache[key]) { cell.innerHTML = opsCache[key]; return; }
     cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Cargando operaciones…</div>';
     try {
-      const esProd = corte === 'productos';
-      const url = esProd
-        ? BASE + '/analisis/operaciones-producto?periodo=' + encodeURIComponent(periodo) + '&producto=' + encodeURIComponent(row.grupo)
-        : BASE + '/analisis/operaciones?periodo=' + encodeURIComponent(periodo) + '&proveedor=' + encodeURIComponent(row.grupo);
+      let url, groupBy = null;
+      if (corte === 'productos') { url = BASE + '/analisis/operaciones-producto?periodo=' + encodeURIComponent(periodo) + '&producto=' + encodeURIComponent(row.grupo); groupBy = 'escala'; }
+      else if (corte === 'escalas') { url = BASE + '/analisis/operaciones-escala?periodo=' + encodeURIComponent(periodo) + '&escala=' + encodeURIComponent(row.grupo); groupBy = 'proveedor'; }
+      else { url = BASE + '/analisis/operaciones?periodo=' + encodeURIComponent(periodo) + '&proveedor=' + encodeURIComponent(row.grupo); }
       const ops = KoguApi.unwrapData(await KoguApi.apiFetch(url)) || [];
       if (!ops.length) { cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin operaciones.</div>'; return; }
       let html;
-      if (esProd) {
-        // Agrupadas por escala, con subtotal de kg/costo por escala.
+      if (groupBy) {
         const grupos = {};
-        ops.forEach(o => { const g = o.escala_kg != null ? String(o.escala_kg) : '— sin escala'; (grupos[g] = grupos[g] || []).push(o); });
-        const claves = Object.keys(grupos).sort((a, b) => (parseFloat(a) || 1e9) - (parseFloat(b) || 1e9));
+        ops.forEach(o => {
+          const g = groupBy === 'escala' ? (o.escala_kg != null ? String(o.escala_kg) : '— sin escala') : (o.proveedor || '—');
+          (grupos[g] = grupos[g] || []).push(o);
+        });
+        const claves = groupBy === 'escala'
+          ? Object.keys(grupos).sort((a, b) => (parseFloat(a) || 1e9) - (parseFloat(b) || 1e9))
+          : Object.keys(grupos).sort((a, b) => grupos[b].reduce((s, o) => s + (Number(o.costo_usd) || 0), 0) - grupos[a].reduce((s, o) => s + (Number(o.costo_usd) || 0), 0));
         html = claves.map(g => {
           const lista = grupos[g];
           const sk = lista.reduce((a, o) => a + (Number(o.kg) || 0), 0);
           const su = lista.reduce((a, o) => a + (Number(o.costo_usd) || 0), 0);
-          const etq = g === '— sin escala' ? g : 'Escala ' + kg(g) + ' kg';
+          const etq = groupBy === 'escala' ? (g === '— sin escala' ? g : 'Escala ' + kg(g) + ' kg') : g;
           return `<div style="margin-top:8px">
-            <div style="display:flex;justify-content:space-between;background:#eef6ff;color:#1e3a8a;font-weight:700;font-size:12px;padding:4px 8px;border-radius:6px">
-              <span>${esc(etq)} · ${lista.length} op(s)</span><span>${kg(sk)} kg · $${n0(su)} USD</span></div>
+            <div style="display:flex;justify-content:space-between;gap:8px;background:#eef6ff;color:#1e3a8a;font-weight:700;font-size:12px;padding:4px 8px;border-radius:6px">
+              <span>${esc(etq)} · ${lista.length} op(s)</span><span style="white-space:nowrap">${kg(sk)} kg · $${n0(su)} USD</span></div>
             <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">${opHead}<tbody>${lista.map(opFila).join('')}</tbody></table>
           </div>`;
         }).join('');
