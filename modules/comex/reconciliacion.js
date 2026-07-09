@@ -218,6 +218,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!rows.length) { sel.innerHTML = '<option value="">— sin matriz SAT cargada —</option>'; $('reconBtn').disabled = true; return; }
       $('reconBtn').disabled = false;
       sel.innerHTML = rows.map(r => `<option value="${esc(r.periodo)}">${esc(r.periodo)} · ${n0(r.n_pedimentos)} pedimentos</option>`).join('');
+      // Carga automática del periodo seleccionado (el último mes) al entrar.
+      if (sel.value) cargarRecon(sel.value);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
