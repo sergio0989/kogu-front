@@ -61,7 +61,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? '<span class="chip" style="background:#dcfce7;color:#166534;font-size:9px;font-weight:700;padding:1px 5px;margin-left:6px">activo</span>'
       : '<span class="chip" style="background:#e5e7eb;color:#6b7280;font-size:9px;font-weight:700;padding:1px 5px;margin-left:6px">inactivo</span>';
     const rows = agentes.map((a, i) => {
-      const tot = (numv(a.comisiones_sv) + numv(a.sueldo) + numv(a.gasto));
+      const tot = (numv(a.comisiones_sv) + numv(a.sueldo) + numv(a.gasto) + numv(a.carga_social));
+      const sinVentas = (tot > 0 && Number(a.kg_surtido || 0) === 0);
       return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9${a.status === 'activo' ? '' : ';opacity:.6'}">
         <td style="text-align:left;padding:8px;font-weight:600">${esc(a.nombre)} <span class="muted" style="font-size:11px">(${esc(a.cve_agente)})</span>${act(a.status)}</td>
         <td style="padding:6px">${inp(i, 'comisiones_sv', a.comisiones_sv)}</td>
@@ -69,7 +70,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px">${inp(i, 'gasto', a.gasto)}</td>
         <td style="padding:6px">${inp(i, 'carga_social', a.carga_social)}</td>
         <td style="padding:8px;font-weight:600" id="tot-${i}">${mon(tot)}</td>
-        <td style="padding:8px">${a.capturado ? '<span class="chip" style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:1px 6px">capturado</span>' : '<span class="muted" style="font-size:11px">—</span>'}</td>
+        <td style="padding:8px">
+          ${a.capturado ? '<span class="chip" style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:1px 6px">capturado</span>' : '<span class="muted" style="font-size:11px">—</span>'}
+          <div id="warn-${i}" style="color:#b45309;font-size:10px;margin-top:3px${sinVentas ? '' : ';display:none'}">⚠ sin ventas en el periodo (0 kg) · no se aplicará al calcular</div>
+        </td>
       </tr>`;
     }).join('');
     $('tab').innerHTML = head + '<tbody>' + rows + '</tbody>';
@@ -83,8 +87,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function onEdit(e) {
     const i = +e.target.dataset.i, k = e.target.dataset.k;
     agentes[i][k] = numv(e.target.value);
-    const tot = numv(agentes[i].comisiones_sv) + numv(agentes[i].sueldo) + numv(agentes[i].gasto);
+    const a = agentes[i];
+    const tot = numv(a.comisiones_sv) + numv(a.sueldo) + numv(a.gasto) + numv(a.carga_social);
     $('tot-' + i).textContent = mon(tot);
+    const warn = $('warn-' + i);
+    if (warn) warn.style.display = (tot > 0 && Number(a.kg_surtido || 0) === 0) ? '' : 'none';
   }
 
   async function cargar() {
@@ -104,9 +111,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function guardar() {
     const anio = $('anio').value, mes = $('mes').value;
     if (!agentes.length) return KoguApi.toast('Primero carga los agentes.', 'error');
-    // solo enviar agentes con algún importe > 0 (evita crear filas vacías)
+    // enviar agentes con algún importe > 0, y TAMBIÉN los que ya estaban
+    // capturados aunque ahora vayan en 0 (permite corregir/limpiar una captura
+    // previa; el backend hace upsert y los deja en 0). Los nunca-capturados en
+    // 0 no se envían para no crear filas vacías.
     const payload = agentes
-      .filter((a) => numv(a.comisiones_sv) || numv(a.sueldo) || numv(a.gasto) || numv(a.carga_social))
+      .filter((a) => a.capturado || numv(a.comisiones_sv) || numv(a.sueldo) || numv(a.gasto) || numv(a.carga_social))
       .map((a) => ({ agente_id: a.agente_id, cve_agente: a.cve_agente, nombre: a.nombre,
         comisiones_sv: numv(a.comisiones_sv), sueldo: numv(a.sueldo), gasto: numv(a.gasto), carga_social: numv(a.carga_social) }));
     if (!payload.length) return KoguApi.toast('No hay importes capturados.', 'error');
