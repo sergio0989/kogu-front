@@ -79,14 +79,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       bn.style.background = on ? '#0891b2' : '';
     });
     const meta = CORTES[corte];
-    const expand = corte === 'proveedores';
+    const expand = corte === 'proveedores' || corte === 'productos';
     if ($('anQ')) $('anQ').placeholder = `🔍 Buscar ${meta.lab.toLowerCase()}…`;
     const base = (data && data[corte]) || [];
     const q = filtro.trim().toLowerCase();
     let rows = q ? base.filter(r => String(r.grupo || '').toLowerCase().includes(q) || String(r.nombre || '').toLowerCase().includes(q) || String(r.proveedor || '').toLowerCase().includes(q)) : base.slice();
     const dir = sortDir === 'asc' ? 1 : -1;
     rows.sort((a, b) => { const va = sortVal(a, sortKey), vb = sortVal(b, sortKey); return va < vb ? -dir : va > vb ? dir : 0; });
-    $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total${expand ? ' · expande un proveedor para ver sus operaciones' : ''}`;
+    $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total${expand ? (corte === 'productos' ? ' · expande un producto para ver sus operaciones por escala' : ' · expande un proveedor para ver sus operaciones') : ''}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
@@ -151,6 +151,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`;
   };
 
+  const opFila = (o) => {
+    const k = Number(o.kg) || 0;
+    return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+      <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
+      <td style="padding:4px 6px">${o.escala_kg != null ? kg(o.escala_kg) + ' kg' : '—'}</td>
+      <td style="padding:4px 6px">${kg(o.kg)}</td>
+      <td style="padding:4px 6px;font-weight:700">$${n0(o.costo_usd)}</td>
+      <td style="padding:4px 6px;${M}">$${usd4(k > 0 ? Number(o.mp_usd) / k : null)}</td>
+      <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.gastos_usd) / k : null)}</td>
+      <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.costo_usd) / k : null)}</td>
+      <td style="padding:4px 6px">${gmpPill(o.gmp == null ? null : Number(o.gmp))}</td>
+      <td style="padding:4px 6px">${utiPill(o.uti == null ? null : Number(o.uti))}</td>
+      <td style="text-align:center;padding:4px 6px">${o.resultado ? resChip(o.resultado) : '—'}</td></tr>`;
+  };
+  const opHead = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
+    <th style="text-align:left;padding:4px 6px">Pedimento</th><th>Escala</th><th>Kg</th><th>Costo USD</th>
+    <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
+    <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead>`;
+
   async function toggleOps(bn, row) {
     const idx = bn.dataset.op;
     const det = $('tAn').querySelector(`tr.op-det[data-det="${idx}"]`);
@@ -162,27 +181,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (opsCache[key]) { cell.innerHTML = opsCache[key]; return; }
     cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Cargando operaciones…</div>';
     try {
-      const ops = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/analisis/operaciones?periodo=' + encodeURIComponent(periodo) + '&proveedor=' + encodeURIComponent(row.grupo))) || [];
+      const esProd = corte === 'productos';
+      const url = esProd
+        ? BASE + '/analisis/operaciones-producto?periodo=' + encodeURIComponent(periodo) + '&producto=' + encodeURIComponent(row.grupo)
+        : BASE + '/analisis/operaciones?periodo=' + encodeURIComponent(periodo) + '&proveedor=' + encodeURIComponent(row.grupo);
+      const ops = KoguApi.unwrapData(await KoguApi.apiFetch(url)) || [];
       if (!ops.length) { cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin operaciones.</div>'; return; }
-      const html = `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
-        <thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
-          <th style="text-align:left;padding:4px 6px">Pedimento</th><th>Escala</th><th>Kg</th><th>Costo USD</th>
-          <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
-          <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
-        ops.map(o => {
-          const k = Number(o.kg) || 0;
-          return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
-            <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
-            <td style="padding:4px 6px">${o.escala_kg != null ? kg(o.escala_kg) + ' kg' : '—'}</td>
-            <td style="padding:4px 6px">${kg(o.kg)}</td>
-            <td style="padding:4px 6px;font-weight:700">$${n0(o.costo_usd)}</td>
-            <td style="padding:4px 6px;${M}">$${usd4(k > 0 ? Number(o.mp_usd) / k : null)}</td>
-            <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.gastos_usd) / k : null)}</td>
-            <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.costo_usd) / k : null)}</td>
-            <td style="padding:4px 6px">${gmpPill(o.gmp == null ? null : Number(o.gmp))}</td>
-            <td style="padding:4px 6px">${utiPill(o.uti == null ? null : Number(o.uti))}</td>
-            <td style="text-align:center;padding:4px 6px">${o.resultado ? resChip(o.resultado) : '—'}</td></tr>`;
-        }).join('') + '</tbody></table>';
+      let html;
+      if (esProd) {
+        // Agrupadas por escala, con subtotal de kg/costo por escala.
+        const grupos = {};
+        ops.forEach(o => { const g = o.escala_kg != null ? String(o.escala_kg) : '— sin escala'; (grupos[g] = grupos[g] || []).push(o); });
+        const claves = Object.keys(grupos).sort((a, b) => (parseFloat(a) || 1e9) - (parseFloat(b) || 1e9));
+        html = claves.map(g => {
+          const lista = grupos[g];
+          const sk = lista.reduce((a, o) => a + (Number(o.kg) || 0), 0);
+          const su = lista.reduce((a, o) => a + (Number(o.costo_usd) || 0), 0);
+          const etq = g === '— sin escala' ? g : 'Escala ' + kg(g) + ' kg';
+          return `<div style="margin-top:8px">
+            <div style="display:flex;justify-content:space-between;background:#eef6ff;color:#1e3a8a;font-weight:700;font-size:12px;padding:4px 8px;border-radius:6px">
+              <span>${esc(etq)} · ${lista.length} op(s)</span><span>${kg(sk)} kg · $${n0(su)} USD</span></div>
+            <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">${opHead}<tbody>${lista.map(opFila).join('')}</tbody></table>
+          </div>`;
+        }).join('');
+      } else {
+        html = `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">${opHead}<tbody>${ops.map(opFila).join('')}</tbody></table>`;
+      }
       opsCache[key] = html; cell.innerHTML = html;
     } catch (e) { cell.innerHTML = `<div style="padding:8px;color:#991b1b;font-size:12px">${esc(e.message)}</div>`; }
   }
