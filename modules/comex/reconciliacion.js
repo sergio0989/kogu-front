@@ -400,57 +400,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
-  // Bloque "peso vs valor": dónde pesa el gasto de importación (zonas Gastos/MP).
+  // Bloque "peso vs valor": dónde pesa el gasto de importación, con 2 lentes.
+  let gmpData = null, gmpLens = 'gmp', gmpOpen = false;
+
   async function cargarGastosMp(periodo) {
     const box = $('gastosMpBox');
     try {
-      const d = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/gastos-mp?periodo=' + encodeURIComponent(periodo))) || {};
-      const z = d.zonas || {};
-      const ktot = Number(z.kg_total) || 0;
-      if (!ktot) { box.style.display = 'none'; return; }
-      box.style.display = 'block';
-      const gtot = Number(z.gasto_total) || 0;
-      const pctKg = (v) => ktot > 0 ? (Number(v) / ktot * 100).toFixed(1) + '%' : '—';
-      const zona = (lab, kgz, gz, bg, cc, hint) => {
-        const kv = Number(kgz) || 0, gv = Number(gz) || 0;
-        return `<div style="flex:1;min-width:150px;background:${bg};border-radius:10px;padding:10px 14px">
-          <div style="font-size:11px;font-weight:800;color:${cc};text-transform:uppercase;letter-spacing:.03em">${lab}</div>
-          <div style="font-size:12px;color:#334155;margin-top:2px">${hint}</div>
-          <div style="font-size:20px;font-weight:800;color:${cc};margin-top:4px">${kg(kv)} kg <span style="font-size:12px;font-weight:600;color:#64748b">· ${pctKg(kv)}</span></div>
-          <div style="font-size:12px;color:#334155">gasto import: <strong>$${(gv).toLocaleString('es-MX',{maximumFractionDigits:0})} USD</strong> · ${gtot>0?(gv/gtot*100).toFixed(0):'0'}% del total</div>
-        </div>`;
-      };
-      const top = (d.top_rojo || []).map(t =>
-        `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:3px 6px">${esc(t.cve_prod)}${t.nombre_corto ? ' · ' + esc(t.nombre_corto) : ''}</td>
-          <td style="padding:3px 6px;text-align:right">${kg(t.kg)} kg</td>
-          <td style="padding:3px 6px;text-align:right;font-weight:700;color:#991b1b">${(Number(t.ratio) * 100).toFixed(0)}%</td>
-          <td style="padding:3px 6px;text-align:right">$${(Number(t.gasto_usd) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })} USD</td></tr>`).join('');
-      box.innerHTML = `
-        <div style="border-top:1px solid #eef2f7;padding-top:12px">
-          <button id="gmpToggle" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;padding:4px;background:none;border:none;cursor:pointer">
-            <span id="gmpCaret" style="font-size:12px;color:#64748b">▸</span>
-            <span class="eyebrow" style="margin:0">Peso vs valor · dónde pesa el gasto de importación</span>
-            <span style="font-size:12px;font-weight:700;color:#991b1b;margin-left:auto">🔴 ${kg(z.kg_rojo)} kg · ${pctKg(z.kg_rojo)}</span>
-          </button>
-          <div id="gmpContent" style="display:none;margin-top:10px">
-            <div class="muted" style="font-size:12px;margin-bottom:10px">Kg del periodo clasificados por <strong>Gastos/MP</strong> (gasto import ÷ materia prima). El rojo = productos que absorben desproporcionado el flete.</div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-              ${zona('🔴 Rojo', z.kg_rojo, z.gasto_rojo, '#fef2f2', '#991b1b', 'Gastos/MP > 60%')}
-              ${zona('🟡 Ámbar', z.kg_ambar, z.gasto_ambar, '#fefce8', '#854d0e', '30% – 60%')}
-              ${zona('🟢 Verde', z.kg_verde, z.gasto_verde, '#f0fdf4', '#166534', '< 30%')}
-            </div>
-            ${top ? `<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px">Top productos que más sufren el gasto (zona roja)</div>
-              <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">
-                <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b"><th style="text-align:left;padding:3px 6px">Producto</th><th style="text-align:right;padding:3px 6px">Kg</th><th style="text-align:right;padding:3px 6px">Gastos/MP</th><th style="text-align:right;padding:3px 6px">Gasto import</th></tr></thead>
-                <tbody>${top}</tbody></table></div>` : ''}
-          </div>
-        </div>`;
-      $('gmpToggle').addEventListener('click', () => {
-        const c = $('gmpContent'), open = c.style.display !== 'none';
-        c.style.display = open ? 'none' : 'block';
-        $('gmpCaret').textContent = open ? '▸' : '▾';
-      });
+      gmpData = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '/gastos-mp?periodo=' + encodeURIComponent(periodo))) || {};
+      if (!(Number(gmpData.kg_total) || 0)) { box.style.display = 'none'; return; }
+      renderGmp();
     } catch (e) { box.style.display = 'none'; }
+  }
+
+  function renderGmp() {
+    const box = $('gastosMpBox'); const d = gmpData; if (!d) return;
+    box.style.display = 'block';
+    const ktot = Number(d.kg_total) || 0, gtot = Number(d.gasto_total) || 0;
+    const lens = d[gmpLens] || d.gmp || {}; const z = lens.zonas || {};
+    const hi = lens.hi, lo = lens.lo;
+    const pctKg = (v) => ktot > 0 ? (Number(v) / ktot * 100).toFixed(1) + '%' : '—';
+    const nombre = gmpLens === 'gmp' ? 'Gastos/MP' : 'UtiPor';
+    const desc = gmpLens === 'gmp'
+      ? 'gasto total (flete + otros) ÷ mercancía — lente de <strong>pricing/margen</strong>. Rojo = productos que absorben desproporcionado el flete.'
+      : 'otros gastos (aduanal/nacional) ÷ (mercancía + flete int\'l) — lente de <strong>costo controlable</strong>. Rojo = operación mexicana pesada sobre el valor en frontera.';
+    const zona = (lab, kgz, gz, bg, cc, hint) => {
+      const kv = Number(kgz) || 0, gv = Number(gz) || 0;
+      return `<div style="flex:1;min-width:150px;background:${bg};border-radius:10px;padding:10px 14px">
+        <div style="font-size:11px;font-weight:800;color:${cc};text-transform:uppercase;letter-spacing:.03em">${lab}</div>
+        <div style="font-size:12px;color:#334155;margin-top:2px">${hint}</div>
+        <div style="font-size:20px;font-weight:800;color:${cc};margin-top:4px">${kg(kv)} kg <span style="font-size:12px;font-weight:600;color:#64748b">· ${pctKg(kv)}</span></div>
+        <div style="font-size:12px;color:#334155">gasto import: <strong>$${gv.toLocaleString('es-MX', { maximumFractionDigits: 0 })} USD</strong> · ${gtot > 0 ? (gv / gtot * 100).toFixed(0) : '0'}% del total</div>
+      </div>`;
+    };
+    const top = (lens.top || []).map(t =>
+      `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:3px 6px">${esc(t.cve_prod)}${t.nombre_corto ? ' · ' + esc(t.nombre_corto) : ''}</td>
+        <td style="padding:3px 6px;text-align:right">${kg(t.kg)} kg</td>
+        <td style="padding:3px 6px;text-align:right;font-weight:700;color:#991b1b">${(Number(t.ratio) * 100).toFixed(0)}%</td>
+        <td style="padding:3px 6px;text-align:right">$${(Number(t.gasto_usd) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })} USD</td></tr>`).join('');
+    const seg = (v, lab) => `<button data-lens="${v}" class="btn ${gmpLens === v ? 'primary' : 'ghost'}" style="padding:3px 11px;font-size:12px${gmpLens === v ? ';background:#0891b2' : ''}">${lab}</button>`;
+    box.innerHTML = `
+      <div style="border-top:1px solid #eef2f7;padding-top:12px">
+        <button id="gmpToggle" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;padding:4px;background:none;border:none;cursor:pointer">
+          <span id="gmpCaret" style="font-size:12px;color:#64748b">${gmpOpen ? '▾' : '▸'}</span>
+          <span class="eyebrow" style="margin:0">Peso vs valor · dónde pesa el gasto de importación</span>
+          <span style="font-size:12px;font-weight:700;color:#991b1b;margin-left:auto">🔴 ${kg(z.kg_rojo)} kg · ${pctKg(z.kg_rojo)}</span>
+        </button>
+        <div id="gmpContent" style="display:${gmpOpen ? 'block' : 'none'};margin-top:10px">
+          <div style="display:flex;gap:6px;margin-bottom:8px">${seg('gmp', 'Gastos/MP')}${seg('uti', 'UtiPor')}</div>
+          <div class="muted" style="font-size:12px;margin-bottom:10px"><strong>${nombre}:</strong> ${desc}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            ${zona('🔴 Rojo', z.kg_rojo, z.gasto_rojo, '#fef2f2', '#991b1b', `${nombre} > ${hi}%`)}
+            ${zona('🟡 Ámbar', z.kg_ambar, z.gasto_ambar, '#fefce8', '#854d0e', `${lo}% – ${hi}%`)}
+            ${zona('🟢 Verde', z.kg_verde, z.gasto_verde, '#f0fdf4', '#166534', `< ${lo}%`)}
+          </div>
+          ${top ? `<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px">Top productos en zona roja (${nombre})</div>
+            <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">
+              <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b"><th style="text-align:left;padding:3px 6px">Producto</th><th style="text-align:right;padding:3px 6px">Kg</th><th style="text-align:right;padding:3px 6px">${nombre}</th><th style="text-align:right;padding:3px 6px">Gasto import</th></tr></thead>
+              <tbody>${top}</tbody></table></div>` : '<div class="muted" style="font-size:12px;margin-top:10px">Sin productos en zona roja para esta lente.</div>'}
+        </div>
+      </div>`;
+    $('gmpToggle').onclick = () => {
+      gmpOpen = !gmpOpen;
+      $('gmpContent').style.display = gmpOpen ? 'block' : 'none';
+      $('gmpCaret').textContent = gmpOpen ? '▾' : '▸';
+    };
+    box.querySelectorAll('button[data-lens]').forEach(bn => bn.onclick = () => { gmpLens = bn.dataset.lens; renderGmp(); });
   }
 
   $('reconBtn').addEventListener('click', reconciliar);
