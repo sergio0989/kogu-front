@@ -88,6 +88,7 @@
     ]},
     {section:'Comercio Exterior',items:[
       {href:'/modules/comex/resumen-comex.html',label:'📊 Resumen ejecutivo',perm:'screen.comex.resumen'},
+      {href:'/modules/comex/analisis-comex.html',label:'📈 Análisis y exportación',perm:'screen.comex.analisis'},
       {href:'/modules/comex/costeo-teorico.html',label:'🌐 Costeo teórico (importación)',perm:'screen.comex'},
       {href:'/modules/comex/pedimentos-sat.html',label:'📥 Pedimentos SAT (matriz)',perm:'screen.comex.pedimentos'},
       {href:'/modules/comex/reconciliacion.html',label:'⚖️ Reconciliación (real vs teórico)',perm:'screen.comex.reconciliacion'},
