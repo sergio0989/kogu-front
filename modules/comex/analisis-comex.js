@@ -67,9 +67,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const CORTES = {
-    proveedores: { lab: 'Proveedor', nombre: false },
-    productos: { lab: 'Producto', nombre: true },
-    escalas: { lab: 'Escala (kg)', nombre: false },
+    proveedores: { lab: 'Proveedor', nombre: false, prov: false },
+    productos: { lab: 'Producto', nombre: true, prov: true },
+    escalas: { lab: 'Escala (kg)', nombre: false, prov: false },
   };
 
   function render() {
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('anQ')) $('anQ').placeholder = `🔍 Buscar ${meta.lab.toLowerCase()}…`;
     const base = (data && data[corte]) || [];
     const q = filtro.trim().toLowerCase();
-    let rows = q ? base.filter(r => String(r.grupo || '').toLowerCase().includes(q) || String(r.nombre || '').toLowerCase().includes(q)) : base.slice();
+    let rows = q ? base.filter(r => String(r.grupo || '').toLowerCase().includes(q) || String(r.nombre || '').toLowerCase().includes(q) || String(r.proveedor || '').toLowerCase().includes(q)) : base.slice();
     const dir = sortDir === 'asc' ? 1 : -1;
     rows.sort((a, b) => { const va = sortVal(a, sortKey), vb = sortVal(b, sortKey); return va < vb ? -dir : va > vb ? dir : 0; });
     $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total${expand ? ' · expande un proveedor para ver sus operaciones' : ''}`;
@@ -91,11 +91,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
-      ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}
+      ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
       ${th('ops', 'Ops')}${th('kg', 'Kg')}${th('costo_usd', 'Costo USD')}
       ${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', 'DDP/kg')}
       ${th('gmp', 'Gastos/MP', M)}${th('uti', 'UtiPor')}</tr></thead>`;
-    const ncol = (meta.nombre ? 10 : 9) + (expand ? 1 : 0);
+    const ncol = 9 + (meta.nombre ? 1 : 0) + (meta.prov ? 1 : 0) + (expand ? 1 : 0);
     if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin datos. Reconcilia el periodo primero.'}</td></tr></tbody>`; $('tAn').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk))); return; }
     $('tAn').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const kgv = Number(r.kg) || 0;
@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${expand ? `<td style="text-align:center;padding:6px"><button class="btn ghost" data-op="${idx}" title="Ver operaciones" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>` : ''}
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.grupo)}</td>
         ${meta.nombre ? `<td style="text-align:left;padding:6px">${esc(r.nombre || '')}</td>` : ''}
+        ${meta.prov ? `<td style="text-align:left;padding:6px">${esc(r.proveedor || '—')}</td>` : ''}
         <td style="padding:6px">${n0(r.ops)}</td>
         <td style="padding:6px">${kg(r.kg)}</td>
         <td style="padding:6px;font-weight:700">$${n0(r.costo_usd)}</td>
@@ -125,6 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     switch (key) {
       case 'grupo': return String(r.grupo || '').toLowerCase();
       case 'nombre': return String(r.nombre || '').toLowerCase();
+      case 'proveedor': return String(r.proveedor || '').toLowerCase();
       case 'ops': return Number(r.ops) || 0;
       case 'kg': return kgv;
       case 'costo_usd': return Number(r.costo_usd) || 0;
