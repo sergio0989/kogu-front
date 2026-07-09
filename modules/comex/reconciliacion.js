@@ -349,7 +349,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th style="${R};padding:4px 6px">Otros real/kg</th><th style="${T};padding:4px 6px">Otros teó/kg</th>
             <th style="${R};padding:4px 6px">Total real/kg</th><th style="${T};padding:4px 6px">Total teó/kg</th>
             <th>Desv. USD/kg</th><th>Desv. %</th>
-            <th style="${M};padding:4px 6px" title="Gastos de importación reales (flete+otros) sobre el valor de la materia prima">Gastos/MP</th>
+            <th style="${M};padding:4px 6px" title="Lente de pricing/margen: gasto total de importación (flete + otros) ÷ valor de la mercancía. Alto = el producto barato absorbe mucho flete.">Gastos/MP</th>
+            <th style="background:#eef2ff;color:#3730a3;padding:4px 6px" title="Lente de costo controlable: otros gastos (aduanal/nacional) ÷ (mercancía + flete int'l). Mide cuánto suma la operación mexicana sobre el valor puesto en frontera (CFR).">UtiPor</th>
             <th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
           parts.map(p => {
             const merc = rk(p.directo, p.cant);
@@ -358,9 +359,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dUsd = (rT != null && teoT != null) ? rT - teoT : null;
             const dpct = (rT != null && teoT) ? (rT - teoT) / teoT : null;
             const dc = dUsd == null ? '#0f172a' : (dUsd > 0 ? '#991b1b' : dUsd < 0 ? '#1e40af' : '#0f172a');
+            // Lente pricing: gasto total ÷ mercancía (escala 30/60).
             const gmp = (rT != null && merc > 0) ? rT / merc : null;
             const gmpBg = gmp == null ? 'transparent' : (gmp < 0.30 ? '#dcfce7' : gmp <= 0.60 ? '#fef9c3' : '#fee2e2');
             const gmpC = gmp == null ? '#94a3b8' : (gmp < 0.30 ? '#166534' : gmp <= 0.60 ? '#854d0e' : '#991b1b');
+            // Lente costo controlable (tu UtiPor Excel): otros ÷ (mercancía + flete int'l), escala 8/15.
+            const cfr = (merc != null && rF != null) ? merc + rF : null;
+            const uti = (rO != null && cfr > 0) ? rO / cfr : null;
+            const utiBg = uti == null ? 'transparent' : (uti < 0.08 ? '#dcfce7' : uti <= 0.15 ? '#fef9c3' : '#fee2e2');
+            const utiC = uti == null ? '#94a3b8' : (uti < 0.08 ? '#166534' : uti <= 0.15 ? '#854d0e' : '#991b1b');
             return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
               <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
               <td style="padding:4px 6px">${kg(p.cant)}</td>
@@ -374,6 +381,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <td style="padding:4px 6px;font-weight:700;color:${dc}">${usdkg(dUsd)}</td>
               <td style="padding:4px 6px;color:${dc}">${pct(dpct)}</td>
               <td style="padding:4px 6px"><span style="font-weight:700;background:${gmpBg};color:${gmpC};padding:1px 8px;border-radius:999px">${pct(gmp)}</span></td>
+              <td style="padding:4px 6px"><span style="font-weight:700;background:${utiBg};color:${utiC};padding:1px 8px;border-radius:999px">${pct(uti)}</span></td>
               <td style="text-align:center;padding:4px 6px">${rw.resultado ? resChip(rw.resultado) : '—'}</td></tr>`;
           }).join('') +
           '</tbody></table>';
