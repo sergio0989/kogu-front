@@ -235,10 +235,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         KoguApi.toast('Sin costeos teóricos cargados: no hay contra qué comparar.', 'warn');
       } else if ((s.sin_teorico + s.sin_proveedor) === s.operaciones) {
         KoguApi.toast('Ninguna operación empató con un costeo teórico de su proveedor.', 'warn');
-      } else if (s.crm_actividad_id) {
-        KoguApi.toast('Reconciliado. Se generó una actividad CRM con las desviaciones.', 'success');
+      } else if (s.crm_actividades_creadas) {
+        KoguApi.toast(`Reconciliado. Se generaron ${n0(s.crm_actividades_creadas)} actividad(es) CRM por operaciones "Sobre".`, 'success');
+      } else if (s.sobre) {
+        KoguApi.toast('Reconciliado. Las operaciones "Sobre" ya tenían actividad CRM abierta.', 'success');
       } else {
-        KoguApi.toast('Reconciliado. Sin operaciones fuera de banda.', 'success');
+        KoguApi.toast('Reconciliado. Sin operaciones "Sobre" tabulador.', 'success');
       }
       await cargarRecon(periodo);
     } catch (e) { $('reconMsg').textContent = ''; KoguApi.toast(e.message, 'error'); }
