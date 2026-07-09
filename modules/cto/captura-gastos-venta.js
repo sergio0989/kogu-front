@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = (id) => document.getElementById(id);
   const now = new Date();
   let agentes = [];
+  let ventasPeriodo = 0; // Σ kg (cant_surt) de ventas del periodo en Costo; 0 = aún no cargadas
 
   const mon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numv = (v) => { const n = Number(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : 0; };
@@ -62,7 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '<span class="chip" style="background:#e5e7eb;color:#6b7280;font-size:9px;font-weight:700;padding:1px 5px;margin-left:6px">inactivo</span>';
     const rows = agentes.map((a, i) => {
       const tot = (numv(a.comisiones_sv) + numv(a.sueldo) + numv(a.gasto) + numv(a.carga_social));
-      const sinVentas = (tot > 0 && Number(a.kg_surtido || 0) === 0);
+      // Solo avisar si HAY ventas del periodo cargadas (ventasPeriodo>0) pero este
+      // agente no tiene ventas asignadas (kg 0). Si aún no hay ventas del periodo,
+      // no se alarma por agente: se muestra una nota general (ver cargar()).
+      const sinVentas = (ventasPeriodo > 0 && tot > 0 && Number(a.kg_surtido || 0) === 0);
       return `<tr style="text-align:right;border-bottom:1px solid #f1f5f9${a.status === 'activo' ? '' : ';opacity:.6'}">
         <td style="text-align:left;padding:8px;font-weight:600">${esc(a.nombre)} <span class="muted" style="font-size:11px">(${esc(a.cve_agente)})</span>${act(a.status)}</td>
         <td style="padding:6px">${inp(i, 'comisiones_sv', a.comisiones_sv)}</td>
@@ -72,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:8px;font-weight:600" id="tot-${i}">${mon(tot)}</td>
         <td style="padding:8px">
           ${a.capturado ? '<span class="chip" style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:1px 6px">capturado</span>' : '<span class="muted" style="font-size:11px">—</span>'}
-          <div id="warn-${i}" style="color:#b45309;font-size:10px;margin-top:3px${sinVentas ? '' : ';display:none'}">⚠ sin ventas en el periodo (0 kg) · no se aplicará al calcular</div>
+          <div id="warn-${i}" style="color:#b45309;font-size:10px;margin-top:3px${sinVentas ? '' : ';display:none'}">⚠ sin ventas asignadas a este agente (0 kg) · no se aplicará al calcular</div>
         </td>
       </tr>`;
     }).join('');
@@ -91,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tot = numv(a.comisiones_sv) + numv(a.sueldo) + numv(a.gasto) + numv(a.carga_social);
     $('tot-' + i).textContent = mon(tot);
     const warn = $('warn-' + i);
-    if (warn) warn.style.display = (tot > 0 && Number(a.kg_surtido || 0) === 0) ? '' : 'none';
+    if (warn) warn.style.display = (ventasPeriodo > 0 && tot > 0 && Number(a.kg_surtido || 0) === 0) ? '' : 'none';
   }
 
   async function cargar() {
@@ -101,10 +105,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/gastos-venta/${anio}/${mes}`));
       agentes = (d.agentes || []).map((a) => ({ ...a }));
+      // ¿Hay ventas del periodo cargadas en Costo? (Σ kg surtido de todos los agentes).
+      // Si es 0, el gasto no puede distribuirse aún: se avisa una sola vez, no por agente.
+      ventasPeriodo = agentes.reduce((s, a) => s + (Number(a.kg_surtido) || 0), 0);
       $('tabCard').style.display = 'block';
       render();
       const cap = agentes.filter((a) => a.capturado).length;
-      $('msg').innerHTML = `<b>${agentes.length}</b> agentes · <b>${cap}</b> ya capturados. Edita los importes y pulsa <b>Guardar captura</b>.`;
+      const nota = ventasPeriodo > 0 ? '' :
+        ` · <span style="color:#b45309">aún no hay ventas del periodo cargadas en Costo: los importes se distribuirán cuando cargues las ventas del mes y pulses Calcular.</span>`;
+      $('msg').innerHTML = `<b>${agentes.length}</b> agentes · <b>${cap}</b> ya capturados. Edita los importes y pulsa <b>Guardar captura</b>.${nota}`;
     } catch (e) { $('msg').textContent = ''; KoguApi.toast(e.message, 'error'); }
   }
 
