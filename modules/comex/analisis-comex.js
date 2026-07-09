@@ -76,20 +76,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     const rows = (data && data[corte]) || [];
     const meta = CORTES[corte];
-    $('cInfo').textContent = `${n0(rows.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total · gastos/kg y mercancía/kg ponderados por kg`;
+    const expand = corte === 'proveedores';
+    $('cInfo').textContent = `${n0(rows.length)} ${meta.lab.toLowerCase()}(s) · costo USD = DDP total · gastos/kg y mercancía/kg ponderados por kg${expand ? ' · expande un proveedor para ver sus operaciones' : ''}`;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      ${expand ? '<th style="width:24px"></th>' : ''}
       <th style="text-align:left;padding:6px">${esc(meta.lab)}</th>${meta.nombre ? '<th style="text-align:left;padding:6px">Nombre</th>' : ''}
       <th>Ops</th><th>Kg</th><th>Costo USD</th>
       <th style="${M};padding:6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
       <th style="${M};padding:6px">Gastos/MP</th><th>UtiPor</th></tr></thead>`;
-    const ncol = meta.nombre ? 10 : 9;
+    const ncol = (meta.nombre ? 10 : 9) + (expand ? 1 : 0);
     if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">Sin datos. Reconcilia el periodo primero.</td></tr></tbody>`; return; }
-    $('tAn').innerHTML = head + '<tbody>' + rows.map(r => {
+    $('tAn').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const kgv = Number(r.kg) || 0;
       const mpKg = kgv > 0 ? Number(r.mp_usd) / kgv : null;
       const gKg = kgv > 0 ? Number(r.gastos_usd) / kgv : null;
       const ddpKg = kgv > 0 ? Number(r.costo_usd) / kgv : null;
+      const det = expand ? `<tr class="op-det" data-det="${idx}" style="display:none"><td colspan="${ncol}" style="padding:0 6px 10px 30px;background:#fafcff"></td></tr>` : '';
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+        ${expand ? `<td style="text-align:center;padding:6px"><button class="btn ghost" data-op="${idx}" title="Ver operaciones" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>` : ''}
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.grupo)}</td>
         ${meta.nombre ? `<td style="text-align:left;padding:6px">${esc(r.nombre || '')}</td>` : ''}
         <td style="padding:6px">${n0(r.ops)}</td>
@@ -99,8 +103,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px">$${usd4(gKg)}</td>
         <td style="padding:6px">$${usd4(ddpKg)}</td>
         <td style="padding:6px">${gmpPill(r.gmp == null ? null : Number(r.gmp))}</td>
-        <td style="padding:6px">${utiPill(r.uti == null ? null : Number(r.uti))}</td></tr>`;
+        <td style="padding:6px">${utiPill(r.uti == null ? null : Number(r.uti))}</td></tr>${det}`;
     }).join('') + '</tbody>';
+    if (expand) $('tAn').querySelectorAll('button[data-op]').forEach(bn => bn.addEventListener('click', () => toggleOps(bn, rows[+bn.dataset.op])));
+  }
+
+  const opsCache = {};
+  const resChip = (r) => {
+    const map = { DentroBanda: ['#dcfce7', '#166534', 'Dentro'], SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'], BajoTabulador: ['#dbeafe', '#1e40af', '↓ Bajo'], SinTeorico: ['#f1f5f9', '#475569', 'Sin teórico'], SinProveedor: ['#f3e8ff', '#6b21a8', 'Sin prov'], SinDatos: ['#fef9c3', '#854d0e', 'Sin datos'] };
+    const m = map[r] || map.SinDatos;
+    return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`;
+  };
+
+  async function toggleOps(bn, row) {
+    const idx = bn.dataset.op;
+    const det = $('tAn').querySelector(`tr.op-det[data-det="${idx}"]`);
+    if (!det) return;
+    if (det.style.display !== 'none') { det.style.display = 'none'; bn.textContent = '▸'; return; }
+    det.style.display = ''; bn.textContent = '▾';
+    const cell = det.firstElementChild;
+    const key = corte + '|' + periodo + '|' + row.grupo;
+    if (opsCache[key]) { cell.innerHTML = opsCache[key]; return; }
+    cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Cargando operaciones…</div>';
+    try {
+      const ops = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/analisis/operaciones?periodo=' + encodeURIComponent(periodo) + '&proveedor=' + encodeURIComponent(row.grupo))) || [];
+      if (!ops.length) { cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin operaciones.</div>'; return; }
+      const html = `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
+        <thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
+          <th style="text-align:left;padding:4px 6px">Pedimento</th><th>Escala</th><th>Kg</th><th>Costo USD</th>
+          <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
+          <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
+        ops.map(o => {
+          const k = Number(o.kg) || 0;
+          return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+            <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
+            <td style="padding:4px 6px">${o.escala_kg != null ? kg(o.escala_kg) + ' kg' : '—'}</td>
+            <td style="padding:4px 6px">${kg(o.kg)}</td>
+            <td style="padding:4px 6px;font-weight:700">$${n0(o.costo_usd)}</td>
+            <td style="padding:4px 6px;${M}">$${usd4(k > 0 ? Number(o.mp_usd) / k : null)}</td>
+            <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.gastos_usd) / k : null)}</td>
+            <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.costo_usd) / k : null)}</td>
+            <td style="padding:4px 6px">${gmpPill(o.gmp == null ? null : Number(o.gmp))}</td>
+            <td style="padding:4px 6px">${utiPill(o.uti == null ? null : Number(o.uti))}</td>
+            <td style="text-align:center;padding:4px 6px">${o.resultado ? resChip(o.resultado) : '—'}</td></tr>`;
+        }).join('') + '</tbody></table>';
+      opsCache[key] = html; cell.innerHTML = html;
+    } catch (e) { cell.innerHTML = `<div style="padding:8px;color:#991b1b;font-size:12px">${esc(e.message)}</div>`; }
   }
 
   async function cargarPeriodos() {
