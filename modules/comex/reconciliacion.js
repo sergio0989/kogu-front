@@ -342,9 +342,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const R = 'background:#ecfeff;color:#0e7490';   // real → cian
         const T = 'background:#fffbeb;color:#b45309';   // teórico → ámbar
         const M = 'background:#faf5ff;color:#7e22ce';   // mercancía → violeta
-        return `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
+        const NF = 'background:#eff6ff;color:#1e3a8a';  // factura/lote → azul
+        return `<div style="font-size:11px;color:#64748b;margin:2px 0 4px"><span style="background:#e0e7ff;color:#3730a3;font-weight:700;padding:1px 8px;border-radius:999px">NO_COSTEO ${esc(rw.no_costeo ?? '—')}</span></div>
+          <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">
           <thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
-            <th style="text-align:left;padding:4px 6px">Producto</th><th>Kg</th><th style="${M};padding:4px 6px">Mercancía/kg</th>
+            <th style="text-align:left;padding:4px 6px">Producto</th>
+            <th style="${NF};padding:4px 6px">NO_FACC</th><th style="${NF};padding:4px 6px">Lote</th>
+            <th>Kg</th><th style="${M};padding:4px 6px">Mercancía/kg</th>
             <th style="${R};padding:4px 6px">Flete real/kg</th><th style="${T};padding:4px 6px">Flete teó/kg</th>
             <th style="${R};padding:4px 6px">Otros real/kg</th><th style="${T};padding:4px 6px">Otros teó/kg</th>
             <th style="${R};padding:4px 6px">Total real/kg</th><th style="${T};padding:4px 6px">Total teó/kg</th>
@@ -370,6 +374,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const utiC = uti == null ? '#94a3b8' : (uti < 0.08 ? '#166534' : uti <= 0.15 ? '#854d0e' : '#991b1b');
             return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
               <td style="text-align:left;padding:4px 6px">${esc(p.cve_prod || '')}${p.nombre_corto ? ' · ' + esc(p.nombre_corto) : ''}</td>
+              <td style="padding:4px 6px;${NF}">${esc(p.no_facc || '—')}</td>
+              <td style="padding:4px 6px;${NF}">${esc(p.lote || '—')}</td>
               <td style="padding:4px 6px">${kg(p.cant)}</td>
               <td style="padding:4px 6px;font-weight:600;${M}">${usdkg(merc)}</td>
               <td style="padding:4px 6px;${R}">${usdkg(rF)}</td>
