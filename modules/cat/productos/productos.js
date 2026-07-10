@@ -13,8 +13,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card">
   <div class="row">
     <div><div class="eyebrow">Catálogo</div><h2>Productos</h2></div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="newProdBtn">+ Nuevo producto</button>
+      <button class="btn"         id="cargaProdBtn">Carga masiva</button>
       <button class="btn"         id="refreshBtn">Actualizar</button>
     </div>
   </div>
@@ -235,6 +236,182 @@ document.addEventListener('DOMContentLoaded', async () => {
   modal.addEventListener('click', e => { if (e.target === modal) closeM(); });
   document.getElementById('closeModalBtn').addEventListener('click', closeM);
   document.getElementById('cancelModalBtn').addEventListener('click', closeM);
+
+  // ── Modal carga masiva (alta) ──────────────────────────────────────────────
+  const cargaOverlay = document.createElement('div');
+  cargaOverlay.id = 'cargaModal';
+  cargaOverlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
+  cargaOverlay.innerHTML = `
+    <div style="width:100%;max-width:920px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div><div class="eyebrow">Carga masiva</div><h2 style="margin:0;font-size:20px">Alta de productos por Excel</h2></div>
+        <button class="btn ghost" id="cargaClose" style="padding:6px 10px;font-size:16px">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:20px">
+        <p style="margin:0 0 12px;font-size:13px;color:var(--muted)">
+          Sube un Excel para <b>dar de alta productos nuevos</b> en la empresa activa. La llave es <b>cve_prod</b>:
+          si un producto ya existe, se <b>omite</b> (no se sobrescribe). Obligatorios: <b>cve_prod</b> y <b>desc_prod</b>.
+        </p>
+        <div class="page-actions" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="cargaPlantillaBtn">⬇ Descargar plantilla</button>
+          <input type="file" id="cargaFile" accept=".xlsx,.xls" class="input" style="max-width:340px"/>
+          <span id="cargaFileInfo" class="muted" style="font-size:12px"></span>
+        </div>
+        <div class="page-actions" style="gap:8px;margin-top:10px">
+          <button class="btn primary" id="cargaPreviewBtn" disabled>Previsualizar</button>
+          <button class="btn"         id="cargaApplyBtn"   disabled>Aplicar</button>
+        </div>
+        <div id="cargaResumen" style="margin-top:14px"></div>
+        <div id="cargaTabla" class="table-wrap" style="margin-top:8px;max-height:42vh;overflow:auto"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(cargaOverlay);
+  const closeCarga = () => { cargaOverlay.style.display = 'none'; };
+  document.getElementById('cargaClose').onclick = closeCarga;
+  cargaOverlay.addEventListener('click', e => { if (e.target === cargaOverlay) closeCarga(); });
+
+  let cargaRows = [];  // filas parseadas del Excel (objetos por encabezado)
+
+  const CARGA_STATUS = {
+    crear:             { label: 'Se creará',     color: '#16a34a' },
+    ya_existe:         { label: 'Ya existe',     color: '#64748b' },
+    duplicado_archivo: { label: 'Duplicado',     color: '#d97706' },
+    dato_invalido:     { label: 'Dato inválido', color: '#dc2626' },
+  };
+  const CARGA_ORDER = ['crear', 'ya_existe', 'duplicado_archivo', 'dato_invalido'];
+
+  function openCarga() {
+    cargaRows = [];
+    document.getElementById('cargaFile').value = '';
+    document.getElementById('cargaFileInfo').textContent = '';
+    document.getElementById('cargaResumen').innerHTML = '';
+    document.getElementById('cargaTabla').innerHTML = '';
+    document.getElementById('cargaPreviewBtn').disabled = true;
+    const applyBtn = document.getElementById('cargaApplyBtn');
+    applyBtn.disabled = true; applyBtn.textContent = 'Aplicar';
+    cargaOverlay.style.display = 'flex';
+  }
+
+  function descargarPlantillaProd() {
+    if (typeof XLSX === 'undefined') return KoguApi.toast('SheetJS no cargó; recarga la página.', 'error');
+    const aoa = [
+      ['cve_prod', 'desc_prod', 'tipo_producto', 'uso_producto', 'clave_prod_serv_sat', 'clave_unidad_sat', 'precio_base', 'costo_base', 'moneda', 'tasa_iva_default'],
+      ['WWP9001', 'EXTRACTO DEMO DE PRUEBA', 'producto', 'materia_prima', '', '', '0', '0', 'MXN', '16'],
+      ['SERV-DEMO', 'SERVICIO DEMO', 'servicio', 'servicio_externo', '', '', '', '', 'MXN', '16'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 16 }, { wch: 34 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'productos');
+    XLSX.writeFile(wb, 'plantilla_productos.xlsx');
+  }
+
+  const CARGA_ALIAS = { clave: 'cve_prod', descripcion: 'desc_prod', descripcion_completa: 'desc_prod' };
+
+  async function onCargaFile() {
+    const file = document.getElementById('cargaFile').files?.[0];
+    cargaRows = [];
+    document.getElementById('cargaResumen').innerHTML = '';
+    document.getElementById('cargaTabla').innerHTML = '';
+    const applyBtn = document.getElementById('cargaApplyBtn');
+    applyBtn.disabled = true; applyBtn.textContent = 'Aplicar';
+    const info = document.getElementById('cargaFileInfo');
+    if (!file) { info.textContent = ''; document.getElementById('cargaPreviewBtn').disabled = true; return; }
+    if (typeof XLSX === 'undefined') return KoguApi.toast('SheetJS no cargó; recarga la página.', 'error');
+    try {
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
+      const parsed = [];
+      for (const r of raw) {
+        const o = {};
+        for (const k in r) {
+          const key = String(k).trim().toLowerCase().replace(/\s+/g, '_');
+          o[CARGA_ALIAS[key] || key] = r[k];
+        }
+        // descartar renglones totalmente vacíos
+        if (Object.values(o).some(v => v !== null && v !== '' && v !== undefined)) parsed.push(o);
+      }
+      cargaRows = parsed;
+      info.textContent = `${file.name} · ${parsed.length} fila(s)`;
+      document.getElementById('cargaPreviewBtn').disabled = parsed.length === 0;
+      if (!parsed.length) KoguApi.toast('El archivo no tiene filas de datos.', 'error');
+    } catch (e) {
+      KoguApi.toast('No se pudo leer el archivo: ' + e.message, 'error');
+    }
+  }
+
+  function renderCarga(plan, applied) {
+    const r = plan.resumen || {};
+    const chip = (s) => {
+      const m = CARGA_STATUS[s] || { label: s, color: '#64748b' };
+      return `<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid ${m.color}33;color:${m.color};background:${m.color}14;border-radius:999px;padding:3px 10px;font-size:12px;margin:0 6px 6px 0">${m.label}: <b>${r[s]}</b></span>`;
+    };
+    const ap = plan.aplicado;
+    document.getElementById('cargaResumen').innerHTML =
+      `<div style="margin-bottom:6px;font-size:13px;color:var(--muted)">${applied ? 'Resultado' : 'Previsualización'} · ${plan.total} fila(s)` +
+      (ap ? ` · <b style="color:#16a34a">${ap.creados} creados</b>${ap.errores?.length ? ` · <b style="color:#dc2626">${ap.errores.length} con error</b>` : ''}` : '') +
+      `</div>` +
+      CARGA_ORDER.filter(s => r[s]).map(chip).join('');
+
+    const items = plan.items || [];
+    const CAP = 500;
+    const shown = items.slice(0, CAP);
+    document.getElementById('cargaTabla').innerHTML = `
+      <table><thead><tr>
+        <th style="width:44px">#</th><th style="width:130px">Clave</th><th>Descripción</th><th style="width:90px">Tipo</th><th style="width:120px">Estado</th><th>Detalle</th>
+      </tr></thead><tbody>
+        ${shown.map(it => {
+          const m = CARGA_STATUS[it.status] || { label: it.status, color: '#64748b' };
+          return `<tr>
+            <td>${it.linea}</td>
+            <td style="font-family:monospace">${KoguUi.escapeHtml(it.cve_prod || '')}</td>
+            <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${KoguUi.escapeHtml(it.desc_prod || '')}">${KoguUi.escapeHtml(it.desc_prod || '')}</td>
+            <td style="font-size:11px;color:var(--muted)">${KoguUi.escapeHtml(it.tipo_producto || '')}</td>
+            <td><span style="color:${m.color};font-weight:600;font-size:12px">${m.label}</span></td>
+            <td style="font-size:11px;color:var(--muted)">${KoguUi.escapeHtml(it.mensaje || '')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody></table>
+      ${items.length > CAP ? `<div class="muted" style="font-size:11px;padding:8px">Mostrando ${CAP} de ${items.length} filas.</div>` : ''}`;
+  }
+
+  async function cargaPreview(e) {
+    if (!cargaRows.length) return KoguApi.toast('Primero elige un archivo.', 'error');
+    await KoguUi.withLoading(e.target, async () => {
+      try {
+        const res  = await KoguApi.apiFetch(`${BASE}/carga/preview`, { method: 'POST', body: JSON.stringify({ rows: cargaRows }) });
+        const plan = KoguApi.unwrapData(res);
+        renderCarga(plan, false);
+        const n = plan.resumen?.crear || 0;
+        const applyBtn = document.getElementById('cargaApplyBtn');
+        applyBtn.disabled = n === 0;
+        applyBtn.textContent = n > 0 ? `Aplicar ${n} alta(s)` : 'Aplicar';
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    }, 'Analizando...');
+  }
+
+  async function cargaApply(e) {
+    if (!cargaRows.length) return;
+    await KoguUi.withLoading(e.target, async () => {
+      try {
+        const res  = await KoguApi.apiFetch(`${BASE}/carga/aplicar`, { method: 'POST', body: JSON.stringify({ rows: cargaRows }) });
+        const data = KoguApi.unwrapData(res);
+        renderCarga(data, true);
+        const ap = data.aplicado || {};
+        KoguApi.toast(`Productos creados: ${ap.creados || 0}${ap.errores?.length ? ` · ${ap.errores.length} con error` : ''}`, 'success');
+        document.getElementById('cargaApplyBtn').disabled = true;
+        await load();
+      } catch (err) { KoguApi.toast(err.message, 'error'); }
+    }, 'Aplicando...');
+  }
+
+  document.getElementById('cargaProdBtn').onclick     = openCarga;
+  document.getElementById('cargaPlantillaBtn').onclick = descargarPlantillaProd;
+  document.getElementById('cargaFile').onchange        = onCargaFile;
+  document.getElementById('cargaPreviewBtn').onclick   = cargaPreview;
+  document.getElementById('cargaApplyBtn').onclick     = cargaApply;
 
   // ── Estado ─────────────────────────────────────────────────────────────
   const PAGE_SIZE = 50;
