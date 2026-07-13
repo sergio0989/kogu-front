@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><label class="muted" style="font-size:12px">Mes</label><input type="number" id="mes" class="input" style="width:80px" min="1" max="12" value="${now.getMonth() + 1}"/></div>
       <button class="btn ghost" id="verBtn">Ver resultado</button>
       <button class="btn ghost" id="detBtn" title="Exporta el detalle renglón a renglón con los encabezados del ABC para comparar">⬇ Detalle ABC</button>
+      <button class="btn ghost" id="pdfBtn" title="Detalle ABC en PDF (oficio horizontal, para imprimir/archivar)">⬇ PDF</button>
       <button class="btn primary" id="calcBtn" style="background:#16a34a">▶ Calcular</button>
     </div>
   </div>
@@ -167,6 +168,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
+  async function exportarPdf() {
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
+    if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    try {
+      KoguApi.toast('Generando PDF…', 'info');
+      const res = await KoguApi.authFetchRaw(`${BASE}/detalle-abc/${anio}/${mes}/pdf`);
+      if (!res.ok) throw new Error('No se pudo generar el PDF.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Abc_detalle_KOGU_${anio}_${String(mes).padStart(2, '0')}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  $('pdfBtn').addEventListener('click', exportarPdf);
   $('calcBtn').addEventListener('click', calcular);
   $('verBtn').addEventListener('click', verResultado);
   $('detBtn').addEventListener('click', exportarDetalle);
