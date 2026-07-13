@@ -28,7 +28,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><div class="eyebrow">Costo</div><h2>Bandeja / Corrección de costo</h2></div>
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div><label class="muted" style="font-size:12px">Año</label><input type="number" id="anio" class="input" style="width:90px" value="${now.getFullYear()}"/></div>
-      <div><label class="muted" style="font-size:12px">Mes</label><input type="number" id="mes" class="input" style="width:70px" min="1" max="12" value="${now.getMonth() + 1}"/></div>
+      <div><label class="muted" style="font-size:12px">Mes</label>
+        <select id="mes" class="input" style="width:150px">
+          <option value="0">Acumulado (año)</option>
+          ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((n, i) => `<option value="${i + 1}"${(i + 1) === (now.getMonth() + 1) ? ' selected' : ''}>${n}</option>`).join('')}
+        </select></div>
       <button class="btn ghost" id="verCorr">Ver correcciones</button>
       <button class="btn ghost" id="exportar">⬇ Excel</button>
       <button class="btn primary" id="cargar">Cargar</button>
@@ -129,8 +133,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function load() {
-    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
-    if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10) || 0;  // mes 0 = acumulado
+    if (!anio) return KoguApi.toast('Indica el año.', 'error');
     const p = new URLSearchParams({ anio, mes, page, pageSize });
     if ($('q').value.trim()) p.set('q', $('q').value.trim());
     if ($('soloProd').checked) p.set('solo_producido', 'true');
@@ -347,8 +351,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('exportar').addEventListener('click', exportar);
 
   async function exportar() {
-    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10);
-    if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
+    const anio = parseInt($('anio').value, 10), mes = parseInt($('mes').value, 10) || 0;  // 0 = acumulado
+    if (!anio) return KoguApi.toast('Indica el año.', 'error');
     // El Resumen ejecutivo es del MES COMPLETO (segmenta externos/internos
     // y facturas/notas adentro); NO aplica los filtros de la vista.
     const p = new URLSearchParams({ anio, mes });
@@ -359,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `cto_bandeja_${anio}_${String(mes).padStart(2, '0')}.xlsx`;
+      a.href = url; a.download = `cto_bandeja_${anio}_${mes >= 1 && mes <= 12 ? String(mes).padStart(2, '0') : 'acumulado'}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
