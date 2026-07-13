@@ -290,17 +290,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     catch (e) { KoguApi.toast(e.message, 'error'); }
   }
   async function calcular(id) {
-    try { const r = data(await api('/integraciones/' + id + '/calcular', { method: 'POST', body: '{}' }));
-      if (r.gastos_sin_categoria > 0) showMsg(`Calculado. ⚠ ${r.gastos_sin_categoria} gasto(s) sin categoría no entran al costo.`, 'warn');
-      else showMsg(`✅ Calculado: costo ${fmtMon(r.costo_expo_kg)}/kg sobre ${fmtKg(r.total_kg)}.`, 'ok');
-      openDetail(id);
+    try {
+      const r = data(await api('/integraciones/' + id + '/calcular', { method: 'POST', body: '{}' }));
+      await openDetail(id);   // re-render primero, luego el aviso para que persista
+      if (r.gastos_sin_categoria > 0) {
+        showMsg(`Calculado. ⚠ ${r.gastos_sin_categoria} gasto(s) sin categoría no entran al costo.`, 'warn');
+        KoguApi.toast(`Calculado con ${r.gastos_sin_categoria} gasto(s) sin categoría`, 'warn');
+      } else {
+        showMsg(`✅ Calculado: costo ${fmtMon(r.costo_expo_kg)}/kg sobre ${fmtKg(r.total_kg)}.`, 'ok');
+        KoguApi.toast(`Calculado: ${fmtMon(r.costo_expo_kg)}/kg`, 'success');
+      }
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
   async function finalizar(id) {
     if (!confirm('¿Finalizar y publicar al costo de ventas? Quedará bloqueada (puedes reabrirla después).')) return;
-    try { const r = data(await api('/integraciones/' + id + '/finalizar', { method: 'POST', body: '{}' }));
+    try {
+      const r = data(await api('/integraciones/' + id + '/finalizar', { method: 'POST', body: '{}' }));
+      await openDetail(id);
+      showMsg(`✅ Publicado al costo de ventas: ${r.filas_publicadas} renglones · ${fmtMon(r.costo_expo_kg)}/kg.`, 'ok');
       KoguApi.toast(`Publicado: ${r.filas_publicadas} renglones · ${fmtMon(r.costo_expo_kg)}/kg`, 'success');
-      openDetail(id);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
   async function reabrir(id) {
