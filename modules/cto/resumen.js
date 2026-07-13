@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         row('Importe B prorrateo', fmtMon(f.importe_b_prorrateo)) +
         row('Importe C', fmtMon(f.importe_c)))}
       ${bloque('Kilos (calculados por KOGU)',
-        row('Kilos A <span class="muted" style="font-size:10px">neto de notas</span>', fKg(f.kilos_a)) +
+        row(`Kilos A <span class="muted" style="font-size:10px">${f.notas_sin_gasto ? 'bruto (sin notas)' : 'neto de notas'}</span>`, fKg(f.kilos_a)) +
         row('Kilos B <span class="muted" style="font-size:10px">producidos</span>', fKg(f.kilos_b)) +
         row('Kilos C <span class="muted" style="font-size:10px">exportación</span>', fKg(f.kilos_c)) +
         row('Kilos Prod B <span class="muted" style="font-size:10px">capturado</span>', fKg(f.kilos_prod_b)))}
