@@ -255,6 +255,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintarTotales(cats, totalKg) {
     const chip = (a) => a === 'nacional' ? '<span style="background:#dbeafe;color:#1e40af;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:800">NAL</span>'
       : a === 'internacional' ? '<span style="background:#fae8ff;color:#86198f;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:800">INT</span>' : '';
+    // Previsualiza el costo/kg total en vivo (Σ gastos categorizados ÷ total kg),
+    // sin esperar a Calcular. Al Calcular se persiste el mismo número.
+    const rMxn = $('rMxn');
+    if (rMxn) {
+      const totCat = (cats || []).reduce((s, c) => s + (Number(c.suma) || 0), 0);
+      const kg = Number(totalKg) || 0;
+      rMxn.textContent = fmtMon(kg > 0 ? totCat / kg : 0);
+    }
     if (!cats || !cats.length) { $('totGrid').innerHTML = '<div class="muted" style="font-size:13px">Sin gastos categorizados aún.</div>'; return; }
     $('totGrid').innerHTML = cats.map(c => {
       const on = (Number(c.suma) || 0) > 0;
