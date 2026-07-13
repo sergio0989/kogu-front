@@ -377,10 +377,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rows = data(await api('/picker/gastos' + qs({ integracion_id: id, q: q.value.trim() }))) || [];
         if (!rows.length) { list.innerHTML = '<div class="muted" style="padding:12px;text-align:center">Sin facturas de compra.</div>'; return; }
         list.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="text-align:left;border-bottom:1px solid #e2e8f0">
-          <th style="padding:6px">Folio</th><th style="padding:6px">Fecha</th><th style="padding:6px">Proveedor</th><th style="padding:6px">Clave</th><th style="padding:6px;text-align:right">Importe</th><th></th></tr></thead><tbody>${
+          <th style="padding:6px">Folio</th><th style="padding:6px">Fecha</th><th style="padding:6px">Proveedor</th><th style="padding:6px">Clave</th><th style="padding:6px">Concepto</th><th style="padding:6px;text-align:right">Importe</th><th></th></tr></thead><tbody>${
           rows.map((r, i) => `<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:6px;font-weight:700">${esc(r.folio_factura || '')}</td><td style="padding:6px">${fechaSolo(r.fecha_fac)}</td>
             <td style="padding:6px">${esc(r.proveedor || '')}</td><td style="padding:6px">${esc(r.clave || '')}</td>
+            <td style="padding:6px">${esc(r.concepto || '')}</td>
             <td style="padding:6px;text-align:right">${fmtMon(r.importe)}</td>
             <td style="padding:6px;text-align:right"><button class="btn ghost" style="padding:2px 9px;color:#0e7490" data-i="${i}">＋ Agregar</button></td></tr>`).join('')
           }</tbody></table>`;
