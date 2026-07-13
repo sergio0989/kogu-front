@@ -222,9 +222,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintarGasto(rows, fin, id) {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="text-align:left;padding:6px">Folio factura</th><th style="text-align:left;padding:6px">Proveedor</th>
-      <th style="text-align:left;padding:6px">Clave</th><th style="text-align:left;padding:6px">Categoría</th>
+      <th style="text-align:left;padding:6px">Clave</th><th style="text-align:left;padding:6px">Concepto</th><th style="text-align:left;padding:6px">Categoría</th>
       <th style="text-align:left;padding:6px">Fecha</th><th style="padding:6px">Importe MXN</th>${fin ? '' : '<th></th>'}</tr></thead>`;
-    if (!rows.length) { $('tGasto').innerHTML = head + `<tbody><tr><td colspan="${fin ? 6 : 7}" style="text-align:center;padding:16px;color:var(--muted)">Sin gastos. Agrega desde el ERP.</td></tr></tbody>`; return; }
+    if (!rows.length) { $('tGasto').innerHTML = head + `<tbody><tr><td colspan="${fin ? 7 : 8}" style="text-align:center;padding:16px;color:var(--muted)">Sin gastos. Agrega desde el ERP.</td></tr></tbody>`; return; }
     let tot = 0;
     const body = rows.map(r => { tot += Number(r.importe) || 0;
       const sel = fin
@@ -238,12 +238,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="text-align:left;padding:6px;font-weight:700">${esc(r.folio_factura || '')}</td>
       <td style="text-align:left;padding:6px">${esc(r.proveedor || '')}</td>
       <td style="text-align:left;padding:6px">${esc(r.clave || '')}</td>
+      <td style="text-align:left;padding:6px;color:#475569">${esc(r.concepto || '')}</td>
       <td style="text-align:left;padding:6px">${sel}${warn}</td>
       <td style="text-align:left;padding:6px">${fechaSolo(r.fecha_fac)}</td>
       <td style="padding:6px">${fmtMon(r.importe)}</td>
       ${fin ? '' : `<td style="padding:6px"><button class="btn ghost" style="color:#991b1b;padding:2px 7px" data-eg="${r.eg_id}">✕</button></td>`}</tr>`; }).join('');
     const foot = `<tfoot><tr style="background:#f8fafc;font-weight:800;border-top:1px solid #e2e8f0">
-      <td style="text-align:left;padding:7px" colspan="5">Total gastos</td>
+      <td style="text-align:left;padding:7px" colspan="6">Total gastos</td>
       <td style="text-align:right;padding:7px">${fmtMon(tot)}</td>${fin ? '' : '<td></td>'}</tr></tfoot>`;
     $('tGasto').innerHTML = head + '<tbody>' + body + '</tbody>' + foot;
     if (!fin) {
@@ -398,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           try {
             await api('/integraciones/' + id + '/gastos', { method: 'POST', body: JSON.stringify({
               erp_compra_id: r.compra_id, folio_factura: r.folio_factura, clave: r.clave,
-              proveedor: r.proveedor, fecha_fac: r.fecha_fac, importe: r.importe, cve_mon: r.cve_mon,
+              concepto: r.concepto, proveedor: r.proveedor, fecha_fac: r.fecha_fac, importe: r.importe, cve_mon: r.cve_mon,
             }) });
             KoguApi.toast('Gasto agregado: ' + (r.folio_factura || ''), 'success');
             buscar();
