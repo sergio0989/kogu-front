@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { q, list } = modal('Selecciona factura de gasto', 'ERP · Compras · facturas de proveedor');
     async function buscar() {
       try {
-        const rows = data(await api('/picker/gastos' + qs({ q: q.value.trim() }))) || [];
+        const rows = data(await api('/picker/gastos' + qs({ integracion_id: id, q: q.value.trim() }))) || [];
         if (!rows.length) { list.innerHTML = '<div class="muted" style="padding:12px;text-align:center">Sin facturas de compra.</div>'; return; }
         list.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="text-align:left;border-bottom:1px solid #e2e8f0">
           <th style="padding:6px">Folio</th><th style="padding:6px">Fecha</th><th style="padding:6px">Proveedor</th><th style="padding:6px">Clave</th><th style="padding:6px;text-align:right">Importe</th><th></th></tr></thead><tbody>${
@@ -391,6 +391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               erp_compra_id: r.compra_id, folio_factura: r.folio_factura, clave: r.clave,
               proveedor: r.proveedor, fecha_fac: r.fecha_fac, importe: r.importe, cve_mon: r.cve_mon,
             }) });
+            KoguApi.toast('Gasto agregado: ' + (r.folio_factura || ''), 'success');
             buscar();
           } catch (e) { KoguApi.toast(e.message, 'error'); btn.disabled = false; }
         }));
