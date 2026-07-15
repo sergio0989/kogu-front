@@ -422,19 +422,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('cmpBtn').addEventListener('click', () => diffVersiones($('cmpA').value, $('cmpB').value));
   }
 
-  function snapResumen(c) {
-    return `<div style="font-size:12px;margin-bottom:6px"><strong>${esc(c.folio || '')}</strong> · ${esc(c.origen_proveedor || '')} · ${esc(c.modo_transporte || '')} · ${c.kg} kg · EXW ${c.costo_unit_exw} USD/kg · TC ${c.tip_cam}</div>`;
+  const MODO_LBL = { usd_fijo: 'USD fijo', mxn_fijo: 'MXN fijo', usd_kg: 'USD/kg', mxn_kg: 'MXN/kg', pct_base: '% sobre base' };
+  const CAPA = {
+    exw: { lab: 'EXW · mercancía', bg: '#f5f3ff', tx: '#7e22ce' },
+    cfr: { lab: 'CFR · hasta frontera', bg: '#ecfeff', tx: '#0e7490' },
+    ddp: { lab: 'DDP · puesto en destino', bg: '#fffbeb', tx: '#b45309' },
+  };
+  function statChip(lab, val) {
+    return `<div style="background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:6px 12px;min-width:80px">
+      <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.03em">${esc(lab)}</div>
+      <div style="font-size:15px;font-weight:700;color:#0f172a">${val}</div></div>`;
   }
   async function verVersion(versionId) {
     const box = $('histDetail'); box.innerHTML = '<div class="muted" style="font-size:12px;padding:6px">Cargando…</div>';
     try {
-      const v = await getSnap(versionId); const s = v.snapshot || {};
-      const con = (s.conceptos || []).map(x => `<tr style="border-top:1px solid #f1f5f9"><td style="padding:3px 6px">${esc(x.clave || x.nombre || '')}</td><td style="padding:3px 6px">${esc(x.capa_incoterm || '')}</td><td style="padding:3px 6px;text-align:right">${x.valor_captura} ${esc(x.moneda || '')}</td><td style="padding:3px 6px">${esc(x.modo_captura || '')}</td></tr>`).join('');
-      const esc2 = (s.escenarios || []).map(e => `${esc(e.nombre)}: ${e.arancel_pct}%`).join(' · ');
-      box.innerHTML = `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
-        <div class="eyebrow">Versión v${v.version_num}</div>${snapResumen(s.costeo || {})}
-        <table style="width:100%;font-size:12px"><thead><tr style="color:#64748b;text-align:left"><th style="padding:3px 6px">Concepto</th><th style="padding:3px 6px">Capa</th><th style="padding:3px 6px;text-align:right">Valor</th><th style="padding:3px 6px">Modo</th></tr></thead><tbody>${con}</tbody></table>
-        ${esc2 ? `<div class="muted" style="font-size:12px;margin-top:6px">Escenarios: ${esc2}</div>` : ''}</div>`;
+      const v = await getSnap(versionId); const s = v.snapshot || {}; const c = s.costeo || {};
+      const nm = (x) => (Number(x) || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+      const conceptosPorCapa = (capa) => (s.conceptos || []).filter(x => (x.capa_incoterm || '') === capa);
+      const bloqueCapa = (capa) => {
+        const meta = CAPA[capa]; const lista = conceptosPorCapa(capa);
+        if (!lista.length) return '';
+        return `<div style="margin-top:8px">
+          <div style="background:${meta.bg};color:${meta.tx};font-weight:700;font-size:12px;padding:4px 10px;border-radius:6px">${meta.lab}</div>
+          <table style="width:100%;font-size:12.5px"><tbody>${lista.map(x => `<tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:5px 10px">${esc(x.clave || x.nombre || '')}</td>
+            <td style="padding:5px 10px;text-align:right;font-weight:600">${nm(x.valor_captura)} <span style="color:#64748b;font-weight:400">${esc(x.moneda || '')}</span></td>
+            <td style="padding:5px 10px;color:#64748b;width:120px">${esc(MODO_LBL[x.modo_captura] || x.modo_captura || '')}</td>
+            ${x.es_arancel ? '<td style="padding:5px 10px"><span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px">arancel</span></td>' : '<td></td>'}
+          </tr>`).join('')}</tbody></table></div>`;
+      };
+      const esc2 = (s.escenarios || []).map(e => `<span style="background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;margin-right:6px">${esc(e.nombre)}: ${e.arancel_pct}%</span>`).join('');
+      box.innerHTML = `<div style="border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="chip" style="background:#ede9fe;color:#5b21b6;font-weight:800;padding:2px 10px;border-radius:999px">v${v.version_num}${v.actual ? ' · actual' : ''}</span>
+          <strong style="font-size:15px">${esc(c.folio || '')}</strong>
+          <span class="muted" style="font-size:13px">${esc(c.origen_proveedor || '')}</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          ${statChip('Transporte', esc(c.modo_transporte || '—'))}
+          ${statChip('KGS', nm(c.kg))}
+          ${statChip('EXW USD/kg', '$' + nm(c.costo_unit_exw))}
+          ${statChip('Tipo de cambio', nm(c.tip_cam))}
+        </div>
+        ${bloqueCapa('exw')}${bloqueCapa('cfr')}${bloqueCapa('ddp')}
+        ${esc2 ? `<div style="margin-top:10px"><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.03em">Escenarios de arancel</span><div style="margin-top:4px">${esc2}</div></div>` : ''}
+      </div>`;
     } catch (e) { box.innerHTML = `<div style="color:#991b1b;font-size:12px;padding:6px">${esc(e.message)}</div>`; }
   }
   function diffRows(a, b) {
