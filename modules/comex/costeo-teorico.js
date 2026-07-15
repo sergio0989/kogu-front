@@ -367,6 +367,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const snapCache = {};
   async function getSnap(versionId) {
+    // Versión actual (copia de trabajo sin congelar): se arma con lo cargado en D.
+    if (versionId === '__actual__') {
+      return {
+        version_num: D.costeo.version_actual, actual: true,
+        snapshot: { costeo: D.costeo, conceptos: D.conceptos || [], escenarios: D.escenarios || [] },
+      };
+    }
     if (snapCache[versionId]) return snapCache[versionId];
     const v = data(await api('/versiones/' + versionId));
     snapCache[versionId] = v; return v;
@@ -375,13 +382,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const box = $('histBox'); if (box.style.display === 'block') { box.style.display = 'none'; return; }
     const vs = (D.versiones || []).slice().sort((a, b) => b.version_num - a.version_num);
     box.style.display = 'block';
-    if (!vs.length) { box.innerHTML = '<div class="muted" style="font-size:12px;padding:8px">Aún no hay versiones congeladas.</div>'; return; }
-    const opts = vs.map(v => `<option value="${v.version_id}">v${v.version_num}</option>`).join('');
+    const vActual = D.costeo.version_actual;
+    // Opciones: primero la actual (copia de trabajo), luego las congeladas.
+    const opts = `<option value="__actual__">v${vActual} (actual)</option>` + vs.map(v => `<option value="${v.version_id}">v${v.version_num}</option>`).join('');
+    const filaActual = `<tr style="border-top:1px solid #f1f5f9;background:#f5f3ff">
+      <td style="padding:6px;font-weight:700">v${vActual} <span style="font-size:10px;color:#6b21a8;font-weight:800">actual</span></td>
+      <td style="padding:6px" colspan="2" class="muted">copia de trabajo (sin congelar)</td>
+      <td style="padding:6px"></td>
+      <td style="padding:6px;white-space:nowrap;text-align:right">
+        <button class="btn ghost" data-ver="__actual__" style="padding:1px 8px;font-size:11px">👁 Ver</button>
+        ${vs.length ? `<button class="btn ghost" data-diff="__actual__" data-prev="${vs[0].version_id}" style="padding:1px 8px;font-size:11px">Δ vs anterior</button>` : ''}
+      </td></tr>`;
     box.innerHTML = `
       <div style="border:1px solid var(--line);border-radius:10px;overflow:hidden">
         <table style="width:100%;font-size:12.5px"><thead><tr style="background:#f8fafc;text-align:left">
           <th style="padding:6px">Versión</th><th style="padding:6px">Fecha</th><th style="padding:6px">Autor</th><th style="padding:6px">Motivo</th><th style="padding:6px"></th></tr></thead>
-        <tbody>${vs.map((v, i) => `<tr style="border-top:1px solid #f1f5f9">
+        <tbody>${filaActual}${vs.map((v, i) => `<tr style="border-top:1px solid #f1f5f9">
           <td style="padding:6px;font-weight:700">v${v.version_num}</td>
           <td style="padding:6px">${new Date(v.created_at).toLocaleString('es-MX')}</td>
           <td style="padding:6px">${esc(v.autor || '—')}</td>
@@ -401,7 +417,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div id="histDetail" style="margin-top:10px"></div>`;
     box.querySelectorAll('button[data-ver]').forEach(b => b.addEventListener('click', () => verVersion(b.dataset.ver)));
     box.querySelectorAll('button[data-diff]').forEach(b => b.addEventListener('click', () => diffVersiones(b.dataset.prev, b.dataset.diff)));
-    if (vs.length > 1) { $('cmpA').value = vs[1].version_id; $('cmpB').value = vs[0].version_id; }
+    // Default: última congelada (A) vs actual (B) → muestra los cambios del borrador.
+    $('cmpA').value = vs[0].version_id; $('cmpB').value = '__actual__';
     $('cmpBtn').addEventListener('click', () => diffVersiones($('cmpA').value, $('cmpB').value));
   }
 
