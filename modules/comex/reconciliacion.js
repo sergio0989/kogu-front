@@ -310,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const escala = r.escala_kg != null ? kg(r.escala_kg) + ' kg' : '—';
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
         <td style="text-align:center;padding:6px;white-space:nowrap"><button class="btn ghost" data-exp="${esc(r.no_costeo)}" title="Ver productos" style="padding:0 5px;font-size:12px;line-height:1.4">▸</button><button class="btn ghost" data-int="${esc(r.no_costeo)}" title="Descargar integración (Excel)" style="padding:0 5px;font-size:12px;line-height:1.4">📄</button></td>
-        <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}</td>
+        <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}${r.costeo_folio ? `<div style="font-size:10.5px;color:#64748b;font-weight:400">vs ${esc(r.costeo_folio)} · v${esc(r.costeo_version)}</div>` : ''}</td>
         <td style="text-align:left;padding:6px">${prov}${revisar}</td>
         <td style="text-align:right;padding:6px">${escala}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>

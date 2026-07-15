@@ -365,14 +365,97 @@ document.addEventListener('DOMContentLoaded', async () => {
       KoguApi.toast('Costeo duplicado', 'success'); openDetail(r.costeo_id); }
     catch (e) { KoguApi.toast(e.message, 'error'); }
   }
+  const snapCache = {};
+  async function getSnap(versionId) {
+    if (snapCache[versionId]) return snapCache[versionId];
+    const v = data(await api('/versiones/' + versionId));
+    snapCache[versionId] = v; return v;
+  }
   function toggleHist() {
     const box = $('histBox'); if (box.style.display === 'block') { box.style.display = 'none'; return; }
-    const vs = D.versiones || [];
+    const vs = (D.versiones || []).slice().sort((a, b) => b.version_num - a.version_num);
     box.style.display = 'block';
-    box.innerHTML = `<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden">
-      <table style="width:100%;font-size:12.5px"><thead><tr style="background:#f8fafc;text-align:left">
-        <th style="padding:6px">Versión</th><th style="padding:6px">Fecha</th><th style="padding:6px">Autor</th><th style="padding:6px">Motivo</th></tr></thead>
-      <tbody>${vs.length ? vs.map(v => `<tr style="border-top:1px solid #f1f5f9"><td style="padding:6px;font-weight:700">v${v.version_num}</td><td style="padding:6px">${new Date(v.created_at).toLocaleString('es-MX')}</td><td style="padding:6px">${esc(v.autor || '—')}</td><td style="padding:6px">${esc(v.motivo || '')}</td></tr>`).join('') : '<tr><td colspan="4" style="padding:10px;text-align:center;color:var(--muted)">Aún no hay versiones congeladas.</td></tr>'}</tbody></table></div>`;
+    if (!vs.length) { box.innerHTML = '<div class="muted" style="font-size:12px;padding:8px">Aún no hay versiones congeladas.</div>'; return; }
+    const opts = vs.map(v => `<option value="${v.version_id}">v${v.version_num}</option>`).join('');
+    box.innerHTML = `
+      <div style="border:1px solid var(--line);border-radius:10px;overflow:hidden">
+        <table style="width:100%;font-size:12.5px"><thead><tr style="background:#f8fafc;text-align:left">
+          <th style="padding:6px">Versión</th><th style="padding:6px">Fecha</th><th style="padding:6px">Autor</th><th style="padding:6px">Motivo</th><th style="padding:6px"></th></tr></thead>
+        <tbody>${vs.map((v, i) => `<tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:6px;font-weight:700">v${v.version_num}</td>
+          <td style="padding:6px">${new Date(v.created_at).toLocaleString('es-MX')}</td>
+          <td style="padding:6px">${esc(v.autor || '—')}</td>
+          <td style="padding:6px">${esc(v.motivo || '')}</td>
+          <td style="padding:6px;white-space:nowrap;text-align:right">
+            <button class="btn ghost" data-ver="${v.version_id}" style="padding:1px 8px;font-size:11px">👁 Ver</button>
+            ${i < vs.length - 1 ? `<button class="btn ghost" data-diff="${v.version_id}" data-prev="${vs[i + 1].version_id}" style="padding:1px 8px;font-size:11px">Δ vs anterior</button>` : ''}
+          </td></tr>`).join('')}</tbody></table>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <span class="muted" style="font-size:12px">Comparar</span>
+        <select id="cmpA" class="input" style="width:auto">${opts}</select>
+        <span class="muted">vs</span>
+        <select id="cmpB" class="input" style="width:auto">${opts}</select>
+        <button class="btn" id="cmpBtn" style="padding:3px 11px;font-size:12px;background:#0891b2;color:#fff">Comparar</button>
+      </div>
+      <div id="histDetail" style="margin-top:10px"></div>`;
+    box.querySelectorAll('button[data-ver]').forEach(b => b.addEventListener('click', () => verVersion(b.dataset.ver)));
+    box.querySelectorAll('button[data-diff]').forEach(b => b.addEventListener('click', () => diffVersiones(b.dataset.prev, b.dataset.diff)));
+    if (vs.length > 1) { $('cmpA').value = vs[1].version_id; $('cmpB').value = vs[0].version_id; }
+    $('cmpBtn').addEventListener('click', () => diffVersiones($('cmpA').value, $('cmpB').value));
+  }
+
+  function snapResumen(c) {
+    return `<div style="font-size:12px;margin-bottom:6px"><strong>${esc(c.folio || '')}</strong> · ${esc(c.origen_proveedor || '')} · ${esc(c.modo_transporte || '')} · ${c.kg} kg · EXW ${c.costo_unit_exw} USD/kg · TC ${c.tip_cam}</div>`;
+  }
+  async function verVersion(versionId) {
+    const box = $('histDetail'); box.innerHTML = '<div class="muted" style="font-size:12px;padding:6px">Cargando…</div>';
+    try {
+      const v = await getSnap(versionId); const s = v.snapshot || {};
+      const con = (s.conceptos || []).map(x => `<tr style="border-top:1px solid #f1f5f9"><td style="padding:3px 6px">${esc(x.clave || x.nombre || '')}</td><td style="padding:3px 6px">${esc(x.capa_incoterm || '')}</td><td style="padding:3px 6px;text-align:right">${x.valor_captura} ${esc(x.moneda || '')}</td><td style="padding:3px 6px">${esc(x.modo_captura || '')}</td></tr>`).join('');
+      const esc2 = (s.escenarios || []).map(e => `${esc(e.nombre)}: ${e.arancel_pct}%`).join(' · ');
+      box.innerHTML = `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div class="eyebrow">Versión v${v.version_num}</div>${snapResumen(s.costeo || {})}
+        <table style="width:100%;font-size:12px"><thead><tr style="color:#64748b;text-align:left"><th style="padding:3px 6px">Concepto</th><th style="padding:3px 6px">Capa</th><th style="padding:3px 6px;text-align:right">Valor</th><th style="padding:3px 6px">Modo</th></tr></thead><tbody>${con}</tbody></table>
+        ${esc2 ? `<div class="muted" style="font-size:12px;margin-top:6px">Escenarios: ${esc2}</div>` : ''}</div>`;
+    } catch (e) { box.innerHTML = `<div style="color:#991b1b;font-size:12px;padding:6px">${esc(e.message)}</div>`; }
+  }
+  function diffRows(a, b) {
+    const rows = [];
+    const cab = [['Transporte', 'modo_transporte'], ['Tipo de cambio', 'tip_cam'], ['KGS', 'kg'], ['EXW USD/kg', 'costo_unit_exw'], ['Origen/proveedor', 'origen_proveedor']];
+    cab.forEach(([lab, f]) => { const va = (a.costeo || {})[f], vb = (b.costeo || {})[f]; if (String(va ?? '') !== String(vb ?? '')) rows.push({ sec: 'Cabecera', tipo: 'chg', campo: lab, old: va, neu: vb }); });
+    const kc = (c) => String(c.clave || c.nombre || '').toUpperCase();
+    const ma = new Map((a.conceptos || []).map(c => [kc(c), c])), mb = new Map((b.conceptos || []).map(c => [kc(c), c]));
+    new Set([...ma.keys(), ...mb.keys()]).forEach(k => {
+      const ca = ma.get(k), cb = mb.get(k);
+      const sv = (x) => `${x.valor_captura} ${x.moneda || ''} (${x.modo_captura})`;
+      if (ca && !cb) rows.push({ sec: 'Conceptos', tipo: 'del', campo: k, old: sv(ca) });
+      else if (!ca && cb) rows.push({ sec: 'Conceptos', tipo: 'add', campo: k, neu: sv(cb) });
+      else if (sv(ca) !== sv(cb)) rows.push({ sec: 'Conceptos', tipo: 'chg', campo: k, old: sv(ca), neu: sv(cb) });
+    });
+    const ea = new Map((a.escenarios || []).map(e => [e.nombre, e.arancel_pct])), eb = new Map((b.escenarios || []).map(e => [e.nombre, e.arancel_pct]));
+    new Set([...ea.keys(), ...eb.keys()]).forEach(k => { const va = ea.get(k), vb = eb.get(k); if (va === undefined) rows.push({ sec: 'Escenarios', tipo: 'add', campo: k, neu: vb + '%' }); else if (vb === undefined) rows.push({ sec: 'Escenarios', tipo: 'del', campo: k, old: va + '%' }); else if (String(va) !== String(vb)) rows.push({ sec: 'Escenarios', tipo: 'chg', campo: k, old: va + '%', neu: vb + '%' }); });
+    return rows;
+  }
+  async function diffVersiones(vidA, vidB) {
+    const box = $('histDetail');
+    if (vidA === vidB) { box.innerHTML = '<div class="muted" style="font-size:12px;padding:6px">Elige dos versiones distintas.</div>'; return; }
+    box.innerHTML = '<div class="muted" style="font-size:12px;padding:6px">Comparando…</div>';
+    try {
+      const [va, vb] = await Promise.all([getSnap(vidA), getSnap(vidB)]);
+      const rows = diffRows(va.snapshot || {}, vb.snapshot || {});
+      const badge = { add: ['#dcfce7', '#166534', '+ agregado'], del: ['#fee2e2', '#991b1b', '− eliminado'], chg: ['#fef9c3', '#854d0e', 'Δ cambió'] };
+      const cell = (r) => {
+        const m = badge[r.tipo];
+        const val = r.tipo === 'add' ? `<span style="color:#166534">${esc(r.neu)}</span>`
+          : r.tipo === 'del' ? `<span style="color:#991b1b;text-decoration:line-through">${esc(r.old)}</span>`
+            : `<span style="color:#991b1b;text-decoration:line-through">${esc(r.old)}</span> → <span style="color:#166534;font-weight:700">${esc(r.neu)}</span>`;
+        return `<tr style="border-top:1px solid #f1f5f9"><td style="padding:4px 6px"><span style="background:${m[0]};color:${m[1]};font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px">${m[2]}</span></td><td style="padding:4px 6px">${esc(r.sec)}</td><td style="padding:4px 6px;font-weight:600">${esc(r.campo)}</td><td style="padding:4px 6px">${val}</td></tr>`;
+      };
+      box.innerHTML = `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div class="eyebrow">Cambios · v${va.version_num} → v${vb.version_num}</div>
+        ${rows.length ? `<table style="width:100%;font-size:12px"><tbody>${rows.map(cell).join('')}</tbody></table>` : '<div class="muted" style="font-size:12px;margin-top:4px">Sin cambios entre estas versiones.</div>'}</div>`;
+    } catch (e) { box.innerHTML = `<div style="color:#991b1b;font-size:12px;padding:6px">${esc(e.message)}</div>`; }
   }
 
   // ── Modales de búsqueda ──
