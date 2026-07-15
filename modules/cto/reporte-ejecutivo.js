@@ -1,12 +1,11 @@
 // ============================================================
 // reporte-ejecutivo.js — Costo (cto_): Paquete de cierre para Dirección.
-// Consolida 3 secciones del periodo en una página imprimible:
+// Consolida las secciones del periodo en una página imprimible:
 //   1) Reporte ejecutivo (KPIs, puente de utilidad, ABC, utilidad por agente)
 //   2) Análisis de rentabilidad (Pareto, top clientes/productos, alertas)
-//   3) Detalle Cliente × Producto (drill-down)
 // Reusa endpoints existentes:
 //   GET /resultado/:a/:m · /factores/:a/:m · /dashboard/:a/:m/agentes ·
-//   /rentabilidad/cliente|producto/:a?mes= · /rentabilidad-cliente-producto/:a?mes=
+//   /rentabilidad/cliente|producto/:a?mes=
 // "Imprimir / Guardar PDF" usa window.print() con CSS @media print.
 // ============================================================
 
@@ -18,7 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage: PAGE,
     title: 'Reporte ejecutivo',
-    description: 'Paquete de cierre para Dirección: ejecutivo + rentabilidad + detalle cliente/producto, listo para imprimir o guardar como PDF.',
+    description: 'Paquete de cierre para Dirección: ejecutivo + análisis de rentabilidad, listo para imprimir o guardar como PDF.',
     requiredPermission: PERM,
   });
   if (!b) return;
@@ -198,32 +197,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     return h + `</div>`;
   }
 
-  function secDrill(cp) {
-    let h = `<div class="sec pb">${band('4', 'Detalle Rentabilidad por Cliente y Producto')}`;
-    h += `<table class="rt"><tr><th>Cliente / Producto</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th></tr>`;
-    for (const cl of (cp.clientes || [])) {
-      h += `<tr class="clir"><td>${esc(cl.nombre || cl.clave)}</td><td>${mon(cl.ventas)}</td><td>${mon(cl.utilidad_bruta)}</td><td>${pct1(cl.margen)}</td><td>${num(cl.kilos)}</td></tr>`;
-      for (const p of (cl.productos || [])) {
-        const neg = p.utilidad_bruta < 0;
-        h += `<tr><td style="padding-left:22px;color:#475569">${esc(p.clave)} · ${esc((p.nombre || '').slice(0, 38))}</td><td>${mon(p.ventas)}</td><td class="${neg ? 'neg' : ''}">${mon(p.utilidad_bruta)}</td><td class="${neg ? 'neg' : ''}">${pct1(p.margen)}</td><td>${num(p.kilos)}</td></tr>`;
-      }
-    }
-    return h + `</table></div>`;
-  }
-
   async function generar() {
     const anio = $('anio').value, mes = $('mes').value;
     if (!anio || !mes) return KoguApi.toast('Indica año y mes.', 'error');
     $('msg').innerHTML = 'Generando reporte…';
     $('reporte').innerHTML = '';
     try {
-      const [r, f, ag, cli, prod, cp] = await Promise.all([
+      const [r, f, ag, cli, prod] = await Promise.all([
         get(`/resultado/${anio}/${mes}`),
         get(`/factores/${anio}/${mes}`).catch(() => null),
         get(`/dashboard/${anio}/${mes}/agentes`).catch(() => null),
         get(`/rentabilidad/cliente/${anio}?mes=${mes}`),
         get(`/rentabilidad/producto/${anio}?mes=${mes}`),
-        get(`/rentabilidad-cliente-producto/${anio}?mes=${mes}`),
       ]);
       if (!r || !r.total_ventas) { $('msg').innerHTML = 'No hay resultado calculado para ese periodo. Calcula primero en “Costo de ventas / Utilidad”.'; return; }
       const T = Number(r.total_ventas) || 1;
@@ -231,7 +216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><div style="font-size:20px;font-weight:800">Paquete de Cierre — Costo de Ventas y Utilidad</div>
           <div style="font-size:12px;color:#cbd5e1;margin-top:2px">${esc(emp.razon_social || emp.nombre_corto || 'Empresa')} · ${MESES[Number(mes)] || mes} ${anio}</div></div>
         <div style="text-align:right"><div style="font-size:15px;font-weight:800">KOGU</div><div style="font-size:10px;color:#94a3b8">Reporte para Dirección</div></div></div>`;
-      $('reporte').innerHTML = head + secBruta(r, f) + secOperacion(r, ag) + secAnalisis(cli, prod, T) + secDrill(cp);
+      $('reporte').innerHTML = head + secBruta(r, f) + secOperacion(r, ag) + secAnalisis(cli, prod, T);
       $('msg').innerHTML = 'Reporte generado. Pulsa <b>Imprimir / Guardar PDF</b> (Ctrl/Cmd+P → Guardar como PDF).';
     } catch (e) {
       $('msg').innerHTML = '';
