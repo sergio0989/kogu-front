@@ -195,6 +195,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
     <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead>`;
 
+  // Desglose por modo de transporte (aéreo / marítimo) del proveedor. Solo se
+  // muestra si hay más de un modo — separa promedios que mezclan aéreo y marítimo.
+  const MODO_INFO = { maritimo: ['🚢', 'Marítimo'], aereo: ['✈️', 'Aéreo'], terrestre: ['🚚', 'Terrestre'], general: ['📦', 'Sin modo'] };
+  function modoSummary(ops) {
+    const g = {};
+    ops.forEach(o => {
+      const m = o.transporte || 'general';
+      const x = (g[m] = g[m] || { n: 0, kg: 0, costo: 0, mp: 0, gastos: 0, otros: 0 });
+      x.n++; x.kg += Number(o.kg) || 0; x.costo += Number(o.costo_usd) || 0;
+      x.mp += Number(o.mp_usd) || 0; x.gastos += Number(o.gastos_usd) || 0; x.otros += Number(o.otros_usd) || 0;
+    });
+    const order = ['maritimo', 'aereo', 'terrestre', 'general'];
+    const modos = Object.keys(g).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    if (modos.length < 2) return ''; // con un solo modo no aporta
+    const filas = modos.map(m => {
+      const x = g[m]; const [ic, lab] = MODO_INFO[m] || ['📦', m];
+      const mpKg = x.kg > 0 ? x.mp / x.kg : null, gKg = x.kg > 0 ? x.gastos / x.kg : null, ddpKg = x.kg > 0 ? x.costo / x.kg : null;
+      const gmp = x.mp > 0 ? x.gastos / x.mp : null;
+      const flete = x.gastos - x.otros;
+      const uti = (x.mp + flete) > 0 ? x.otros / (x.mp + flete) : null;
+      return `<tr style="border-bottom:1px solid #eef2f7;text-align:right;background:#fbfdff">
+        <td style="text-align:left;padding:5px 6px;font-weight:700">${ic} ${lab} <span style="color:#94a3b8;font-weight:400">· ${x.n} op(s)</span></td>
+        <td style="padding:5px 6px">${kg(x.kg)}</td>
+        <td style="padding:5px 6px;font-weight:700">$${n0(x.costo)}</td>
+        <td style="padding:5px 6px;${M}">$${usd4(mpKg)}</td>
+        <td style="padding:5px 6px">$${usd4(gKg)}</td>
+        <td style="padding:5px 6px">$${usd4(ddpKg)}</td>
+        <td style="padding:5px 6px">${gmpPill(gmp)}</td>
+        <td style="padding:5px 6px">${utiPill(uti)}</td></tr>`;
+    }).join('');
+    const head = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
+      <th style="text-align:left;padding:4px 6px">Modo</th><th>Kg</th><th>Costo USD</th>
+      <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
+      <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th></tr></thead>`;
+    return `<div style="margin-bottom:10px">
+      <div style="font-weight:700;color:#334155;font-size:11.5px;margin-bottom:3px">Desglose por modo de transporte</div>
+      <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">${head}<tbody>${filas}</tbody></table></div>`;
+  }
+
   async function toggleOps(bn, row) {
     const idx = bn.dataset.op;
     const det = $('tAn').querySelector(`tr.op-det[data-det="${idx}"]`);
@@ -234,7 +273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>`;
         }).join('');
       } else {
-        html = `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">${opHead}<tbody>${ops.map(opFila).join('')}</tbody></table>`;
+        html = modoSummary(ops) + `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">${opHead}<tbody>${ops.map(opFila).join('')}</tbody></table>`;
       }
       opsCache[key] = html; cell.innerHTML = html;
     } catch (e) { cell.innerHTML = `<div style="padding:8px;color:#991b1b;font-size:12px">${esc(e.message)}</div>`; }
