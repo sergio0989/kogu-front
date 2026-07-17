@@ -47,6 +47,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div id="kpis" style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"></div>
   <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:14px;font-weight:700">Importaciones vs presupuesto (costeo teórico)</div>
   <div id="presupuesto" style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap"></div>
+  <div id="dinero" style="margin-top:12px"></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="row"><div><h3 style="margin:0">Desglose por modo de transporte</h3>
+    <span class="muted" style="font-size:12px">Aéreo vs marítimo: dónde está el volumen y dónde pesa más el gasto.</span></div></div>
+  <div style="overflow-x:auto;margin-top:8px"><table class="table" id="tModo" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
 </div>
 
 <div class="card" style="margin-top:14px">
@@ -80,6 +87,78 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size:11px;color:${co};text-transform:uppercase;letter-spacing:.03em;font-weight:700">${lab}</div>
       <div style="font-size:24px;font-weight:800;color:${co};margin-top:1px">${val}</div>
       <div style="font-size:11px;color:${co};opacity:.85">${sub || ''}</div></div>`;
+  }
+
+  const usd4 = (v) => (v == null ? '—' : Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+  const pct1 = (v) => (v == null ? '—' : (Number(v) * 100).toFixed(1) + '%');
+  function gmpPill(v) {
+    if (v == null) return '—';
+    const bg = v < 0.30 ? '#dcfce7' : v <= 0.60 ? '#fef9c3' : '#fee2e2';
+    const co = v < 0.30 ? '#166534' : v <= 0.60 ? '#854d0e' : '#991b1b';
+    return `<span style="font-weight:700;background:${bg};color:${co};padding:1px 8px;border-radius:999px">${pct1(v)}</span>`;
+  }
+  function utiPill(v) {
+    if (v == null) return '—';
+    const bg = v < 0.08 ? '#dcfce7' : v <= 0.15 ? '#fef9c3' : '#fee2e2';
+    const co = v < 0.08 ? '#166534' : v <= 0.15 ? '#854d0e' : '#991b1b';
+    return `<span style="font-weight:700;background:${bg};color:${co};padding:1px 8px;border-radius:999px">${pct1(v)}</span>`;
+  }
+  const MODO_INFO = { maritimo: ['🚢', 'Marítimo'], aereo: ['✈️', 'Aéreo'], terrestre: ['🚚', 'Terrestre'], general: ['📦', 'Sin modo'] };
+
+  // Banner estrella: cuánto se ahorró (o se pasó) en USD vs el costeo teórico.
+  function pintaDinero(t) {
+    t = t || {};
+    const dif = Number(t.dif_usd) || 0, real = Number(t.real_gastos_usd) || 0, teo = Number(t.teo_gastos_usd) || 0;
+    const ahorro = dif < 0;
+    const abs = Math.abs(dif);
+    const pctVsTeo = teo > 0 ? abs / teo * 100 : 0;
+    if (real === 0 && teo === 0) { $('dinero').innerHTML = ''; return; }
+    const bg = ahorro ? '#f0fdf4' : '#fef2f2', bd = ahorro ? '#bbf7d0' : '#fecaca', co = ahorro ? '#166534' : '#991b1b';
+    const titulo = ahorro ? '↓ Ahorro vs presupuesto' : '↑ Sobrecosto vs presupuesto';
+    $('dinero').innerHTML = `
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:${bg};border:1px solid ${bd};border-radius:12px;padding:14px 18px">
+        <div style="min-width:230px">
+          <div style="font-size:11px;color:${co};text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
+          <div style="font-size:30px;font-weight:800;color:${co};line-height:1.15">${ahorro ? '−' : '+'}$${n0(abs)} <span style="font-size:15px">USD</span></div>
+          <div style="font-size:12px;color:${co};opacity:.85">${pctVsTeo.toFixed(1)}% ${ahorro ? 'por debajo del' : 'por encima del'} presupuesto (gastos flete+otros)</div>
+        </div>
+        <div style="display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:#334155">
+          <div><div class="muted" style="font-size:11px">Gasto real</div><div style="font-weight:700">$${n0(real)} USD</div></div>
+          <div style="align-self:center;color:#94a3b8;font-size:18px">vs</div>
+          <div><div class="muted" style="font-size:11px">Presupuesto (teórico)</div><div style="font-weight:700">$${n0(teo)} USD</div></div>
+        </div>
+      </div>`;
+  }
+
+  // Tabla de desglose por modo + fila de eficiencia global (lentes ponderados).
+  function tablaModo(rows) {
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      <th style="text-align:left;padding:6px">Modo</th><th>Ops</th><th>Kg</th><th>Costo USD</th>
+      <th style="background:#faf5ff;color:#7e22ce;padding:6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
+      <th style="background:#faf5ff;color:#7e22ce;padding:6px">Gastos/MP</th><th>UtiPor</th></tr></thead>`;
+    if (!rows || !rows.length) return head + '<tbody><tr><td colspan="9" style="text-align:center;padding:14px;color:var(--muted)">Sin datos.</td></tr></tbody>';
+    const tot = rows.reduce((a, r) => ({ kg: a.kg + (+r.kg || 0), costo: a.costo + (+r.costo_usd || 0), mp: a.mp + (+r.mercancia_usd || 0), fl: a.fl + (+r.flete_usd || 0), ot: a.ot + (+r.otros_usd || 0), ops: a.ops + (+r.ops || 0) }), { kg: 0, costo: 0, mp: 0, fl: 0, ot: 0, ops: 0 });
+    const fila = (r, bold) => {
+      const [ic, lab] = MODO_INFO[r.modo] || ['📦', r.modo];
+      const k = +r.kg || 0, mp = +r.mercancia_usd || 0, fl = +r.flete_usd || 0, ot = +r.otros_usd || 0, costo = +r.costo_usd || 0;
+      const gastos = fl + ot;
+      const gmp = mp > 0 ? gastos / mp : null;
+      const uti = (mp + fl) > 0 ? ot / (mp + fl) : null;
+      const st = bold ? 'font-weight:800;background:#f8fafc' : '';
+      return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right;${st}">
+        <td style="text-align:left;padding:6px;font-weight:700">${bold ? '∑ ' : ic + ' '}${lab}${bold ? '' : ` <span style="color:#94a3b8;font-weight:400">· ${r.ops} op(s)</span>`}</td>
+        <td style="padding:6px">${bold ? r.ops : r.ops}</td>
+        <td style="padding:6px">${kg(k)}</td>
+        <td style="padding:6px;font-weight:700">$${n0(costo)}</td>
+        <td style="padding:6px;background:#faf5ff;color:#7e22ce">$${usd4(k > 0 ? mp / k : null)}</td>
+        <td style="padding:6px">$${usd4(k > 0 ? gastos / k : null)}</td>
+        <td style="padding:6px">$${usd4(k > 0 ? costo / k : null)}</td>
+        <td style="padding:6px">${gmpPill(gmp)}</td>
+        <td style="padding:6px">${utiPill(uti)}</td></tr>`;
+    };
+    const body = rows.map(r => fila(r, false)).join('');
+    const totalRow = rows.length > 1 ? fila({ modo: 'general', ops: tot.ops, kg: tot.kg, costo_usd: tot.costo, mercancia_usd: tot.mp, flete_usd: tot.fl, otros_usd: tot.ot }, true).replace('📦 Sin modo', 'Total periodo') : '';
+    return head + '<tbody>' + body + totalRow + '</tbody>';
   }
 
   function pintaPresupuesto(R) {
@@ -126,16 +205,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;height:auto">${bars}${line}${dots}${labels}</svg>`;
   }
 
+  const difCell = (v) => {
+    const d = Number(v) || 0;
+    if (!d) return '<td style="padding:6px;color:#94a3b8">—</td>';
+    const co = d < 0 ? '#166534' : '#991b1b';
+    return `<td style="padding:6px;font-weight:700;color:${co}">${d < 0 ? '−' : '+'}$${n0(Math.abs(d))}</td>`;
+  };
   function tablaMes(rows) {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
-      <th style="text-align:left;padding:6px">Mes</th><th>Operaciones</th><th>Kg</th><th>Costo MXN</th><th>Costo USD</th><th>TC prom.</th></tr></thead>`;
-    if (!rows.length) return head + '<tbody><tr><td colspan="6" style="text-align:center;padding:14px;color:var(--muted)">Sin meses reconciliados en este año.</td></tr></tbody>';
+      <th style="text-align:left;padding:6px">Mes</th><th>Ops</th><th>Kg</th><th>Costo USD (DDP)</th>
+      <th>Gasto real</th><th>Presupuesto</th><th>Dif vs ppto</th><th>TC prom.</th></tr></thead>`;
+    if (!rows.length) return head + '<tbody><tr><td colspan="8" style="text-align:center;padding:14px;color:var(--muted)">Sin meses reconciliados en este periodo.</td></tr></tbody>';
     return head + '<tbody>' + rows.map(r => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
       <td style="text-align:left;padding:6px;font-weight:700">${MES[+String(r.periodo).slice(5)] || r.periodo} ${String(r.periodo).slice(0, 4)}</td>
       <td style="padding:6px">${n0(r.operaciones)}</td>
       <td style="padding:6px">${kg(r.kg)}</td>
-      <td style="padding:6px">$${n0(r.costo_mxn)}</td>
       <td style="padding:6px;font-weight:700;color:#0e7490">$${n0(r.costo_usd)}</td>
+      <td style="padding:6px">$${n0(r.real_gastos_usd)}</td>
+      <td style="padding:6px;color:#b45309">$${n0(r.teo_gastos_usd)}</td>
+      ${difCell(r.dif_usd)}
       <td style="padding:6px;color:#b45309">${(Number(r.tc_prom) || 0).toFixed(2)}</td></tr>`).join('') + '</tbody>';
   }
 
@@ -184,6 +272,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         kpi('Costo total MXN', '$' + compact(t.costo_mxn), 'MXN') +
         kpi('Costo total USD', '$' + compact(t.costo_usd), 'USD', '#0e7490');
       pintaPresupuesto(d.resultados);
+      pintaDinero(d.totales);
+      $('tModo').innerHTML = tablaModo(d.porModo || []);
       $('chart').innerHTML = chartMensual(d.mensual || []);
       $('tMes').innerHTML = tablaMes(d.mensual || []);
       $('topProv').innerHTML = topBars((d.tops || {}).proveedores, (i) => esc(i.proveedor || '—'));
