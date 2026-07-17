@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      <th style="width:24px"></th>
       <th style="width:30px;text-align:right;padding:6px">#</th>
       ${th('proveedor', 'Proveedor', 'text-align:left')}
       <th style="text-align:left;padding:6px">cve SAI</th>
@@ -131,15 +132,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${th('operaciones', 'Ops')}${th('kg_total', 'Kg total')}<th style="padding:6px">% acum</th>
       ${th('kg_min_op', 'Op. mín')}${th('kg_max_op', 'Op. máx')}
       <th style="text-align:left;padding:6px">Acción</th></tr></thead>`;
-    if (!rows.length) { $('tab').innerHTML = head + `<tbody><tr><td colspan="9" style="text-align:center;padding:18px;color:var(--muted)">${data.length ? 'Sin coincidencias en el filtro.' : '🎉 Sin huecos: toda operación real reconcilia.'}</td></tr></tbody>`; wireSort(); return; }
+    if (!rows.length) { $('tab').innerHTML = head + `<tbody><tr><td colspan="10" style="text-align:center;padding:18px;color:var(--muted)">${data.length ? 'Sin coincidencias en el filtro.' : '🎉 Sin huecos: toda operación real reconcilia.'}</td></tr></tbody>`; wireSort(); return; }
 
     // rank global por kg (independiente del sort visible) para el Pareto.
     const rankMap = new Map(); paretoOrder.forEach((r, i) => rankMap.set(r, i + 1));
-    $('tab').innerHTML = head + '<tbody>' + rows.map((r) => {
+    $('tab').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const acumPct = acumMap.get(r) || 0;
       const dentro80 = acumPct <= 80.0001;
       const m = EST[r.estado] || { accion: '' };
+      const det = `<tr class="op-det" data-det="${idx}" style="display:none"><td colspan="10" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+        <td style="text-align:center;padding:6px"><button class="btn ghost" data-op="${idx}" title="Ver operaciones" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>
         <td style="padding:6px;color:#94a3b8">${rankMap.get(r)}</td>
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.proveedor)}</td>
         <td style="text-align:left;padding:6px;color:#64748b">${r.cve_prov != null ? esc(r.cve_prov) : '—'}</td>
@@ -149,14 +152,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px;${dentro80 ? 'color:#b45309;font-weight:700' : 'color:#94a3b8'}">${pct1(acumPct)}</td>
         <td style="padding:6px;color:#475569">${n0(r.kg_min_op)}</td>
         <td style="padding:6px;color:#475569">${n0(r.kg_max_op)}</td>
-        <td style="text-align:left;padding:6px;color:#64748b;font-size:11.5px;max-width:320px">${esc(m.accion || '')}</td></tr>`;
+        <td style="text-align:left;padding:6px;color:#64748b;font-size:11.5px;max-width:320px">${esc(m.accion || '')}</td></tr>${det}`;
     }).join('') + '</tbody>';
+    $('tab').querySelectorAll('button[data-op]').forEach(bn => bn.addEventListener('click', () => toggleOps(bn, rows[+bn.dataset.op])));
     wireSort();
   }
   function wireSort() { $('tab').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk))); }
 
+  const opsCache = {};
+  const fmtFecha = (f) => { if (!f) return '—'; const d = new Date(f); return isNaN(d) ? esc(String(f).slice(0, 10)) : d.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: '2-digit' }); };
+
+  async function toggleOps(bn, row) {
+    const idx = bn.dataset.op;
+    const det = $('tab').querySelector(`tr.op-det[data-det="${idx}"]`);
+    if (!det) return;
+    if (det.style.display !== 'none') { det.style.display = 'none'; bn.textContent = '▸'; return; }
+    det.style.display = ''; bn.textContent = '▾';
+    const cell = det.firstElementChild;
+    const key = `${row.cve_prov}|${row.estado}`;
+    if (opsCache[key]) { cell.innerHTML = opsCache[key]; return; }
+    cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Cargando operaciones…</div>';
+    try {
+      const url = BASE + '/cobertura/operaciones?estado=' + encodeURIComponent(row.estado) +
+        (row.cve_prov != null ? '&cve_prov=' + encodeURIComponent(row.cve_prov) : '');
+      const ops = KoguApi.unwrapData(await KoguApi.apiFetch(url)) || [];
+      if (!ops.length) { cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin operaciones.</div>'; return; }
+      const head = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
+        <th style="text-align:left;padding:4px 6px">Costeo SAI</th><th style="text-align:left;padding:4px 6px">Pedimento / referencia</th>
+        <th style="padding:4px 6px">Fecha</th><th style="padding:4px 6px">Kg</th></tr></thead>`;
+      const body = ops.map(o => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+        <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.no_costeo)}</td>
+        <td style="text-align:left;padding:4px 6px">${esc(o.referencia || o.ref_norm || '—')}</td>
+        <td style="padding:4px 6px">${fmtFecha(o.fecha)}</td>
+        <td style="padding:4px 6px;font-weight:700">${n0(o.kg)}</td></tr>`).join('');
+      const html = `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">${head}<tbody>${body}</tbody></table>`;
+      opsCache[key] = html; cell.innerHTML = html;
+    } catch (e) { cell.innerHTML = `<div style="padding:8px;color:#991b1b;font-size:12px">${esc(e.message)}</div>`; }
+  }
+
   async function cargar() {
     $('info').textContent = 'Cargando…';
+    Object.keys(opsCache).forEach(k => delete opsCache[k]);
     try {
       data = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/cobertura')) || [];
       render();
