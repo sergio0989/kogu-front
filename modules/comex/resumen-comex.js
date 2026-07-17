@@ -35,10 +35,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row">
     <div><div class="eyebrow">Comercio Exterior · Resumen</div><h2 style="margin:0">Resumen ejecutivo de importaciones</h2>
       <div class="muted" style="font-size:12px">Refleja los meses <strong>reconciliados</strong>. Reconcilia más periodos para verlos aquí.</div></div>
-    <div><label class="muted" style="font-size:12px;display:block">Año</label>
-      <select id="anio" class="input" style="min-width:120px"></select></div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div><label class="muted" style="font-size:12px;display:block">Año</label>
+        <select id="anio" class="input" style="min-width:110px"></select></div>
+      <div><label class="muted" style="font-size:12px;display:block">Mes</label>
+        <select id="mes" class="input" style="min-width:130px"></select></div>
+      <div><label class="muted" style="font-size:12px;display:block">Proveedor</label>
+        <select id="prov" class="input" style="min-width:220px;max-width:280px"></select></div>
+    </div>
   </div>
   <div id="kpis" style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"></div>
+  <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:14px;font-weight:700">Importaciones vs presupuesto (costeo teórico)</div>
+  <div id="presupuesto" style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap"></div>
 </div>
 
 <div class="card" style="margin-top:14px">
@@ -64,6 +72,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.03em">${lab}</div>
       <div style="font-size:26px;font-weight:800;color:${col || '#0f172a'};margin-top:2px">${val}</div>
       <div style="font-size:12px;color:#64748b">${sub || ''}</div></div>`;
+  }
+
+  // KPI de resultado (presupuesto) con banda de color y % sobre comparables.
+  function resKpi(lab, val, sub, bg, co, bd) {
+    return `<div style="flex:1;min-width:150px;background:${bg};border:1px solid ${bd};border-radius:10px;padding:10px 14px">
+      <div style="font-size:11px;color:${co};text-transform:uppercase;letter-spacing:.03em;font-weight:700">${lab}</div>
+      <div style="font-size:24px;font-weight:800;color:${co};margin-top:1px">${val}</div>
+      <div style="font-size:11px;color:${co};opacity:.85">${sub || ''}</div></div>`;
+  }
+
+  function pintaPresupuesto(R) {
+    R = R || {};
+    const bajo = +R.BajoTabulador || 0, sobre = +R.SobreTabulador || 0, dentro = +R.DentroBanda || 0;
+    const sinTeo = +R.SinTeorico || 0, sinProv = +R.SinProveedor || 0, sinDat = +R.SinDatos || 0;
+    const comparables = bajo + sobre + dentro; // operaciones que SÍ se midieron vs teórico
+    const pc = (n) => comparables ? ` · ${(n / comparables * 100).toFixed(0)}%` : '';
+    const noComp = sinTeo + sinProv + sinDat;
+    $('presupuesto').innerHTML =
+      resKpi('↓ Bajo presupuesto', n0(bajo), 'costó menos que el teórico' + pc(bajo), '#f0fdf4', '#166534', '#bbf7d0') +
+      resKpi('↑ Sobre presupuesto', n0(sobre), 'costó más — revisar' + pc(sobre), '#fef2f2', '#991b1b', '#fecaca') +
+      resKpi('✓ Dentro de banda', n0(dentro), 'dentro de tolerancia' + pc(dentro), '#ecfeff', '#0e7490', '#a5f3fc') +
+      resKpi('◦ Sin comparar', n0(noComp), 'sin teórico / proveedor / datos', '#f8fafc', '#64748b', '#e2e8f0');
   }
 
   function chartMensual(rows) {
@@ -120,20 +150,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
   }
 
-  async function cargar(anio) {
+  let provReady = false; // el select de proveedores se llena una vez
+
+  async function cargar() {
     try {
-      const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + (anio ? '?anio=' + encodeURIComponent(anio) : ''))) || {};
-      const sel = $('anio');
-      if (!sel.options.length && (d.anios || []).length) {
-        sel.innerHTML = d.anios.map(a => `<option value="${esc(a)}" ${a === d.anio ? 'selected' : ''}>${esc(a)}</option>`).join('');
+      const anio = $('anio').value, mes = $('mes').value, prov = $('prov').value;
+      const qs = [];
+      if (anio) qs.push('anio=' + encodeURIComponent(anio));
+      if (mes) qs.push('mes=' + encodeURIComponent(mes));
+      if (prov && prov !== 'TODOS') qs.push('proveedor=' + encodeURIComponent(prov));
+      const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + (qs.length ? '?' + qs.join('&') : ''))) || {};
+
+      const selA = $('anio');
+      if (!selA.options.length && (d.anios || []).length) {
+        selA.innerHTML = d.anios.map(a => `<option value="${esc(a)}" ${a === d.anio ? 'selected' : ''}>${esc(a)}</option>`).join('');
       }
-      if (!(d.anios || []).length) sel.innerHTML = '<option value="">— sin datos —</option>';
+      if (!(d.anios || []).length) selA.innerHTML = '<option value="">— sin datos —</option>';
+      // Mes: Todos + Ene..Dic (una vez)
+      if (!$('mes').options.length) {
+        $('mes').innerHTML = '<option value="">Todos</option>' + MES.slice(1).map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+      }
+      // Proveedor: Todos + lista (una vez, no se re-filtra al elegir uno)
+      if (!provReady && (d.proveedores || []).length) {
+        $('prov').innerHTML = '<option value="TODOS">Todos los proveedores</option>' + d.proveedores.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+        if (d.proveedor) $('prov').value = d.proveedor;
+        provReady = true;
+      }
+
       const t = d.totales || {};
       $('kpis').innerHTML =
         kpi('Operaciones', n0(t.operaciones)) +
         kpi('Kg importados', compact(t.kg), 'kg') +
         kpi('Costo total MXN', '$' + compact(t.costo_mxn), 'MXN') +
         kpi('Costo total USD', '$' + compact(t.costo_usd), 'USD', '#0e7490');
+      pintaPresupuesto(d.resultados);
       $('chart').innerHTML = chartMensual(d.mensual || []);
       $('tMes').innerHTML = tablaMes(d.mensual || []);
       $('topProv').innerHTML = topBars((d.tops || {}).proveedores, (i) => esc(i.proveedor || '—'));
@@ -141,7 +191,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
-  $('anio').addEventListener('change', () => cargar($('anio').value));
-  KoguShell.subscribeEmpresaActivaChange(() => { $('anio').innerHTML = ''; cargar(); });
+  $('anio').addEventListener('change', cargar);
+  $('mes').addEventListener('change', cargar);
+  $('prov').addEventListener('change', cargar);
+  KoguShell.subscribeEmpresaActivaChange(() => { $('anio').innerHTML = ''; $('mes').innerHTML = ''; $('prov').innerHTML = ''; provReady = false; cargar(); });
   cargar();
 });
