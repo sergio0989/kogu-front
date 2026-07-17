@@ -47,6 +47,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <input id="anQ" class="input" placeholder="🔍 Buscar…" style="max-width:300px"/>
   </div>
+  <div id="legend" style="margin-top:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:11px;color:#475569;line-height:1.7">
+    <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center">
+      <span style="font-weight:700;color:#334155">Cómo leer:</span>
+      <span><span style="font-weight:700;background:#faf5ff;color:#7e22ce;padding:1px 6px;border-radius:5px">Gastos/MP</span> = gastos (flete+otros) ÷ mercancía</span>
+      <span><span style="font-weight:700;background:#f8fafc;color:#334155;padding:1px 6px;border-radius:5px">UtiPor</span> = otros ÷ (mercancía + flete int'l)</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:5px">
+      <span>Semáforo:
+        <span style="font-weight:700;background:#dcfce7;color:#166534;padding:1px 8px;border-radius:999px">bajo</span>
+        <span style="font-weight:700;background:#fef9c3;color:#854d0e;padding:1px 8px;border-radius:999px">medio</span>
+        <span style="font-weight:700;background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:999px">alto</span>
+        <span style="color:#64748b">— rojo = el gasto pesa más vs la mercancía; típico en <b>aéreo / lotes chicos</b>, no siempre es un problema.</span>
+      </span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:5px">
+      <span>Resultado (vs costeo teórico):
+        <span style="font-weight:700;background:#dbeafe;color:#1e40af;padding:1px 8px;border-radius:999px">↓ Bajo</span> costó <b>menos</b> que el teórico (favorable)
+        · <span style="font-weight:700;background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:999px">↑ Sobre</span> costó <b>más</b> (revisar)
+        · <span style="font-weight:700;background:#dcfce7;color:#166534;padding:1px 8px;border-radius:999px">Dentro</span> en banda
+      </span>
+    </div>
+  </div>
   <div class="muted" id="cInfo" style="font-size:12px;margin-top:8px"></div>
   <div style="overflow-x:auto;margin-top:8px"><table class="table" id="tAn" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
 </div>`;
