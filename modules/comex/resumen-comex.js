@@ -57,10 +57,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div class="card" style="margin-top:14px">
-  <div class="row"><div><h3 style="margin:0">Tendencia mensual</h3>
-    <span class="muted" style="font-size:12px"><span style="color:#0891b2;font-weight:700">▮</span> Costo USD por mes · <span style="color:#f59e0b;font-weight:700">━</span> TC pedimento promedio</span></div></div>
-  <div id="chart" style="margin-top:10px;overflow-x:auto"></div>
-  <div style="overflow-x:auto;margin-top:8px"><table class="table" id="tMes" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
+  <div class="row"><div><h3 style="margin:0">Real vs presupuesto por mes</h3>
+    <span class="muted" style="font-size:12px"><span style="color:#0891b2;font-weight:700">▮</span> Gasto real · <span style="color:#f59e0b;font-weight:700">▮</span> Presupuesto (teórico) · <span style="color:#166534;font-weight:700">barra real más corta = ahorro</span></span></div></div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;align-items:flex-start">
+    <div id="chart" style="flex:1 1 360px;min-width:320px;overflow-x:auto"></div>
+    <div id="tableWrap" style="flex:1 1 500px;min-width:440px;overflow-x:auto"><table class="table" id="tMes" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums"></table></div>
+  </div>
 </div>
 
 <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap">
@@ -211,6 +213,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     const co = d < 0 ? '#166534' : '#991b1b';
     return `<td style="padding:6px;font-weight:700;color:${co}">${d < 0 ? '−' : '+'}$${n0(Math.abs(d))}</td>`;
   };
+  // Gráfica: gasto real (teal) vs presupuesto teórico (ámbar) por mes, con la
+  // diferencia (ahorro/sobrecosto) rotulada abajo. Barra real < ppto = ahorro.
+  function chartRealVsPpto(rows) {
+    rows = (rows || []).filter(r => (Number(r.real_gastos_usd) || 0) + (Number(r.teo_gastos_usd) || 0) > 0);
+    if (!rows.length) return '<div class="muted" style="font-size:12px;padding:10px">Sin operaciones comparables (con teórico) en el periodo.</div>';
+    const n = rows.length, W = Math.max(300, Math.min(560, n * 92)), H = 270;
+    const padL = 14, padR = 14, padT = 26, padB = 46;
+    const iw = W - padL - padR, ih = H - padT - padB;
+    const maxV = Math.max(...rows.map(r => Math.max(Number(r.real_gastos_usd) || 0, Number(r.teo_gastos_usd) || 0)), 1);
+    const gw = iw / n, bw = Math.min(gw * 0.30, 26), gap = Math.min(gw * 0.06, 6);
+    const y = (v) => padT + ih - (v / maxV) * ih;
+    const base = padT + ih;
+    let bars = '', labels = '';
+    // línea base
+    bars += `<line x1="${padL}" y1="${base}" x2="${W - padR}" y2="${base}" stroke="#e2e8f0" stroke-width="1"/>`;
+    rows.forEach((r, i) => {
+      const cx = padL + gw * (i + 0.5);
+      const real = Number(r.real_gastos_usd) || 0, teo = Number(r.teo_gastos_usd) || 0, dif = Number(r.dif_usd) || 0;
+      const xr = cx - bw - gap / 2, xt = cx + gap / 2, yr = y(real), yt = y(teo);
+      bars += `<rect x="${xr}" y="${yr}" width="${bw}" height="${Math.max(base - yr, 0)}" rx="3" fill="#0891b2"/>`;
+      bars += `<rect x="${xt}" y="${yt}" width="${bw}" height="${Math.max(base - yt, 0)}" rx="3" fill="#f59e0b" opacity="0.92"/>`;
+      labels += `<text x="${xr + bw / 2}" y="${yr - 4}" text-anchor="middle" font-size="9" fill="#0e7490" font-weight="700">${compact(real)}</text>`;
+      labels += `<text x="${xt + bw / 2}" y="${yt - 4}" text-anchor="middle" font-size="9" fill="#b45309" font-weight="700">${compact(teo)}</text>`;
+      const mm = String(r.periodo).slice(5);
+      labels += `<text x="${cx}" y="${H - 26}" text-anchor="middle" font-size="11" fill="#334155" font-weight="600">${MES[+mm] || mm}</text>`;
+      const dcol = dif < 0 ? '#166534' : '#991b1b';
+      labels += `<text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="9.5" fill="${dcol}" font-weight="700">${dif < 0 ? '−' : '+'}$${compact(Math.abs(dif))}</text>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;height:auto">${bars}${labels}</svg>`;
+  }
+
   function tablaMes(rows) {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="text-align:left;padding:6px">Mes</th><th>Ops</th><th>Kg</th><th>Costo USD (DDP)</th>
@@ -274,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       pintaPresupuesto(d.resultados);
       pintaDinero(d.totales);
       $('tModo').innerHTML = tablaModo(d.porModo || []);
-      $('chart').innerHTML = chartMensual(d.mensual || []);
+      $('chart').innerHTML = chartRealVsPpto(d.mensual || []);
       $('tMes').innerHTML = tablaMes(d.mensual || []);
       $('topProv').innerHTML = topBars((d.tops || {}).proveedores, (i) => esc(i.proveedor || '—'));
       $('topProd').innerHTML = topBars((d.tops || {}).productos, (i) => esc((i.cve_prod || '') + (i.nombre_corto ? ' · ' + i.nombre_corto : '')));
