@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const n0 = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 });
   const u2 = (v) => (v == null ? '—' : Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
-  let D = null;
+  let D = null, fCosto = 'todos'; // todos | con | sin
 
   c.innerHTML = `
 <div class="card">
@@ -37,7 +37,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
   <div id="kpis" style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"></div>
-  <div class="muted" style="font-size:11px;margin-top:10px">P Venta = subtotal ÷ TC ÷ kg · Costo = costo de exportación/kg ÷ TC · Op = operaciones (folios). Los totales por cliente ponderan por kg.</div>
+  <div id="chips" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap"></div>
+  <div class="muted" style="font-size:11px;margin-top:10px">Solo exportación en USD (cve_mon=USD). P Venta = subtotal ÷ TC ÷ kg · Costo = costo de exportación/kg ÷ TC, ponderado <strong>solo sobre kg con integración finalizada</strong> · <strong>"—" = aún sin integrar</strong> · Op = operaciones (folios).</div>
   <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tab" style="font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap"></table></div>
 </div>`;
 
@@ -89,6 +90,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('tab').innerHTML = head + '<tbody>' + rows + totRow + '</tbody>';
   }
 
+  function clientesFiltrados() {
+    const cs = D.clientes || [];
+    if (fCosto === 'con') return cs.filter(c => c.total.costo != null);
+    if (fCosto === 'sin') return cs.filter(c => c.total.costo == null);
+    return cs;
+  }
+  function pintaChips() {
+    const cs = D.clientes || [];
+    const con = cs.filter(c => c.total.costo != null).length;
+    const defs = [['todos', 'Todos', cs.length], ['con', 'Con costo integrado', con], ['sin', 'Sin costo (pendiente)', cs.length - con]];
+    $('chips').innerHTML = defs.map(([k, lab, ct]) => {
+      const on = fCosto === k;
+      return `<button class="btn ${on ? 'primary' : 'ghost'}" data-fc="${k}" style="${on ? 'background:#059669' : ''}">${lab} · ${ct}</button>`;
+    }).join('');
+    $('chips').querySelectorAll('button[data-fc]').forEach(bn => bn.addEventListener('click', () => { fCosto = bn.dataset.fc; render(); }));
+  }
+  function render() {
+    pintaChips();
+    pintaTabla({ meses: D.meses || [], clientes: clientesFiltrados(), total: D.total || {} });
+  }
+
   async function cargar() {
     try {
       const anio = $('anio').value;
@@ -109,7 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         kpi('Kg exportados', n0(t.kg), 'kg') +
         kpi('P Venta prom.', '$' + u2(t.pventa), 'USD/kg') +
         kpi('Costo expo prom.', '$' + u2(t.costo), 'USD/kg', '#0e7490');
-      pintaTabla(D);
+      render();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
