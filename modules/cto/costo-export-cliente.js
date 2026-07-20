@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div id="kpis" style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"></div>
   <div id="chips" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap"></div>
   <div class="muted" style="font-size:11px;margin-top:10px">Solo exportación en USD (cve_mon=USD). P Venta = subtotal ÷ TC ÷ kg · Costo = costo de exportación/kg ÷ TC, ponderado <strong>solo sobre kg con integración finalizada</strong> · <strong>"—" = aún sin integrar</strong> · Op = operaciones (folios).</div>
+  <div id="chart" style="margin-top:8px"></div>
   <div style="overflow-x:auto;margin-top:10px"><table class="table" id="tab" style="font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap"></table></div>
 </div>`;
 
@@ -106,9 +107,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     $('chips').querySelectorAll('button[data-fc]').forEach(bn => bn.addEventListener('click', () => { fCosto = bn.dataset.fc; render(); }));
   }
+  // Barras horizontales: Costo Expo USD/kg por cliente (solo con costo integrado).
+  function pintaChart(clientes) {
+    const rows = (clientes || []).filter(c => c.total.costo != null).sort((a, b) => b.total.costo - a.total.costo);
+    if (!rows.length) { $('chart').innerHTML = ''; return; }
+    const max = Math.max(...rows.map(c => c.total.costo), 0.0001);
+    const bars = rows.map(c => {
+      const costo = c.total.costo, pv = c.total.pventa;
+      const pct = pv > 0 ? costo / pv * 100 : null;
+      const w = Math.max(2, costo / max * 100);
+      const col = pct == null ? '#0e7490' : pct >= 12 ? '#b45309' : pct >= 6 ? '#0e7490' : '#059669';
+      return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px">
+        <div style="width:200px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155;font-weight:600" title="${esc(c.nombre)}">${esc(c.nombre)}</div>
+        <div style="flex:1;background:#f1f5f9;border-radius:5px;height:16px;min-width:80px"><div style="width:${w}%;height:16px;background:${col};border-radius:5px"></div></div>
+        <div style="width:180px;white-space:nowrap"><strong style="color:${col}">$${u2(costo)}</strong> USD/kg${pct != null ? ` <span style="color:#94a3b8">· ${pct.toFixed(1)}% del precio</span>` : ''}</div>
+      </div>`;
+    }).join('');
+    $('chart').innerHTML = `<div style="font-weight:700;color:#334155;font-size:12.5px;margin:10px 0 4px">Costo de exportación por kg (USD) por cliente <span class="muted" style="font-weight:400;font-size:11px">· color = peso del costo sobre el precio (verde &lt;6% · azul 6–12% · ámbar ≥12%)</span></div>${bars}`;
+  }
   function render() {
     pintaChips();
-    pintaTabla({ meses: D.meses || [], clientes: clientesFiltrados(), total: D.total || {} });
+    const cs = clientesFiltrados();
+    pintaChart(cs);
+    pintaTabla({ meses: D.meses || [], clientes: cs, total: D.total || {} });
   }
 
   async function cargar() {
