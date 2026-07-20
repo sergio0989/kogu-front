@@ -75,6 +75,7 @@
       {href:'/modules/cto/eficiencia-comercial.html',label:'🎯 Eficiencia comercial',perm:'screen.costo'},
       {href:'/modules/cto/cargas.html',label:'Cargas / Importación',perm:'screen.costo'},
       {href:'/modules/cto/captura-abc.html',label:'Captura ABC (gastos)',perm:'screen.costo'},
+      {href:'/modules/cto/factores-abc.html',label:'🧮 Factores del ABC (dashboard)',perm:'screen.cto.factores'},
       {href:'/modules/cto/captura-gastos-venta.html',label:'Captura Gastos de Venta',perm:'screen.costo'},
       {href:'/modules/cto/integraciones-export.html',label:'🌎 Exportación · Integraciones de costo',perm:'screen.costo'},
       {href:'/modules/cto/resumen.html',label:'Costo de ventas / Utilidad',perm:'screen.costo'},
