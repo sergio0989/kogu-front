@@ -84,11 +84,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // KPI de resultado (presupuesto) con banda de color y % sobre comparables.
-  function resKpi(lab, val, sub, bg, co, bd) {
-    return `<div style="flex:1;min-width:150px;background:${bg};border:1px solid ${bd};border-radius:10px;padding:10px 14px">
+  // Clickeable si tiene operaciones → abre el drill-down de folios.
+  function resKpi(lab, val, sub, bg, co, bd, grupo, n) {
+    const clic = grupo && n > 0;
+    return `<div class="resk" ${clic ? `data-grupo="${grupo}"` : ''} style="flex:1;min-width:150px;background:${bg};border:1px solid ${bd};border-radius:10px;padding:10px 14px;${clic ? 'cursor:pointer' : ''}">
       <div style="font-size:11px;color:${co};text-transform:uppercase;letter-spacing:.03em;font-weight:700">${lab}</div>
       <div style="font-size:24px;font-weight:800;color:${co};margin-top:1px">${val}</div>
-      <div style="font-size:11px;color:${co};opacity:.85">${sub || ''}</div></div>`;
+      <div style="font-size:11px;color:${co};opacity:.85">${sub || ''}</div>
+      ${clic ? `<div style="font-size:10px;color:${co};opacity:.7;margin-top:3px;font-weight:700">ver folios ▸</div>` : ''}</div>`;
   }
 
   const usd4 = (v) => (v == null ? '—' : Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
@@ -171,10 +174,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pc = (n) => comparables ? ` · ${(n / comparables * 100).toFixed(0)}%` : '';
     const noComp = sinTeo + sinProv + sinDat;
     $('presupuesto').innerHTML =
-      resKpi('↓ Bajo presupuesto', n0(bajo), 'costó menos que el teórico' + pc(bajo), '#f0fdf4', '#166534', '#bbf7d0') +
-      resKpi('↑ Sobre presupuesto', n0(sobre), 'costó más — revisar' + pc(sobre), '#fef2f2', '#991b1b', '#fecaca') +
-      resKpi('✓ Dentro de banda', n0(dentro), 'dentro de tolerancia' + pc(dentro), '#ecfeff', '#0e7490', '#a5f3fc') +
-      resKpi('◦ Sin comparar', n0(noComp), 'sin teórico / proveedor / datos', '#f8fafc', '#64748b', '#e2e8f0');
+      resKpi('↓ Bajo presupuesto', n0(bajo), 'costó menos que el teórico' + pc(bajo), '#f0fdf4', '#166534', '#bbf7d0', 'bajo', bajo) +
+      resKpi('↑ Sobre presupuesto', n0(sobre), 'costó más — revisar' + pc(sobre), '#fef2f2', '#991b1b', '#fecaca', 'sobre', sobre) +
+      resKpi('✓ Dentro de banda', n0(dentro), 'dentro de tolerancia' + pc(dentro), '#ecfeff', '#0e7490', '#a5f3fc', 'dentro', dentro) +
+      resKpi('◦ Sin comparar', n0(noComp), 'sin teórico / proveedor / datos', '#f8fafc', '#64748b', '#e2e8f0', 'sincomparar', noComp);
+    $('presupuesto').querySelectorAll('.resk[data-grupo]').forEach(el => el.addEventListener('click', () => abrirOps(el.dataset.grupo)));
+  }
+
+  // ── Drill-down: modal con los folios de un grupo de resultado ──
+  const GRUPO_LBL = { bajo: '↓ Bajo presupuesto', sobre: '↑ Sobre presupuesto', dentro: '✓ Dentro de banda', sincomparar: '◦ Sin comparar' };
+  function cerrarModal() { const m = $('opsModal'); if (m) m.remove(); }
+  function modalOps(titulo, bodyHtml) {
+    cerrarModal();
+    const ov = document.createElement('div');
+    ov.id = 'opsModal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto';
+    ov.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:920px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e2e8f0">
+        <h3 style="margin:0">${titulo}</h3>
+        <button id="opsClose" class="btn ghost" style="font-size:18px;line-height:1;padding:2px 10px">✕</button></div>
+      <div id="opsBody" style="padding:14px 18px;max-height:70vh;overflow:auto">${bodyHtml}</div></div>`;
+    ov.addEventListener('click', (e) => { if (e.target === ov) cerrarModal(); });
+    document.body.appendChild(ov);
+    $('opsClose').addEventListener('click', cerrarModal);
+    document.addEventListener('keydown', function esc2(e) { if (e.key === 'Escape') { cerrarModal(); document.removeEventListener('keydown', esc2); } });
+  }
+  function tablaOps(rows, grupo) {
+    if (!rows.length) return '<div class="muted" style="font-size:12.5px;padding:8px">Sin operaciones en este grupo para el filtro actual.</div>';
+    const comp = grupo === 'bajo' || grupo === 'sobre' || grupo === 'dentro';
+    const resChip = (r) => { const m = { BajoTabulador: ['#dbeafe', '#1e40af', '↓ Bajo'], SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'], DentroBanda: ['#dcfce7', '#166534', 'Dentro'], SinTeorico: ['#f1f5f9', '#475569', 'Sin teórico'], SinProveedor: ['#f3e8ff', '#6b21a8', 'Sin prov'], SinDatos: ['#fef9c3', '#854d0e', 'Sin datos'] }[r] || ['#f1f5f9', '#475569', r]; return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`; };
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
+      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th><th>Kg</th>
+      ${comp ? '<th>Real/kg</th><th>Teórico/kg</th><th>Desv.%</th><th style="text-align:left;padding:6px">vs costeo</th>' : '<th style="text-align:left;padding:6px">Motivo</th>'}
+      <th>Periodo</th></tr></thead>`;
+    const body = rows.map(r => {
+      const pv = r.desv_total_pct == null ? null : Number(r.desv_total_pct);
+      const dcol = pv == null ? '#64748b' : pv > 0 ? '#991b1b' : '#166534';
+      return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right;font-size:12px">
+        <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || r.no_costeo)}</td>
+        <td style="text-align:left;padding:6px">${esc(r.proveedor || '—')}</td>
+        <td style="padding:6px">${kg(r.kg_total)}</td>
+        ${comp ? `<td style="padding:6px">$${(Number(r.real_total_kg_usd) || 0).toFixed(2)}</td>
+          <td style="padding:6px;color:#b45309">$${(Number(r.teo_total_kg_usd) || 0).toFixed(2)}</td>
+          <td style="padding:6px;font-weight:700;color:${dcol}">${pv == null ? '—' : (pv * 100).toFixed(1) + '%'}</td>
+          <td style="text-align:left;padding:6px;color:#64748b">${r.costeo_folio ? esc(r.costeo_folio) + ' · v' + esc(r.costeo_version) : '—'}</td>`
+        : `<td style="text-align:left;padding:6px">${resChip(r.resultado)}</td>`}
+        <td style="padding:6px;color:#64748b">${esc(r.periodo)}</td></tr>`;
+    }).join('');
+    return `<div class="muted" style="font-size:12px;margin-bottom:6px">${n0(rows.length)} operación(es) · ordenadas por desviación</div>
+      <table class="table" style="width:100%;font-variant-numeric:tabular-nums">${head}<tbody>${body}</tbody></table>`;
+  }
+  async function abrirOps(grupo) {
+    modalOps(GRUPO_LBL[grupo] || 'Operaciones', '<div class="muted" style="padding:10px">Cargando folios…</div>');
+    const qs = [];
+    const anio = $('anio').value, mes = $('mes').value, prov = $('prov').value;
+    if (anio) qs.push('anio=' + encodeURIComponent(anio));
+    if (mes) qs.push('mes=' + encodeURIComponent(mes));
+    if (prov && prov !== 'TODOS') qs.push('proveedor=' + encodeURIComponent(prov));
+    qs.push('grupo=' + encodeURIComponent(grupo));
+    try {
+      const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/operaciones?' + qs.join('&'))) || { rows: [] };
+      const bodyEl = $('opsBody'); if (bodyEl) bodyEl.innerHTML = tablaOps(d.rows || [], grupo);
+    } catch (e) { const bodyEl = $('opsBody'); if (bodyEl) bodyEl.innerHTML = `<div style="color:#991b1b;font-size:12.5px">${esc(e.message)}</div>`; }
   }
 
   function chartMensual(rows) {
