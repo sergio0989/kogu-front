@@ -44,8 +44,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:end">
     <div><label class="muted" style="font-size:11px">Desde</label><br/><input type="date" id="fDesde" class="input"/></div>
     <div><label class="muted" style="font-size:11px">Hasta</label><br/><input type="date" id="fHasta" class="input"/></div>
-    <div><label class="muted" style="font-size:11px">Cliente</label><br/><select id="fCliente" class="input" style="max-width:260px"><option value="">Todos</option></select></div>
-    <div><label class="muted" style="font-size:11px">Producto</label><br/><select id="fProducto" class="input" style="max-width:260px"><option value="">Todos</option></select></div>
+    <div><label class="muted" style="font-size:11px">Cliente</label><br/>
+      <button class="btn" id="fClienteBtn" style="min-width:220px;max-width:300px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Todos ▾</button></div>
+    <div><label class="muted" style="font-size:11px">Producto</label><br/>
+      <button class="btn" id="fProductoBtn" style="min-width:220px;max-width:300px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Todos ▾</button></div>
     <button class="btn primary" id="aplicar">Aplicar</button>
   </div>
 
@@ -216,13 +218,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
+  // ── Filtros cliente/producto: picker modal con búsqueda ────
+  let filtrosData = { clientes: [], productos: [] };
+  let selCliente = null;   // { cve_cte, nom_cte } | null
+  let selProducto = null;  // { cve_prod, desc_prod } | null
+  const TODOS = '__TODOS__';
+
+  function pintaFiltroBtns() {
+    $('fClienteBtn').textContent = selCliente ? `${selCliente.nom_cte || selCliente.cve_cte} ✕` : 'Todos ▾';
+    $('fProductoBtn').textContent = selProducto ? `${selProducto.cve_prod} ✕` : 'Todos ▾';
+    $('fClienteBtn').title = selCliente ? `${selCliente.nom_cte} (${selCliente.cve_cte}) — clic para cambiar` : 'Todos los clientes';
+    $('fProductoBtn').title = selProducto ? `${selProducto.desc_prod || selProducto.cve_prod} — clic para cambiar` : 'Todos los productos';
+  }
+
+  function pickerCliente() {
+    const items = [{ cve_cte: TODOS, nom_cte: '— Todos los clientes —', renglones: '' }]
+      .concat(filtrosData.clientes.map(x => ({ ...x, renglones: n0(x.renglones) })));
+    KoguUi.openSearchPicker({
+      title: 'Filtrar por cliente',
+      items,
+      columns: [
+        { key: 'nom_cte', label: 'Cliente', primary: true },
+        { key: 'cve_cte', label: 'cve' },
+        { key: 'renglones', label: 'ventas cruzables' },
+      ],
+      placeholder: 'Buscar por nombre o clave…',
+      onSelect: (it) => { selCliente = it.cve_cte === TODOS ? null : it; pintaFiltroBtns(); cargar(); },
+    });
+  }
+
+  function pickerProducto() {
+    const items = [{ cve_prod: TODOS, desc_prod: '— Todos los productos —', renglones: '' }]
+      .concat(filtrosData.productos.map(x => ({ ...x, renglones: n0(x.renglones) })));
+    KoguUi.openSearchPicker({
+      title: 'Filtrar por producto',
+      items,
+      columns: [
+        { key: 'cve_prod', label: 'Clave', primary: true },
+        { key: 'desc_prod', label: 'Descripción' },
+        { key: 'renglones', label: 'ventas cruzables' },
+      ],
+      placeholder: 'Buscar por clave o descripción…',
+      onSelect: (it) => { selProducto = it.cve_prod === TODOS ? null : it; pintaFiltroBtns(); cargar(); },
+    });
+  }
+
   // ── Carga ───────────────────────────────────────────────────
   function qs() {
     const p = new URLSearchParams();
     if ($('fDesde').value) p.set('desde', $('fDesde').value);
     if ($('fHasta').value) p.set('hasta', $('fHasta').value);
-    if ($('fCliente').value) p.set('cliente', $('fCliente').value);
-    if ($('fProducto').value) p.set('producto', $('fProducto').value);
+    if (selCliente) p.set('cliente', selCliente.cve_cte);
+    if (selProducto) p.set('producto', selProducto.cve_prod);
     const s = p.toString();
     return s ? '?' + s : '';
   }
@@ -230,10 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function cargarFiltros() {
     try {
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/cruce-ventas/filtros')) || {};
-      $('fCliente').innerHTML = '<option value="">Todos</option>' + (d.clientes || []).map(x =>
-        `<option value="${esc(x.cve_cte)}">${esc(x.nom_cte || x.cve_cte)} (${n0(x.renglones)})</option>`).join('');
-      $('fProducto').innerHTML = '<option value="">Todos</option>' + (d.productos || []).map(x =>
-        `<option value="${esc(x.cve_prod)}">${esc(x.cve_prod)} — ${esc(String(x.desc_prod || '').slice(0, 40))}</option>`).join('');
+      filtrosData = { clientes: d.clientes || [], productos: d.productos || [] };
     } catch (e) { /* filtros no bloquean la pantalla */ }
   }
 
@@ -249,6 +293,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let qTimer = null;
   $('q').addEventListener('input', (e) => { clearTimeout(qTimer); qTimer = setTimeout(() => { filtro = e.target.value; render(); }, 180); });
   $('aplicar').addEventListener('click', cargar);
+  $('fClienteBtn').addEventListener('click', pickerCliente);
+  $('fProductoBtn').addEventListener('click', pickerProducto);
   $('reload').addEventListener('click', () => { cargar(); cargarEq(); });
   $('toggleEq').addEventListener('click', () => {
     const p = $('eqPanel'); const on = p.style.display === 'none';
@@ -266,6 +312,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   });
 
-  KoguShell.subscribeEmpresaActivaChange(() => { kpis = null; filas = []; eqs = []; fSolo = 'TODOS'; filtro = ''; if ($('q')) $('q').value = ''; cargarFiltros(); cargar(); });
-  cargarFiltros(); cargar();
+  KoguShell.subscribeEmpresaActivaChange(() => {
+    kpis = null; filas = []; eqs = []; fSolo = 'TODOS'; filtro = '';
+    selCliente = null; selProducto = null; pintaFiltroBtns();
+    if ($('q')) $('q').value = '';
+    cargarFiltros(); cargar();
+  });
+  pintaFiltroBtns(); cargarFiltros(); cargar();
 });
