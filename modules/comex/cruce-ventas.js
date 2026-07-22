@@ -38,7 +38,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="row">
     <div><div class="eyebrow">Comercio Exterior · Cruce</div><h2 style="margin:0">Cruce venta-importación</h2>
       <div class="muted" style="font-size:12px">Cada venta contra el <strong>lote importado</strong> del que salió: precio vs landed (MP + flete + otros + arancel) en USD/kg. Renglones en rosa = el precio no cubrió traer ese lote.</div></div>
-    <button class="btn" id="reload" style="align-self:flex-start">↻ Actualizar</button>
+    <div style="display:flex;gap:8px;align-self:flex-start">
+      <button class="btn ghost" id="exportBtn">⬇ Exportar Excel</button>
+      <button class="btn" id="reload">↻ Actualizar</button>
+    </div>
   </div>
 
   <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:end">
@@ -295,6 +298,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('aplicar').addEventListener('click', cargar);
   $('fClienteBtn').addEventListener('click', pickerCliente);
   $('fProductoBtn').addEventListener('click', pickerProducto);
+  $('exportBtn').addEventListener('click', async () => {
+    try {
+      KoguApi.toast('Generando Excel…', 'info');
+      // Respeta también el chip activo (solo=perdida/match/sinmatch).
+      const soloMap = { PERDIDA: 'perdida', MATCH: 'match', SINMATCH: 'sinmatch' };
+      let url = BASE + '/cruce-ventas/export' + qs();
+      if (soloMap[fSolo]) url += (url.includes('?') ? '&' : '?') + 'solo=' + soloMap[fSolo];
+      const res = await KoguApi.authFetchRaw(url);
+      if (!res.ok) throw new Error('No se pudo generar el Excel.');
+      const blob = await res.blob();
+      const dl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const suf = [selCliente?.nom_cte, selProducto?.cve_prod].filter(Boolean).join('_').replace(/\s+/g, '') || 'todos';
+      a.href = dl; a.download = `cruce_venta_impo_${suf}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  });
   $('reload').addEventListener('click', () => { cargar(); cargarEq(); });
   $('toggleEq').addEventListener('click', () => {
     const p = $('eqPanel'); const on = p.style.display === 'none';
