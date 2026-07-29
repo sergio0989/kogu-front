@@ -200,6 +200,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Reconciliación del mes ──────────────────────────────────
   const usdkg = (v) => (v == null ? '—' : (Number(v)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   const pct = (v) => (v == null ? '—' : (Number(v) * 100).toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%');
+  // Fecha real del pedimento (matriz SAT; ≈ = fallback a fecha de costeo SAI).
+  const fmtFechaPed = (f) => { if (!f) return '—'; const d = new Date(f); return isNaN(d) ? String(f).slice(0, 10) : d.toLocaleDateString('es-MX', { year: '2-digit', month: 'short', day: '2-digit' }); };
   const RES_META = {
     DentroBanda:    ['#dcfce7', '#166534', 'Dentro'],
     SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'],
@@ -290,13 +292,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderReconTable() {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="width:56px"></th>
-      <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th>
+      <th style="text-align:left;padding:6px">Pedimento</th>
+      <th style="text-align:left;padding:6px">Fecha</th>
+      <th style="text-align:left;padding:6px">Proveedor</th>
       <th style="text-align:right;padding:6px">Escala</th>
       <th>Kg</th><th style="background:#ecfeff;color:#0e7490;padding:6px">Real total/kg</th><th style="background:#fffbeb;color:#b45309;padding:6px">Teórico total/kg</th>
       <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
     let rows = reconState.rows;
     if (reconState.filtro) rows = rows.filter(r => r.resultado === reconState.filtro);
-    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="10" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
+    if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="11" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
     $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
       const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
       const col = fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a';
@@ -311,6 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${fuera ? ';background:#fffbf5' : ''}">
         <td style="text-align:center;padding:6px;white-space:nowrap"><button class="btn ghost" data-exp="${esc(r.no_costeo)}" title="Ver productos" style="padding:0 5px;font-size:12px;line-height:1.4">▸</button><button class="btn ghost" data-int="${esc(r.no_costeo)}" title="Descargar integración (Excel)" style="padding:0 5px;font-size:12px;line-height:1.4">📄</button></td>
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || '')}${r.costeo_folio ? `<div style="font-size:10.5px;color:#64748b;font-weight:400">vs ${esc(r.costeo_folio)} · v${esc(r.costeo_version)}</div>` : ''}</td>
+        <td style="text-align:left;padding:6px;white-space:nowrap;color:#475569">${fmtFechaPed(r.fecha_pedimento)}${r.fecha_pedimento && !r.fecha_es_pedimento ? ' <span title="pedimento sin matriz SAT: fecha del costeo SAI" style="color:#b45309">≈</span>' : ''}</td>
         <td style="text-align:left;padding:6px">${prov}${revisar}</td>
         <td style="text-align:right;padding:6px">${escala}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
@@ -319,7 +324,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px;color:${col}">${usdkg(r.desv_total_usd)}</td>
         <td style="padding:6px;font-weight:700;color:${col}">${pct(r.desv_total_pct)}</td>
         <td style="text-align:center;padding:6px">${resChip(r.resultado)}</td></tr>
-      <tr class="rec-det" data-det="${esc(r.no_costeo)}" style="display:none"><td colspan="10" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
+      <tr class="rec-det" data-det="${esc(r.no_costeo)}" style="display:none"><td colspan="11" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
     }).join('') + '</tbody>';
     $('tRecon').querySelectorAll('button[data-exp]').forEach(bn => bn.addEventListener('click', () => togglePartidas(bn)));
     $('tRecon').querySelectorAll('button[data-int]').forEach(bn => bn.addEventListener('click', () => descargarIntegracion(bn)));
