@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn" data-c="proveedores">Por proveedor</button>
       <button class="btn" data-c="productos">Por producto</button>
       <button class="btn" data-c="escalas">Por escala</button>
+      <button class="btn" data-c="partidas">Partidas (detalle)</button>
     </div>
     <input id="anQ" class="input" placeholder="🔍 Buscar…" style="max-width:300px"/>
   </div>
@@ -92,9 +93,112 @@ document.addEventListener('DOMContentLoaded', async () => {
     proveedores: { lab: 'Proveedor', nombre: false, prov: false },
     productos: { lab: 'Producto', nombre: true, prov: true },
     escalas: { lab: 'Escala (kg)', nombre: false, prov: false },
+    partidas: { lab: 'Partida', nombre: false, prov: false },
   };
 
+  // ── Corte "Partidas": vista plana estilo DataStage + lado venta ──
+  let partidas = null, pSortKey = 'periodo', pSortDir = 'asc';
+  const usd2 = (v) => (v == null ? '—' : Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
+  function pSortVal(r, k) {
+    switch (k) {
+      case 'periodo': return String(r.periodo || '') + String(r.no_costeo || '');
+      case 'pedimento': return String(r.pedimento || '');
+      case 'proveedor': return String(r.proveedor || '').toLowerCase();
+      case 'producto': return String(r.cve_prod || '');
+      case 'lote': return String(r.lote || '');
+      case 'kg': return Number(r.kg) || 0;
+      case 'mp_usd': return r.mp_usd == null ? -1 : Number(r.mp_usd);
+      case 'cts_real': return r.cts_ind_real_usd == null ? -1 : Number(r.cts_ind_real_usd);
+      case 'costot': return r.costot_usd == null ? -1 : Number(r.costot_usd);
+      case 'dif': return r.cts_ind_dif_usd == null ? -1e9 : Number(r.cts_ind_dif_usd);
+      case 'pct_vend': return r.pct_vendido == null ? -1 : Number(r.pct_vendido);
+      case 'margen': return r.margen_real_pct == null ? -1e9 : Number(r.margen_real_pct);
+      default: return 0;
+    }
+  }
+  function pClickSort(k) {
+    if (pSortKey === k) pSortDir = pSortDir === 'asc' ? 'desc' : 'asc';
+    else { pSortKey = k; pSortDir = ['periodo', 'pedimento', 'proveedor', 'producto', 'lote'].includes(k) ? 'asc' : 'desc'; }
+    renderPartidas();
+  }
+
+  function renderPartidas() {
+    const base = partidas || [];
+    const q = filtro.trim().toLowerCase();
+    let rows = q ? base.filter(r =>
+      String(r.proveedor || '').toLowerCase().includes(q) || String(r.cve_prod || '').toLowerCase().includes(q) ||
+      String(r.nombre || '').toLowerCase().includes(q) || String(r.lote || '').toLowerCase().includes(q) ||
+      String(r.pedimento || '').toLowerCase().includes(q) || String(r.no_facc || '').includes(q) ||
+      String(r.periodo || '').includes(q)) : base.slice();
+    const dir = pSortDir === 'asc' ? 1 : -1;
+    rows.sort((a, b2) => { const va = pSortVal(a, pSortKey), vb = pSortVal(b2, pSortKey); return va < vb ? -dir : va > vb ? dir : 0; });
+
+    const tkg = rows.reduce((s, r) => s + (Number(r.kg) || 0), 0);
+    $('cInfo').textContent = `${n0(rows.length)} partida(s) · ${kg(tkg)} kg · USD/kg al TC del pedimento · busca por periodo, pedimento, proveedor, producto, lote o factura`;
+    const sarr = (k) => pSortKey === k ? (pSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    const th = (k, lab, extra = '') => `<th data-psk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
+      ${th('periodo', 'Periodo', 'text-align:left')}${th('pedimento', 'Pedimento', 'text-align:left')}
+      ${th('proveedor', 'Proveedor', 'text-align:left')}<th style="text-align:left;padding:6px">Escala</th>
+      <th style="text-align:left;padding:6px">Factura</th>${th('lote', 'Lote', 'text-align:left')}
+      ${th('producto', 'Producto', 'text-align:left')}${th('kg', 'Kg')}
+      ${th('mp_usd', 'MP<br/>USD/kg', M)}<th style="padding:6px">Flete</th><th style="padding:6px">Otros</th>
+      ${th('cts_real', 'Gastos<br/>real')}<th style="padding:6px">Gastos<br/>teó.</th>${th('dif', 'Dif')}
+      ${th('costot', 'CostoT<br/>USD/kg')}<th style="text-align:center;padding:6px">Resultado</th>
+      ${th('pct_vend', '% vend.')}${th('margen', 'Margen<br/>real')}</tr></thead>`;
+    if (!rows.length) {
+      $('tAn').innerHTML = head + `<tbody><tr><td colspan="18" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin partidas. Reconcilia el periodo primero.'}</td></tr></tbody>`;
+      $('tAn').querySelectorAll('th[data-psk]').forEach(h => h.addEventListener('click', () => pClickSort(h.dataset.psk)));
+      return;
+    }
+    $('tAn').innerHTML = head + '<tbody>' + rows.map((r) => {
+      const dif = r.cts_ind_dif_usd == null ? null : Number(r.cts_ind_dif_usd);
+      const marg = r.margen_real_pct == null ? null : Number(r.margen_real_pct);
+      const margCo = marg == null ? '#94a3b8' : marg < 0 ? '#991b1b' : '#166534';
+      return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${marg != null && marg < 0 ? ';background:#fdf2f4' : ''}">
+        <td style="text-align:left;padding:5px 6px;color:#64748b">${esc(r.periodo)}</td>
+        <td style="text-align:left;padding:5px 6px;font-weight:700">${esc(r.pedimento || r.no_costeo)}</td>
+        <td style="text-align:left;padding:5px 6px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.proveedor)}">${esc(r.proveedor)}</td>
+        <td style="text-align:left;padding:5px 6px;font-size:11px;color:#475569">${r.escala_kg != null ? kg(r.escala_kg) + ' kg' : '—'}</td>
+        <td style="text-align:left;padding:5px 6px;color:#475569">${esc(r.no_facc ?? '—')}</td>
+        <td style="text-align:left;padding:5px 6px;color:#64748b">${esc(r.lote || '—')}</td>
+        <td style="text-align:left;padding:5px 6px"><strong>${esc(r.cve_prod)}</strong><div class="muted" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nombre)}">${esc(r.nombre)}</div></td>
+        <td style="padding:5px 6px;font-weight:700">${kg(r.kg)}</td>
+        <td style="padding:5px 6px;${M}">${usd2(r.mp_usd)}</td>
+        <td style="padding:5px 6px;color:#475569">${usd2(r.flete_usd)}</td>
+        <td style="padding:5px 6px;color:#475569">${usd2(r.otros_usd)}</td>
+        <td style="padding:5px 6px;font-weight:700">${usd2(r.cts_ind_real_usd)}</td>
+        <td style="padding:5px 6px;color:#b45309">${usd2(r.cts_ind_teorico_usd)}</td>
+        <td style="padding:5px 6px;font-weight:700;color:${dif == null ? '#94a3b8' : dif > 0 ? '#991b1b' : '#1e40af'}">${usd2(dif)}</td>
+        <td style="padding:5px 6px;font-weight:800">${usd2(r.costot_usd)}</td>
+        <td style="text-align:center;padding:5px 6px">${r.resultado ? resChip(r.resultado) : '—'}</td>
+        <td style="padding:5px 6px;color:#475569">${r.pct_vendido == null ? '—' : pct(r.pct_vendido)}</td>
+        <td style="padding:5px 6px;font-weight:700;color:${margCo}">${marg == null ? '—' : pct(marg)}</td></tr>`;
+    }).join('') + '</tbody>';
+    $('tAn').querySelectorAll('th[data-psk]').forEach(h => h.addEventListener('click', () => pClickSort(h.dataset.psk)));
+  }
+
+  async function cargarPartidas() {
+    if (!periodo) return;
+    $('cInfo').textContent = 'Cargando partidas…';
+    try {
+      partidas = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/analisis/partidas?periodo=' + encodeURIComponent(periodo))) || [];
+      renderPartidas();
+    } catch (e) { KoguApi.toast(e.message, 'error'); $('cInfo').textContent = esc(e.message); }
+  }
+
   function render() {
+    if (corte === 'partidas') {
+      document.querySelectorAll('button[data-c]').forEach(bn => {
+        const on = bn.dataset.c === corte;
+        bn.className = 'btn ' + (on ? 'primary' : 'ghost');
+        bn.style.background = on ? '#0891b2' : '';
+      });
+      if ($('anQ')) $('anQ').placeholder = '🔍 Pedimento, proveedor, producto, lote, factura…';
+      if (partidas === null) { cargarPartidas(); } else { renderPartidas(); }
+      return;
+    }
     document.querySelectorAll('button[data-c]').forEach(bn => {
       const on = bn.dataset.c === corte;
       bn.className = 'btn ' + (on ? 'primary' : 'ghost');
@@ -303,22 +407,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!periodo) return KoguApi.toast('Elige un periodo.', 'error');
     $('expBtn').disabled = true; const t = $('expBtn').textContent; $('expBtn').textContent = '⏳ Generando…';
     try {
-      const res = await KoguApi.authFetchRaw(BASE + '/analisis/export?periodo=' + encodeURIComponent(periodo));
+      // En el corte Partidas exporta la vista plana (estilo DataStage); en los
+      // demás cortes, el análisis de 3 hojas.
+      const esPartidas = corte === 'partidas';
+      const path = esPartidas ? '/analisis/partidas/export' : '/analisis/export';
+      const res = await KoguApi.authFetchRaw(BASE + path + '?periodo=' + encodeURIComponent(periodo));
       if (!res.ok) throw new Error('No se pudo generar el Excel');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `Analisis_Comex_${periodo === 'ACUM' ? 'acumulado' : periodo}.xlsx`;
+      const suf = periodo === 'ACUM' ? 'acumulado' : periodo;
+      a.href = url; a.download = esPartidas ? `Partidas_Comex_${suf}.xlsx` : `Analisis_Comex_${suf}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
     finally { $('expBtn').disabled = false; $('expBtn').textContent = t; }
   }
 
-  $('periodo').addEventListener('change', () => { periodo = $('periodo').value; cargar(); });
+  $('periodo').addEventListener('change', () => {
+    periodo = $('periodo').value; partidas = null;
+    if (corte === 'partidas') { cargarPartidas(); } else { cargar(); }
+  });
   document.querySelectorAll('button[data-c]').forEach(bn => bn.addEventListener('click', () => { corte = bn.dataset.c; filtro = ''; if ($('anQ')) $('anQ').value = ''; sortKey = 'costo_usd'; sortDir = 'desc'; render(); }));
   let anQTimer = null;
-  $('anQ').addEventListener('input', (e) => { clearTimeout(anQTimer); anQTimer = setTimeout(() => { filtro = e.target.value; render(); }, 180); });
+  $('anQ').addEventListener('input', (e) => { clearTimeout(anQTimer); anQTimer = setTimeout(() => { filtro = e.target.value; if (corte === 'partidas') renderPartidas(); else render(); }, 180); });
   $('expBtn').addEventListener('click', exportar);
-  KoguShell.subscribeEmpresaActivaChange(() => { data = null; $('periodo').innerHTML = ''; cargarPeriodos(); });
+  KoguShell.subscribeEmpresaActivaChange(() => { data = null; partidas = null; $('periodo').innerHTML = ''; cargarPeriodos(); });
   cargarPeriodos();
 });
