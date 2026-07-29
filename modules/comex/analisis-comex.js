@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Corte "Consolidación": embarques que pudieron venir juntos ──
   let consol = null;
-  const fmtF = (f) => { if (!f) return '—'; const d = new Date(f); return isNaN(d) ? String(f).slice(0, 10) : d.toLocaleDateString('es-MX', { month: 'short', day: '2-digit' }); };
+  const fmtF = (f) => { if (!f) return '—'; const d = new Date(f); return isNaN(d) ? String(f).slice(0, 10) : d.toLocaleDateString('es-MX', { year: '2-digit', month: 'short', day: '2-digit' }); };
 
   function renderConsolidacion() {
     const d = consol;
@@ -121,19 +121,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="width:24px"></th>
       <th style="text-align:left;padding:6px">Proveedor</th>
-      <th style="text-align:left;padding:6px">Fechas</th>
+      <th style="text-align:left;padding:6px">Fechas operación</th>
+      <th style="text-align:left;padding:6px">Fecha propuesta</th>
       <th style="padding:6px">Ops</th><th style="padding:6px">Kg combinado</th>
       <th style="padding:6px">Escala alcanzada</th>
       <th style="padding:6px">Gasto pagado USD</th><th style="padding:6px">Consolidado est. USD</th>
       <th style="padding:6px">Ahorro USD</th><th style="padding:6px">%</th>
       <th style="text-align:left;padding:6px">Base</th></tr></thead>`;
     if (!rows.length) {
-      $('tAn').innerHTML = head + `<tbody><tr><td colspan="11" style="text-align:center;padding:16px;color:var(--muted)">${(d.oportunidades || []).length ? 'Sin coincidencias.' : 'Sin grupos en la ventana: cada embarque llegó aislado. Prueba una ventana mayor.'}</td></tr></tbody>`;
+      $('tAn').innerHTML = head + `<tbody><tr><td colspan="12" style="text-align:center;padding:16px;color:var(--muted)">${(d.oportunidades || []).length ? 'Sin coincidencias.' : 'Sin grupos en la ventana: cada embarque llegó aislado. Prueba una ventana mayor.'}</td></tr></tbody>`;
       return;
     }
     $('tAn').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const ah = r.ahorro_usd, co = ah == null ? '#94a3b8' : ah > 0 ? '#047857' : '#991b1b';
-      const det = `<tr class="cs-det" data-det="${idx}" style="display:none"><td colspan="11" style="padding:0 6px 10px 34px;background:#fafcff">
+      const det = `<tr class="cs-det" data-det="${idx}" style="display:none"><td colspan="12" style="padding:0 6px 10px 34px;background:#fafcff">
         <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
           <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b;text-align:right">
             <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Fecha</th>
@@ -150,7 +151,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${ah != null && ah > 0 ? ';background:#f0fdf9' : ''}">
         <td style="text-align:center;padding:6px"><button class="btn ghost" data-cs="${idx}" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>
         <td style="text-align:left;padding:6px;font-weight:700;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.proveedor)}">${esc(r.proveedor)}</td>
-        <td style="text-align:left;padding:6px;color:#475569">${fmtF(r.fecha_inicio)} → ${fmtF(r.fecha_fin)} <span class="muted">(${r.dias_span} d)</span></td>
+        <td style="text-align:left;padding:6px;color:#475569">${r.dias_span > 0 ? `${fmtF(r.fecha_inicio)} → ${fmtF(r.fecha_fin)} <span class="muted">(${r.dias_span} d)</span>` : `${fmtF(r.fecha_inicio)} <span class="muted">(mismo día)</span>`}</td>
+        <td style="text-align:left;padding:6px;font-weight:700;color:#047857">${fmtF(r.fecha_propuesta)}</td>
         <td style="padding:6px;font-weight:700">${r.ops.length}</td>
         <td style="padding:6px;font-weight:700">${kg(r.kg_combinado)}</td>
         <td style="padding:6px;color:#475569">${r.escala_sugerida_kg != null ? kg(r.escala_sugerida_kg) + ' kg' : '—'}</td>
