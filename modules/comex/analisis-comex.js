@@ -137,12 +137,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const det = `<tr class="cs-det" data-det="${idx}" style="display:none"><td colspan="12" style="padding:0 6px 10px 34px;background:#fafcff">
         <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">
           <thead><tr style="border-bottom:1px solid #e2e8f0;color:#64748b;text-align:right">
-            <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Fecha</th>
+            <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Fecha pedimento</th>
             <th style="padding:4px 6px">Kg</th><th style="padding:4px 6px">Escala</th>
             <th style="padding:4px 6px">Gasto USD/kg</th><th style="padding:4px 6px">Gasto USD</th></tr></thead>
           <tbody>${r.ops.map(o => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
             <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
-            <td style="text-align:left;padding:4px 6px">${fmtF(o.fecha)}</td>
+            <td style="text-align:left;padding:4px 6px">${fmtF(o.fecha)}${o.fecha_es_pedimento ? '' : ' <span title="pedimento sin matriz SAT: se usa la fecha del costeo SAI" style="color:#b45309">≈</span>'}${o.fecha_costeo && String(o.fecha_costeo).slice(0, 10) !== String(o.fecha).slice(0, 10) ? ` <span class="muted" style="font-size:10.5px">(costeo ${fmtF(o.fecha_costeo)})</span>` : ''}</td>
             <td style="padding:4px 6px">${kg(o.kg)}</td>
             <td style="padding:4px 6px">${o.escala_kg != null ? kg(o.escala_kg) + ' kg' : '—'}</td>
             <td style="padding:4px 6px">${usd4(o.gasto_kg_usd)}</td>
