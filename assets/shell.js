@@ -26,6 +26,7 @@
       {href:'/modules/cfdi/auditoria/auditoria.html',label:'Auditoría CFDI',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/rep/resumen-rep.html',label:'Resumen REP',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/rep/bandeja-rep.html',label:'Bandeja REP',perm:'screen.cfdi.cfdi_facturas'},
+      {href:'/modules/cfdi/rep/emitidas-pendientes.html',label:'PPD emitidas pendientes',perm:'screen.cfdi.cfdi_facturas'},
     ]},
     {section:'Catálogos',items:[
       {href:'/modules/core/clientes/clientes.html',label:'Clientes',perm:'screen.catalogos.clientes'},
