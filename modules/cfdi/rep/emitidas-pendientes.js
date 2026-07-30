@@ -274,8 +274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.disabled = true;
       btn.textContent = 'Exportando...';
       const qs = buildQuery(false);
-      qs.set('scope', 'emitidos'); // reusa el export REP existente (emitidos)
-      const response = await KoguApi.authFetchRaw(`/protected/kogu/cfdi/rep/exportar-excel?${qs.toString()}`, {
+      const response = await KoguApi.authFetchRaw(`/protected/kogu/cfdi/rep/emitidas-pendientes/exportar-excel?${qs.toString()}`, {
         method: 'GET',
         headers: { Accept: 'application/vnd.ms-excel, application/octet-stream, */*' }
       });
