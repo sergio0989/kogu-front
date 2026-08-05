@@ -21,6 +21,7 @@
       {href:'/modules/cfdi/solicitudes/solicitudes.html',label:'Solicitudes SAT',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/dashboard/resumen.html',label:'Resumen de negocio',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/bandeja/bandeja.html',label:'Bandeja CFDI',perm:'screen.cfdi.sat_dm'},
+      {href:'/modules/cfdi/bandeja-nomina/bandeja-nomina.html',label:'Bandeja CFDI Nómina',perm:['cfdi.tipo.nomina.read','cfdi.alcance.solo_nomina']},
       {href:'/modules/cfdi/validador-xml/validador-xml.html',label:'Validador XML',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/conciliacion/conciliacion-erp.html',label:'Conciliación CFDI',perm:'screen.cfdi.sat_dm'},
       {href:'/modules/cfdi/auditoria/auditoria.html',label:'Auditoría CFDI',perm:'screen.cfdi.sat_dm'},
@@ -306,6 +307,11 @@
 
     if (!Array.isArray(perms) || perms.length === 0) {
       return false;
+    }
+
+    // perm puede ser string (exacto) o arreglo (any-of: basta con tener uno).
+    if (Array.isArray(perm)) {
+      return perm.some((p) => perms.includes(p));
     }
 
     return perms.includes(perm);
