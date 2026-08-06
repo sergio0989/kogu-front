@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <th>Empleado</th>
                 <th>Departamento</th>
                 <th>Puesto</th>
+                <th>Estatus</th>
                 <th>Fecha pago</th>
                 <th>Días</th>
                 <th>Percepciones</th>
@@ -87,7 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tr>
             </thead>
             <tbody id="rows">
-              <tr><td colspan="10" class="empty">Sin resultados.</td></tr>
+              <tr><td colspan="11" class="empty">Sin resultados.</td></tr>
             </tbody>
           </table>
         </div>
@@ -135,6 +136,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     return qs;
   }
 
+  function estatusBadge(v) {
+    const st = String(v || '').toUpperCase();
+    if (st === 'CANCELADO') return '<span class="chip danger">Cancelado</span>';
+    if (st === 'VIGENTE') return '<span class="chip success">Vigente</span>';
+    return `<span class="chip">${esc(v || '-')}</span>`;
+  }
+
   function renderKpis(kpis) {
     const strip = document.getElementById('kpiStrip');
     const k = kpis || {};
@@ -153,13 +161,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       card('Percepciones', k.suma_percepciones, 'success', true) +
       card('Deducciones', k.suma_deducciones, 'danger', true) +
       card('Otros pagos', k.suma_otros_pagos, 'warn', true) +
-      card('Neto', k.suma_neto, '', true);
+      card('Neto', k.suma_neto, '', true) +
+      card('Cancelados', k.cancelados, 'danger');
   }
 
   function renderRows(items) {
     const tbody = document.getElementById('rows');
     if (!items?.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">Sin resultados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="empty">Sin resultados.</td></tr>';
       return;
     }
     tbody.innerHTML = items.map((r) => `
@@ -173,6 +182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </td>
         <td>${esc(r.receptor_departamento || '-')}</td>
         <td>${esc(r.receptor_puesto || '-')}</td>
+        <td>${estatusBadge(r.estatus_sat)}</td>
         <td>${esc(shortDate(r.fecha_pago))}</td>
         <td>${KoguUi.int(Number(r.num_dias_pagados || 0))}</td>
         <td>${money(r.total_percepciones)}</td>
@@ -203,8 +213,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderPager();
       const emp = data?.empresa?.nombre_corto || data?.empresa?.razon_social || 'empresa activa';
       const mesLbl = data?.mes?.etiqueta || document.getElementById('mes').value;
+      const nCancel = Number(data?.kpis?.cancelados || 0);
+      const cancelTxt = nCancel ? ` · ${KoguUi.int(nCancel)} cancelados (no cuentan)` : '';
       document.getElementById('statusMsg').textContent =
-        `${KoguUi.int(data?.kpis?.total_recibos || 0)} recibos · ${KoguUi.int(data?.kpis?.total_empleados || 0)} empleados · neto ${money(data?.kpis?.suma_neto)} · ${esc(mesLbl)} · ${esc(emp)}.`;
+        `${KoguUi.int(data?.kpis?.total_recibos || 0)} recibos · ${KoguUi.int(data?.kpis?.total_empleados || 0)} empleados · neto ${money(data?.kpis?.suma_neto)} · ${esc(mesLbl)} · ${esc(emp)}.${cancelTxt}`;
     } catch (err) {
       KoguApi.toast(err.message || 'No fue posible consultar.', 'error');
       document.getElementById('statusMsg').textContent = err.message || 'No fue posible consultar.';
