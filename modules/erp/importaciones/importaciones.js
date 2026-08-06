@@ -43,12 +43,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     <!-- Modo de carga (solo Ventas) -->
     <div id="modoVentasBox" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--bg-soft,#f8fafc)">
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Modo de carga (Ventas)</div>
-      <label style="margin-right:18px;font-size:13px;cursor:pointer">
-        <input type="radio" name="modoVentas" value="reemplazar" checked /> Reemplazar — reemplaza la factura completa (carga total del periodo)
+      <label style="display:block;font-size:13px;cursor:pointer;margin-bottom:4px">
+        <input type="radio" name="modoVentas" value="periodo" checked /> <strong>Periodo</strong> — el archivo es el mes completo: compara contra lo cargado y da de baja lo que ya no existe en el ERP <em>(recomendado)</em>
       </label>
-      <label style="font-size:13px;cursor:pointer">
+      <label style="display:block;font-size:13px;cursor:pointer;margin-bottom:4px">
+        <input type="radio" name="modoVentas" value="reemplazar" /> Reemplazar por documento — reemplaza cada factura del archivo (modo anterior)
+      </label>
+      <label style="display:block;font-size:13px;cursor:pointer">
         <input type="radio" name="modoVentas" value="agregar" /> Agregar — no destructivo: solo añade líneas nuevas (re-imports parciales)
       </label>
+
+      <div id="periodoBox" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+          Periodo que cubre el archivo — se <strong>declara</strong>, no se deduce: así un archivo incompleto se delata como bajas en el análisis.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="select" id="periodoAnio" style="min-width:110px"></select>
+          <select class="select" id="periodoMes" style="min-width:140px"></select>
+          <span id="periodoRango" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+      </div>
     </div>
 
     <!-- Zona de arrastre / selección -->
@@ -88,6 +102,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div class="table-wrap" style="margin-top:12px;max-height:260px;overflow-y:auto">
         <table id="previewTable"><thead id="previewHead"></thead><tbody id="previewBody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- Analisis del periodo (diff) -->
+    <div id="diffSection" style="display:none;margin-top:16px">
+      <div class="row">
+        <div>
+          <div class="eyebrow">Análisis del periodo</div>
+          <h3 id="diffTitulo" style="margin:2px 0 0">—</h3>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="diffDescartarBtn">Descartar</button>
+          <button class="btn primary" id="diffAplicarBtn">Aplicar cambios</button>
+        </div>
+      </div>
+
+      <div id="diffAvisos" style="margin-top:12px"></div>
+
+      <div id="diffMetrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px"></div>
+
+      <div id="diffDetalleWrap" style="margin-top:14px;display:none">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+          Documentos afectados (los de <strong>baja</strong> desaparecieron del ERP: cancelados, re-emitidos o ausentes del archivo).
+        </div>
+        <div class="table-wrap" style="max-height:300px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Tipo</th><th>Folio</th><th>Fecha</th><th>Cliente</th><th class="num">Líneas</th><th class="num">Cantidad</th><th class="num">Importe</th></tr></thead>
+            <tbody id="diffDetalleBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -175,7 +219,63 @@ document.addEventListener('DOMContentLoaded', async () => {
   function updateModoBox() {
     const box = document.getElementById('modoVentasBox');
     if (box) box.style.display = tipoActivo === 'ventas' ? '' : 'none';
+    updatePeriodoBox();
   }
+
+  // ── Periodo declarado (modo 'periodo') ────────────────────────────────────
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  let previewImportacionId = null;
+
+  function modoVentasActual() {
+    const el = document.querySelector('input[name="modoVentas"]:checked');
+    return el ? el.value : 'periodo';
+  }
+
+  function updatePeriodoBox() {
+    const box = document.getElementById('periodoBox');
+    if (!box) return;
+    box.style.display = (tipoActivo === 'ventas' && modoVentasActual() === 'periodo') ? '' : 'none';
+    updatePeriodoRango();
+  }
+
+  function updatePeriodoRango() {
+    const a = parseInt(document.getElementById('periodoAnio')?.value, 10);
+    const m = parseInt(document.getElementById('periodoMes')?.value, 10);
+    const el = document.getElementById('periodoRango');
+    if (!el || !a || !m) return;
+    const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate();
+    const pad = (n) => String(n).padStart(2, '0');
+    el.textContent = `Se comparará todo ${a}-${pad(m)}-01 … ${a}-${pad(m)}-${pad(ultimo)}`;
+  }
+
+  (function initPeriodoSelectores() {
+    const selA = document.getElementById('periodoAnio');
+    const selM = document.getElementById('periodoMes');
+    if (!selA || !selM) return;
+    const hoy = new Date();
+    const anioActual = hoy.getUTCFullYear();
+    // Mes anterior por defecto: es el que normalmente se está cargando.
+    let anioDef = anioActual, mesDef = hoy.getUTCMonth();   // 0-based → mes anterior 1-based
+    if (mesDef === 0) { mesDef = 12; anioDef = anioActual - 1; }
+
+    selA.innerHTML = '';
+    for (let a = anioActual + 1; a >= anioActual - 5; a--) {
+      selA.innerHTML += `<option value="${a}"${a === anioDef ? ' selected' : ''}>${a}</option>`;
+    }
+    selM.innerHTML = MESES
+      .map((nom, i) => `<option value="${i + 1}"${(i + 1) === mesDef ? ' selected' : ''}>${nom}</option>`)
+      .join('');
+
+    selA.onchange = updatePeriodoRango;
+    selM.onchange = updatePeriodoRango;
+    updatePeriodoRango();
+  })();
+
+  document.querySelectorAll('input[name="modoVentas"]').forEach(r => {
+    r.addEventListener('change', updatePeriodoBox);
+  });
+
   updateModoBox();
 
   function updateColumnasInfo() {
@@ -285,6 +385,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('progressSection').style.display = 'none';
     document.getElementById('previewHead').innerHTML = '';
     document.getElementById('previewBody').innerHTML = '';
+    const ds = document.getElementById('diffSection');
+    if (ds) ds.style.display = 'none';
+    previewImportacionId = null;
+    const ib = document.getElementById('importarBtn');
+    if (ib) { ib.disabled = false; ib.textContent = 'Importar'; }
   }
 
   document.getElementById('cancelFileBtn').onclick = resetFile;
@@ -292,6 +397,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Importar ──────────────────────────────────────────────
   document.getElementById('importarBtn').onclick = async (e) => {
     if (!parsedRows.length) return;
+
+    // Modo periodo: primero se ANALIZA (no toca erp_ventas) y el usuario
+    // confirma el diff. Es lo que evita que un archivo parcial borre datos.
+    if (tipoActivo === 'ventas' && modoVentasActual() === 'periodo') {
+      return analizarPeriodo(e.target);
+    }
 
     const btn = e.target;
     btn.disabled = true;
@@ -344,6 +455,136 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('importarBtn').disabled = false;
       document.getElementById('importarBtn').textContent = 'Importar';
     }
+  };
+
+  // ══ Ingesta por PERIODO — analizar, aplicar, descartar ═════════════════════
+
+  const money = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const num2  = (v) => Number(v || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+
+  function tile(label, valor, sub, color) {
+    return `<div style="border:1px solid var(--line);border-left:3px solid ${color};border-radius:10px;padding:10px 12px;background:var(--panel2)">
+      <div style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">${label}</div>
+      <div style="font-size:18px;font-weight:700;margin-top:2px;color:${color}">${valor}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${sub || ''}</div>
+    </div>`;
+  }
+
+  async function analizarPeriodo(btn) {
+    const anio = parseInt(document.getElementById('periodoAnio').value, 10);
+    const mes  = parseInt(document.getElementById('periodoMes').value, 10);
+    if (!anio || !mes) { KoguApi.toast('Selecciona el periodo que cubre el archivo.', 'error'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Analizando...';
+    document.getElementById('previewSection').style.display  = 'none';
+    document.getElementById('progressSection').style.display = '';
+    setProgress(35, 'Comparando contra el periodo…', `${parsedRows.length.toLocaleString()} filas`);
+
+    try {
+      const archivoNombre = (document.getElementById('previewCounter').textContent.match(/"([^"]+)"/) || [])[1] || 'importacion.xlsx';
+      const res = await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/preview`, {
+        method: 'POST',
+        body: JSON.stringify({ archivo_nombre: archivoNombre, rows: parsedRows, anio, mes })
+      });
+      setProgress(100, 'Análisis listo', '');
+      document.getElementById('progressSection').style.display = 'none';
+      renderDiff(res?.data || res);
+    } catch (err) {
+      document.getElementById('progressSection').style.display = 'none';
+      document.getElementById('previewSection').style.display  = '';
+      KoguApi.toast('No se pudo analizar: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Importar';
+    }
+  }
+
+  function renderDiff(d) {
+    previewImportacionId = d.importacion_id;
+
+    document.getElementById('diffTitulo').textContent =
+      `${MESES[d.periodo.mes - 1]} ${d.periodo.anio} · ${d.periodo.desde} … ${d.periodo.hasta}`;
+
+    // Avisos primero: las bajas y el archivo parcial son lo que hay que mirar.
+    const colorAviso = { bajas: '#b45309', archivo_parcial: '#b45309', periodo_cerrado: '#dc2626',
+                         sin_fecha: '#64748b', errores_carga: '#dc2626' };
+    document.getElementById('diffAvisos').innerHTML = (d.advertencias || []).map(a =>
+      `<div style="border:1px solid ${colorAviso[a.tipo] || 'var(--line)'};background:rgba(180,83,9,.06);
+                   border-radius:10px;padding:9px 12px;margin-bottom:6px;font-size:13px;color:${colorAviso[a.tipo] || 'var(--fg)'}">
+         ${KoguUi.escapeHtml(a.mensaje)}
+       </div>`).join('');
+
+    const delta = Number(d.resultado.delta || 0);
+    document.getElementById('diffMetrics').innerHTML = [
+      tile('En el archivo', num2(d.archivo.lineas_cargadas) + ' líneas', money(d.archivo.importe), '#0e7490'),
+      tile('Sin cambio', num2(d.diff.sin_cambio.lineas) + ' líneas', 'no se tocan', '#64748b'),
+      tile('Altas', num2(d.diff.altas.lineas) + ' líneas', money(d.diff.altas.importe), '#15803d'),
+      tile('Bajas', num2(d.diff.bajas.lineas) + ' líneas', money(d.diff.bajas.importe), '#b45309'),
+      tile('El periodo pasa de', money(d.resultado.importe_antes), 'a ' + money(d.resultado.importe_despues), '#0f172a'),
+      tile('Delta', (delta >= 0 ? '+' : '') + money(delta), delta === 0 ? 'sin cambio neto' : 'diferencia neta',
+           delta === 0 ? '#64748b' : (delta > 0 ? '#15803d' : '#dc2626')),
+    ].join('');
+
+    const det = d.detalle || [];
+    document.getElementById('diffDetalleWrap').style.display = det.length ? '' : 'none';
+    document.getElementById('diffDetalleBody').innerHTML = det.map(r => {
+      const esBaja = r.tipo === 'baja';
+      const chip = esBaja
+        ? '<span style="background:rgba(180,83,9,.12);color:#b45309;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600">baja</span>'
+        : '<span style="background:rgba(21,128,61,.12);color:#15803d;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600">alta</span>';
+      return `<tr>
+        <td>${chip}</td>
+        <td>${KoguUi.escapeHtml(r.folio_factura || '')}</td>
+        <td>${r.falta_fac ? String(r.falta_fac).slice(0, 10) : ''}</td>
+        <td>${KoguUi.escapeHtml(r.nom_cte || '')}</td>
+        <td class="num">${num2(r.lineas)}</td>
+        <td class="num">${num2(r.cantidad)}</td>
+        <td class="num"${Number(r.importe) < 0 ? ' style="color:#dc2626"' : ''}>${money(r.importe)}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('diffSection').style.display = '';
+  }
+
+  document.getElementById('diffAplicarBtn').onclick = async (e) => {
+    if (!previewImportacionId) return;
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'Aplicando...';
+    document.getElementById('progressSection').style.display = '';
+    setProgress(50, 'Aplicando cambios…', 'archivando bajas y promoviendo altas');
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/aplicar`, {
+        method: 'POST',
+        body: JSON.stringify({ importacion_id: previewImportacionId })
+      });
+      const d = res?.data || res;
+      setProgress(100, '¡Periodo actualizado!', '');
+      KoguApi.toast(
+        `Periodo ${d.periodo.anio}-${String(d.periodo.mes).padStart(2, '0')}: ` +
+        `${d.aplicado.insertadas} alta(s), ${d.aplicado.borradas} baja(s). ` +
+        `Total ${money(d.despues.importe)}.`, 'success');
+      setTimeout(() => { resetFile(); loadHistorial(); }, 1800);
+    } catch (err) {
+      setProgress(0, 'Error al aplicar', err.message);
+      KoguApi.toast('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Aplicar cambios';
+    }
+  };
+
+  document.getElementById('diffDescartarBtn').onclick = async () => {
+    if (previewImportacionId) {
+      try {
+        await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/descartar`, {
+          method: 'POST',
+          body: JSON.stringify({ importacion_id: previewImportacionId })
+        });
+      } catch (_) { /* descartar es best-effort */ }
+    }
+    resetFile();
+    loadHistorial();
   };
 
   function setProgress(pct, label, detail) {
