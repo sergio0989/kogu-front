@@ -697,12 +697,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const conDatos = (rows || []).filter(r => Number(r.vivo?.lineas || 0) > 0 || r.cierre);
     const movidos  = conDatos.filter(r => r.movido);
 
-    document.getElementById('perAviso').innerHTML = movidos.length
-      ? `<div style="border:1px solid #dc2626;background:rgba(220,38,38,.06);border-radius:10px;padding:9px 12px;font-size:13px;color:#dc2626">
-           ${movidos.length} periodo(s) CERRADO(s) cambiaron después del cierre: ${movidos.map(m => MESES[m.mes-1]).join(', ')}.
-           Revisa las bajas para ver qué se movió.
-         </div>`
-      : '';
+    const avisos = [];
+    if (movidos.length) {
+      avisos.push(`<div style="border:1px solid #dc2626;background:rgba(220,38,38,.06);border-radius:10px;padding:9px 12px;margin-bottom:6px;font-size:13px;color:#dc2626">
+        ${movidos.length} periodo(s) CERRADO(s) cambiaron después del cierre: ${movidos.map(m => MESES[m.mes-1]).join(', ')}.
+        Revisa las bajas para ver qué se movió.
+      </div>`);
+    }
+    if (!PUEDE_CERRAR) {
+      avisos.push(`<div style="border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 12px;margin-bottom:6px;font-size:13px;color:var(--muted)">
+        Solo lectura: te falta el permiso <strong>erp.periodo.cerrar</strong> para cerrar o reabrir periodos.
+        Si te lo acaban de otorgar, cierra sesión y vuelve a entrar — los permisos viajan en la sesión.
+      </div>`);
+    }
+    document.getElementById('perAviso').innerHTML = avisos.join('');
 
     if (!conDatos.length) {
       document.getElementById('perBody').innerHTML = '<tr><td colspan="8" class="empty">Sin ventas cargadas en este año.</td></tr>';
