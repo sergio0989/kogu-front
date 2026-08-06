@@ -148,6 +148,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
+  <!-- Cierre de periodos (solo Ventas) -->
+  <div class="card" id="periodosCard" style="display:none">
+    <div class="row">
+      <div>
+        <div class="eyebrow">Control</div>
+        <h2>Periodos de ventas</h2>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">
+          Cerrar un mes congela su foto. Si después alguien lo recarga, el sistema lo bloquea y aquí se ve si la cifra se movió.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="select" id="perAnio" style="min-width:110px"></select>
+        <button class="btn" id="perRefreshBtn">Actualizar</button>
+      </div>
+    </div>
+
+    <div id="perAviso" style="margin-top:12px"></div>
+
+    <div class="table-wrap" style="margin-top:12px">
+      <table>
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th class="num">Líneas</th>
+            <th class="num">Cantidad</th>
+            <th class="num">Importe</th>
+            <th>Estado</th>
+            <th>Cerrado</th>
+            <th class="num">Δ vs cierre</th>
+            <th style="text-align:right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="perBody"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Historial de importaciones -->
   <div class="card">
     <div class="row">
@@ -213,12 +250,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       updateColumnasInfo();
       updateModoBox();
       loadHistorial();
+      if (tipoActivo === 'ventas') loadPeriodos();
     };
   });
 
   function updateModoBox() {
     const box = document.getElementById('modoVentasBox');
     if (box) box.style.display = tipoActivo === 'ventas' ? '' : 'none';
+    // El cierre de periodo hoy aplica solo a ventas (entidad 'erp_ventas').
+    const pc = document.getElementById('periodosCard');
+    if (pc) pc.style.display = tipoActivo === 'ventas' ? '' : 'none';
     updatePeriodoBox();
   }
 
@@ -565,7 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `Periodo ${d.periodo.anio}-${String(d.periodo.mes).padStart(2, '0')}: ` +
         `${d.aplicado.insertadas} alta(s), ${d.aplicado.borradas} baja(s). ` +
         `Total ${money(d.despues.importe)}.`, 'success');
-      setTimeout(() => { resetFile(); loadHistorial(); }, 1800);
+      setTimeout(() => { resetFile(); loadHistorial(); loadPeriodos(); }, 1800);
     } catch (err) {
       setProgress(0, 'Error al aplicar', err.message);
       KoguApi.toast('Error: ' + err.message, 'error');
@@ -586,6 +627,196 @@ document.addEventListener('DOMContentLoaded', async () => {
     resetFile();
     loadHistorial();
   };
+
+  // ══ Cierre de periodos ═════════════════════════════════════════════════════
+  // Cerrar congela la foto del mes (lineas, cantidad, importe y una huella).
+  // Despues, si la foto viva deja de coincidir, la columna "Δ vs cierre" y el
+  // chip MOVIDO lo delatan sin que nadie tenga que notarlo en una junta.
+
+  const PUEDE_CERRAR = (b?.permissions || []).includes('erp.periodo.cerrar');
+
+  function chip(txt, color, bg) {
+    return `<span style="background:${bg};color:${color};padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap">${txt}</span>`;
+  }
+
+  /** Modal chico para capturar un motivo. Resuelve con el texto o null. */
+  function pedirMotivo(titulo, ayuda, obligatorio = true) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:9999';
+      ov.innerHTML = `
+        <div style="background:var(--panel,#fff);border-radius:14px;padding:20px;max-width:460px;width:92%;box-shadow:0 18px 50px rgba(0,0,0,.25)">
+          <h3 style="margin:0 0 6px">${KoguUi.escapeHtml(titulo)}</h3>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px">${KoguUi.escapeHtml(ayuda)}</div>
+          <textarea id="motivoTxt" rows="3" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit" placeholder="Motivo"></textarea>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+            <button class="btn" id="motivoCancel">Cancelar</button>
+            <button class="btn primary" id="motivoOk">Confirmar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(ov);
+      const ta = ov.querySelector('#motivoTxt');
+      ta.focus();
+      const cerrar = (v) => { ov.remove(); resolve(v); };
+      ov.querySelector('#motivoCancel').onclick = () => cerrar(null);
+      ov.querySelector('#motivoOk').onclick = () => {
+        const v = ta.value.trim();
+        if (obligatorio && !v) { ta.style.borderColor = '#dc2626'; ta.focus(); return; }
+        cerrar(v);
+      };
+      ov.onclick = (e) => { if (e.target === ov) cerrar(null); };
+    });
+  }
+
+  function initPerAnio() {
+    const sel = document.getElementById('perAnio');
+    if (!sel || sel.options.length) return;
+    const actual = new Date().getUTCFullYear();
+    for (let a = actual; a >= actual - 5; a--) {
+      sel.innerHTML += `<option value="${a}"${a === actual ? ' selected' : ''}>${a}</option>`;
+    }
+    sel.onchange = loadPeriodos;
+  }
+
+  async function loadPeriodos() {
+    const card = document.getElementById('periodosCard');
+    if (!card || card.style.display === 'none') return;
+    initPerAnio();
+    const anio = document.getElementById('perAnio').value;
+    const body = document.getElementById('perBody');
+    body.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/periodos?anio=${anio}`);
+      renderPeriodos(KoguApi.unwrapRows(res) || res?.data || []);
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="8" class="empty">Error al cargar: ${KoguUi.escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  function renderPeriodos(rows) {
+    const conDatos = (rows || []).filter(r => Number(r.vivo?.lineas || 0) > 0 || r.cierre);
+    const movidos  = conDatos.filter(r => r.movido);
+
+    document.getElementById('perAviso').innerHTML = movidos.length
+      ? `<div style="border:1px solid #dc2626;background:rgba(220,38,38,.06);border-radius:10px;padding:9px 12px;font-size:13px;color:#dc2626">
+           ${movidos.length} periodo(s) CERRADO(s) cambiaron después del cierre: ${movidos.map(m => MESES[m.mes-1]).join(', ')}.
+           Revisa las bajas para ver qué se movió.
+         </div>`
+      : '';
+
+    if (!conDatos.length) {
+      document.getElementById('perBody').innerHTML = '<tr><td colspan="8" class="empty">Sin ventas cargadas en este año.</td></tr>';
+      return;
+    }
+
+    document.getElementById('perBody').innerHTML = conDatos.map(r => {
+      const cerrado = r.status === 'cerrado';
+      const estado = r.movido
+        ? chip('MOVIDO', '#dc2626', 'rgba(220,38,38,.12)')
+        : cerrado
+          ? chip('cerrado', '#15803d', 'rgba(21,128,61,.12)')
+          : r.status === 'reabierto'
+            ? chip('reabierto', '#b45309', 'rgba(180,83,9,.12)')
+            : chip('abierto', '#64748b', 'rgba(100,116,139,.12)');
+
+      const cerradoTxt = r.cierre
+        ? `<div style="font-size:12px">${money(r.cierre.importe)}</div>
+           <div style="font-size:11px;color:var(--muted)">${KoguUi.fmtDateOnly(r.cierre.cerrado_at)} · ${KoguUi.escapeHtml(r.cierre.cerrado_por_nombre || '')}</div>`
+        : '<span style="color:var(--muted)">—</span>';
+
+      const d = r.delta_vs_cierre;
+      const deltaTxt = (d === null || d === undefined)
+        ? '<span style="color:var(--muted)">—</span>'
+        : `<span style="color:${Math.abs(d) < 0.005 ? '#64748b' : '#dc2626'};font-weight:${Math.abs(d) < 0.005 ? '400' : '700'}">${(d >= 0 ? '+' : '') + money(d)}</span>`;
+
+      const acciones = [];
+      if (PUEDE_CERRAR) {
+        acciones.push(cerrado
+          ? `<button class="btn" data-reabrir="${r.mes}" style="padding:3px 10px;font-size:12px">Reabrir</button>`
+          : `<button class="btn primary" data-cerrar="${r.mes}" style="padding:3px 10px;font-size:12px">Cerrar</button>`);
+      }
+      acciones.push(`<button class="btn" data-bajas="${r.mes}" style="padding:3px 10px;font-size:12px">Bajas</button>`);
+
+      return `<tr>
+        <td style="font-weight:600">${MESES[r.mes - 1]}</td>
+        <td class="num">${num2(r.vivo.lineas)}</td>
+        <td class="num">${num2(r.vivo.cantidad)}</td>
+        <td class="num">${money(r.vivo.importe)}</td>
+        <td>${estado}</td>
+        <td>${cerradoTxt}</td>
+        <td class="num">${deltaTxt}</td>
+        <td style="text-align:right;white-space:nowrap">${acciones.join(' ')}</td>
+      </tr>
+      <tr id="perBajas${r.mes}" style="display:none"><td colspan="8" style="background:var(--panel2);padding:10px 14px"></td></tr>`;
+    }).join('');
+
+    document.querySelectorAll('[data-cerrar]').forEach(b2 => b2.onclick = () => cerrarPeriodo(parseInt(b2.dataset.cerrar, 10)));
+    document.querySelectorAll('[data-reabrir]').forEach(b2 => b2.onclick = () => reabrirPeriodo(parseInt(b2.dataset.reabrir, 10)));
+    document.querySelectorAll('[data-bajas]').forEach(b2 => b2.onclick = () => verBajas(parseInt(b2.dataset.bajas, 10)));
+  }
+
+  async function cerrarPeriodo(mes) {
+    const anio = parseInt(document.getElementById('perAnio').value, 10);
+    const motivo = await pedirMotivo(
+      `Cerrar ${MESES[mes - 1]} ${anio}`,
+      'Se congela la foto del mes (líneas, cantidad, importe y huella). Después, recargarlo exigirá reabrirlo. ¿Contra qué lo conciliaste?',
+      false);
+    if (motivo === null) return;
+    try {
+      await KoguApi.apiFetch(`${BASE}/periodos/cerrar`, { method: 'POST', body: JSON.stringify({ anio, mes, motivo }) });
+      KoguApi.toast(`${MESES[mes - 1]} ${anio} cerrado.`, 'success');
+      loadPeriodos();
+    } catch (err) { KoguApi.toast('Error: ' + err.message, 'error'); }
+  }
+
+  async function reabrirPeriodo(mes) {
+    const anio = parseInt(document.getElementById('perAnio').value, 10);
+    const motivo = await pedirMotivo(
+      `Reabrir ${MESES[mes - 1]} ${anio}`,
+      'Reabrir un mes ya reportado queda registrado con tu usuario. El motivo es obligatorio.',
+      true);
+    if (motivo === null) return;
+    try {
+      await KoguApi.apiFetch(`${BASE}/periodos/reabrir`, { method: 'POST', body: JSON.stringify({ anio, mes, motivo }) });
+      KoguApi.toast(`${MESES[mes - 1]} ${anio} reabierto.`, 'warning');
+      loadPeriodos();
+    } catch (err) { KoguApi.toast('Error: ' + err.message, 'error'); }
+  }
+
+  async function verBajas(mes) {
+    const anio = parseInt(document.getElementById('perAnio').value, 10);
+    const fila = document.getElementById('perBajas' + mes);
+    const celda = fila.querySelector('td');
+    if (fila.style.display !== 'none') { fila.style.display = 'none'; return; }
+    fila.style.display = '';
+    celda.innerHTML = '<span style="color:var(--muted);font-size:13px">Cargando…</span>';
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/periodos/bajas?anio=${anio}&mes=${mes}`);
+      const rows = KoguApi.unwrapRows(res) || res?.data || [];
+      if (!rows.length) {
+        celda.innerHTML = '<span style="color:var(--muted);font-size:13px">Sin bajas registradas en este periodo.</span>';
+        return;
+      }
+      celda.innerHTML = `
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+          Líneas eliminadas porque desaparecieron del ERP (canceladas, re-emitidas o ausentes del archivo del periodo).
+        </div>
+        <table style="width:100%">
+          <thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Concepto</th><th class="num">Cantidad</th><th class="num">Importe</th><th>Dada de baja</th></tr></thead>
+          <tbody>${rows.map(x => `<tr>
+            <td>${KoguUi.escapeHtml(x.folio_factura || '')}</td>
+            <td>${KoguUi.fmtDateOnly(x.falta_fac)}</td>
+            <td>${KoguUi.escapeHtml(x.nom_cte || '')}</td>
+            <td>${KoguUi.escapeHtml(x.desc_prod || '')}</td>
+            <td class="num">${num2(x.cant_surt)}</td>
+            <td class="num">${money(x.subt_prod)}</td>
+            <td style="font-size:12px">${KoguUi.fmtDateOnly(x.baja_at)} · ${KoguUi.escapeHtml(x.baja_por_nombre || '')}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+    } catch (err) {
+      celda.innerHTML = `<span style="color:#dc2626;font-size:13px">Error: ${KoguUi.escapeHtml(err.message)}</span>`;
+    }
+  }
 
   function setProgress(pct, label, detail) {
     document.getElementById('progressBar').style.width   = pct + '%';
@@ -703,6 +934,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.getElementById('refreshHistBtn').onclick  = () => { histPage = 1; loadHistorial(); };
+  document.getElementById('perRefreshBtn').onclick    = () => loadPeriodos();
   document.getElementById('histTipoFil').onchange    = () => { histPage = 1; loadHistorial(); };
 
   // Refrescar al cambiar empresa
@@ -710,7 +942,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     resetFile();
     histPage = 1;
     await loadHistorial();
+    await loadPeriodos();
   });
 
   await loadHistorial();
+  await loadPeriodos();
 });
