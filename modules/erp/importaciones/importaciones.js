@@ -19,6 +19,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   if (!b) return;
 
+  // Permiso que gobierna el cierre de periodos y, por extensión, la carga
+  // ACUMULADA (año completo). Se resuelve aquí arriba porque el selector de
+  // mes lo necesita para decidir si ofrece la opción "Acumulado".
+  const PUEDE_CERRAR = (b?.permissions || []).includes('erp.periodo.cerrar');
+
   // ── Layout ────────────────────────────────────────────────
   document.getElementById('pageContent').innerHTML = `
 <div class="stack" style="gap:20px">
@@ -61,6 +66,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           <select class="select" id="periodoAnio" style="min-width:110px"></select>
           <select class="select" id="periodoMes" style="min-width:140px"></select>
           <span id="periodoRango" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div id="acumAviso" style="display:none;margin-top:8px;border:1px solid #b45309;background:rgba(180,83,9,.06);border-radius:8px;padding:8px 10px;font-size:12px;color:#b45309">
+          <strong>Acumulado:</strong> el archivo se trata como el año completo, pero <strong>solo se tocan los meses que trae</strong>. Un mes que no venga en el archivo no se modifica — se te reporta aparte. Al aplicar se pedirá motivo y confirmación.
         </div>
       </div>
     </div>
@@ -121,6 +129,59 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div id="diffAvisos" style="margin-top:12px"></div>
 
       <div id="diffMetrics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px"></div>
+      <!-- Desglose por mes (solo acumulado) -->
+      <div id="diffPorMesWrap" style="margin-top:14px;display:none">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+          Un renglón por mes. El acumulado <strong>solo toca los meses que trae el archivo</strong>; dentro de cada uno, lo que ya no viene se da de baja igual que en una carga mensual.
+        </div>
+        <div class="table-wrap" style="max-height:340px;overflow-y:auto">
+          <table>
+            <thead><tr>
+              <th>Mes</th>
+              <th class="num">Archivo</th>
+              <th class="num">Sin cambio</th>
+              <th class="num">Altas</th>
+              <th class="num">Bajas</th>
+              <th class="num">Antes</th>
+              <th class="num">Después</th>
+              <th class="num">Δ</th>
+            </tr></thead>
+            <tbody id="diffPorMesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Meses con datos que el archivo NO trae -->
+      <div id="diffAusentesWrap" style="margin-top:14px;display:none">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+          Meses con datos en KOGU que <strong>no vienen en el archivo</strong>. No se van a tocar. Si el archivo debía traerlos, el periodo o el archivo están mal.
+        </div>
+        <div id="diffAusentes"></div>
+      </div>
+
+      <!-- Candado de la carga acumulada -->
+      <div id="diffCandado" style="display:none;margin-top:14px;border:1px solid #b45309;background:rgba(180,83,9,.06);border-radius:12px;padding:14px">
+        <div style="font-weight:700;color:#b45309">Confirmación requerida — carga acumulada</div>
+        <div style="font-size:12px;color:var(--muted);margin:2px 0 10px">
+          Vas a reescribir varios meses de un año en una sola operación. El motivo queda registrado en la importación y en cada línea dada de baja.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 220px;gap:10px;align-items:start">
+          <div>
+            <div class="label-text" style="font-size:11px;margin-bottom:4px">Motivo</div>
+            <textarea id="candadoMotivo" rows="2" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit" placeholder="Ej. carga histórica del ejercicio"></textarea>
+          </div>
+          <div>
+            <div class="label-text" style="font-size:11px;margin-bottom:4px">Escribe <strong id="candadoAnio">—</strong> para confirmar</div>
+            <input class="input" id="candadoConfirma" style="width:100%;box-sizing:border-box" placeholder="Año" inputmode="numeric" autocomplete="off"/>
+          </div>
+        </div>
+        <div id="candadoCerradosWrap" style="display:none;margin-top:10px;border-top:1px dashed #b45309;padding-top:10px">
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer;color:#dc2626">
+            <input type="checkbox" id="candadoForzar" style="margin-top:3px"/>
+            <span>El archivo toca meses <strong>CERRADOS</strong> (<span id="candadoCerradosTxt"></span>). Entiendo que se reabrirán y quedará registro de quién y por qué.</span>
+          </label>
+        </div>
+      </div>
 
       <div id="diffDetalleWrap" style="margin-top:14px;display:none">
         <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
@@ -280,11 +341,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     updatePeriodoRango();
   }
 
+  /** Mes declarado: 1-12, o 'ACUM' para el año completo. */
+  function mesPeriodoActual() {
+    const v = document.getElementById('periodoMes')?.value;
+    return v === 'ACUM' ? 'ACUM' : parseInt(v, 10);
+  }
+
   function updatePeriodoRango() {
-    const a = parseInt(document.getElementById('periodoAnio')?.value, 10);
-    const m = parseInt(document.getElementById('periodoMes')?.value, 10);
+    const a  = parseInt(document.getElementById('periodoAnio')?.value, 10);
+    const m  = mesPeriodoActual();
     const el = document.getElementById('periodoRango');
-    if (!el || !a || !m) return;
+    const av = document.getElementById('acumAviso');
+    if (!el || !a) return;
+    if (m === 'ACUM') {
+      el.textContent = `Se comparará ${a}-01-01 … ${a}-12-31, mes por mes`;
+      if (av) av.style.display = '';
+      return;
+    }
+    if (av) av.style.display = 'none';
+    if (!m) return;
     const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate();
     const pad = (n) => String(n).padStart(2, '0');
     el.textContent = `Se comparará todo ${a}-${pad(m)}-01 … ${a}-${pad(m)}-${pad(ultimo)}`;
@@ -304,9 +379,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (let a = anioActual + 1; a >= anioActual - 5; a--) {
       selA.innerHTML += `<option value="${a}"${a === anioDef ? ' selected' : ''}>${a}</option>`;
     }
+    // La opción Acumulado solo se ofrece a quien puede cerrar periodos: una
+    // carga anual reescribe varios meses de una sentada.
     selM.innerHTML = MESES
       .map((nom, i) => `<option value="${i + 1}"${(i + 1) === mesDef ? ' selected' : ''}>${nom}</option>`)
-      .join('');
+      .join('') + (PUEDE_CERRAR ? '<option value="ACUM">Acumulado — todo el año</option>' : '');
 
     selA.onchange = updatePeriodoRango;
     selM.onchange = updatePeriodoRango;
@@ -428,6 +505,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('previewBody').innerHTML = '';
     const ds = document.getElementById('diffSection');
     if (ds) ds.style.display = 'none';
+    ['diffPorMesWrap', 'diffAusentesWrap', 'diffCandado', 'candadoCerradosWrap'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
     previewImportacionId = null;
     const ib = document.getElementById('importarBtn');
     if (ib) { ib.disabled = false; ib.textContent = 'Importar'; }
@@ -511,27 +592,78 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
   }
 
+  // ── Carga por LOTES ───────────────────────────────────────────────────────
+  // El .xlsx viaja comprimido, pero las filas parseadas no: son ~76 columnas
+  // por renglón contra el límite de 25 MB de express.json. Un año completo no
+  // cabe en un solo POST, así que se sube en tandas contra el mismo
+  // importacion_id y el diff se corre al final, cuando el stage ya está entero.
+  const LOTE_FILAS = 2000;
+
+  function nombreArchivo() {
+    return (document.getElementById('previewCounter').textContent.match(/"([^"]+)"/) || [])[1] || 'importacion.xlsx';
+  }
+
+  async function descartarSilencioso(id) {
+    if (!id) return;
+    try {
+      await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/descartar`, {
+        method: 'POST', body: JSON.stringify({ importacion_id: id })
+      });
+    } catch (_) { /* best-effort */ }
+  }
+
   async function analizarPeriodo(btn) {
     const anio = parseInt(document.getElementById('periodoAnio').value, 10);
-    const mes  = parseInt(document.getElementById('periodoMes').value, 10);
-    if (!anio || !mes) { KoguApi.toast('Selecciona el periodo que cubre el archivo.', 'error'); return; }
+    const mes  = mesPeriodoActual();
+    if (!anio || (mes !== 'ACUM' && !mes)) {
+      KoguApi.toast('Selecciona el periodo que cubre el archivo.', 'error');
+      return;
+    }
 
     btn.disabled = true;
     btn.textContent = 'Analizando...';
     document.getElementById('previewSection').style.display  = 'none';
     document.getElementById('progressSection').style.display = '';
-    setProgress(35, 'Comparando contra el periodo…', `${parsedRows.length.toLocaleString()} filas`);
 
+    const total = parsedRows.length;
+    let creado = null;
     try {
-      const archivoNombre = (document.getElementById('previewCounter').textContent.match(/"([^"]+)"/) || [])[1] || 'importacion.xlsx';
-      const res = await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/preview`, {
+      setProgress(2, 'Declarando el periodo…',
+        mes === 'ACUM' ? `Acumulado ${anio} · ${total.toLocaleString()} filas` : `${total.toLocaleString()} filas`);
+
+      const ini = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/iniciar`, {
         method: 'POST',
-        body: JSON.stringify({ archivo_nombre: archivoNombre, rows: parsedRows, anio, mes })
-      });
+        body: JSON.stringify({ archivo_nombre: nombreArchivo(), anio, mes, total_filas: total })
+      }));
+      creado = ini.importacion_id;
+      previewImportacionId = creado;
+
+      let enviadas = 0;
+      for (let off = 0; off < total; off += LOTE_FILAS) {
+        const tanda = parsedRows.slice(off, off + LOTE_FILAS);
+        await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/lote`, {
+          method: 'POST',
+          body: JSON.stringify({ importacion_id: creado, rows: tanda, offset: off })
+        });
+        enviadas += tanda.length;
+        setProgress(5 + Math.round((enviadas / total) * 75), 'Subiendo el archivo…',
+          `${enviadas.toLocaleString()} de ${total.toLocaleString()} filas`);
+      }
+
+      setProgress(85, 'Comparando contra el periodo…',
+        mes === 'ACUM' ? 'mes por mes' : 'altas, bajas y sin cambio');
+      const pv = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/analizar`, {
+        method: 'POST', body: JSON.stringify({ importacion_id: creado })
+      }));
+
       setProgress(100, 'Análisis listo', '');
       document.getElementById('progressSection').style.display = 'none';
-      renderDiff(res?.data || res);
+      renderDiff(pv);
     } catch (err) {
+      // Un fallo a media subida deja el stage incompleto: se descarta para que
+      // el siguiente intento arranque limpio y no mezcle dos archivos.
+      await descartarSilencioso(creado);
+      previewImportacionId = null;
       document.getElementById('progressSection').style.display = 'none';
       document.getElementById('previewSection').style.display  = '';
       KoguApi.toast('No se pudo analizar: ' + err.message, 'error');
@@ -541,15 +673,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ── Preview del diff ──────────────────────────────────────────────────────
   function renderDiff(d) {
     previewImportacionId = d.importacion_id;
+    const acum = !!d.acumulado;
+    const meses = d.archivo?.meses || [];
 
-    document.getElementById('diffTitulo').textContent =
-      `${MESES[d.periodo.mes - 1]} ${d.periodo.anio} · ${d.periodo.desde} … ${d.periodo.hasta}`;
+    document.getElementById('diffTitulo').textContent = acum
+      ? `Acumulado ${d.periodo.anio} · ${meses.length} mes(es) en el archivo`
+      : `${MESES[d.periodo.mes - 1]} ${d.periodo.anio} · ${d.periodo.desde} … ${d.periodo.hasta}`;
 
-    // Avisos primero: las bajas y el archivo parcial son lo que hay que mirar.
+    // Avisos primero: las bajas, el archivo parcial y los meses ausentes son
+    // lo que hay que mirar antes de aplicar.
     const colorAviso = { bajas: '#b45309', archivo_parcial: '#b45309', periodo_cerrado: '#dc2626',
-                         sin_fecha: '#64748b', errores_carga: '#dc2626' };
+                         meses_ausentes: '#b45309', sin_fecha: '#64748b', errores_carga: '#dc2626' };
     document.getElementById('diffAvisos').innerHTML = (d.advertencias || []).map(a =>
       `<div style="border:1px solid ${colorAviso[a.tipo] || 'var(--line)'};background:rgba(180,83,9,.06);
                    border-radius:10px;padding:9px 12px;margin-bottom:6px;font-size:13px;color:${colorAviso[a.tipo] || 'var(--fg)'}">
@@ -562,20 +699,76 @@ document.addEventListener('DOMContentLoaded', async () => {
       tile('Sin cambio', num2(d.diff.sin_cambio.lineas) + ' líneas', 'no se tocan', '#64748b'),
       tile('Altas', num2(d.diff.altas.lineas) + ' líneas', money(d.diff.altas.importe), '#15803d'),
       tile('Bajas', num2(d.diff.bajas.lineas) + ' líneas', money(d.diff.bajas.importe), '#b45309'),
-      tile('El periodo pasa de', money(d.resultado.importe_antes), 'a ' + money(d.resultado.importe_despues), '#0f172a'),
+      tile(acum ? 'El año pasa de' : 'El periodo pasa de', money(d.resultado.importe_antes),
+           'a ' + money(d.resultado.importe_despues), '#0f172a'),
       tile('Delta', (delta >= 0 ? '+' : '') + money(delta), delta === 0 ? 'sin cambio neto' : 'diferencia neta',
            delta === 0 ? '#64748b' : (delta > 0 ? '#15803d' : '#dc2626')),
     ].join('');
+
+    // ── Desglose por mes (solo acumulado) ───────────────────────────────────
+    const pm = d.por_mes || [];
+    const wrapMes = document.getElementById('diffPorMesWrap');
+    wrapMes.style.display = (acum && pm.length) ? '' : 'none';
+    if (acum && pm.length) {
+      document.getElementById('diffPorMesBody').innerHTML = pm.map(m => {
+        const dl = Number(m.importe_despues) - Number(m.importe_antes);
+        const marcas = [
+          m.cerrado ? chip('CERRADO', '#dc2626', 'rgba(220,38,38,.12)') : '',
+          m.parcial ? chip('PARCIAL', '#b45309', 'rgba(180,83,9,.12)') : '',
+        ].filter(Boolean).join(' ');
+        return `<tr>
+          <td><strong>${MESES[m.mes - 1]}</strong> ${marcas}</td>
+          <td class="num">${num2(m.archivo.lineas)}</td>
+          <td class="num" style="color:var(--muted)">${num2(m.sin_cambio.lineas)}</td>
+          <td class="num" style="color:#15803d">${num2(m.altas.lineas)}</td>
+          <td class="num" style="color:#b45309">${num2(m.bajas.lineas)}</td>
+          <td class="num">${money(m.importe_antes)}</td>
+          <td class="num"><strong>${money(m.importe_despues)}</strong></td>
+          <td class="num" style="color:${dl === 0 ? '#64748b' : (dl > 0 ? '#15803d' : '#dc2626')}">
+            ${(dl >= 0 ? '+' : '') + money(dl)}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ── Meses que el archivo NO trae y sí tienen datos ──────────────────────
+    // No se van a tocar: esa es la regla del acumulado. Pero si el archivo
+    // debía traerlos, aquí es donde se nota.
+    const ma = d.meses_ausentes || [];
+    const wrapAus = document.getElementById('diffAusentesWrap');
+    wrapAus.style.display = ma.length ? '' : 'none';
+    if (ma.length) {
+      document.getElementById('diffAusentes').innerHTML = ma.map(x =>
+        `<span style="display:inline-block;border:1px solid var(--line);border-radius:8px;
+                      padding:4px 10px;margin:0 6px 6px 0;font-size:12px;background:var(--panel2)">
+           <strong>${MESES[x.mes - 1]}</strong> · ${num2(x.lineas)} líneas · ${money(x.importe)}
+         </span>`).join('');
+    }
+
+    // ── Candado (solo acumulado) ───────────────────────────────────────────
+    const cand = document.getElementById('diffCandado');
+    cand.style.display = acum ? '' : 'none';
+    if (acum) {
+      document.getElementById('candadoAnio').textContent = String(d.confirmacion_requerida || d.periodo.anio);
+      document.getElementById('candadoMotivo').value   = '';
+      document.getElementById('candadoConfirma').value = '';
+      document.getElementById('candadoForzar').checked = false;
+      const cerrados = d.cierres_tocados || [];
+      document.getElementById('candadoCerradosWrap').style.display = cerrados.length ? '' : 'none';
+      document.getElementById('candadoCerradosTxt').textContent =
+        cerrados.map(c => MESES[c.mes - 1]).join(', ');
+    }
+    validarCandado();
 
     const det = d.detalle || [];
     document.getElementById('diffDetalleWrap').style.display = det.length ? '' : 'none';
     document.getElementById('diffDetalleBody').innerHTML = det.map(r => {
       const esBaja = r.tipo === 'baja';
-      const chip = esBaja
+      const chipTipo = esBaja
         ? '<span style="background:rgba(180,83,9,.12);color:#b45309;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600">baja</span>'
         : '<span style="background:rgba(21,128,61,.12);color:#15803d;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600">alta</span>';
       return `<tr>
-        <td>${chip}</td>
+        <td>${chipTipo}</td>
         <td>${KoguUi.escapeHtml(r.folio_factura || '')}</td>
         <td>${r.falta_fac ? String(r.falta_fac).slice(0, 10) : ''}</td>
         <td>${KoguUi.escapeHtml(r.nom_cte || '')}</td>
@@ -588,30 +781,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('diffSection').style.display = '';
   }
 
+  /**
+   * El botón de aplicar se habilita sólo cuando los cerrojos están satisfechos.
+   * En carga mensual no hay candado y queda siempre habilitado.
+   */
+  function validarCandado() {
+    const btn  = document.getElementById('diffAplicarBtn');
+    const cand = document.getElementById('diffCandado');
+    if (!btn || !cand) return;
+    if (cand.style.display === 'none') { btn.disabled = false; return; }
+    const motivo   = document.getElementById('candadoMotivo').value.trim();
+    const confirma = document.getElementById('candadoConfirma').value.trim();
+    const anio     = document.getElementById('candadoAnio').textContent.trim();
+    const cerrWrap = document.getElementById('candadoCerradosWrap');
+    const okCerr   = cerrWrap.style.display === 'none' || document.getElementById('candadoForzar').checked;
+    btn.disabled = !(motivo && confirma === anio && okCerr);
+  }
+
+  ['candadoMotivo', 'candadoConfirma'].forEach(id =>
+    document.getElementById(id)?.addEventListener('input', validarCandado));
+  document.getElementById('candadoForzar')?.addEventListener('change', validarCandado);
+
   document.getElementById('diffAplicarBtn').onclick = async (e) => {
     if (!previewImportacionId) return;
-    const btn = e.target;
+    const btn  = e.target;
+    const cand = document.getElementById('diffCandado');
+    const acum = cand && cand.style.display !== 'none';
+
+    const payload = { importacion_id: previewImportacionId };
+    if (acum) {
+      payload.motivo          = document.getElementById('candadoMotivo').value.trim();
+      payload.confirmacion    = document.getElementById('candadoConfirma').value.trim();
+      payload.forzar_cerrados = document.getElementById('candadoForzar').checked;
+    }
+
     btn.disabled = true;
     btn.textContent = 'Aplicando...';
     document.getElementById('progressSection').style.display = '';
     setProgress(50, 'Aplicando cambios…', 'archivando bajas y promoviendo altas');
     try {
-      const res = await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/aplicar`, {
-        method: 'POST',
-        body: JSON.stringify({ importacion_id: previewImportacionId })
-      });
-      const d = res?.data || res;
+      const d = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/importaciones/ventas/periodo/aplicar`, {
+        method: 'POST', body: JSON.stringify(payload)
+      }));
       setProgress(100, '¡Periodo actualizado!', '');
+      const etiqueta = d.acumulado
+        ? `Acumulado ${d.periodo.anio} (${(d.meses_aplicados || []).map(m => MESES[m - 1]).join(', ')})`
+        : `Periodo ${d.periodo.anio}-${String(d.periodo.mes).padStart(2, '0')}`;
       KoguApi.toast(
-        `Periodo ${d.periodo.anio}-${String(d.periodo.mes).padStart(2, '0')}: ` +
-        `${d.aplicado.insertadas} alta(s), ${d.aplicado.borradas} baja(s). ` +
+        `${etiqueta}: ${d.aplicado.insertadas} alta(s), ${d.aplicado.borradas} baja(s). ` +
         `Total ${money(d.despues.importe)}.`, 'success');
       setTimeout(() => { resetFile(); loadHistorial(); loadPeriodos(); }, 1800);
     } catch (err) {
-      setProgress(0, 'Error al aplicar', err.message);
+      document.getElementById('progressSection').style.display = 'none';
+      // Meses cerrados: en vez de un toast ciego, se revela la casilla que
+      // permite reabrirlos y se dice cuáles son.
+      if (err.code === 'ERP_PERIODO_CERRADO' && acum) {
+        const lista = (err.details?.meses_cerrados || []).map(m => MESES[m.mes - 1]);
+        document.getElementById('candadoCerradosWrap').style.display = '';
+        if (lista.length) document.getElementById('candadoCerradosTxt').textContent = lista.join(', ');
+        document.getElementById('candadoForzar').checked = false;
+        document.getElementById('candadoCerradosWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       KoguApi.toast('Error: ' + err.message, 'error');
-      btn.disabled = false;
       btn.textContent = 'Aplicar cambios';
+      validarCandado();
     }
   };
 
@@ -632,8 +865,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Cerrar congela la foto del mes (lineas, cantidad, importe y una huella).
   // Despues, si la foto viva deja de coincidir, la columna "Δ vs cierre" y el
   // chip MOVIDO lo delatan sin que nadie tenga que notarlo en una junta.
-
-  const PUEDE_CERRAR = (b?.permissions || []).includes('erp.periodo.cerrar');
 
   function chip(txt, color, bg) {
     return `<span style="background:${bg};color:${color};padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap">${txt}</span>`;

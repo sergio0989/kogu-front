@@ -77,6 +77,22 @@
     return data?.error?.message || data?.message || data?.error || (typeof data === 'string' ? data : 'Error al consumir servicio');
   }
 
+  // Adjunta metadatos al Error para que la pantalla pueda ramificar por código
+  // en vez de comparar textos. El backend siempre responde
+  // { ok:false, error:{ code, message, details } } (ver error-handler.js).
+  function buildError(data, status){
+    const err = new Error(readErrorMessage(data));
+    err.status  = status;
+    err.code    = data?.error?.code || '';
+    err.details = data?.error?.details ?? null;
+    return err;
+  }
+
+  // Únicos códigos que significan de verdad "no hay empresa activa".
+  const CODIGOS_SIN_EMPRESA = [
+    'EMPRESA_ACTIVA_REQUIRED', 'EMPRESA_CONTEXT_MISSING', 'EMPRESA_INACTIVE', 'NO_EMPRESA_ACTIVA'
+  ];
+
   function buildAuthHeaders(headers = {}){
     const h = Object.assign({}, headers || {});
     const token = getToken();
@@ -124,10 +140,17 @@
     // 403 — Sin acceso al módulo o empresa
     if(response.status === 403){
       toast('Sin acceso. Tu usuario no tiene permiso para esta operación.', 'error');
-      throw new Error(readErrorMessage(data) || 'FORBIDDEN');
+      throw buildError(data, 403);
     }
 
-    // 409 — Sin empresa activa, contexto inconsistente, o cambio de contraseña pendiente
+    // 409 — Conflicto.
+    //
+    // OJO: 409 NO significa "sin empresa activa". El backend lo usa para
+    // decenas de conflictos de negocio legítimos: ERP_PERIODO_CERRADO,
+    // CAB_FOLIO_DUPLICADO, CLI_LOTE_YA_LIBERADO, CTO_EXPORT_YA_FINALIZADA…
+    // Antes CUALQUIER 409 sacaba al usuario de su pantalla y lo mandaba a
+    // cambiar de empresa, perdiendo el trabajo en curso y ocultando el
+    // verdadero motivo del rechazo. Sólo redirigen los códigos de contexto.
     if(response.status === 409){
       const code = data?.error?.code || '';
       if(code === 'PASSWORD_CHANGE_REQUIRED'){
@@ -139,19 +162,24 @@
         }, 800);
         throw new Error('PASSWORD_CHANGE_REQUIRED');
       }
-      toast('No hay empresa activa. Selecciona una empresa para continuar.', 'error');
-      setTimeout(() => window.location.href = '/modules/core/contexto/cambio-empresa.html', 1200);
-      throw new Error(readErrorMessage(data) || 'NO_EMPRESA_ACTIVA');
+      // Sin código no se puede distinguir: se conserva el comportamiento previo.
+      if(!code || CODIGOS_SIN_EMPRESA.includes(code)){
+        toast('No hay empresa activa. Selecciona una empresa para continuar.', 'error');
+        setTimeout(() => window.location.href = '/modules/core/contexto/cambio-empresa.html', 1200);
+        throw buildError(data, 409);
+      }
+      // Conflicto de negocio: lo resuelve la pantalla, que conoce el caso.
+      throw buildError(data, 409);
     }
 
     // 422 — Error funcional de negocio
     if(response.status === 422){
       const msg = readErrorMessage(data);
       toast(msg || 'No fue posible completar la operación.', 'error');
-      throw new Error(msg || 'UNPROCESSABLE');
+      throw buildError(data, 422);
     }
 
-    if(!response.ok) throw new Error(readErrorMessage(data));
+    if(!response.ok) throw buildError(data, response.status);
     return data;
   }
 
