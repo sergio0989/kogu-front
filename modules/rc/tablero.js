@@ -295,6 +295,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ppVal = o => esDinero() ? Number(o.ventas_pp || 0) : Number(o.kg_pp || 0);
   const realVal = o => esDinero() ? Number(o.ventas_real || 0) : Number(o.kg_real || 0);
   const avVal = o => { const p = ppVal(o); return p ? realVal(o) / p : null; };
+  // Real YA atribuido a sublíneas (totales.*_real_mapeado). El backend lo
+  // devuelve aparte del real total: la diferencia es lo que sigue sin ClavePP.
+  const realMapVal = o => esDinero() ? Number(o.ventas_real_mapeado || 0) : Number(o.kg_real_mapeado || 0);
   // Semáforo: avance real contra el ritmo esperado del año.
   function semColor(av, ritmo) {
     if (av == null || !ritmo) return 'var(--muted,#64748b)';
@@ -345,7 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, metaCorte != null ? fmtValC(metaCorte) : '—', `PP ÷ 12 × ${mesesTrans || 0} meses`)}
         ${miniCard('Cumplimiento al corte', pct0(cumplCorte), 'real ÷ meta al corte', cumplCol)}
       </div>
-      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtValC(scVal)}</b> — se atribuye al cargar el puente sub_cse→sublínea (rc_pp_map).</div>` : ''}`;
+      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtValC(scVal)}</b> — se atribuye conforme confirmas las combinaciones cliente·producto en <a href="/modules/rc/asignacion-pp.html">Asignación PP</a>.</div>` : ''}`;
 
     // Barra avance vs ritmo
     const barW = Math.min(100, Math.round((av || 0) * 100));
@@ -413,13 +416,69 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const sinMapeo = !cob || cob < 0.001;
     const bannerCat = sinMapeo
-      ? `<div class="hint" style="margin:10px 0 0;padding:10px 12px;background:var(--panel2,#f1f5f9);border-radius:10px;color:var(--muted);font-size:12px">El <b>desglose por categoría</b> requiere el puente <b>sub_cse→sublínea</b> (<code>rc_pp_map</code>), aún pendiente. Por ahora la columna Real aparece en cero por categoría; el <b>total al corte ya es correcto</b> arriba.</div>`
+      ? `<div class="hint" style="margin:10px 0 0;padding:10px 12px;background:var(--panel2,#f1f5f9);border-radius:10px;color:var(--muted);font-size:12px">El <b>desglose por categoría</b> aparece en cero porque todavía no hay combinaciones <b>cliente·producto</b> confirmadas con su ClavePP. Se llena desde <a href="/modules/rc/asignacion-pp.html">Asignación PP</a>. El <b>total al corte ya es correcto</b> arriba.</div>`
       : '';
+    // ── Sumatorias ──────────────────────────────────────────────────────────
+    //
+    // La suma de las categorías NO tiene por qué igualar el "Real a la fecha"
+    // del encabezado: lo que todavía no tiene ClavePP asignada cae en "sin
+    // cruce". Por eso se muestran los tres renglones (suma + sin cruce = total)
+    // en vez de un único total: así la diferencia queda explícita y se cuadra
+    // a la vista, sin sacar calculadora.
+    const sumPp   = pp.categorias.reduce((a, c) => a + ppVal(c), 0);
+    const sumReal = pp.categorias.reduce((a, c) => a + realVal(c), 0);
+    const totReal = sumReal + scVal;
+    const avSum   = sumPp ? sumReal / sumPp : null;
+    const avTot   = sumPp ? totReal / sumPp : null;
+
+    // Doble verificación contra el backend, que calcula lo mismo por su lado:
+    //   · la suma de categorías debe dar totales.*_real_mapeado
+    //   · suma + sin cruce debe dar el "Real a la fecha" del encabezado
+    // Si alguna no cuadra, hay filas perdidas y más vale decirlo que pintar un
+    // total bonito y equivocado.
+    const tol      = esDinero() ? 0.5 : 1;
+    const dMapeado = sumReal - realMapVal(t);
+    const dTotal   = totReal - realVal(t);
+    const notaCuadre = (Math.abs(dMapeado) > tol || Math.abs(dTotal) > tol)
+      ? `<div style="margin-top:8px;padding:9px 12px;border:1px solid var(--danger,#dc2626);border-radius:10px;color:var(--danger,#dc2626);font-size:12px">
+           <b>Las sumas no cuadran.</b>
+           ${Math.abs(dMapeado) > tol ? `Suma de categorías ${fmtVal(sumReal)} vs atribuido del servidor ${fmtVal(realMapVal(t))} (dif. ${fmtVal(dMapeado)}). ` : ''}
+           ${Math.abs(dTotal) > tol ? `Total de la tabla ${fmtVal(totReal)} vs Real a la fecha ${fmtVal(realVal(t))} (dif. ${fmtVal(dTotal)}).` : ''}
+         </div>`
+      : '';
+
+    const foot = `
+      <tfoot>
+        <tr style="border-top:2px solid var(--line);font-weight:700;background:var(--panel2,#f8fafc)">
+          <td>Suma de categorías <span style="color:var(--muted);font-weight:400;font-size:11px">(${pp.categorias.length})</span></td>
+          <td style="text-align:right">${fmtVal(sumPp)}</td>
+          <td style="text-align:right">${fmtVal(sumReal)}</td>
+          <td style="text-align:right;color:${semColor(avSum, ritmo)}">${pct0(avSum)}</td>
+        </tr>
+        ${scVal > 0 ? `<tr style="background:var(--panel2,#f8fafc);color:var(--warning,#d97706)">
+          <td style="padding-left:14px">Sin cruce
+            <span style="font-weight:400;font-size:11px">· cliente·producto todavía sin ClavePP —
+              <a href="/modules/rc/asignacion-pp.html" style="color:inherit;text-decoration:underline">asignar</a>
+            </span>
+          </td>
+          <td style="text-align:right">—</td>
+          <td style="text-align:right;font-weight:700">${fmtVal(scVal)}</td>
+          <td style="text-align:right">—</td>
+        </tr>` : ''}
+        <tr style="border-top:1px solid var(--line);font-weight:800">
+          <td>TOTAL ${pp.anio}</td>
+          <td style="text-align:right">${fmtVal(sumPp)}</td>
+          <td style="text-align:right">${fmtVal(totReal)}</td>
+          <td style="text-align:right;color:${semColor(avTot, ritmo)}">${pct0(avTot)}</td>
+        </tr>
+      </tfoot>`;
+
     const cuerpo = `
       ${bannerCat}
       <div class="table-wrap" style="margin-top:8px"><table><thead><tr>
         <th>Categoría</th><th style="text-align:right">PP ${pp.anio}</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>
-      </tr></thead><tbody>${pp.categorias.map(filaCat).join('')}</tbody></table></div>`;
+      </tr></thead><tbody>${pp.categorias.map(filaCat).join('')}</tbody>${foot}</table></div>
+      ${notaCuadre}`;
     const tabla = `
       <div id="ppCatHead" class="eyebrow" style="margin:18px 0 0;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none">
         <span style="display:inline-block;width:12px">${ppTablaOpen ? '▾' : '▸'}</span>

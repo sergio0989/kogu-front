@@ -54,6 +54,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dirty = new Map();   // key -> cve_sublinea nuevo
   const sel = id => document.getElementById(id)?.value ?? '';
   const keyOf = it => `${it.cve_cte}|${it.cve_prod}`;
+  const nf0   = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+  const money = v => KoguUi.money(Number(v || 0));
+  const pct0  = v => (v == null ? '—' : `${Math.round(Number(v) * 100)}%`);
+  const fecha = v => (v ? String(v).slice(0, 10) : '—');
   const miniCard = (lbl, val, hint = '', color = '') => `
     <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
@@ -70,12 +74,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderResumen() {
     const k = data.conteo || {};
     const total = Number(k.total || 0), asg = Number(k.asignados || 0), pend = Number(k.pendientes || 0);
-    const cob = total ? Math.round(100 * asg / total) : 0;
+    const cobN  = total ? asg / total : 0;
+
+    // Cobertura por VENTA, no por número de filas.
+    //
+    // "80% de las combinaciones asignadas" no dice nada si el 20% restante es
+    // la mitad de la facturación. Lo que hace confiable el desglose por
+    // categoría del Tablero es el dinero atribuido. Suelen ser muy distintas:
+    // un puñado de combinaciones concentra casi toda la venta.
+    const vTot  = Number(k.ventas_total || 0);
+    const vAsg  = Number(k.ventas_asignadas || 0);
+    const vPend = Number(k.ventas_pendientes || 0);
+    const cobV  = vTot ? vAsg / vTot : null;
+    const colV  = cobV == null ? '' : (cobV >= 0.95 ? 'var(--ok,#16a34a)' : cobV >= 0.8 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
+
     document.getElementById('resumen').innerHTML = `
-      <div class="grid-4" style="gap:10px">
-        ${miniCard('Combinaciones', String(total), 'cliente · producto')}
-        ${miniCard('Asignadas', String(asg), `${cob}% de cobertura`, 'var(--ok,#16a34a)')}
-        ${miniCard('Pendientes', String(pend), 'por confirmar', pend ? 'var(--danger,#dc2626)' : '')}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+        ${miniCard('Combinaciones', nf0.format(total), 'cliente · producto')}
+        ${miniCard('Asignadas', nf0.format(asg), `${pct0(cobN)} de las filas`, 'var(--ok,#16a34a)')}
+        ${miniCard('Pendientes', nf0.format(pend), 'por confirmar', pend ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard('Cobertura por venta', pct0(cobV), 'de la venta ya atribuida', colV)}
+        ${miniCard('Venta sin atribuir', money(vPend), `${nf0.format(Number(k.kg_pendientes || 0))} kg pendientes`, vPend ? 'var(--danger,#dc2626)' : '')}
         ${miniCard('Sublíneas PP', String(data.sublineas.length), 'claves del presupuesto')}
       </div>`;
   }
@@ -83,8 +102,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ORI = { seed: 'Histórico', auto: 'Auto', manual: 'Manual' };
   function renderTabla() {
     const items = data.items;
-    document.getElementById('tblInfo').textContent =
-      `${items.length} fila(s)${items.length === 500 ? ' (tope 500, afina la búsqueda)' : ''}`;
+    document.getElementById('tblInfo').innerHTML =
+      `${items.length} fila(s)${items.length === 500 ? ' <b>(tope 500, afina la búsqueda)</b>' : ''}`
+      + ' · ordenadas por <b>venta descendente</b>: las de arriba son las que mueven el Tablero';
     if (!items.length) {
       document.getElementById('tabla').innerHTML = '<div class="empty">Sin combinaciones para el filtro.</div>';
       return;
@@ -101,6 +121,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${estado}<div style="font-size:10px;color:var(--muted);margin-top:2px">${ORI[it.origen] || it.origen}</div></td>
         <td><div style="font-weight:600">${KoguUi.escapeHtml(it.cliente_nombre || ('Cliente ' + it.cve_cte))}</div><div style="font-size:11px;color:var(--muted)">cve ${KoguUi.escapeHtml(it.cve_cte)}</div></td>
         <td><span class="chip-compact">${KoguUi.escapeHtml(it.cve_prod)}</span><div style="font-size:11px;color:var(--muted);margin-top:2px">${KoguUi.escapeHtml(it.desc_prod || '')}</div></td>
+        <td style="text-align:right;white-space:nowrap">
+          <div style="font-weight:700">${money(it.ventas)}</div>
+          <div style="font-size:11px;color:var(--muted)">${nf0.format(Number(it.kg || 0))} kg · ${nf0.format(Number(it.facturas || 0))} fact.</div>
+        </td>
+        <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fecha(it.ultima_venta)}</td>
         <td style="min-width:260px">
           <select class="select" data-key="${KoguUi.escapeHtml(k)}" style="width:100%">${optionsHtml(cur)}</select>
           ${it.notas ? `<div style="font-size:11px;color:var(--warning,#d97706);margin-top:3px">${KoguUi.escapeHtml(it.notas)}</div>` : ''}
@@ -109,8 +134,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     document.getElementById('tabla').innerHTML = `
       <div class="table-wrap"><table><thead><tr>
-        <th>Estado</th><th>Cliente</th><th>Producto</th><th>ClavePP (sublínea)</th>
-      </tr></thead><tbody>${filas}</tbody></table></div>`;
+        <th>Estado</th><th>Cliente</th><th>Producto</th>
+        <th style="text-align:right">Venta</th><th>Últ. venta</th>
+        <th>ClavePP (sublínea)</th>
+      </tr></thead><tbody>${filas}</tbody>${pieTabla(items)}</table></div>`;
     document.querySelectorAll('#tabla select[data-key]').forEach(s => s.onchange = () => {
       const k = s.dataset.key;
       const it = items.find(x => keyOf(x) === k);
@@ -120,6 +147,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tr = s.closest('tr'); if (tr) tr.style.background = dirty.has(k) ? 'var(--panel2,#f8fafc)' : '';
     });
     renderSaveBtn();
+  }
+
+  // Sumatoria de lo que estás viendo. Con el tope de 500 filas, saber cuánta
+  // venta cubre la pantalla actual dice si vale la pena seguir bajando.
+  function pieTabla(items) {
+    const v  = items.reduce((a, x) => a + Number(x.ventas || 0), 0);
+    const kg = items.reduce((a, x) => a + Number(x.kg || 0), 0);
+    return `<tfoot><tr style="border-top:2px solid var(--line);font-weight:700;background:var(--panel2,#f8fafc)">
+      <td colspan="3">Suma de las ${items.length} fila(s) visibles</td>
+      <td style="text-align:right">${money(v)}<div style="font-size:11px;font-weight:400;color:var(--muted)">${nf0.format(kg)} kg</div></td>
+      <td colspan="2"></td>
+    </tr></tfoot>`;
   }
 
   function renderSaveBtn() {
