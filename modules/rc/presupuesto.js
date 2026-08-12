@@ -31,6 +31,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   let compCargando = false;
   let filtro = '';
   let orden  = { col: 'pp', dir: 'desc' };
+  // Se persisten las categorías ABIERTAS. El conjunto vacío = todo contraído,
+  // que es como arranca: con 21 categorías de ~15 sublíneas cada una, abrirlo
+  // todo de entrada obliga a scrollear para ver los totales.
+  const LS_ABIERTAS = 'kogu:rc-pp-abiertas';
+  let catsAbiertas = new Set();
+  try { catsAbiertas = new Set(JSON.parse(localStorage.getItem(LS_ABIERTAS) || '[]')); } catch (_) {}
+  const guardarAbiertas = () => {
+    try { localStorage.setItem(LS_ABIERTAS, JSON.stringify([...catsAbiertas])); } catch (_) {}
+  };
 
   // Métrica compartida con el resto del Radar (misma llave que el Tablero).
   let metrica = localStorage.getItem('kogu:rc-metrica') || 'cantidad';
@@ -100,10 +109,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="eyebrow">Detalle</div>
         <h3 style="margin:2px 0 0">Categorías y sublíneas</h3>
         <div class="hint" style="color:var(--muted);font-size:12px;margin-top:2px">
-          Todo desplegado. Clic en los encabezados para ordenar.
+          Clic en una categoría para desplegar sus sublíneas · clic en los encabezados para ordenar.
         </div>
       </div>
-      <input class="input" id="qFil" placeholder="Buscar categoría, clave o sublínea…" style="min-width:260px"/>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="toggleTodo">Contraer todo</button>
+        <input class="input" id="qFil" placeholder="Buscar categoría, clave o sublínea…" style="min-width:260px"/>
+      </div>
     </div>
     <div id="tabla" style="margin-top:12px"></div>
     <div id="cuadre"></div>
@@ -267,7 +279,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const cuerpo = cats.map(c => {
       const a = avVal(c);
-      const subs = ordenar(c.sublineas, orden.col, orden.dir).map(s => {
+      // Con el buscador activo la categoría se abre sola: si filtraste por algo
+      // que está dentro, esconderlo sería absurdo.
+      const abierta = filtrando || catsAbiertas.has(c.cat);
+      const subs = !abierta ? '' : ordenar(c.sublineas, orden.col, orden.dir).map(s => {
         const sa = avVal(s);
         return `<tr style="background:var(--panel2,#f8fafc)">
           <td style="padding-left:26px"><span class="chip-compact">${esc(s.cve_sublinea)}</span> ${esc(s.sublinea_nombre)}${s.mapeado ? '' : ' <span style="color:var(--warning,#d97706);font-size:11px">·sin cruce</span>'}</td>
@@ -276,8 +291,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right;font-weight:600;color:${semColor(sa, ritmo)}">${pct0(sa)}</td>
         </tr>`;
       }).join('');
-      return `<tr>
-          <td><b>${esc(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
+      return `<tr data-cat="${c.cat}" style="cursor:pointer" title="${abierta ? 'Contraer' : 'Expandir'} ${esc(c.cat_nombre || '')}">
+          <td><span style="display:inline-block;width:14px;color:var(--muted)">${abierta ? '▾' : '▸'}</span><b>${esc(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
           <td style="text-align:right">${fmtVal(ppVal(c))}</td>
           <td style="text-align:right">${fmtVal(realVal(c))}</td>
           <td style="text-align:right;font-weight:700;color:${semColor(a, ritmo)}">${pct0(a)}</td>
@@ -322,6 +337,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${th('real', 'Real', 'right')}
         ${th('avance', 'Avance', 'right')}
       </tr></thead><tbody>${cuerpo}</tbody>${foot}</table></div>`;
+
+    cont.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
+      if (filtrando) return;            // con filtro todo está abierto a propósito
+      const cat = Number(tr.dataset.cat);
+      if (catsAbiertas.has(cat)) catsAbiertas.delete(cat); else catsAbiertas.add(cat);
+      guardarAbiertas();
+      renderTabla();
+    });
+
+    // El botón global ofrece la acción contraria a lo que domina en pantalla.
+    const btnTodo = document.getElementById('toggleTodo');
+    if (btnTodo) {
+      const abiertas = cats.filter(c => filtrando || catsAbiertas.has(c.cat)).length;
+      const contraer = abiertas > 0;
+      btnTodo.textContent = contraer ? 'Contraer todo' : 'Expandir todo';
+      btnTodo.disabled = filtrando;
+      btnTodo.title = filtrando ? 'Con el buscador activo las categorías se muestran abiertas' : '';
+      btnTodo.onclick = () => {
+        if (contraer) catsAbiertas.clear();
+        else cats.forEach(c => catsAbiertas.add(c.cat));
+        guardarAbiertas();
+        renderTabla();
+      };
+    }
 
     cont.querySelectorAll('th[data-col]').forEach(el => el.onclick = () => {
       const col = el.dataset.col;
