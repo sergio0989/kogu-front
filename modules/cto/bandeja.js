@@ -123,12 +123,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const [bg, col] = a > 5 ? ['#fee2e2', '#991b1b'] : a > 2 ? ['#fef9c3', '#854d0e'] : ['#dcfce7', '#166534'];
     return `<span class="chip" style="background:${bg};color:${col};font-size:11px;white-space:nowrap">${v.toFixed(1)}%</span>`;
   }
-  function pctChip(p) {
+  // En una NOTA DE CRÉDITO el subtotal y la utilidad son negativos, así que el
+  // porcentaje sale POSITIVO (negativo entre negativo) y el semáforo la pintaba
+  // verde "Correcto" aunque estuviera restando utilidad. Con eso, un renglón que
+  // arrastra el neto del producto al rojo se leía como sano y nunca aparecía al
+  // ordenar por margen. Las notas se marcan como tales y se colorean por el
+  // SIGNO de la utilidad, no por el porcentaje.
+  function esNota(r) { return r && (r.tipo_doc === 'nota' || (Number(r.subtotal) || 0) < 0); }
+
+  function pctChip(p, r) {
     const v = (Number(p) || 0) * 100;
     let bg, col, txt;
-    if (v >= 20)      { bg = '#dcfce7'; col = '#166534'; txt = 'Correcto'; }
-    else if (v >= 10) { bg = '#fef9c3'; col = '#854d0e'; txt = 'Revisar'; }
-    else              { bg = '#fee2e2'; col = '#991b1b'; txt = 'Alerta'; }
+    if (esNota(r)) {
+      const u = Number(r.utilidad_bruta) || 0;
+      txt = 'Nota de crédito';
+      if (u < 0) { bg = '#ede9fe'; col = '#5b21b6'; }        // reversa utilidad: lo normal
+      else       { bg = '#fee2e2'; col = '#991b1b'; txt = 'Nota · revisar'; } // suma utilidad: raro
+    } else if (v >= 20) { bg = '#dcfce7'; col = '#166534'; txt = 'Correcto'; }
+    else if (v >= 10)   { bg = '#fef9c3'; col = '#854d0e'; txt = 'Revisar'; }
+    else                { bg = '#fee2e2'; col = '#991b1b'; txt = 'Alerta'; }
     return `<span class="chip" style="background:${bg};color:${col};font-size:11px;display:inline-flex;flex-direction:column;align-items:center;line-height:1.25;padding:2px 8px"><strong>${v.toFixed(2)}%</strong><span style="font-size:10px">${txt}</span></span>`;
   }
 
@@ -183,7 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:right">${difChip(dif)}</td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.costo_int_imp)}<div style="font-size:10px;color:#94a3b8">u ${fmtMon(r.costo_int_unit)}${Number(r.costo_expo_kg) > 0 ? ' · exp ' + fmtMon(r.costo_expo_kg) : ''}</div></td>
         <td style="text-align:right;font-size:12px">${fmtMon(r.utilidad_bruta)}</td>
-        <td style="text-align:center">${pctChip(r.utilidad_bruta_pct)}</td>
+        <td style="text-align:center">${pctChip(r.utilidad_bruta_pct, r)}</td>
         <td style="text-align:center;width:38px;padding-left:2px;padding-right:2px" title="${r.revisado ? 'Revisado' + (r.revisado_por_nombre ? ' por ' + esc(r.revisado_por_nombre) : '') : 'Pendiente'}">
           <input type="checkbox" data-rev="${r.venta_id}" ${r.revisado ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer"/>
         </td>

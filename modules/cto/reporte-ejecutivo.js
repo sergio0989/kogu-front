@@ -331,13 +331,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     pr.top.forEach((x) => { body += `<tr><td>${x.posicion}. ${esc(x.clave)} · ${esc((x.nombre || '').slice(0, 28))}</td><td>${mon(x.ventas)}</td><td>${mon(x.utilidad_bruta)}</td><td class="pos">${pct1(x.margen)}</td><td>${num(x.kilos)}</td></tr>`; });
     h += `<h4 style="margin:16px 0 6px">Top 12 productos por venta</h4>
       <table class="rt"><tr><th>Producto</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th></tr>${body}</table>`;
-    const perd = pr.alertas.perdida, bajo = pr.alertas.bajo;
-    if (perd.length || bajo.length) {
+    // Alertas: la causa del rojo se distingue en la tabla. "Pérdida" = se vendió
+    // por debajo de costo. "Devolución" = ninguna venta perdió dinero; una nota
+    // de crédito reversó ventas anteriores y arrastró el neto. Presentarlas
+    // igual hace que Dirección persiga un problema de precio inexistente.
+    const perd = pr.alertas.perdida || [], dev = pr.alertas.devolucion || [], bajo = pr.alertas.bajo || [];
+    if (perd.length || dev.length || bajo.length) {
+      const nm = (x) => `${esc(x.clave)} · ${esc((x.nombre || '').slice(0, 22))}`;
       body = '';
-      perd.forEach((x) => body += `<tr><td>${esc(x.clave)} · ${esc((x.nombre || '').slice(0, 22))}</td><td>${mon(x.ventas)}</td><td class="neg">${mon(x.utilidad_bruta)}</td><td class="neg">${pct1(x.margen)}</td><td class="neg">Pérdida</td></tr>`);
-      bajo.forEach((x) => body += `<tr><td>${esc(x.clave)} · ${esc((x.nombre || '').slice(0, 22))}</td><td>${mon(x.ventas)}</td><td>${mon(x.utilidad_bruta)}</td><td style="color:#d97706">${pct1(x.margen)}</td><td style="color:#d97706">Margen bajo</td></tr>`);
+      perd.forEach((x) => {
+        const u = x.utilidad_sin_notas != null ? x.utilidad_sin_notas : x.utilidad_bruta;
+        const v = x.ventas_sin_notas != null ? x.ventas_sin_notas : x.ventas;
+        const m = x.margen_sin_notas != null ? x.margen_sin_notas : x.margen;
+        body += `<tr><td>${nm(x)}</td><td>${mon(v)}</td><td class="neg">${mon(u)}</td><td class="neg">${pct1(m)}</td><td>—</td><td class="neg">Bajo costo</td></tr>`;
+      });
+      dev.forEach((x) => {
+        body += `<tr><td>${nm(x)}</td><td>${mon(x.ventas_sin_notas)}</td><td class="pos">${mon(x.utilidad_sin_notas)}</td><td class="pos">${pct1(x.margen_sin_notas)}</td><td class="neg">${mon(x.ventas_nota)}</td><td style="color:#7c3aed">Devolución</td></tr>`;
+      });
+      bajo.forEach((x) => {
+        const v = x.ventas_sin_notas != null ? x.ventas_sin_notas : x.ventas;
+        const u = x.utilidad_sin_notas != null ? x.utilidad_sin_notas : x.utilidad_bruta;
+        const m = x.margen_sin_notas != null ? x.margen_sin_notas : x.margen;
+        body += `<tr><td>${nm(x)}</td><td>${mon(v)}</td><td>${mon(u)}</td><td style="color:#d97706">${pct1(m)}</td><td>${x.ventas_nota ? mon(x.ventas_nota) : '—'}</td><td style="color:#d97706">Margen bajo</td></tr>`;
+      });
+      const th = (t) => `<th style="background:#7f1d1d">${t}</th>`;
       h += `<h4 style="margin:16px 0 6px;color:#7f1d1d">Alertas de margen</h4>
-        <table class="rt"><tr style="background:#7f1d1d"><th style="background:#7f1d1d">Producto</th><th style="background:#7f1d1d">Ventas</th><th style="background:#7f1d1d">Utilidad</th><th style="background:#7f1d1d">Margen</th><th style="background:#7f1d1d">Estado</th></tr>${body}</table>`;
+        <table class="rt"><tr style="background:#7f1d1d">${th('Producto')}${th('Ventas del periodo')}${th('Utilidad')}${th('Margen')}${th('Devuelto')}${th('Estado')}</tr>${body}</table>
+        <div class="metod">Ventas, utilidad y margen son <b>de la venta del periodo</b>, sin notas de crédito. La columna <b>Devuelto</b> muestra el importe reversado por notas: cuando ese reverso supera la utilidad del mes, el producto cierra en rojo sin que ninguna operación se haya vendido bajo costo.</div>`;
     }
     return h + `</div>`;
   }
