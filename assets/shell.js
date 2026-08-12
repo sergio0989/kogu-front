@@ -53,6 +53,7 @@
       {href:'/modules/rc/mi-panel.html',label:'Panel por agente',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/agentes.html',label:'Agentes comerciales',perm:'screen.ventas.agentes'},
       {href:'/modules/rc/asignacion.html',label:'Asignar clientes',perm:'screen.ventas.agentes'},
+      {href:'/modules/rc/presupuesto.html',label:'Presupuesto (PP)',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/asignacion-pp.html',label:'Asignación PP',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/pp-carga.html',label:'Carga de PP',perm:'rc.pp.manage'},
       {href:'/modules/rc/actividad-crm.html',label:'Actividad CRM (I+D)',perm:'rc.crm_actividades.read'},
