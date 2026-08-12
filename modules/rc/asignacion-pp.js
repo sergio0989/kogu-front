@@ -102,10 +102,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Se actualiza solo el renglón tocado en vez de repintar la tabla: con 407
   // filas, un re-render manda el scroll al principio y pierdes dónde ibas.
+  // Una fila PENDIENTE que YA trae clave es una SUGERENCIA del sync, no una
+  // asignación: ese producto fue históricamente a más de una sublínea (ndist > 1),
+  // así que se propuso la más frecuente y se dejó sin confirmar.
+  //
+  // Por eso elegir esa MISMA clave tiene que contar como confirmación. Antes el
+  // criterio era solo "¿cambió el valor?", así que reelegirla se descartaba y la
+  // fila quedaba pendiente para siempre: no había forma de confirmarla desde la
+  // pantalla, ni quitándola y volviéndola a poner (al regresar al valor original
+  // el cambio se anulaba solo).
+  function esCambio(it, valor) {
+    if (valor !== (it?.cve_sublinea || '')) return true;
+    return it?.status === 'pendiente' && !!valor;
+  }
+
   function aplicarSeleccion(k, valor) {
-    const it   = data.items.find(x => keyOf(x) === k);
-    const orig = it?.cve_sublinea || '';
-    if (valor === orig) dirty.delete(k); else dirty.set(k, valor);
+    const it = data.items.find(x => keyOf(x) === k);
+    if (esCambio(it, valor)) dirty.set(k, valor); else dirty.delete(k);
     const btn = [...document.querySelectorAll('#tabla button[data-pick]')].find(b => b.dataset.pick === k);
     if (btn) {
       btn.innerHTML         = etiquetaClave(valor);
@@ -113,6 +126,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.style.color       = valor ? '' : 'var(--muted)';
       const tr = btn.closest('tr');
       if (tr) tr.style.background = dirty.has(k) ? 'var(--panel2,#f8fafc)' : '';
+      const conf = tr?.querySelector('button[data-conf]');
+      if (conf) conf.style.display = dirty.has(k) ? 'none' : '';
     }
     renderSaveBtn();
   }
@@ -177,6 +192,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                   style="width:100%;text-align:left;font-weight:${cur ? 600 : 400};${cur ? '' : 'color:var(--muted)'}">
             ${etiquetaClave(cur)}
           </button>
+          ${(pend && it.cve_sublinea && !isDirty) ? `<button class="btn ghost" type="button" data-conf="${esc(k)}"
+                  title="El sync propuso esta clave, pero el producto ha ido a más de una sublínea. Confírmala para que cuente en el Tablero."
+                  style="margin-top:4px;font-size:11px;padding:2px 9px">✓ Confirmar sugerencia</button>` : ''}
           ${it.notas ? `<div style="font-size:11px;color:var(--warning,#d97706);margin-top:3px">${KoguUi.escapeHtml(it.notas)}</div>` : ''}
         </td>
       </tr>`;
@@ -188,6 +206,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th>ClavePP (sublínea)</th>
       </tr></thead><tbody>${filas}</tbody>${pieTabla(items)}</table></div>`;
     document.querySelectorAll('#tabla button[data-pick]').forEach(b => b.onclick = () => abrirPicker(b));
+    document.querySelectorAll('#tabla button[data-conf]').forEach(b => b.onclick = () => {
+      const k  = b.dataset.conf;
+      const it = data.items.find(x => keyOf(x) === k);
+      aplicarSeleccion(k, it?.cve_sublinea || '');
+    });
     renderSaveBtn();
   }
 
