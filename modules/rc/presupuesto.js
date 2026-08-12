@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${th('nombre', 'Categoría / sublínea')}
         ${th('pp', pp.pp_pendiente ? 'PP (por capturar)' : `PP ${anio}`, 'right')}
         ${th('real', 'Real', 'right')}
-        ${th('avance', 'Avance', 'right')}
+        ${th('avance', 'Ritmo', 'right')}
       </tr></thead><tbody>${cuerpo}</tbody>${foot}</table></div>`;
 
     cont.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const cabAnios = ys.map(y => `<th colspan="3" style="text-align:center;border-left:1px solid var(--line)">${y}</th>`).join('');
-    const cabCols  = ys.map(() => `<th style="text-align:right;border-left:1px solid var(--line)">PP</th><th style="text-align:right">Real</th><th style="text-align:right">Av.</th>`).join('');
+    const cabCols  = ys.map(() => `<th style="text-align:right;border-left:1px solid var(--line)">PP</th><th style="text-align:right">Real</th><th style="text-align:right">Ritmo</th>`).join('');
 
     cont.innerHTML = `
       <div class="hint" style="color:var(--muted);font-size:12px;margin:8px 0 10px">
@@ -533,16 +533,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const det = [];
     for (const c of pp.categorias) {
       det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: '', Sublinea: '(total categoría)',
-        [`PP_${unidad}`]: ppVal(c), [`Real_${unidad}`]: realVal(c), Avance: avVal(c) });
+        [`PP_${unidad}`]: ppVal(c), [`Real_${unidad}`]: realVal(c), Ritmo: avVal(c) });
       for (const s of c.sublineas) {
         det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: s.cve_sublinea, Sublinea: s.sublinea_nombre,
-          [`PP_${unidad}`]: ppVal(s), [`Real_${unidad}`]: realVal(s), Avance: avVal(s),
+          [`PP_${unidad}`]: ppVal(s), [`Real_${unidad}`]: realVal(s), Ritmo: avVal(s),
           Cruzado: s.mapeado ? 'sí' : 'no' });
       }
     }
     const sc = pp.sin_cruce || {};
     det.push({ Categoria: 'SIN CRUCE', Clave: '', Sublinea: 'cliente·producto sin ClavePP',
-      [`PP_${unidad}`]: null, [`Real_${unidad}`]: esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0), Avance: null });
+      [`PP_${unidad}`]: null, [`Real_${unidad}`]: esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0), Ritmo: null });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(det), `Detalle ${anio}`);
 
     // Hoja 2 — comparativo, solo si ya se cargaron los otros ejercicios.
@@ -560,7 +560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const c = m.get(y);
           fila[`PP ${y}`]     = c ? ppVal(c)   : null;
           fila[`Real ${y}`]   = c ? realVal(c) : null;
-          fila[`Avance ${y}`] = c ? avVal(c)   : null;
+          fila[`Ritmo ${y}`] = c ? avVal(c)   : null;
         }
         return fila;
       });
