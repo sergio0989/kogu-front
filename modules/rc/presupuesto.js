@@ -154,8 +154,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderAnios() {
     const sel = document.getElementById('anioSel');
+    // Se marca cuáles no tienen presupuesto para que elegirlos no sorprenda.
+    const conPp = new Set(pp?.anios_pp || []);
     sel.innerHTML = (anios.length ? anios : [anio]).map(a =>
-      `<option value="${a}"${a === anio ? ' selected' : ''}>${a}</option>`).join('');
+      `<option value="${a}"${a === anio ? ' selected' : ''}>${a}${conPp.size && !conPp.has(a) ? ' · sin PP' : ''}</option>`).join('');
   }
 
   function renderTodo() {
@@ -189,20 +191,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cumplCol = cumpl == null ? 'var(--muted,#64748b)'
       : (cumpl >= 1 ? 'var(--success,#16a34a)' : cumpl >= 0.9 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
 
-    document.getElementById('subPp').innerHTML =
-      `Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} · ritmo esperado <b>${pct0(ritmo)}</b> del año`;
+    // Año con ventas pero sin presupuesto capturado: se muestra el real por
+    // categoría (que sí existe, porque la asignación no depende del año) y se
+    // dice que el PP falta, en vez de inventar un avance.
+    const pend = !!pp.pp_pendiente;
+    document.getElementById('subPp').innerHTML = pend
+      ? `Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} · <b style="color:var(--warning,#d97706)">presupuesto ${anio} sin capturar</b>`
+      : `Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} · ritmo esperado <b>${pct0(ritmo)}</b> del año`;
 
     document.getElementById('cards').innerHTML = [
-      miniCard(`PP ${anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtValC(ppVal(t)), 'presupuesto anual'),
-      miniCard('Real a la fecha', fmtValC(realVal(t)), `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col),
-      miniCard(`Meta al corte (${meses} m)`, metaCorte != null ? fmtValC(metaCorte) : '—', `PP ÷ 12 × ${meses} meses`),
-      miniCard('Cumplimiento al corte', pct0(cumpl), 'real ÷ meta al corte', cumplCol),
+      pend
+        ? miniCard(`PP ${anio} (${esDinero() ? 'MXN' : 'kg'})`, 'Por capturar', 'sin presupuesto en el sistema', 'var(--warning,#d97706)')
+        : miniCard(`PP ${anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtValC(ppVal(t)), 'presupuesto anual'),
+      miniCard('Real a la fecha', fmtValC(realVal(t)), pend ? 'venta atribuida del ejercicio' : `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col),
+      miniCard(`Meta al corte (${meses} m)`, (!pend && metaCorte) ? fmtValC(metaCorte) : '—', pend ? 'requiere PP' : `PP ÷ 12 × ${meses} meses`),
+      miniCard('Cumplimiento al corte', pend ? '—' : pct0(cumpl), pend ? 'requiere PP' : 'real ÷ meta al corte', cumplCol),
       miniCard('Atribuido a sublíneas', pct0(cob), 'cobertura del cruce', cob >= 0.95 ? 'var(--success,#16a34a)' : 'var(--warning,#d97706)'),
       miniCard('Sin cruce', fmtValC(scVal), 'sin ClavePP asignada', scVal ? 'var(--warning,#d97706)' : ''),
     ].join('');
 
     const barW = Math.min(100, Math.round((av || 0) * 100));
     const ritW = Math.min(100, Math.round(ritmo * 100));
+    if (pend) {
+      document.getElementById('barra').innerHTML = `
+        <div style="margin-top:14px;padding:10px 12px;border:1px solid var(--warning,#d97706);background:rgba(180,83,9,.06);border-radius:10px;font-size:13px;color:#b45309">
+          El presupuesto de <b>${anio}</b> no está capturado, así que no hay contra qué medir el avance.
+          Lo que ves es la <b>venta real del ejercicio ya atribuida</b> a categoría y sublínea.
+          Captúralo en <a href="/modules/rc/pp-carga.html" style="color:inherit;text-decoration:underline">Carga de PP</a> y esta pantalla se completa sola.
+        </div>`;
+      return;
+    }
     document.getElementById('barra').innerHTML = `
       <div style="margin-top:14px">
         <div style="position:relative;background:var(--panel2,#f1f5f9);border-radius:8px;height:22px;overflow:hidden">
@@ -270,6 +288,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sc    = pp.sin_cruce || {};
     const scVal = esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0);
     const filtrando = !!filtro.trim();
+    // Sin PP capturado la columna va en guion, no en $0.00: un cero se lee
+    // como "presupuesto de cero", no como "presupuesto ausente".
+    const fmtPp = v => pp.pp_pendiente ? '—' : fmtVal(v);
 
     if (!cats.length) {
       cont.innerHTML = `<div class="empty">Sin categorías para “${esc(filtro)}”.</div>`;
@@ -286,14 +307,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sa = avVal(s);
         return `<tr style="background:var(--panel2,#f8fafc)">
           <td style="padding-left:26px"><span class="chip-compact">${esc(s.cve_sublinea)}</span> ${esc(s.sublinea_nombre)}${s.mapeado ? '' : ' <span style="color:var(--warning,#d97706);font-size:11px">·sin cruce</span>'}</td>
-          <td style="text-align:right">${fmtVal(ppVal(s))}</td>
+          <td style="text-align:right">${fmtPp(ppVal(s))}</td>
           <td style="text-align:right">${fmtVal(realVal(s))}</td>
           <td style="text-align:right;font-weight:600;color:${semColor(sa, ritmo)}">${pct0(sa)}</td>
         </tr>`;
       }).join('');
       return `<tr data-cat="${c.cat}" style="cursor:pointer" title="${abierta ? 'Contraer' : 'Expandir'} ${esc(c.cat_nombre || '')}">
           <td><span style="display:inline-block;width:14px;color:var(--muted)">${abierta ? '▾' : '▸'}</span><b>${esc(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
-          <td style="text-align:right">${fmtVal(ppVal(c))}</td>
+          <td style="text-align:right">${fmtPp(ppVal(c))}</td>
           <td style="text-align:right">${fmtVal(realVal(c))}</td>
           <td style="text-align:right;font-weight:700;color:${semColor(a, ritmo)}">${pct0(a)}</td>
         </tr>${subs}`;
@@ -312,7 +333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tfoot>
         <tr style="border-top:2px solid var(--line);font-weight:700;background:var(--panel2,#f8fafc)">
           <td>${filtrando ? `Suma de lo filtrado` : `Suma de categorías`} <span style="color:var(--muted);font-weight:400;font-size:11px">(${cats.length})</span></td>
-          <td style="text-align:right">${fmtVal(sumPp)}</td>
+          <td style="text-align:right">${fmtPp(sumPp)}</td>
           <td style="text-align:right">${fmtVal(sumReal)}</td>
           <td style="text-align:right;color:${semColor(avSum, ritmo)}">${pct0(avSum)}</td>
         </tr>
@@ -324,7 +345,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr>` : ''}
         ${!filtrando ? `<tr style="border-top:1px solid var(--line);font-weight:800">
           <td>TOTAL ${anio}</td>
-          <td style="text-align:right">${fmtVal(sumPp)}</td>
+          <td style="text-align:right">${fmtPp(sumPp)}</td>
           <td style="text-align:right">${fmtVal(totReal)}</td>
           <td style="text-align:right;color:${semColor(avTot, ritmo)}">${pct0(avTot)}</td>
         </tr>` : ''}
@@ -333,7 +354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     cont.innerHTML = `
       <div class="table-wrap"><table><thead><tr>
         ${th('nombre', 'Categoría / sublínea')}
-        ${th('pp', `PP ${anio}`, 'right')}
+        ${th('pp', pp.pp_pendiente ? 'PP (por capturar)' : `PP ${anio}`, 'right')}
         ${th('real', 'Real', 'right')}
         ${th('avance', 'Avance', 'right')}
       </tr></thead><tbody>${cuerpo}</tbody>${foot}</table></div>`;
