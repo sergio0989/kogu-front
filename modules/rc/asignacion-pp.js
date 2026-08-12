@@ -65,10 +65,56 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
     </div>`;
 
-  function optionsHtml(sel) {
-    const blank = `<option value="" ${!sel ? 'selected' : ''}>— sin asignar —</option>`;
-    return blank + data.sublineas.map(s =>
-      `<option value="${KoguUi.escapeHtml(s.cve_sublinea)}" ${s.cve_sublinea === sel ? 'selected' : ''}>${KoguUi.escapeHtml(s.cve_sublinea)} · ${KoguUi.escapeHtml(s.sublinea_nombre)}</option>`).join('');
+  const esc = v => KoguUi.escapeHtml(String(v ?? ''));
+  const SIN = '__SIN_ASIGNAR__';
+
+  const nombreDe = cve => data.sublineas.find(s => s.cve_sublinea === cve)?.sublinea_nombre || '';
+  const etiquetaClave = cve => cve ? `${esc(cve)} · ${esc(nombreDe(cve))}` : '— sin asignar —';
+
+  // Selector de ClavePP.
+  //
+  // Era un <select> con las ~92 sublíneas del PP: para encontrar "Ext. Ceb.
+  // Power Pack 1X" había que recorrer la lista a ojo, y no se podía buscar por
+  // categoría. Se reemplaza por el picker con búsqueda de KoguUi, el mismo que
+  // ya usan comex, lab y mat, que además trae navegación con teclado.
+  function abrirPicker(btn) {
+    const k  = btn.dataset.pick;
+    const it = data.items.find(x => keyOf(x) === k);
+    const actual = dirty.has(k) ? dirty.get(k) : (it?.cve_sublinea || '');
+    const items = [{ cve_sublinea: SIN, sublinea_nombre: '— sin asignar —', categoria: '' }]
+      .concat(data.sublineas.map(x => ({
+        cve_sublinea:    x.cve_sublinea,
+        sublinea_nombre: x.sublinea_nombre,
+        categoria:       x.cat_nombre || (x.cat != null ? 'Categoría ' + x.cat : ''),
+      })));
+    KoguUi.openSearchPicker({
+      title: `ClavePP · ${it?.cve_prod || ''}${it?.cliente_nombre ? ' — ' + it.cliente_nombre : ''}`,
+      items,
+      columns: [
+        { key: 'sublinea_nombre', label: 'Sublínea',  primary: true },
+        { key: 'cve_sublinea',    label: 'Clave' },
+        { key: 'categoria',       label: 'Categoría' },
+      ],
+      placeholder: actual ? `Actual: ${actual} · ${nombreDe(actual)} — buscar otra…` : 'Buscar por clave, sublínea o categoría…',
+      onSelect: (x) => aplicarSeleccion(k, x.cve_sublinea === SIN ? '' : x.cve_sublinea),
+    });
+  }
+
+  // Se actualiza solo el renglón tocado en vez de repintar la tabla: con 407
+  // filas, un re-render manda el scroll al principio y pierdes dónde ibas.
+  function aplicarSeleccion(k, valor) {
+    const it   = data.items.find(x => keyOf(x) === k);
+    const orig = it?.cve_sublinea || '';
+    if (valor === orig) dirty.delete(k); else dirty.set(k, valor);
+    const btn = [...document.querySelectorAll('#tabla button[data-pick]')].find(b => b.dataset.pick === k);
+    if (btn) {
+      btn.innerHTML         = etiquetaClave(valor);
+      btn.style.fontWeight  = valor ? '600' : '400';
+      btn.style.color       = valor ? '' : 'var(--muted)';
+      const tr = btn.closest('tr');
+      if (tr) tr.style.background = dirty.has(k) ? 'var(--panel2,#f8fafc)' : '';
+    }
+    renderSaveBtn();
   }
 
   function renderResumen() {
@@ -126,8 +172,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div style="font-size:11px;color:var(--muted)">${nf0.format(Number(it.kg || 0))} kg · ${nf0.format(Number(it.facturas || 0))} fact.</div>
         </td>
         <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fecha(it.ultima_venta)}</td>
-        <td style="min-width:260px">
-          <select class="select" data-key="${KoguUi.escapeHtml(k)}" style="width:100%">${optionsHtml(cur)}</select>
+        <td style="min-width:280px">
+          <button class="btn" type="button" data-pick="${esc(k)}"
+                  style="width:100%;text-align:left;font-weight:${cur ? 600 : 400};${cur ? '' : 'color:var(--muted)'}">
+            ${etiquetaClave(cur)}
+          </button>
           ${it.notas ? `<div style="font-size:11px;color:var(--warning,#d97706);margin-top:3px">${KoguUi.escapeHtml(it.notas)}</div>` : ''}
         </td>
       </tr>`;
@@ -138,14 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th style="text-align:right">Venta</th><th>Últ. venta</th>
         <th>ClavePP (sublínea)</th>
       </tr></thead><tbody>${filas}</tbody>${pieTabla(items)}</table></div>`;
-    document.querySelectorAll('#tabla select[data-key]').forEach(s => s.onchange = () => {
-      const k = s.dataset.key;
-      const it = items.find(x => keyOf(x) === k);
-      const orig = it?.cve_sublinea || '';
-      if (s.value === orig) dirty.delete(k); else dirty.set(k, s.value);
-      renderSaveBtn();
-      const tr = s.closest('tr'); if (tr) tr.style.background = dirty.has(k) ? 'var(--panel2,#f8fafc)' : '';
-    });
+    document.querySelectorAll('#tabla button[data-pick]').forEach(b => b.onclick = () => abrirPicker(b));
     renderSaveBtn();
   }
 
