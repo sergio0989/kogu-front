@@ -321,16 +321,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const patchConc = (lineaId, patch) => api('/costeos/' + D.costeo.costeo_id + '/conceptos/' + lineaId, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
   const patchEsc = (escId, patch) => api('/costeos/' + D.costeo.costeo_id + '/escenarios/' + escId, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
 
-  async function addConcepto() {
-    // menú simple del catálogo
-    const opts = CATS.map(cat => `${cat.clave} · ${cat.nombre}`);
-    const idx = opts.length ? prompt('Concepto a agregar:\n' + opts.map((o, i) => (i + 1) + '. ' + o).join('\n'), '1') : null;
-    if (!idx) return;
-    const cat = CATS[parseInt(idx, 10) - 1]; if (!cat) return;
-    try {
-      await api('/costeos/' + D.costeo.costeo_id + '/conceptos', { method: 'POST', body: JSON.stringify({ concepto_id: cat.concepto_id, nombre: cat.nombre, capa_incoterm: cat.capa_incoterm, modo_captura: cat.modo_default, es_arancel: cat.es_arancel, moneda: cat.modo_default.startsWith('mxn') ? 'MXN' : 'USD', orden: cat.orden }) });
-      openDetail(D.costeo.costeo_id);
-    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  function addConcepto() {
+    if (!CATS.length) { KoguApi.toast('Sin catálogo de conceptos.', 'error'); return; }
+    pickerConcepto(async (cat) => {
+      if (!cat) return;
+      try {
+        await api('/costeos/' + D.costeo.costeo_id + '/conceptos', { method: 'POST', body: JSON.stringify({ concepto_id: cat.concepto_id, nombre: cat.nombre, capa_incoterm: cat.capa_incoterm, modo_captura: cat.modo_default, es_arancel: cat.es_arancel, moneda: cat.modo_default.startsWith('mxn') ? 'MXN' : 'USD', orden: cat.orden }) });
+        openDetail(D.costeo.costeo_id);
+      } catch (e) { KoguApi.toast(e.message, 'error'); }
+    });
   }
   async function addEscenario() {
     const nombre = prompt('Nombre del escenario:', 'Nuevo arancel');
@@ -539,6 +538,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         list.innerHTML = rows.length ? rows.map((p, i) => `<button class="btn ghost" data-i="${i}" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px"><strong>${esc(p.nombre)}</strong> <span class="muted" style="font-size:11px">${esc(p.rfc || '')}</span></button>`).join('') : '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>';
         list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { close(); onPick(rows[+bn.dataset.i]); }));
       } catch (e) { list.innerHTML = `<div style="padding:12px;color:#991b1b">${esc(e.message)}</div>`; }
+    });
+  }
+  // Picker de concepto de costo: filtra el catálogo CATS en memoria, con chip
+  // de capa de incoterm. Marca los que ya están en el costeo (sin bloquearlos).
+  const CAPA_COL = { exw: ['#f5f3ff', '#7e22ce'], cfr: ['#ecfeff', '#0e7490'], ddp: ['#fffbeb', '#b45309'] };
+  function pickerConcepto(onPick) {
+    const yaClaves = new Set((D.conceptos || []).map(x => String(x.clave || '').toUpperCase()));
+    modal('Agregar concepto', 'Catálogo de conceptos de costo', async (term, list, close) => {
+      const t = term.toLowerCase();
+      const rows = (CATS || []).filter(c => !t || `${c.clave} ${c.nombre}`.toLowerCase().includes(t));
+      list.innerHTML = rows.length ? rows.map((c, i) => {
+        const cap = String(c.capa_incoterm || '').toLowerCase();
+        const [bg, co] = CAPA_COL[cap] || ['#f1f5f9', '#475569'];
+        const ya = yaClaves.has(String(c.clave || '').toUpperCase());
+        return `<button class="btn ghost" data-i="${i}" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px">
+          <span style="flex:1"><strong>${esc(c.nombre)}</strong> <span class="muted" style="font-size:11px">${esc(c.clave)}</span>${ya ? ' <span style="font-size:10px;color:#94a3b8">· ya agregado</span>' : ''}</span>
+          <span style="background:${bg};color:${co};font-size:10px;font-weight:700;padding:1px 8px;border-radius:999px;text-transform:uppercase">${esc(c.capa_incoterm || '')}</span></button>`;
+      }).join('') : '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>';
+      list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { close(); onPick(rows[+bn.dataset.i]); }));
     });
   }
   function pickerUsuario(onPick) {
