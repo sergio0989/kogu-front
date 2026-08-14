@@ -254,9 +254,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('tConc').innerHTML = head + '<tbody>' + body + '</tbody>';
     $('tConc').querySelectorAll('.grp').forEach(row => row.addEventListener('click', () => { collapsed[row.dataset.g] = !collapsed[row.dataset.g]; renderConceptos(); }));
     $('tConc').querySelectorAll('.cval').forEach(inp => {
-      // Al enfocar muestra el número limpio; al salir lo re-formatea como moneda.
-      inp.addEventListener('focus', () => { const v = D.conceptos[+inp.dataset.i].valor_captura; inp.value = v ? String(v) : ''; inp.select(); });
-      inp.addEventListener('blur', () => { inp.value = capFmt(D.conceptos[+inp.dataset.i].valor_captura); });
+      const tr = inp.closest('tr');
+      // Al enfocar: número limpio + selecciona TODO el valor + resalta la fila.
+      inp.addEventListener('focus', () => {
+        const v = D.conceptos[+inp.dataset.i].valor_captura;
+        inp.value = v ? String(v) : '';
+        inp._selOnUp = true; inp.select();
+        if (tr) tr.style.background = '#eff6ff';
+      });
+      // Evita que el clic (mouseup) colapse la selección recién hecha en focus.
+      inp.addEventListener('mouseup', (e) => { if (inp._selOnUp) { e.preventDefault(); inp._selOnUp = false; } });
+      // Al salir: re-formatea como moneda y quita el resaltado.
+      inp.addEventListener('blur', () => {
+        inp.value = capFmt(D.conceptos[+inp.dataset.i].valor_captura);
+        if (tr) tr.style.background = '';
+      });
       inp.addEventListener('input', () => {
         const i = +inp.dataset.i; D.conceptos[i].valor_captura = capParse(inp.value);
         updateComputed();  // actualiza celdas sin re-render → no pierde el foco
