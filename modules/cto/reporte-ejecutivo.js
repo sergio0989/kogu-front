@@ -139,10 +139,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   .seg button.on { background:#0e7490; color:#fff }
 
   @media print {
-    @page { size: letter; margin: 12mm 0; }
+    @page { size: letter; margin: 20mm 0 16mm; }
     /* Margen LATERAL garantizado con padding del propio reporte: sobrevive aunque
        el diálogo de impresión ponga "Márgenes: Ninguno". Top/bottom vía @page. */
-    #reporte { padding: 8mm 14mm !important; box-sizing: border-box !important; width:100% !important; }
+    #reporte { padding: 4mm 14mm !important; box-sizing: border-box !important; width:100% !important; }
     html, body { background:#fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     /* Ocultar el shell (menú + barra) y controles; el reporte fluye en flujo
        normal para que el margen de @page (14mm) aplique en TODOS los lados/páginas.
@@ -153,7 +153,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     #reporte, #reporte * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     #reporte table.rt { width:100% !important; table-layout:fixed; }
     #reporte table.rt td, #reporte table.rt th { overflow-wrap:anywhere; word-break:break-word; }
-    #reporte .pb { page-break-before: always; }
+    #reporte .pb { page-break-before: always; padding-top: 6mm; }
+    #reporte .band.pb { padding-top: 12px; margin-top: 6mm; }
     #reporte tr, #reporte .kc, #reporte .band, #reporte .mini > div, #reporte .memo, #reporte .firmas, #reporte .ppwrap { page-break-inside: avoid; }
     /* La tira de KPIs se lee como una sola unidad: partirla a media rejilla deja
        dos tarjetas huérfanas en la página siguiente (lo primero que ve Dirección).
