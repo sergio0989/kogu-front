@@ -85,8 +85,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .pos { color:#059669; font-weight:700; }
   #reporte .mini { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
   #reporte .mini h4 { margin:0 0 4px; font-size:11px; color:#64748b; }
-  #reporte .chip { font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px }
-  #reporte .ap { background:#dcfce7;color:#166534 } #reporte .inf { background:#e5e7eb;color:#6b7280 }
 
   /* ── Portada memo ── */
   #reporte .memo { border:1px solid #cbd5e1; border-radius:8px; margin:16px 0 0; overflow:hidden; }
@@ -317,7 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><h4>Kilos calculados por KOGU</h4>${tab(
           rowf('Kilos A', num(f.kilos_a)) + rowf('Kilos B', num(f.kilos_b)) + rowf('Kilos C (export+import)', num(f.kilos_c)) + rowf('Kilos Prod B', num(f.kilos_prod_b)))}</div>
         <div><h4>Factores</h4>${tab(
-          rowf('Factor A', fac(f.factor_a), '<span class="chip ap">aplicado</span>') + rowf('Factor B fijo', fac(f.factor_b_fijo), '<span class="chip ap">aplicado</span>') + rowf('Factor B', fac(f.factor_b), '<span class="chip inf">inf</span>') + rowf('Factor C', fac(f.factor_c), '<span class="chip inf">inf</span>') + rowf('Factor B almacén', fac(f.factor_b_alm), '<span class="chip inf">inf</span>'))}</div>
+          rowf('Factor A', fac(f.factor_a)) + rowf('Factor B', fac(f.factor_b)) + rowf('Factor C', fac(f.factor_c)) + rowf('Factor D', fac(f.factor_d)))}</div>
       </div>`;
     }
     return h + `</div>`;
