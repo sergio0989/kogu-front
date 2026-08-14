@@ -358,9 +358,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       &bull; Los <b>10 principales</b> = <b>${pct1(k.top10_pct)}</b>. ${k.resto_registros > 0 ? `El resto (${k.resto_registros} clientes) aporta ${pct1(k.resto_pct)}.` : ''}<br/>
       ${k.ancla ? `&bull; Cliente ancla: <b>${esc(k.ancla.nombre)}</b> con ${mon(k.ancla.ventas)} (${pct1(k.ancla.pct_venta)}).` : ''}</p>`;
     let body = '';
-    cl.top.forEach((x) => { body += `<tr><td>${x.posicion}. ${esc(x.nombre)}</td><td>${mon(x.ventas)}</td><td>${mon(x.utilidad_bruta)}</td><td class="pos">${pct1(x.margen)}</td><td>${num(x.kilos)}</td><td>${pct1(x.pct_acumulado)}</td></tr>`; });
+    cl.top.forEach((x) => { body += `<tr><td>${x.posicion}. ${esc(x.nombre)}</td><td>${mon(x.ventas)}</td><td>${mon(x.utilidad_bruta)}</td><td class="pos">${pct1(x.margen)}</td><td>${num(x.kilos)}</td></tr>`; });
     h += `<h4 style="margin:6px 0">Top 10 clientes por venta</h4>
-      <table class="rt"><tr><th>Cliente</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th><th>% acum.</th></tr>${body}</table>`;
+      <table class="rt"><tr><th>Cliente</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th></tr>${body}</table>`;
     body = '';
     pr.top.forEach((x) => { body += `<tr><td>${x.posicion}. ${esc(x.clave)} · ${esc((x.nombre || '').slice(0, 28))}</td><td>${mon(x.ventas)}</td><td>${mon(x.utilidad_bruta)}</td><td class="pos">${pct1(x.margen)}</td><td>${num(x.kilos)}</td></tr>`; });
     h += `<h4 style="margin:16px 0 6px">Top 10 productos por venta</h4>
