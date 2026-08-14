@@ -33,6 +33,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Formato de moneda para el input de captura: miles + hasta 2 decimales.
   const capFmt = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
   const capParse = (s) => { const n = parseFloat(String(s).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
+  // Unidad de captura: kg (canónico) o lb. 1 lb = 0.45359237 kg. La cantidad y
+  // el costo EXW se guardan SIEMPRE en kg; lb es solo la lente de entrada.
+  const LB = 0.45359237;
+  const esLb = (o) => (((o && o.unidad_captura) || 'kg') === 'lb');
 
   const MODOS = { usd_fijo: 'USD fijo', mxn_fijo: 'MXN fijo', usd_kg: 'USD/kg', mxn_kg: 'MXN/kg', pct_base: '% s/aduana' };
   // modo_captura ↔ (base, moneda): base=fijo|kg|pct · moneda=USD|MXN
@@ -155,8 +159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn ghost" id="cOrigBtn" type="button" title="Buscar proveedor">🔍</button>
       </div></div>
     <div><label class="muted" style="font-size:12px;display:block">Tipo de cambio</label><input class="input" id="cTc" value="${it.tip_cam != null ? it.tip_cam : ''}"/></div>
-    <div><label class="muted" style="font-size:12px;display:block">KGS a importar</label><input class="input" id="cKg" value="${it.kg != null ? it.kg : ''}"/></div>
-    <div><label class="muted" style="font-size:12px;display:block">Costo unit EXW (USD/kg)</label><input class="input" id="cExw" value="${it.costo_unit_exw != null ? it.costo_unit_exw : ''}"/></div>
+    <div><label class="muted" style="font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span id="lblKg">${esLb(it) ? 'Libras a importar' : 'KGS a importar'}</span>
+        <select id="cUnidad" style="border:1px solid var(--line);border-radius:6px;font-size:11px;padding:1px 6px"><option value="kg"${!esLb(it) ? ' selected' : ''}>kg</option><option value="lb"${esLb(it) ? ' selected' : ''}>lb</option></select></label>
+      <input class="input" id="cKg" value="${it.kg != null ? (esLb(it) ? +(it.kg / LB).toFixed(4) : it.kg) : ''}"/>
+      <div class="muted" id="kgEq" style="font-size:11px;margin-top:2px">${esLb(it) && it.kg ? '= ' + n2(it.kg) + ' kg' : ''}</div></div>
+    <div><label class="muted" style="font-size:12px;display:block" id="lblExw">Costo unit EXW (USD/${esLb(it) ? 'lb' : 'kg'})</label>
+      <input class="input" id="cExw" value="${it.costo_unit_exw != null ? (esLb(it) ? +(it.costo_unit_exw * LB).toFixed(6) : it.costo_unit_exw) : ''}"/>
+      <div class="muted" id="exwEq" style="font-size:11px;margin-top:2px">${esLb(it) && it.costo_unit_exw ? '= $' + nm(it.costo_unit_exw) + '/kg' : ''}</div></div>
   </div>
   <div style="margin-top:12px" id="respBox"></div>
   <div id="histBox" style="display:none;margin-top:10px"></div>
@@ -199,7 +209,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       deb('cab_' + field, () => patchCab({ [field]: D.costeo[field] }));
     });
     bindCab('cFolio', 'folio'); bindCab('cFecha', 'fecha');
-    bindCab('cTc', 'tip_cam', true); bindCab('cKg', 'kg', true); bindCab('cExw', 'costo_unit_exw', true);
+    bindCab('cTc', 'tip_cam', true);
+    // KGS/EXW: si la unidad es lb, el input es en libras y se convierte a kg canónico.
+    $('cKg').addEventListener('input', () => {
+      const v = parseFloat($('cKg').value) || 0;
+      D.costeo.kg = esLb(D.costeo) ? v * LB : v;
+      const eq = $('kgEq'); if (eq) eq.textContent = esLb(D.costeo) && D.costeo.kg ? '= ' + n2(D.costeo.kg) + ' kg' : '';
+      updateComputed();
+      deb('cab_kg', () => patchCab({ kg: D.costeo.kg }));
+    });
+    $('cExw').addEventListener('input', () => {
+      const v = parseFloat($('cExw').value) || 0;
+      D.costeo.costo_unit_exw = esLb(D.costeo) ? v / LB : v;
+      const eq = $('exwEq'); if (eq) eq.textContent = esLb(D.costeo) && D.costeo.costo_unit_exw ? '= $' + nm(D.costeo.costo_unit_exw) + '/kg' : '';
+      updateComputed();
+      deb('cab_exw', () => patchCab({ costo_unit_exw: D.costeo.costo_unit_exw }));
+    });
+    $('cUnidad').addEventListener('change', () => {
+      D.costeo.unidad_captura = $('cUnidad').value; const lb = esLb(D.costeo);
+      $('cKg').value = D.costeo.kg ? (lb ? +(D.costeo.kg / LB).toFixed(4) : +D.costeo.kg) : '';
+      $('cExw').value = D.costeo.costo_unit_exw ? (lb ? +(D.costeo.costo_unit_exw * LB).toFixed(6) : +D.costeo.costo_unit_exw) : '';
+      $('lblKg').textContent = lb ? 'Libras a importar' : 'KGS a importar';
+      $('lblExw').textContent = 'Costo unit EXW (USD/' + (lb ? 'lb' : 'kg') + ')';
+      $('kgEq').textContent = lb && D.costeo.kg ? '= ' + n2(D.costeo.kg) + ' kg' : '';
+      $('exwEq').textContent = lb && D.costeo.costo_unit_exw ? '= $' + nm(D.costeo.costo_unit_exw) + '/kg' : '';
+      patchCab({ unidad_captura: D.costeo.unidad_captura });
+    });
     // Origen/proveedor = selector del catálogo de proveedores
     const selProv = () => pickerProveedor((p) => {
       D.costeo.proveedor_id = p.proveedor_id; D.costeo.origen_proveedor = p.nombre;
@@ -376,7 +411,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Object.keys(debTimers).forEach(k => clearTimeout(debTimers[k]));
     try {
       await Promise.all([
-        patchCab({ folio: it.folio, fecha: it.fecha, origen_proveedor: it.origen_proveedor, proveedor_id: it.proveedor_id, modo_transporte: it.modo_transporte, tip_cam: it.tip_cam, kg: it.kg, costo_unit_exw: it.costo_unit_exw, utilidad_pct: it.utilidad_pct }),
+        patchCab({ folio: it.folio, fecha: it.fecha, origen_proveedor: it.origen_proveedor, proveedor_id: it.proveedor_id, modo_transporte: it.modo_transporte, tip_cam: it.tip_cam, kg: it.kg, costo_unit_exw: it.costo_unit_exw, utilidad_pct: it.utilidad_pct, unidad_captura: it.unidad_captura }),
         ...D.conceptos.map(x => patchConc(x.linea_id, { valor_captura: x.valor_captura, modo_captura: x.modo_captura, moneda: x.moneda })),
         ...D.escenarios.map(e => patchEsc(e.escenario_id, { nombre: e.nombre, arancel_pct: e.arancel_pct })),
       ]);
