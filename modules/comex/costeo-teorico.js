@@ -159,9 +159,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn ghost" id="cOrigBtn" type="button" title="Buscar proveedor">🔍</button>
       </div></div>
     <div><label class="muted" style="font-size:12px;display:block">Tipo de cambio</label><input class="input" id="cTc" value="${it.tip_cam != null ? it.tip_cam : ''}"/></div>
-    <div><label class="muted" style="font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span id="lblKg">${esLb(it) ? 'Libras a importar' : 'KGS a importar'}</span>
-        <select id="cUnidad" style="border:1px solid var(--line);border-radius:6px;font-size:11px;padding:1px 6px"><option value="kg"${!esLb(it) ? ' selected' : ''}>kg</option><option value="lb"${esLb(it) ? ' selected' : ''}>lb</option></select></label>
+    <div><label class="muted" style="font-size:12px;display:block">Unidad</label>
+      <select class="input" id="cUnidad"><option value="kg"${!esLb(it) ? ' selected' : ''}>kg</option><option value="lb"${esLb(it) ? ' selected' : ''}>lb</option></select></div>
+    <div><label class="muted" style="font-size:12px;display:block" id="lblKg">${esLb(it) ? 'Libras a importar' : 'KGS a importar'}</label>
       <input class="input" id="cKg" value="${it.kg != null ? (esLb(it) ? +(it.kg / LB).toFixed(4) : it.kg) : ''}"/>
       <div class="muted" id="kgEq" style="font-size:11px;margin-top:2px">${esLb(it) && it.kg ? '= ' + n2(it.kg) + ' kg' : ''}</div></div>
     <div><label class="muted" style="font-size:12px;display:block" id="lblExw">Costo unit EXW (USD/${esLb(it) ? 'lb' : 'kg'})</label>
