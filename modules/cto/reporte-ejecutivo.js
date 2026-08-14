@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .idx h4 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
   #reporte .idx table.rt td:nth-child(2), #reporte .idx table.rt td:nth-child(3) { text-align:right; white-space:nowrap; }
   #reporte .ppsub { font-size:15px; color:#0e7490; font-weight:700; margin-top:3px; }
+  #reporte .cont { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.6px; border-bottom:1px solid #e2e8f0; padding-bottom:5px; }
   #reporte .kgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   #reporte .kc { background:#f1f5f9; border-radius:8px; padding:12px 14px; }
   #reporte .kc.dark { background:#0e7490; color:#fff; }
@@ -389,9 +390,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         body += `<tr><td>${nm(x)}</td><td>${mon(v)}</td><td>${mon(u)}</td><td style="color:#d97706">${pct1(m)}</td><td>${x.ventas_nota ? mon(x.ventas_nota) : '—'}</td><td style="color:#d97706">Margen bajo</td></tr>`;
       });
       const th = (t) => `<th style="background:#7f1d1d">${t}</th>`;
-      h += `<h4 style="margin:16px 0 6px;color:#7f1d1d">Alertas de margen</h4>
+      // Las alertas van SIEMPRE en hoja propia: cuando quedaban al pie, el titulo
+      // y el encabezado de la tabla se separaban de sus renglones y la hoja
+      // siguiente abria con una tabla roja sin contexto.
+      h += `<div class="pb">
+        <div class="cont">Sección 3 · Análisis de Rentabilidad (continúa) · ${esc(PER)}</div>
+        <h4 style="margin:10px 0 6px;color:#7f1d1d">Alertas de margen</h4>
         <table class="rt"><tr style="background:#7f1d1d">${th('Producto')}${th('Ventas del periodo')}${th('Utilidad')}${th('Margen')}${th('Devuelto')}${th('Estado')}</tr>${body}</table>
-        <div class="metod">Ventas, utilidad y margen son <b>de la venta del periodo</b>, sin notas de crédito. La columna <b>Devuelto</b> muestra el importe reversado por notas: cuando ese reverso supera la utilidad del mes, el producto cierra en rojo sin que ninguna operación se haya vendido bajo costo.</div>`;
+        <div class="metod">Ventas, utilidad y margen son <b>de la venta del periodo</b>, sin notas de crédito. La columna <b>Devuelto</b> muestra el importe reversado por notas: cuando ese reverso supera la utilidad del mes, el producto cierra en rojo sin que ninguna operación se haya vendido bajo costo.</div></div>`;
     }
     return h + `</div>`;
   }
