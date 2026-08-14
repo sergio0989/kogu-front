@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
   const hoy = () => new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  let PER = '', ACUM = '';   // "Junio 2026" y "Enero–Junio 2026"
+
   let memoPref = {};
   try { memoPref = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { memoPref = {}; }
   let modo = memoPref.modo === 'datos' ? 'datos' : 'informe';
@@ -58,7 +60,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte { background:#fff; color:#0f172a; }
   #reporte .band { background:#0e7490; color:#fff; padding:12px 16px; border-radius:8px; margin:18px 0 12px; display:flex; justify-content:space-between; align-items:center; }
   #reporte .band h2 { margin:0; font-size:16px; }
-  #reporte .band .n { font-size:24px; font-weight:800; opacity:.35; }
+  #reporte .band .bsub { font-size:10.5px; color:#cbd5e1; margin-top:2px; font-weight:600; letter-spacing:.2px; }
+  #reporte .band .n { font-size:11.5px; font-weight:800; opacity:.7; letter-spacing:.8px; text-transform:uppercase; white-space:nowrap; }
+  #reporte .idx { border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; margin-top:14px; }
+  #reporte .idx h4 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+  #reporte .idx table.rt td:nth-child(2), #reporte .idx table.rt td:nth-child(3) { text-align:right; white-space:nowrap; }
+  #reporte .ppsub { font-size:10.5px; color:#64748b; font-weight:600; margin-top:2px; }
   #reporte .kgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   #reporte .kc { background:#f1f5f9; border-radius:8px; padding:12px 14px; }
   #reporte .kc.dark { background:#0e7490; color:#fff; }
@@ -180,7 +187,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div id="reporte" class="${modo === 'datos' ? 'modo-datos' : ''}"></div>`;
 
   // ─── render helpers ───
-  function band(n, title, pb) { return `<div class="band${pb ? ' pb' : ''}"><h2>${title}</h2><span class="n">${n}</span></div>`; }
+  // El número de la banda es la SECCIÓN, no la página: sin la palabra delante
+  // se lee como paginación y no coincide con la hoja donde cae al imprimir.
+  // El subtítulo declara el alcance (mes o acumulado) y el periodo exacto: en un
+  // mismo informe conviven cifras del mes (utilidad) y acumuladas (presupuesto),
+  // y de otro modo el lector las suma mentalmente como si fueran comparables.
+  function band(n, title, pb, alcance, periodo) {
+    const sub = alcance ? `<div class="bsub">${alcance}${periodo ? ' · ' + periodo : ''}</div>` : '';
+    return `<div class="band${pb ? ' pb' : ''}"><div><h2>${title}</h2>${sub}</div><span class="n">Sección ${n}</span></div>`;
+  }
   function kc(l, v, s, dark) { return `<div class="kc${dark ? ' dark' : ''}"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`; }
 
   // ── Encabezado + portada memo ──
@@ -206,6 +221,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     return h;
   }
 
+  // ── Índice: qué trae el informe y, sobre todo, QUÉ ALCANCE tiene cada parte ──
+  function secIndice(d) {
+    const filas = [
+      ['Resumen ejecutivo', 'Mes y acumulado', `${PER} · ${ACUM}`],
+      ...(d.pp ? [['Cumplimiento vs presupuesto (PP)', 'Acumulado del año', ACUM]] : []),
+      ['Sección 1 · Utilidad Bruta', 'Mes', PER],
+      ['Sección 2 · Utilidad de Operación', 'Mes', PER],
+      ['Sección 3 · Análisis de Rentabilidad', 'Mes', PER],
+      ['Sección 4 · Conclusiones y Cierre', 'Mes y acumulado', `${PER} · ${ACUM}`],
+      ['Anexos y firmas', '—', '—'],
+    ];
+    return `<div class="idx memo-only"><h4>Contenido del informe</h4>
+      <table class="rt"><tr><th>Apartado</th><th>Alcance</th><th>Periodo</th></tr>
+      ${filas.map(([a, b, c]) => `<tr><td>${a}</td><td>${b}</td><td>${esc(c)}</td></tr>`).join('')}</table>
+      <div class="metod">El informe mezcla dos alcances: la <b>utilidad</b> y el <b>análisis de rentabilidad</b> son
+      del mes; el <b>cumplimiento vs presupuesto</b> es acumulado del año al cierre del mes. No son sumables entre sí.</div></div>`;
+  }
+
   // ── Resumen ejecutivo (narrativa generada en el backend) ──
   function secResumen(d) {
     const n = d.narrativa || {};
@@ -226,7 +259,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let h = `<div class="ppwrap memo-only">
       <div class="pphead">
         <div><div class="eyebrow">Radar · Presupuesto</div>
-          <div class="ppt">Cumplimiento vs PP ${p.anio} — al cierre de ${esc(d.periodo.mes_nombre)}</div></div>
+          <div class="ppt">Cumplimiento vs PP ${p.anio}</div>
+          <div class="ppsub">Acumulado del año · ${esc(ACUM)}</div></div>
         <span class="ppbadge" style="background:${col}">${pct0(p.avance)} del PP</span></div>
       <div class="pp">
         <div class="ppc"><div class="l">PP ${p.anio} (MXN)</div><div class="v">${monM(p.ventas_pp)}</div><div class="sub">presupuesto anual</div></div>
@@ -256,7 +290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Sección 1 — Utilidad bruta (sin cambios respecto del reporte vigente) ──
   function secBruta(r, f) {
-    let h = `<div class="sec">${band('1', 'Utilidad Bruta')}`;
+    let h = `<div class="sec">${band('1', 'Utilidad Bruta', false, 'Resultado del mes', PER)}`;
     h += `<div class="kgrid">
       ${kc('Total ventas', mon2(r.total_ventas))}
       ${kc('Σ Costo MP (sistema)', mon2(r.costo_mp))}
@@ -274,7 +308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (f) {
       const rowf = (l, v, tag) => `<tr><td style="text-align:left;padding:4px 8px">${l}${tag || ''}</td><td style="padding:4px 8px">${v}</td></tr>`;
       const tab = (rows) => `<table class="rt"><tbody>${rows}</tbody></table>`;
-      h += `<h4 style="margin:16px 0 6px;color:#0f172a">Indicadores ABC del periodo</h4>
+      h += `<h4 style="margin:16px 0 6px;color:#0f172a">Indicadores ABC del mes · ${esc(PER)}</h4>
         <div class="mini">
         <div><h4>Importes capturados</h4>${tab(
           rowf('Importe A', mon(f.importe_a)) + rowf('Importe B', mon(f.importe_b)) + rowf('Importe B fijo', mon(f.importe_b_fijo)) + rowf('Importe B prorrateo', mon(f.importe_b_prorrateo)) + rowf('Importe C', mon(f.importe_c)))}</div>
@@ -289,7 +323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Sección 2 — Utilidad de operación ──
   function secOperacion(r, ag) {
-    let h = `<div class="sec">${band('2', 'Utilidad de Operación', true)}`;
+    let h = `<div class="sec">${band('2', 'Utilidad de Operación', true, 'Resultado del mes', PER)}`;
     h += `<p style="font-size:12px;color:#334155;margin:0 0 12px">Sobre la utilidad bruta se descuenta el <b>gasto de venta</b> (comisiones, sueldo, gasto y carga social) prorrateado por kilo vendido de cada agente.</p>`;
     h += `<div class="kgrid">
       ${kc('Utilidad bruta', mon2(r.utilidad_bruta), pct(r.utilidad_bruta_pct))}
@@ -318,7 +352,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Sección 3 — Análisis de rentabilidad ──
   function secAnalisis(d) {
     const cl = d.clientes, pr = d.productos, k = cl.concentracion;
-    let h = `<div class="sec">${band('3', 'Análisis de Rentabilidad', true)}`;
+    let h = `<div class="sec">${band('3', 'Análisis de Rentabilidad', true, 'Resultado del mes', PER)}`;
     h += `<p style="font-size:12px;color:#334155;line-height:1.5">
       &bull; Los <b>4 clientes principales</b> concentran <b>${pct1(k.top4_pct)}</b> de la venta (${mon(k.top4_importe)}).<br/>
       &bull; Los <b>10 principales</b> = <b>${pct1(k.top10_pct)}</b>. ${k.resto_registros > 0 ? `El resto (${k.resto_registros} clientes) aporta ${pct1(k.resto_pct)}.` : ''}<br/>
@@ -329,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <table class="rt"><tr><th>Cliente</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th><th>% acum.</th></tr>${body}</table>`;
     body = '';
     pr.top.forEach((x) => { body += `<tr><td>${x.posicion}. ${esc(x.clave)} · ${esc((x.nombre || '').slice(0, 28))}</td><td>${mon(x.ventas)}</td><td>${mon(x.utilidad_bruta)}</td><td class="pos">${pct1(x.margen)}</td><td>${num(x.kilos)}</td></tr>`; });
-    h += `<h4 style="margin:16px 0 6px">Top 12 productos por venta</h4>
+    h += `<h4 style="margin:16px 0 6px">Top 10 productos por venta</h4>
       <table class="rt"><tr><th>Producto</th><th>Ventas</th><th>Utilidad</th><th>Margen</th><th>Kg</th></tr>${body}</table>`;
     // Alertas: la causa del rojo se distingue en la tabla. "Pérdida" = se vendió
     // por debajo de costo. "Devolución" = ninguna venta perdió dinero; una nota
@@ -366,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function secCierre(d) {
     const n = d.narrativa || {};
     if (!n.conclusiones || !n.conclusiones.length) return '';
-    let h = `<div class="sec memo-only">${band('4', 'Conclusiones y Cierre', true)}<div class="narr">`;
+    let h = `<div class="sec memo-only">${band('4', 'Conclusiones y Cierre', true, 'Mes y acumulado del año', `${PER} · ${ACUM}`)}<div class="narr">`;
     h += `<h3>Conclusiones</h3><ul>${n.conclusiones.map((x) => `<li><b>${esc(x.titulo)}:</b> ${esc(x.texto)}</li>`).join('')}</ul>`;
     if (n.recomendaciones && n.recomendaciones.length) {
       h += `<h3 style="margin-top:18px">Recomendaciones</h3><ul>${n.recomendaciones.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
@@ -408,8 +442,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (cc) qs.set('cc', cc);
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/informe/${anio}/${mes}${qs.toString() ? '?' + qs : ''}`));
       if (!d || !d.resultado) { $('msg').innerHTML = 'No hay resultado calculado para ese periodo. Calcula primero en “Costo de ventas / Utilidad”.'; return; }
+      PER = `${d.periodo.mes_nombre} ${d.periodo.anio}`;
+      ACUM = d.periodo.mes === 1 ? PER : `Enero–${d.periodo.mes_nombre} ${d.periodo.anio}`;
       $('reporte').innerHTML =
-        secPortada(d) + secResumen(d) + secPp(d) +
+        secPortada(d) + secIndice(d) + secResumen(d) + secPp(d) +
         secBruta(d.resultado, d.factores) + secOperacion(d.resultado, d.agentes) +
         secAnalisis(d) + secCierre(d);
       $('msg').innerHTML = 'Informe generado. Pulsa <b>Imprimir / Guardar PDF</b> (Ctrl/Cmd+P → Guardar como PDF).';
