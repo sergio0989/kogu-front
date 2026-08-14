@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ['Resumen ejecutivo', 'Mes y acumulado', `${PER} · ${ACUM}`],
       ...(d.pp ? [['Cumplimiento vs presupuesto (PP)', 'Acumulado del año', ACUM]] : []),
       ['Sección 1 · Utilidad Bruta', 'Mes', PER],
-      ['Sección 2 · Utilidad de Operación', 'Mes', PER],
+      ['Sección 2 · Utilidad Bruta Menos Gasto de Venta', 'Mes', PER],
       ['Sección 3 · Análisis de Rentabilidad', 'Mes', PER],
       ['Sección 4 · Conclusiones y Cierre', 'Mes y acumulado', `${PER} · ${ACUM}`],
       ['Anexos y firmas', '—', '—'],
@@ -321,17 +321,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     return h + `</div>`;
   }
 
-  // ── Sección 2 — Utilidad de operación ──
+  // ── Sección 2 — Utilidad bruta menos gasto de venta ──
   function secOperacion(r, ag) {
-    let h = `<div class="sec">${band('2', 'Utilidad de Operación', true, 'Resultado del mes', PER)}`;
+    let h = `<div class="sec">${band('2', 'Utilidad Bruta Menos Gasto de Venta', true, 'Resultado del mes', PER)}`;
     h += `<p style="font-size:12px;color:#334155;margin:0 0 12px">Sobre la utilidad bruta se descuenta el <b>gasto de venta</b> (comisiones, sueldo, gasto y carga social) prorrateado por kilo vendido de cada agente.</p>`;
     h += `<div class="kgrid">
       ${kc('Utilidad bruta', mon2(r.utilidad_bruta), pct(r.utilidad_bruta_pct))}
       ${kc('(−) Gastos de venta', mon2(r.gastos_venta), pct1((Number(r.gastos_venta) || 0) / (Number(r.total_ventas) || 1)) + ' de ventas')}
-      ${kc('= Utilidad de operación', mon2(r.utilidad_operacion), pct(r.utilidad_operacion_pct), true)}
+      ${kc('= Utilidad bruta menos gasto de venta', mon2(r.utilidad_operacion), pct(r.utilidad_operacion_pct), true)}
     </div>`;
     h += `<table class="rt" style="margin-top:14px">
-      <tr><th>Utilidad bruta</th><th>(−) Gasto de venta</th><th>= Utilidad de operación</th></tr>
+      <tr><th>Utilidad bruta</th><th>(−) Gasto de venta</th><th>= Utilidad bruta menos gasto de venta</th></tr>
       <tr><td style="text-align:right" class="pos">${mon(r.utilidad_bruta)}</td><td>${mon(r.gastos_venta)}</td><td class="pos">${mon(r.utilidad_operacion)}</td></tr>
       <tr style="color:#64748b;font-size:10px"><td style="text-align:right">${pct1(r.utilidad_bruta_pct)}</td><td>${pct1((Number(r.gastos_venta) || 0) / (Number(r.total_ventas) || 1))}</td><td>${pct1(r.utilidad_operacion_pct)}</td></tr>
     </table>`;
@@ -343,8 +343,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       const t = ag.totales || {};
       body += `<tr class="tot"><td>TOTAL</td><td>${mon(t.total_ventas)}</td><td>${mon(t.costo_integrado)}</td><td>${mon(t.gastos_venta)}</td><td>${mon(t.utilidad_operacion)}</td><td>${pct1(t.utilidad_operacion_pct)}</td></tr>`;
-      h += `<h4 style="margin:18px 0 6px;color:#0f172a">Utilidad de operación por agente</h4>
-        <table class="rt"><tr><th>Agente</th><th>Ventas</th><th>Costo int.</th><th>Gasto venta</th><th>Util. oper.</th><th>% Oper.</th></tr>${body}</table>`;
+      h += `<h4 style="margin:18px 0 6px;color:#0f172a">Utilidad bruta menos gasto de venta, por agente</h4>
+        <table class="rt"><tr><th>Agente</th><th>Ventas</th><th>Costo int.</th><th>Gasto venta</th><th>Util. − gasto vta</th><th>% s/ventas</th></tr>${body}</table>`;
     }
     return h + `</div>`;
   }
