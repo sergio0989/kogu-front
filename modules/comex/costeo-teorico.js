@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const c = $('pageContent');
   const money = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const n2 = (v) => (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const nm = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const fdate = (v) => v ? String(v).slice(0, 10) : '';
 
