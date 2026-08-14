@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const qs = (o) => { const p = Object.entries(o || {}).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`); return p.length ? '?' + p.join('&') : ''; };
   const debTimers = {};
   const deb = (key, fn, ms = 500) => { clearTimeout(debTimers[key]); debTimers[key] = setTimeout(fn, ms); };
+  // Formato de moneda para el input de captura: miles + hasta 2 decimales.
+  const capFmt = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const capParse = (s) => { const n = parseFloat(String(s).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
 
   const MODOS = { usd_fijo: 'USD fijo', mxn_fijo: 'MXN fijo', usd_kg: 'USD/kg', mxn_kg: 'MXN/kg', pct_base: '% s/aduana' };
   // modo_captura ↔ (base, moneda): base=fijo|kg|pct · moneda=USD|MXN
@@ -228,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const monCell = x.es_arancel ? '<span class="muted">—</span>'
         : `<select class="cmon" data-i="${i}" style="${iSt}"><option value="USD" ${bm.mon === 'USD' ? 'selected' : ''}>USD</option><option value="MXN" ${bm.mon === 'MXN' ? 'selected' : ''}>MXN</option></select>`;
       const capCell = x.es_arancel ? '<span class="muted">por escenario</span>'
-        : `<input class="cval" data-i="${i}" value="${x.valor_captura}" style="width:92px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px"/>`;
+        : `<input class="cval" data-i="${i}" inputmode="decimal" value="${capFmt(x.valor_captura)}" style="width:100px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px"/>`;
       return `<tr style="border-bottom:1px solid #f1f5f9">
         <td style="text-align:left;padding:6px 6px 6px 24px">${esc(x.nombre || '')}</td>
         <td style="padding:6px">${capaTag(x.capa_incoterm)}</td>
@@ -250,11 +253,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!collapsed.ddp) ddpItems.forEach(o => { body += rowHtml(o.x, o.i); });
     $('tConc').innerHTML = head + '<tbody>' + body + '</tbody>';
     $('tConc').querySelectorAll('.grp').forEach(row => row.addEventListener('click', () => { collapsed[row.dataset.g] = !collapsed[row.dataset.g]; renderConceptos(); }));
-    $('tConc').querySelectorAll('.cval').forEach(inp => inp.addEventListener('input', () => {
-      const i = +inp.dataset.i; D.conceptos[i].valor_captura = parseFloat(inp.value) || 0;
-      updateComputed();  // actualiza celdas sin re-render → no pierde el foco
-      deb('conc_' + D.conceptos[i].linea_id, () => patchConc(D.conceptos[i].linea_id, { valor_captura: D.conceptos[i].valor_captura }));
-    }));
+    $('tConc').querySelectorAll('.cval').forEach(inp => {
+      // Al enfocar muestra el número limpio; al salir lo re-formatea como moneda.
+      inp.addEventListener('focus', () => { const v = D.conceptos[+inp.dataset.i].valor_captura; inp.value = v ? String(v) : ''; inp.select(); });
+      inp.addEventListener('blur', () => { inp.value = capFmt(D.conceptos[+inp.dataset.i].valor_captura); });
+      inp.addEventListener('input', () => {
+        const i = +inp.dataset.i; D.conceptos[i].valor_captura = capParse(inp.value);
+        updateComputed();  // actualiza celdas sin re-render → no pierde el foco
+        deb('conc_' + D.conceptos[i].linea_id, () => patchConc(D.conceptos[i].linea_id, { valor_captura: D.conceptos[i].valor_captura }));
+      });
+    });
     $('tConc').querySelectorAll('.cbase').forEach(sel => sel.addEventListener('change', () => {
       const i = +sel.dataset.i, bm = modoToBaseMon(D.conceptos[i].modo_captura);
       D.conceptos[i].modo_captura = baseMonToModo(sel.value, bm.mon);
