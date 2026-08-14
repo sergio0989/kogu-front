@@ -60,12 +60,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte { background:#fff; color:#0f172a; }
   #reporte .band { background:#0e7490; color:#fff; padding:12px 16px; border-radius:8px; margin:18px 0 12px; display:flex; justify-content:space-between; align-items:center; }
   #reporte .band h2 { margin:0; font-size:16px; }
-  #reporte .band .bsub { font-size:10.5px; color:#cbd5e1; margin-top:2px; font-weight:600; letter-spacing:.2px; }
+  #reporte .band .bsub { font-size:16px; color:#a5f3fc; margin-top:3px; font-weight:700; letter-spacing:.2px; }
   #reporte .band .n { font-size:11.5px; font-weight:800; opacity:.7; letter-spacing:.8px; text-transform:uppercase; white-space:nowrap; }
   #reporte .idx { border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; margin-top:14px; }
   #reporte .idx h4 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
   #reporte .idx table.rt td:nth-child(2), #reporte .idx table.rt td:nth-child(3) { text-align:right; white-space:nowrap; }
-  #reporte .ppsub { font-size:10.5px; color:#64748b; font-weight:600; margin-top:2px; }
+  #reporte .ppsub { font-size:15px; color:#0e7490; font-weight:700; margin-top:3px; }
   #reporte .kgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   #reporte .kc { background:#f1f5f9; border-radius:8px; padding:12px 14px; }
   #reporte .kc.dark { background:#0e7490; color:#fff; }
