@@ -398,6 +398,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         <table class="rt"><tr style="background:#7f1d1d">${th('Producto')}${th('Ventas del periodo')}${th('Utilidad')}${th('Margen')}${th('Devuelto')}${th('Estado')}</tr>${body}</table>
         <div class="metod">Ventas, utilidad y margen son <b>de la venta del periodo</b>, sin notas de crédito. La columna <b>Devuelto</b> muestra el importe reversado por notas: cuando ese reverso supera la utilidad del mes, el producto cierra en rojo sin que ninguna operación se haya vendido bajo costo.</div></div>`;
     }
+    // Anomalías de costo por lote (mismo producto, lote caro): capa de revisión.
+    const an = (d.anomalias_costo_lote && d.anomalias_costo_lote.rows) || [];
+    if (an.length) {
+      const meta = d.anomalias_costo_lote.meta || {};
+      const pctU = Math.round((Number(meta.tol_pct) || 0.10) * 100);
+      const totalSob = meta.total_sobrecosto != null ? meta.total_sobrecosto
+        : an.reduce((s, x) => s + (Number(x.sobrecosto) || 0), 0);
+      let ab = '';
+      an.forEach((x) => {
+        ab += `<tr><td>${esc(x.cve_prod)} · ${esc((x.desc_prod || '').slice(0, 22))}</td><td>${esc(x.lote)}</td><td class="neg">${mon2(x.costo_lote)}</td><td>${mon2(x.mediana)}</td><td class="neg">+${Math.round((Number(x.pct_arriba) || 0) * 100)}%</td><td>${num(x.kg)}</td><td class="neg">${mon(x.sobrecosto)}</td><td style="font-size:10px">${esc((x.facturas || []).join(', '))}</td></tr>`;
+      });
+      const th = (t) => `<th style="background:#7f1d1d">${t}</th>`;
+      h += `<div class="pb">
+        <div class="cont">Sección 3 · Anomalías de costo por lote · ${esc(PER)}</div>
+        <h4 style="margin:10px 0 6px;color:#7f1d1d">Anomalías de costo por lote <span style="font-weight:400;color:#64748b;font-size:12px">(mismo producto, lote ≥${pctU}% sobre la mediana · sobrecosto estimado ${mon(totalSob)})</span></h4>
+        <table class="rt"><tr style="background:#7f1d1d">${th('Producto')}${th('Lote')}${th('Costo/kg')}${th('Mediana')}${th('Arriba')}${th('Kg')}${th('Sobrecosto')}${th('Facturas')}</tr>${ab}</table>
+        <div class="metod">El costo por lote viene de la producción/compra de ese lote; un salto sobre la mediana del mismo producto suele indicar alza de MP o merma en ese lote — candidato a <b>repreciar</b>. Es una capa de revisión; no altera el costo calculado.</div></div>`;
+    }
     return h + `</div>`;
   }
 
@@ -447,6 +465,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (cc) qs.set('cc', cc);
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/informe/${anio}/${mes}${qs.toString() ? '?' + qs : ''}`));
       if (!d || !d.resultado) { $('msg').innerHTML = 'No hay resultado calculado para ese periodo. Calcula primero en “Costo de ventas / Utilidad”.'; return; }
+      // Anomalías de costo por lote (capa de revisión, best-effort: no rompe el informe si falla).
+      try {
+        const rr = await KoguApi.apiFetch(`${BASE}/anomalias-costo-lote/${anio}/${mes}`);
+        d.anomalias_costo_lote = { rows: KoguApi.unwrapData(rr) || [], meta: rr?.meta || {} };
+      } catch { d.anomalias_costo_lote = { rows: [], meta: {} }; }
       PER = `${d.periodo.mes_nombre} ${d.periodo.anio}`;
       ACUM = d.periodo.mes === 1 ? PER : `Enero–${d.periodo.mes_nombre} ${d.periodo.anio}`;
       $('reporte').innerHTML =

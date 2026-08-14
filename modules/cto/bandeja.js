@@ -100,7 +100,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn ghost" id="prev">‹</button><button class="btn ghost" id="next">›</button>
     </span>
   </div>
-</div>`;
+</div>
+<div id="anomWrap" style="margin-top:16px"></div>`;
 
   const fmtMon = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtNum = (v) => (Number(v) || 0).toLocaleString('es-MX');
@@ -167,7 +168,48 @@ document.addEventListener('DOMContentLoaded', async () => {
       render(rows);
       $('pgInfo').textContent = total ? `Mostrando página ${page}/${totalPages} · ${fmtNum(total)} renglones` : 'Sin resultados';
       $('prev').disabled = page <= 1; $('next').disabled = page >= totalPages;
+      loadAnom(anio, mes);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  // ── Panel: anomalías de costo por lote (mismo producto, lote con costo caro) ──
+  async function loadAnom(anio, mes) {
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/anomalias-costo-lote/${anio}/${mes || 0}`);
+      renderAnom(KoguApi.unwrapData(res) || [], res?.meta || {});
+    } catch (_e) { $('anomWrap').innerHTML = ''; }
+  }
+
+  function renderAnom(rows, meta) {
+    const wrap = $('anomWrap');
+    if (!rows.length) { wrap.innerHTML = ''; return; }
+    const pct = Math.round((Number(meta.tol_pct) || 0.10) * 100);
+    const filas = rows.map(r => `<tr>
+        <td>${esc(r.cve_prod)}<div style="font-size:10px;color:#94a3b8">${esc((r.desc_prod || '').slice(0, 34))}</div></td>
+        <td>${esc(r.lote)}</td>
+        <td style="text-align:right;color:#b91c1c;font-weight:700">${fmtMon(r.costo_lote)}</td>
+        <td style="text-align:right;color:#64748b">${fmtMon(r.mediana)}</td>
+        <td style="text-align:center"><span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:700;padding:1px 6px">+${(Number(r.pct_arriba) * 100).toFixed(0)}%</span></td>
+        <td style="text-align:right">${fmtNum(Math.round(Number(r.kg) || 0))}</td>
+        <td style="text-align:right;font-weight:700">${fmtMon(r.sobrecosto)}</td>
+        <td style="font-size:11px;color:#475569">${esc((r.facturas || []).join(', '))}</td>
+      </tr>`).join('');
+    wrap.innerHTML = `<div class="card">
+      <div class="row">
+        <div><div class="eyebrow" style="color:#b91c1c">Revisión de costo</div>
+          <h3 style="margin:2px 0">⚠ Anomalías de costo por lote</h3>
+          <div class="muted" style="font-size:12px">Mismo producto, lote con costo ≥${pct}% sobre la mediana del producto. Posible alza de MP/producción a repreciar.</div></div>
+        <div style="text-align:right"><div class="muted" style="font-size:12px">Sobrecosto estimado</div>
+          <div style="font-size:20px;font-weight:800;color:#b91c1c">${fmtMon(meta.total_sobrecosto || 0)}</div>
+          <div class="muted" style="font-size:11px">${rows.length} lote(s)</div></div>
+      </div>
+      <div class="table-wrap" style="margin-top:12px"><table>
+        <thead><tr>
+          <th>Producto</th><th>Lote</th><th style="text-align:right">Costo/kg</th>
+          <th style="text-align:right">Mediana</th><th style="text-align:center">Arriba</th>
+          <th style="text-align:right">Kg</th><th style="text-align:right">Sobrecosto</th><th>Facturas</th>
+        </tr></thead><tbody>${filas}</tbody></table></div>
+    </div>`;
   }
 
   function render(rows) {
