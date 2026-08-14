@@ -321,15 +321,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const patchConc = (lineaId, patch) => api('/costeos/' + D.costeo.costeo_id + '/conceptos/' + lineaId, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
   const patchEsc = (escId, patch) => api('/costeos/' + D.costeo.costeo_id + '/escenarios/' + escId, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
 
+  async function agregarConceptoAlCosteo(cat) {
+    const modo = cat.modo_default || cat.modo_captura || 'usd_fijo';
+    await api('/costeos/' + D.costeo.costeo_id + '/conceptos', { method: 'POST', body: JSON.stringify({ concepto_id: cat.concepto_id || null, nombre: cat.nombre, capa_incoterm: cat.capa_incoterm, modo_captura: modo, es_arancel: !!cat.es_arancel, moneda: String(modo).startsWith('mxn') ? 'MXN' : 'USD', orden: cat.orden || 100 }) });
+    openDetail(D.costeo.costeo_id);
+  }
   function addConcepto() {
-    if (!CATS.length) { KoguApi.toast('Sin catálogo de conceptos.', 'error'); return; }
-    pickerConcepto(async (cat) => {
-      if (!cat) return;
-      try {
-        await api('/costeos/' + D.costeo.costeo_id + '/conceptos', { method: 'POST', body: JSON.stringify({ concepto_id: cat.concepto_id, nombre: cat.nombre, capa_incoterm: cat.capa_incoterm, modo_captura: cat.modo_default, es_arancel: cat.es_arancel, moneda: cat.modo_default.startsWith('mxn') ? 'MXN' : 'USD', orden: cat.orden }) });
-        openDetail(D.costeo.costeo_id);
-      } catch (e) { KoguApi.toast(e.message, 'error'); }
-    });
+    pickerConcepto((cat) => { if (cat) agregarConceptoAlCosteo(cat).catch(e => KoguApi.toast(e.message, 'error')); });
   }
   async function addEscenario() {
     const nombre = prompt('Nombre del escenario:', 'Nuevo arancel');
@@ -548,15 +546,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     modal('Agregar concepto', 'Catálogo de conceptos de costo', async (term, list, close) => {
       const t = term.toLowerCase();
       const rows = (CATS || []).filter(c => !t || `${c.clave} ${c.nombre}`.toLowerCase().includes(t));
-      list.innerHTML = rows.length ? rows.map((c, i) => {
+      const items = rows.map((c, i) => {
         const cap = String(c.capa_incoterm || '').toLowerCase();
         const [bg, co] = CAPA_COL[cap] || ['#f1f5f9', '#475569'];
         const ya = yaClaves.has(String(c.clave || '').toUpperCase());
         return `<button class="btn ghost" data-i="${i}" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px">
           <span style="flex:1"><strong>${esc(c.nombre)}</strong> <span class="muted" style="font-size:11px">${esc(c.clave)}</span>${ya ? ' <span style="font-size:10px;color:#94a3b8">· ya agregado</span>' : ''}</span>
           <span style="background:${bg};color:${co};font-size:10px;font-weight:700;padding:1px 8px;border-radius:999px;text-transform:uppercase">${esc(c.capa_incoterm || '')}</span></button>`;
-      }).join('') : '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>';
+      }).join('');
+      const crear = `<button data-crear style="display:block;width:100%;text-align:left;margin-top:6px;padding:9px 10px;border:1px dashed #a5f3fc;background:#ecfeff;color:#0e7490;font-weight:700;border-radius:8px;cursor:pointer">＋ Crear concepto nuevo${term ? ` «${esc(term)}»` : ''}</button>`;
+      list.innerHTML = (rows.length ? items : '<div class="muted" style="padding:10px;text-align:center">Sin coincidencias en el catálogo.</div>') + crear;
       list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { close(); onPick(rows[+bn.dataset.i]); }));
+      list.querySelector('button[data-crear]').addEventListener('click', () => { close(); crearConceptoForm(term, onPick); });
+    });
+  }
+
+  // Formulario para crear un concepto que no está en el catálogo. Lo crea en
+  // cat_comex_conceptos (reutilizable, permiso admin) y lo agrega al costeo.
+  function crearConceptoForm(prefill, onPick) {
+    const capas = [['exw', 'EXW · mercancía'], ['cfr', 'CFR · hasta frontera'], ['ddp', 'DDP · nacionales']];
+    const modos = [['usd_fijo', 'USD fijo'], ['mxn_fijo', 'MXN fijo'], ['usd_kg', 'USD por kg'], ['mxn_kg', 'MXN por kg'], ['pct_base', '% sobre base']];
+    const claveDe = (s) => String(s || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24);
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;z-index:10000;padding-top:8vh';
+    ov.innerHTML = `<div class="card" style="width:520px;max-width:92vw;margin:0">
+      <div class="row"><div><h3 style="margin:0">Crear concepto nuevo</h3><div class="muted" style="font-size:11px">Se agrega al catálogo (reutilizable) y a este costeo</div></div><button class="btn ghost" id="cX">✕</button></div>
+      <div style="margin-top:12px;display:grid;gap:10px">
+        <div><label class="muted" style="font-size:12px;display:block">Nombre</label><input class="input" id="cNom" value="${esc(prefill || '')}" placeholder="p.ej. Seguro de carga"/></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label class="muted" style="font-size:12px;display:block">Clave</label><input class="input" id="cClave" value="${esc(claveDe(prefill))}" placeholder="SEG_CARGA"/></div>
+          <div style="flex:1"><label class="muted" style="font-size:12px;display:block">Capa de incoterm</label><select class="input" id="cCapa">${capas.map(([v, l]) => `<option value="${v}"${v === 'ddp' ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1"><label class="muted" style="font-size:12px;display:block">Modo de captura</label><select class="input" id="cModo">${modos.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;padding:8px 4px"><input type="checkbox" id="cAran"/> Es arancel</label>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn ghost" id="cCancel">Cancelar</button><button class="btn primary" id="cOk">Crear y agregar</button></div></div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('#cX').addEventListener('click', close);
+    ov.querySelector('#cCancel').addEventListener('click', close);
+    const nomEl = ov.querySelector('#cNom'), claveEl = ov.querySelector('#cClave');
+    let claveTocada = false;
+    claveEl.addEventListener('input', () => { claveTocada = true; });
+    nomEl.addEventListener('input', () => { if (!claveTocada) claveEl.value = claveDe(nomEl.value); });
+    nomEl.focus();
+    ov.querySelector('#cOk').addEventListener('click', async () => {
+      const nombre = nomEl.value.trim();
+      const clave = claveDe(claveEl.value) || claveDe(nombre);
+      if (!nombre) { KoguApi.toast('Escribe un nombre.', 'error'); return; }
+      if (!clave) { KoguApi.toast('Escribe una clave.', 'error'); return; }
+      const body = { clave, nombre, capa_incoterm: ov.querySelector('#cCapa').value, modo_default: ov.querySelector('#cModo').value, es_arancel: ov.querySelector('#cAran').checked, orden: 100 };
+      const btn = ov.querySelector('#cOk'); btn.disabled = true; btn.textContent = 'Creando…';
+      try {
+        const nuevo = data(await api('/conceptos', { method: 'POST', body: JSON.stringify(body) }));
+        await loadCats();
+        close();
+        if (nuevo && onPick) onPick(nuevo);
+        KoguApi.toast('Concepto «' + nombre + '» creado', 'success');
+      } catch (e) { KoguApi.toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Crear y agregar'; }
     });
   }
   function pickerUsuario(onPick) {
