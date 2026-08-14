@@ -170,7 +170,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div class="card" style="margin-top:14px">
   <div class="row"><div><h3 style="margin:0">Escenarios de arancel</h3><span class="muted" style="font-size:12px">arancel sobre el valor en aduana (EXW + flete int'l + gastos origen)</span></div>
-    <button class="btn ghost" id="addEscBtn">＋ Escenario</button></div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:5px" title="Margen opcional: precio = DDP/kg × (1 + utilidad). Déjalo vacío si no aplica.">Utilidad <input id="utilPct" value="${D.costeo.utilidad_pct == null ? '' : D.costeo.utilidad_pct}" placeholder="opc." inputmode="decimal" style="width:58px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px"/> %</label>
+      <button class="btn ghost" id="addEscBtn">＋ Escenario</button>
+    </div></div>
   <div id="escGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:8px"></div>
   <div style="margin-top:14px"><div class="muted" style="font-size:11px;font-weight:700;margin-bottom:4px">Escalera de incoterm (por kg · USD, sin arancel) · % = participación de cada tramo en el DDP</div>
     <div id="ladder" style="display:flex;gap:8px;flex-wrap:wrap"></div></div>
@@ -179,6 +182,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('volverBtn').addEventListener('click', renderList);
     $('dupBtn').addEventListener('click', duplicar);
     $('saveBtn').addEventListener('click', guardarDatos);
+    $('utilPct').addEventListener('input', () => {
+      const v = $('utilPct').value.trim().replace(',', '.');
+      D.costeo.utilidad_pct = v === '' ? 0 : (parseFloat(v) || 0);
+      renderResultados();
+      deb('util', () => patchCab({ utilidad_pct: D.costeo.utilidad_pct }));
+    });
     $('verBtn').addEventListener('click', guardarVersion);
     $('histBtn').addEventListener('click', toggleHist);
     $('addConcBtn').addEventListener('click', addConcepto);
@@ -306,6 +315,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderResultados() {
     const r = calcular();
+    const util = Number(D.costeo.utilidad_pct) || 0; // 0 / vacío → sin precio
+    const k = 1 + util / 100;
     const best = r.escs.reduce((m, e) => e.ddp_kg < m.ddp_kg ? e : m, r.escs[0] || { ddp_kg: 0 });
     $('escGrid').innerHTML = r.escs.map(e => `<div style="border:1px solid ${e === best ? '#bbf7d0' : 'var(--line)'};border-radius:10px;padding:12px 14px;background:${e === best ? '#f0fdf4' : '#f8fafc'}">
       <div style="font-size:12px;font-weight:800;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -316,6 +327,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:2px"><span class="muted">Total DDP</span><b>${money(e.total)}</b></div>
       <div style="font-size:22px;font-weight:800;margin-top:8px;border-top:1px solid var(--line);padding-top:8px">${money(e.ddp_kg)} <span style="font-size:13px;color:var(--muted)">DDP US$/kg</span></div>
       <div class="muted" style="font-size:11px">Factor ${e.factor.toFixed(2)}× · MXN ${money(e.ddp_kg_mxn)}/kg</div>
+      ${util > 0 ? `<div style="margin-top:8px;border-top:1px dashed #86efac;padding-top:6px">
+        <div style="font-size:18px;font-weight:800;color:#166534">${money(e.ddp_kg * k)} <span style="font-size:12px">Precio US$/kg</span></div>
+        <div style="font-size:11px;color:#166534;opacity:.9">+${util}% util · MXN ${money(e.ddp_kg_mxn * k)}/kg · total ${money(e.total * k)}</div></div>` : ''}
     </div>`).join('') || '<div class="muted" style="font-size:13px">Sin escenarios.</div>';
     const total0 = r.escs[0] ? r.escs[0].total : 0;
     const pct = (part) => total0 > 0 ? (part / total0 * 100).toFixed(1) + '% del DDP' : '';
@@ -362,7 +376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Object.keys(debTimers).forEach(k => clearTimeout(debTimers[k]));
     try {
       await Promise.all([
-        patchCab({ folio: it.folio, fecha: it.fecha, origen_proveedor: it.origen_proveedor, proveedor_id: it.proveedor_id, modo_transporte: it.modo_transporte, tip_cam: it.tip_cam, kg: it.kg, costo_unit_exw: it.costo_unit_exw }),
+        patchCab({ folio: it.folio, fecha: it.fecha, origen_proveedor: it.origen_proveedor, proveedor_id: it.proveedor_id, modo_transporte: it.modo_transporte, tip_cam: it.tip_cam, kg: it.kg, costo_unit_exw: it.costo_unit_exw, utilidad_pct: it.utilidad_pct }),
         ...D.conceptos.map(x => patchConc(x.linea_id, { valor_captura: x.valor_captura, modo_captura: x.modo_captura, moneda: x.moneda })),
         ...D.escenarios.map(e => patchEsc(e.escenario_id, { nombre: e.nombre, arancel_pct: e.arancel_pct })),
       ]);
