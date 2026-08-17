@@ -539,7 +539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${rs.bajo ? `<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px">↓ ${rs.bajo} bajo</span>` : ''}
       ${rs.sobre ? `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:6px">↑ ${rs.sobre} sobre</span>` : ''}
       ${rs.dentro ? `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:6px">✓ ${rs.dentro} dentro</span>` : ''}</div>`;
-    const cmp = `<div style="font-weight:700;color:#334155;font-size:12.5px;margin:2px 0 6px">Comparación por bloque (USD/kg) · teórico vigente vs real</div>
+    const cmp = `<div style="display:flex;justify-content:space-between;align-items:center;margin:2px 0 6px"><span style="font-weight:700;color:#334155;font-size:12.5px">Comparación por bloque (USD/kg) · teórico vigente vs real</span><button class="btn ghost" id="calcBtn" style="font-size:11px;padding:2px 10px">ⓘ detalle del cálculo</button></div>
       <table class="table" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
         <th style="text-align:left;padding:6px">Bloque</th><th>Teórico</th><th>Real</th><th>Desv</th><th style="text-align:right;padding:6px">Estado</th></tr></thead><tbody>
         ${brow('Materia prima', teoMp, realMp)}${brow('Flete internacional', teoFle, realFle)}${brow('Gastos nacionales', teoGas, realGas)}${brow('DDP total', teoDdp, realDdp, true)}</tbody></table>`;
@@ -551,6 +551,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${ops.map(o => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right"><td style="text-align:left;padding:5px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)} <span class="muted" style="font-weight:400;font-size:10.5px">v${esc(o.costeo_version || '')}</span></td><td style="text-align:left;padding:5px 6px;color:#64748b">${esc(o.periodo)}</td><td style="padding:5px 6px">${n0(o.kg_total)}</td><td style="padding:5px 6px">$${(Number(o.total_kg) || 0).toFixed(2)}</td><td style="padding:5px 6px;color:#b45309">$${(Number(o.teo_kg) || 0).toFixed(2)}</td><td style="padding:5px 6px;font-weight:700;color:${Number(o.desv_pct) > 0 ? '#991b1b' : '#166534'}">${o.desv_pct == null ? '—' : (Number(o.desv_pct) * 100).toFixed(1) + '%'}</td><td style="padding:5px 6px;text-align:right">${rchip(o.resultado)}</td></tr>`).join('')}
       </tbody></table></div>`;
     box.innerHTML = resumen + cmp + lista;
+    if ($('calcBtn')) $('calcBtn').addEventListener('click', abrirCalc);
+  }
+
+  // Modal genérico para el detalle del cálculo.
+  function modalCalc(titulo, bodyHtml) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto';
+    ov.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:820px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e2e8f0"><h3 style="margin:0">${esc(titulo)}</h3><button class="btn ghost" id="cmX" style="font-size:18px;line-height:1;padding:2px 10px">✕</button></div>
+      <div style="padding:14px 18px;max-height:72vh;overflow:auto">${bodyHtml}</div></div>`;
+    ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+    ov.querySelector('#cmX').addEventListener('click', () => ov.remove());
+    const onEsc = (e) => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', onEsc); } };
+    document.addEventListener('keydown', onEsc);
+  }
+  // Detalle del promedio ponderado por kg (peso de cada operación).
+  function abrirCalc() {
+    const ops = (realesData && realesData.ops) || [], rs = (realesData && realesData.resumen) || {};
+    const totKg = Number(rs.kg) || ops.reduce((a, o) => a + (Number(o.kg_total) || 0), 0) || 1;
+    const rows = ops.map(o => {
+      const kg = Number(o.kg_total) || 0;
+      return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+        <td style="text-align:left;padding:5px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
+        <td style="padding:5px 6px">${n0(kg)}</td>
+        <td style="padding:5px 6px;font-weight:700;color:#0891b2">${(kg / totKg * 100).toFixed(1)}%</td>
+        <td style="padding:5px 6px">$${(Number(o.mp_kg) || 0).toFixed(4)}</td>
+        <td style="padding:5px 6px">$${(Number(o.flete_kg) || 0).toFixed(4)}</td>
+        <td style="padding:5px 6px">$${(Number(o.otros_kg) || 0).toFixed(4)}</td></tr>`;
+    }).join('');
+    const wtd = (v) => ops.reduce((a, o) => a + (Number(o[v]) || 0) * (Number(o.kg_total) || 0), 0) / totKg;
+    const foot = `<tr style="background:#ecfeff;font-weight:800;text-align:right">
+      <td style="text-align:left;padding:6px">Ponderado</td><td style="padding:6px">${n0(totKg)}</td><td style="padding:6px">100%</td>
+      <td style="padding:6px">$${wtd('mp_kg').toFixed(4)}</td><td style="padding:6px">$${wtd('flete_kg').toFixed(4)}</td><td style="padding:6px">$${wtd('otros_kg').toFixed(4)}</td></tr>`;
+    const html = `<div class="muted" style="font-size:12px;margin-bottom:8px">Real/kg de cada bloque = <b>Σ(valor/kg × kg) ÷ Σ kg</b>. Cada operación pesa según sus kilos, por eso es <b>ponderado</b>, no promedio simple: la op grande manda más.</div>
+      <div style="overflow-x:auto"><table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
+        <th style="text-align:left;padding:5px 6px">Pedimento</th><th>Kg</th><th>Peso</th><th>MP/kg</th><th>Flete/kg</th><th>Gastos nac/kg</th></tr></thead>
+        <tbody>${rows}${foot}</tbody></table></div>`;
+    modalCalc('Detalle del cálculo · promedio ponderado por kg', html);
   }
 
   async function agregarConceptoAlCosteo(cat) {
