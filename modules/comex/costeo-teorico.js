@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const LB = 0.45359237;
   const esLb = (o) => (((o && o.unidad_captura) || 'kg') === 'lb');
 
+  let vistaSimple = true; // Conceptos: Simple (3 bloques) | Detallado
+  const esFleteInt = (x) => String(x.clave || x.nombre || '').toUpperCase().includes('FLE_INT') || /flete\s+inter/i.test(x.nombre || '');
   const MODOS = { usd_fijo: 'USD fijo', mxn_fijo: 'MXN fijo', usd_kg: 'USD/kg', mxn_kg: 'MXN/kg', pct_base: '% s/aduana' };
   // modo_captura ↔ (base, moneda): base=fijo|kg|pct · moneda=USD|MXN
   const modoToBaseMon = (m) => m === 'pct_base' ? { base: 'pct', mon: '—' } : { base: m.endsWith('_kg') ? 'kg' : 'fijo', mon: m.startsWith('mxn') ? 'MXN' : 'USD' };
@@ -174,8 +176,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div class="card" style="margin-top:14px">
-  <div class="row"><div><h3 style="margin:0">Conceptos de costo</h3><span class="muted" style="font-size:12px">capa de incoterm + modo de captura</span></div>
-    <button class="btn ghost" id="addConcBtn">＋ Agregar concepto</button></div>
+  <div class="row"><div><h3 style="margin:0">Conceptos de costo</h3><span class="muted" style="font-size:12px" id="concSub"></span></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+        <button class="btn ghost" id="vSimple" style="border:0;border-radius:0;padding:4px 12px">Simple</button>
+        <button class="btn ghost" id="vDet" style="border:0;border-radius:0;padding:4px 12px;border-left:1px solid var(--line)">Detallado</button>
+      </div>
+      <button class="btn ghost" id="addConcBtn">＋ Agregar concepto</button>
+    </div></div>
   <div style="overflow-x:auto;margin-top:10px"><table id="tConc" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
 </div>
 
@@ -203,6 +211,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('histBtn').addEventListener('click', toggleHist);
     $('addConcBtn').addEventListener('click', addConcepto);
     $('addEscBtn').addEventListener('click', addEscenario);
+    $('vSimple').addEventListener('click', () => { vistaSimple = true; renderConceptos(); });
+    $('vDet').addEventListener('click', () => { vistaSimple = false; renderConceptos(); });
     // cabecera → persistir + recalc
     const bindCab = (id, field, num) => $(id).addEventListener('input', () => {
       D.costeo[field] = num ? (parseFloat($(id).value) || 0) : $(id).value;
@@ -262,7 +272,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     }));
   }
 
+  // Toggle Simple/Detallado: estilo + subtítulo + botón agregar (solo detallado).
+  function pintaToggle() {
+    if ($('vSimple')) { $('vSimple').style.background = vistaSimple ? '#0891b2' : ''; $('vSimple').style.color = vistaSimple ? '#fff' : ''; }
+    if ($('vDet')) { $('vDet').style.background = !vistaSimple ? '#0891b2' : ''; $('vDet').style.color = !vistaSimple ? '#fff' : ''; }
+    if ($('addConcBtn')) $('addConcBtn').style.display = vistaSimple ? 'none' : '';
+    if ($('concSub')) $('concSub').textContent = vistaSimple ? '3 bloques: materia prima · flete internacional · gastos nacionales' : 'capa de incoterm + modo de captura';
+  }
+
+  // Colapsa los N conceptos de gastos (todo lo no-arancel salvo flete int'l) en
+  // un solo bloque "Gastos nacionales" (MXN fijo = suma), para editar en Simple.
+  async function colapsarGastos() {
+    const r = calcular();
+    const gastos = D.conceptos.filter(x => !x.es_arancel && !esFleteInt(x));
+    if (gastos.length < 2) return;
+    const gastosMxn = gastos.reduce((a, x) => a + importeUSD(x, r.tc, r.kg), 0) * (Number(D.costeo.tip_cam) || 0);
+    if (!confirm(`Esto reemplaza los ${gastos.length} conceptos de gastos por un solo bloque "Gastos nacionales" (MXN ${n2(gastosMxn)}). El detalle se pierde. ¿Continuar?`)) return;
+    try {
+      for (const g of gastos) await api('/costeos/' + D.costeo.costeo_id + '/conceptos/' + g.linea_id, { method: 'DELETE' });
+      await api('/costeos/' + D.costeo.costeo_id + '/conceptos', { method: 'POST', body: JSON.stringify({ concepto_id: null, nombre: 'Gastos nacionales', capa_incoterm: 'ddp', modo_captura: 'mxn_fijo', es_arancel: false, valor_captura: gastosMxn, moneda: 'MXN', orden: 500 }) });
+      openDetail(D.costeo.costeo_id);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  // Vista Simple: 3 bloques (MP · flete int'l · gastos nacionales) + DDP.
+  function renderConceptosSimple() {
+    pintaToggle();
+    const r = calcular();
+    const flete = D.conceptos.filter(x => !x.es_arancel && esFleteInt(x));
+    const gastos = D.conceptos.filter(x => !x.es_arancel && !esFleteInt(x));
+    const fleteUsd = flete.reduce((a, x) => a + importeUSD(x, r.tc, r.kg), 0);
+    const gastosUsd = gastos.reduce((a, x) => a + importeUSD(x, r.tc, r.kg), 0);
+    const ddpUsd = r.exwTotal + fleteUsd + gastosUsd;
+    const iSt = 'width:110px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px';
+    // Celda de captura del bloque: 1 concepto→editable · 0→crear · ≥2→colapsar.
+    const capCell = (concepts, kind, sumUsd) => {
+      if (concepts.length === 1) {
+        const c = concepts[0], mon = (c.moneda || 'USD');
+        return `<input class="sval" data-lin="${c.linea_id}" inputmode="decimal" value="${capFmt(c.valor_captura)}" style="${iSt}"/> <span class="muted" style="font-size:11px">${mon}</span>`;
+      }
+      if (concepts.length === 0) return `<button class="btn ghost screa" data-kind="${kind}" style="padding:2px 8px;font-size:11px">＋ capturar</button>`;
+      return `<button class="btn ghost scol" data-kind="${kind}" style="padding:2px 8px;font-size:11px;color:#0891b2">${concepts.length} conceptos · colapsar</button>`;
+    };
+    const row = (label, tag, capa, cap, imp, bold) => `<tr style="${bold ? 'background:#f0f9ff;font-weight:800' : 'border-bottom:1px solid #f1f5f9'}">
+      <td style="text-align:left;padding:9px 6px">${label} ${capaTag(capa)}</td>
+      <td style="text-align:right;padding:9px 6px">${cap}</td>
+      <td style="text-align:right;padding:9px 6px;font-weight:700" >${imp}</td></tr>`;
+    const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
+      <th style="text-align:left;padding:6px">Bloque</th><th style="text-align:right;padding:6px">Captura</th><th style="text-align:right;padding:6px">Importe USD</th></tr></thead>`;
+    let body = '';
+    body += `<tr style="background:#f0f9ff;font-weight:800"><td style="text-align:left;padding:9px 6px">Materia prima (mercancía) ${capaTag('exw')}</td>
+      <td class="muted" style="text-align:right;padding:9px 6px;font-size:11px">${money(r.exwUnit)}/kg × ${n2(r.kg)} · arriba</td>
+      <td style="text-align:right;padding:9px 6px;font-weight:800" id="sMp">${money(r.exwTotal)}</td></tr>`;
+    body += row('Flete internacional', '', 'cfr', capCell(flete, 'flete', fleteUsd), `<span id="sFle">${money(fleteUsd)}</span>`);
+    body += row('Gastos nacionales', '', 'ddp', capCell(gastos, 'gastos', gastosUsd), `<span id="sGas">${money(gastosUsd)}</span>`);
+    body += `<tr style="background:#ecfeff;font-weight:800"><td style="text-align:left;padding:10px 6px">= DDP total (sin arancel)</td><td></td>
+      <td style="text-align:right;padding:10px 6px" id="sDdp">${money(ddpUsd)}</td></tr>`;
+    $('tConc').innerHTML = head + '<tbody>' + body + '</tbody>';
+    // Editar bloque de 1 concepto
+    $('tConc').querySelectorAll('.sval').forEach(inp => {
+      const lin = inp.dataset.lin; const idx = D.conceptos.findIndex(c => String(c.linea_id) === String(lin));
+      inp.addEventListener('focus', () => { const v = D.conceptos[idx].valor_captura; inp.value = v ? String(v) : ''; inp._s = true; inp.select(); });
+      inp.addEventListener('mouseup', (e) => { if (inp._s) { e.preventDefault(); inp._s = false; } });
+      inp.addEventListener('blur', () => { inp.value = capFmt(D.conceptos[idx].valor_captura); });
+      inp.addEventListener('input', () => {
+        D.conceptos[idx].valor_captura = capParse(inp.value);
+        const r2 = calcular();
+        const fU = D.conceptos.filter(x => !x.es_arancel && esFleteInt(x)).reduce((a, x) => a + importeUSD(x, r2.tc, r2.kg), 0);
+        const gU = D.conceptos.filter(x => !x.es_arancel && !esFleteInt(x)).reduce((a, x) => a + importeUSD(x, r2.tc, r2.kg), 0);
+        if ($('sFle')) $('sFle').textContent = money(fU);
+        if ($('sGas')) $('sGas').textContent = money(gU);
+        if ($('sDdp')) $('sDdp').textContent = money(r2.exwTotal + fU + gU);
+        renderResultados();
+        deb('conc_' + lin, () => patchConc(lin, { valor_captura: D.conceptos[idx].valor_captura }));
+      });
+    });
+    // Crear bloque vacío (flete o gastos)
+    $('tConc').querySelectorAll('.screa').forEach(btn => btn.addEventListener('click', async () => {
+      const kind = btn.dataset.kind;
+      const cat = kind === 'flete' ? (CATS.find(c => String(c.clave).toUpperCase() === 'FLE_INT') || { nombre: 'Flete internacional', capa_incoterm: 'cfr', modo_default: 'usd_fijo' })
+        : { nombre: 'Gastos nacionales', capa_incoterm: 'ddp', modo_default: 'mxn_fijo' };
+      try { await agregarConceptoAlCosteo(cat); } catch (e) { KoguApi.toast(e.message, 'error'); }
+    }));
+    // Colapsar gastos
+    $('tConc').querySelectorAll('.scol').forEach(btn => btn.addEventListener('click', colapsarGastos));
+  }
+
   function renderConceptos() {
+    pintaToggle();
+    if (vistaSimple) return renderConceptosSimple();
     const r = calcular();
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="text-align:left;padding:6px">Concepto</th><th style="text-align:left;padding:6px">Capa</th>
