@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const n2 = (v) => (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const nm = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
+  const n0 = (v) => (Number(v) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 });
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const fdate = (v) => v ? String(v).slice(0, 10) : '';
 
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const esLb = (o) => (((o && o.unidad_captura) || 'kg') === 'lb');
 
   let vistaSimple = true; // Conceptos: Simple (3 bloques) | Detallado
+  let realesLoaded = false, realesData = null; // sección "Operaciones reales vinculadas"
   const esFleteInt = (x) => String(x.clave || x.nombre || '').toUpperCase().includes('FLE_INT') || /flete\s+inter/i.test(x.nombre || '');
   const MODOS = { usd_fijo: 'USD fijo', mxn_fijo: 'MXN fijo', usd_kg: 'USD/kg', mxn_kg: 'MXN/kg', pct_base: '% s/aduana' };
   // modo_captura ↔ (base, moneda): base=fijo|kg|pct · moneda=USD|MXN
@@ -196,6 +198,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div id="escGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:8px"></div>
   <div style="margin-top:14px"><div class="muted" style="font-size:11px;font-weight:700;margin-bottom:4px">Escalera de incoterm (por kg · USD, sin arancel) · % = participación de cada tramo en el DDP</div>
     <div id="ladder" style="display:flex;gap:8px;flex-wrap:wrap"></div></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="row" id="realHdr" style="cursor:pointer">
+    <div><h3 style="margin:0">Operaciones reales vinculadas <span id="realCount" class="muted" style="font-size:12px;font-weight:400"></span></h3>
+      <span class="muted" style="font-size:12px">real vs este costeo · por bloque (MP · flete · gastos)</span></div>
+    <button class="btn ghost" id="realTog">▸ Mostrar</button></div>
+  <div id="realBox" style="display:none;margin-top:10px"></div>
 </div>`;
 
     $('volverBtn').addEventListener('click', renderList);
@@ -213,6 +223,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('addEscBtn').addEventListener('click', addEscenario);
     $('vSimple').addEventListener('click', () => { vistaSimple = true; renderConceptos(); });
     $('vDet').addEventListener('click', () => { vistaSimple = false; renderConceptos(); });
+    realesLoaded = false; realesData = null;
+    $('realHdr').addEventListener('click', (e) => { if (e.target.tagName === 'INPUT') return; toggleReales(); });
     // cabecera → persistir + recalc
     const bindCab = (id, field, num) => $(id).addEventListener('input', () => {
       D.costeo[field] = num ? (parseFloat($(id).value) || 0) : $(id).value;
@@ -488,6 +500,56 @@ document.addEventListener('DOMContentLoaded', async () => {
   const patchCab = (patch) => api('/costeos/' + D.costeo.costeo_id, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
   const patchConc = (lineaId, patch) => api('/costeos/' + D.costeo.costeo_id + '/conceptos/' + lineaId, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
   const patchEsc = (escId, patch) => api('/costeos/' + D.costeo.costeo_id + '/escenarios/' + escId, { method: 'PATCH', body: JSON.stringify(patch) }).catch(e => KoguApi.toast(e.message, 'error'));
+
+  // ── Operaciones reales vinculadas (colapsable) ──
+  function toggleReales() {
+    const box = $('realBox'); if (!box) return;
+    const abierto = box.style.display !== 'none';
+    box.style.display = abierto ? 'none' : '';
+    if ($('realTog')) $('realTog').textContent = abierto ? '▸ Mostrar' : '▾ Ocultar';
+    if (!abierto) { if (!realesLoaded) { realesLoaded = true; cargarReales(); } else pintaReales(realesData); }
+  }
+  async function cargarReales() {
+    const box = $('realBox'); box.innerHTML = '<div class="muted" style="font-size:12px;padding:8px">Cargando…</div>';
+    try { realesData = data(await api('/costeos/' + D.costeo.costeo_id + '/reales')) || { resumen: { ops: 0 }, ops: [] }; pintaReales(realesData); }
+    catch (e) { box.innerHTML = `<div style="color:#991b1b;font-size:12px;padding:8px">${esc(e.message)}</div>`; }
+  }
+  function pintaReales(d) {
+    const box = $('realBox'); if (!box) return;
+    const rs = (d && d.resumen) || { ops: 0 }, ops = (d && d.ops) || [];
+    if ($('realCount')) $('realCount').textContent = rs.ops ? `· ${n0(rs.ops)} op(s)` : '· sin ops';
+    if (!rs.ops) { box.innerHTML = '<div class="muted" style="font-size:12.5px;padding:8px">Aún no hay operaciones reales reconciliadas contra este costeo. Reconcilia el mes en la Bandeja.</div>'; return; }
+    const r = calcular(), kgC = r.kg || 1;
+    const flete = D.conceptos.filter(x => !x.es_arancel && esFleteInt(x));
+    const gastos = D.conceptos.filter(x => !x.es_arancel && !esFleteInt(x));
+    const teoMp = r.exwUnit;
+    const teoFle = flete.reduce((a, x) => a + importeUSD(x, r.tc, r.kg), 0) / kgC;
+    const teoGas = gastos.reduce((a, x) => a + importeUSD(x, r.tc, r.kg), 0) / kgC;
+    const teoDdp = teoMp + teoFle + teoGas;
+    const kgR = Number(rs.kg) || 1;
+    const realMp = Number(rs.mp_usd) / kgR, realFle = Number(rs.flete_usd) / kgR, realGas = Number(rs.otros_usd) / kgR;
+    const realDdp = realMp + realFle + realGas;
+    const dv = (real, teo) => teo > 0 ? (real - teo) / teo : null;
+    const chip = (x) => { if (x == null) return '—'; const a = Math.abs(x); const m = a <= 0.05 ? ['#dcfce7', '#166534', 'dentro'] : a <= 0.15 ? ['#fef9c3', '#854d0e', 'revisar'] : ['#fee2e2', '#991b1b', 'fuera']; return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`; };
+    const pf = (x) => x == null ? '—' : (x > 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
+    const brow = (lab, teo, real, bold) => { const d2 = dv(real, teo), dc = d2 == null ? '#64748b' : d2 > 0 ? '#991b1b' : '#166534'; return `<tr style="${bold ? 'background:#ecfeff;font-weight:800' : 'border-bottom:1px solid #f1f5f9'};text-align:right"><td style="text-align:left;padding:${bold ? 7 : 6}px 6px">${lab}</td><td style="padding:${bold ? 7 : 6}px 6px">$${teo.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px">$${real.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px;font-weight:700;color:${dc}">${pf(d2)}</td><td style="padding:${bold ? 7 : 6}px 6px;text-align:right">${chip(d2)}</td></tr>`; };
+    const resumen = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:12px">
+      <span style="background:#f1f5f9;padding:2px 8px;border-radius:6px">${n0(rs.ops)} op · ${n0(rs.kg)} kg</span>
+      ${rs.bajo ? `<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px">↓ ${rs.bajo} bajo</span>` : ''}
+      ${rs.sobre ? `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:6px">↑ ${rs.sobre} sobre</span>` : ''}
+      ${rs.dentro ? `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:6px">✓ ${rs.dentro} dentro</span>` : ''}</div>`;
+    const cmp = `<div style="font-weight:700;color:#334155;font-size:12.5px;margin:2px 0 6px">Comparación por bloque (USD/kg) · teórico vigente vs real</div>
+      <table class="table" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
+        <th style="text-align:left;padding:6px">Bloque</th><th>Teórico</th><th>Real</th><th>Desv</th><th style="text-align:right;padding:6px">Estado</th></tr></thead><tbody>
+        ${brow('Materia prima', teoMp, realMp)}${brow('Flete internacional', teoFle, realFle)}${brow('Gastos nacionales', teoGas, realGas)}${brow('DDP total', teoDdp, realDdp, true)}</tbody></table>`;
+    const rchip = (v) => { const m = { BajoTabulador: ['#dbeafe', '#1e40af', '↓ Bajo'], SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'], DentroBanda: ['#dcfce7', '#166534', 'Dentro'] }[v] || ['#f1f5f9', '#475569', v]; return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`; };
+    const lista = `<div style="font-weight:700;color:#334155;font-size:12.5px;margin:12px 0 6px">Operaciones (${n0(ops.length)})</div>
+      <div style="overflow-x:auto"><table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums"><thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
+        <th style="text-align:left;padding:5px 6px">Pedimento</th><th style="text-align:left;padding:5px 6px">Periodo</th><th>Kg</th><th>Real/kg</th><th>Teó/kg</th><th>Desv</th><th style="text-align:right;padding:5px 6px">Resultado</th></tr></thead><tbody>
+        ${ops.map(o => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right"><td style="text-align:left;padding:5px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)} <span class="muted" style="font-weight:400;font-size:10.5px">v${esc(o.costeo_version || '')}</span></td><td style="text-align:left;padding:5px 6px;color:#64748b">${esc(o.periodo)}</td><td style="padding:5px 6px">${n0(o.kg_total)}</td><td style="padding:5px 6px">$${(Number(o.total_kg) || 0).toFixed(2)}</td><td style="padding:5px 6px;color:#b45309">$${(Number(o.teo_kg) || 0).toFixed(2)}</td><td style="padding:5px 6px;font-weight:700;color:${Number(o.desv_pct) > 0 ? '#991b1b' : '#166534'}">${o.desv_pct == null ? '—' : (Number(o.desv_pct) * 100).toFixed(1) + '%'}</td><td style="padding:5px 6px;text-align:right">${rchip(o.resultado)}</td></tr>`).join('')}
+      </tbody></table></div>`;
+    box.innerHTML = resumen + cmp + lista;
+  }
 
   async function agregarConceptoAlCosteo(cat) {
     const modo = cat.modo_default || cat.modo_captura || 'usd_fijo';
