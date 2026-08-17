@@ -45,7 +45,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
   <div id="kpis" style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"></div>
-  <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:14px;font-weight:700">Importaciones vs presupuesto (costeo teórico)</div>
+  <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:14px;font-weight:700">Alineación vs teórico · verificación por bloque</div>
+  <div class="muted" style="font-size:11px;margin-top:2px">¿nuestras operaciones están dentro del teórico, y donde no, en qué bloque se desvían?</div>
   <div id="presupuesto" style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap"></div>
   <div id="dinero" style="margin-top:12px"></div>
 </div>
@@ -57,8 +58,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div class="card" style="margin-top:14px">
-  <div class="row"><div><h3 style="margin:0">Real vs presupuesto por mes</h3>
-    <span class="muted" style="font-size:12px"><span style="color:#0891b2;font-weight:700">▮</span> Gasto real · <span style="color:#f59e0b;font-weight:700">▮</span> Presupuesto (teórico) · <span style="color:#166534;font-weight:700">barra real más corta = ahorro</span></span></div></div>
+  <div class="row"><div><h3 style="margin:0">Gasto real vs teórico por mes</h3>
+    <span class="muted" style="font-size:12px"><span style="color:#0891b2;font-weight:700">▮</span> Gasto real · <span style="color:#f59e0b;font-weight:700">▮</span> Teórico · <span style="font-weight:700">barras separadas = se apartó del teórico (revisar)</span></span></div></div>
   <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;align-items:flex-start">
     <div id="chart" style="flex:1 1 360px;min-width:320px;overflow-x:auto"></div>
     <div id="tableWrap" style="flex:1 1 500px;min-width:440px;overflow-x:auto"><table class="table" id="tMes" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums"></table></div>
@@ -110,29 +111,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const MODO_INFO = { maritimo: ['🚢', 'Marítimo'], aereo: ['✈️', 'Aéreo'], terrestre: ['🚚', 'Terrestre'], general: ['📦', 'Sin modo'] };
 
-  // Banner estrella: cuánto se ahorró (o se pasó) en USD vs el costeo teórico.
-  function pintaDinero(t) {
-    t = t || {};
-    const dif = Number(t.dif_usd) || 0, real = Number(t.real_gastos_usd) || 0, teo = Number(t.teo_gastos_usd) || 0;
-    const ahorro = dif < 0;
-    const abs = Math.abs(dif);
-    const pctVsTeo = teo > 0 ? abs / teo * 100 : 0;
-    if (real === 0 && teo === 0) { $('dinero').innerHTML = ''; return; }
-    const bg = ahorro ? '#f0fdf4' : '#fef2f2', bd = ahorro ? '#bbf7d0' : '#fecaca', co = ahorro ? '#166534' : '#991b1b';
-    const titulo = ahorro ? '↓ Ahorro vs presupuesto' : '↑ Sobrecosto vs presupuesto';
-    $('dinero').innerHTML = `
-      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:${bg};border:1px solid ${bd};border-radius:12px;padding:14px 18px">
-        <div style="min-width:230px">
-          <div style="font-size:11px;color:${co};text-transform:uppercase;letter-spacing:.04em;font-weight:700">${titulo}</div>
-          <div style="font-size:30px;font-weight:800;color:${co};line-height:1.15">${ahorro ? '−' : '+'}$${n0(abs)} <span style="font-size:15px">USD</span></div>
-          <div style="font-size:12px;color:${co};opacity:.85">${pctVsTeo.toFixed(1)}% ${ahorro ? 'por debajo del' : 'por encima del'} presupuesto (gastos flete+otros)</div>
-        </div>
-        <div style="display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:#334155">
-          <div><div class="muted" style="font-size:11px">Gasto real</div><div style="font-weight:700">$${n0(real)} USD</div></div>
-          <div style="align-self:center;color:#94a3b8;font-size:18px">vs</div>
-          <div><div class="muted" style="font-size:11px">Presupuesto (teórico)</div><div style="font-weight:700">$${n0(teo)} USD</div></div>
-        </div>
-      </div>`;
+  // Estado por desviación: dentro (≤10%) · fuera (≤30%) · revisar (>30%).
+  // Una desviación grande —favorable o no— es señal a revisar, no un logro.
+  const EST = (d) => { if (d == null) return { bg: '#f8fafc', bd: '#e2e8f0', co: '#64748b', t: 's/d' }; const a = Math.abs(d); if (a <= 0.10) return { bg: '#f0fdf4', bd: '#bbf7d0', co: '#166534', t: 'dentro' }; if (a <= 0.30) return { bg: '#fef9c3', bd: '#fde68a', co: '#854d0e', t: 'fuera' }; return { bg: '#fef2f2', bd: '#fecaca', co: '#991b1b', t: 'revisar' }; };
+  const pfd = (d) => d == null ? '—' : (d > 0 ? '+' : '') + (d * 100).toFixed(1) + '%';
+  const estChip = (d) => { const e = EST(d); return `<span style="background:${e.bg};color:${e.co};border:1px solid ${e.bd};font-size:11px;font-weight:700;padding:1px 9px;border-radius:999px">${e.t}</span>`; };
+
+  // Panel de control: alineación de la operación (DDP) vs teórico, por bloque.
+  function pintaDesviacion(b) {
+    b = b || {};
+    const kg = Number(b.kg) || 0;
+    if (!b.ops || kg <= 0) { $('dinero').innerHTML = '<div class="muted" style="font-size:12.5px;padding:8px 0">Sin operaciones comparables (con teórico) en el alcance. La verificación aparece cuando hay ops reconciliadas contra un costeo.</div>'; return; }
+    const K = (n) => Number(n) / kg;
+    const mpT = K(b.mp_teo), mpR = K(b.mp_real), fleT = K(b.flete_teo), fleR = K(b.flete_real), gasT = K(b.gastos_teo), gasR = K(b.gastos_real);
+    const ddpT = mpT + fleT + gasT, ddpR = mpR + fleR + gasR;
+    const dv = (r, t) => t > 0 ? (r - t) / t : null;
+    const ddpD = dv(ddpR, ddpT), eDdp = EST(ddpD);
+    const head = `<div style="background:${eDdp.bg};border:1px solid ${eDdp.bd};border-radius:12px;padding:14px 18px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+      <div style="min-width:280px">
+        <div style="font-size:11px;color:${eDdp.co};text-transform:uppercase;letter-spacing:.04em;font-weight:700">¿La operación estuvo dentro del teórico?</div>
+        <div style="font-size:28px;font-weight:800;color:${eDdp.co};line-height:1.15">${pfd(ddpD)} <span style="font-size:14px">DDP total</span></div>
+        <div style="font-size:12px;color:${eDdp.co};opacity:.9">real $${ddpR.toFixed(4)}/kg vs teórico $${ddpT.toFixed(4)}/kg · base: DDP = mercancía + flete + gastos</div>
+      </div>
+      <div style="align-self:center">${estChip(ddpD)}</div></div>`;
+    const brow = (lab, teo, real, base) => { const d = dv(real, teo), e = EST(d); return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right"><td style="text-align:left;padding:7px 6px">${lab}</td><td style="padding:7px 6px">$${teo.toFixed(4)}</td><td style="padding:7px 6px">$${real.toFixed(4)}</td><td style="padding:7px 6px;font-weight:700;color:${e.co}">${pfd(d)}<div class="muted" style="font-size:10px;font-weight:400">${base}</div></td><td style="padding:7px 6px;text-align:right">${estChip(d)}</td></tr>`; };
+    const tabla = `<table class="table" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;margin-top:12px"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
+      <th style="text-align:left;padding:6px">Bloque (USD/kg)</th><th>Teórico</th><th>Real</th><th>Desviación</th><th style="text-align:right;padding:6px">Estado</th></tr></thead><tbody>
+      ${brow('Materia prima', mpT, mpR, 'vs teórico MP')}${brow('Flete internacional', fleT, fleR, 'vs teórico flete')}${brow('Gastos nacionales', gasT, gasR, 'vs teórico gastos')}</tbody></table>`;
+    const rev = [['Materia prima', dv(mpR, mpT)], ['Flete internacional', dv(fleR, fleT)], ['Gastos nacionales', dv(gasR, gasT)]].filter(x => x[1] != null && Math.abs(x[1]) > 0.30).map(x => x[0]);
+    const alerta = rev.length ? `<div style="margin-top:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 12px;font-size:12px;color:#991b1b"><b>⚠ Revisar:</b> desviación &gt;±30% en ${rev.join(', ')}. Posible teórico desactualizado o costo no capturado. Una desviación grande —favorable o no— es señal a revisar, no un logro.</div>` : '';
+    $('dinero').innerHTML = head + tabla + alerta;
   }
 
   // Tabla de desglose por modo + fila de eficiencia global (lentes ponderados).
@@ -174,15 +182,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pc = (n) => comparables ? ` · ${(n / comparables * 100).toFixed(0)}%` : '';
     const noComp = sinTeo + sinProv + sinDat;
     $('presupuesto').innerHTML =
-      resKpi('↓ Bajo presupuesto', n0(bajo), 'costó menos que el teórico' + pc(bajo), '#f0fdf4', '#166534', '#bbf7d0', 'bajo', bajo) +
-      resKpi('↑ Sobre presupuesto', n0(sobre), 'costó más — revisar' + pc(sobre), '#fef2f2', '#991b1b', '#fecaca', 'sobre', sobre) +
-      resKpi('✓ Dentro de banda', n0(dentro), 'dentro de tolerancia' + pc(dentro), '#ecfeff', '#0e7490', '#a5f3fc', 'dentro', dentro) +
+      resKpi('↓ Bajo teórico', n0(bajo), 'real < teórico · revisar si es grande' + pc(bajo), '#f8fafc', '#475569', '#e2e8f0', 'bajo', bajo) +
+      resKpi('↑ Sobre teórico', n0(sobre), 'real > teórico · revisar' + pc(sobre), '#fef2f2', '#991b1b', '#fecaca', 'sobre', sobre) +
+      resKpi('✓ En banda', n0(dentro), '±5% del teórico (gastos)' + pc(dentro), '#f0fdf4', '#166534', '#bbf7d0', 'dentro', dentro) +
       resKpi('◦ Sin comparar', n0(noComp), 'sin teórico / proveedor / datos', '#f8fafc', '#64748b', '#e2e8f0', 'sincomparar', noComp);
     $('presupuesto').querySelectorAll('.resk[data-grupo]').forEach(el => el.addEventListener('click', () => abrirOps(el.dataset.grupo)));
   }
 
   // ── Drill-down: modal con los folios de un grupo de resultado ──
-  const GRUPO_LBL = { bajo: '↓ Bajo presupuesto', sobre: '↑ Sobre presupuesto', dentro: '✓ Dentro de banda', sincomparar: '◦ Sin comparar' };
+  const GRUPO_LBL = { bajo: '↓ Bajo teórico', sobre: '↑ Sobre teórico', dentro: '✓ En banda', sincomparar: '◦ Sin comparar' };
   function cerrarModal() { const m = $('opsModal'); if (m) m.remove(); }
   function modalOps(titulo, bodyHtml) {
     cerrarModal();
@@ -308,7 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function tablaMes(rows) {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       <th style="text-align:left;padding:6px">Mes</th><th>Ops</th><th>Kg</th><th>Costo USD (DDP)</th>
-      <th>Gasto real</th><th>Presupuesto</th><th>Dif vs ppto</th><th>TC prom.</th></tr></thead>`;
+      <th>Gasto real</th><th>Teórico</th><th>Dif vs teórico</th><th>TC prom.</th></tr></thead>`;
     if (!rows.length) return head + '<tbody><tr><td colspan="8" style="text-align:center;padding:14px;color:var(--muted)">Sin meses reconciliados en este periodo.</td></tr></tbody>';
     return head + '<tbody>' + rows.map(r => `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
       <td style="text-align:left;padding:6px;font-weight:700">${MES[+String(r.periodo).slice(5)] || r.periodo} ${String(r.periodo).slice(0, 4)}</td>
@@ -366,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         kpi('Costo total MXN', '$' + compact(t.costo_mxn), 'MXN') +
         kpi('Costo total USD', '$' + compact(t.costo_usd), 'USD', '#0e7490');
       pintaPresupuesto(d.resultados);
-      pintaDinero(d.totales);
+      pintaDesviacion(d.bloques);
       $('tModo').innerHTML = tablaModo(d.porModo || []);
       $('chart').innerHTML = chartRealVsPpto(d.mensual || []);
       $('tMes').innerHTML = tablaMes(d.mensual || []);
