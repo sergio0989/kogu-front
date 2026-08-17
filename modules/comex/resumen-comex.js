@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Estado por desviación: dentro (≤10%) · fuera (≤30%) · revisar (>30%).
   // Una desviación grande —favorable o no— es señal a revisar, no un logro.
   const EST = (d) => { if (d == null) return { bg: '#f8fafc', bd: '#e2e8f0', co: '#64748b', t: 's/d' }; const a = Math.abs(d); if (a <= 0.10) return { bg: '#f0fdf4', bd: '#bbf7d0', co: '#166534', t: 'dentro' }; if (a <= 0.30) return { bg: '#fef9c3', bd: '#fde68a', co: '#854d0e', t: 'fuera' }; return { bg: '#fef2f2', bd: '#fecaca', co: '#991b1b', t: 'revisar' }; };
-  const pfd = (d) => d == null ? '—' : (d > 0 ? '+' : '') + (d * 100).toFixed(1) + '%';
+  const pfd = (d) => { if (d == null) return '—'; const p = d * 100; if (Math.abs(p) < 0.05) return '0.0%'; return (p > 0 ? '+' : '') + p.toFixed(1) + '%'; };
   const estChip = (d) => { const e = EST(d); return `<span style="background:${e.bg};color:${e.co};border:1px solid ${e.bd};font-size:11px;font-weight:700;padding:1px 9px;border-radius:999px">${e.t}</span>`; };
 
   // Panel de control: alineación de la operación (DDP) vs teórico, por bloque.
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const bajo = +R.BajoTabulador || 0, sobre = +R.SobreTabulador || 0, dentro = +R.DentroBanda || 0;
     const sinTeo = +R.SinTeorico || 0, sinProv = +R.SinProveedor || 0, sinDat = +R.SinDatos || 0;
     const comparables = bajo + sobre + dentro; // operaciones que SÍ se midieron vs teórico
-    const pc = (n) => comparables ? ` · ${(n / comparables * 100).toFixed(0)}%` : '';
+    const pc = (n) => comparables ? ` · ${(n / comparables * 100).toFixed(0)}% de comparables` : '';
     const noComp = sinTeo + sinProv + sinDat;
     $('presupuesto').innerHTML =
       resKpi('↓ Bajo teórico', n0(bajo), 'real < teórico · revisar si es grande' + pc(bajo), '#f8fafc', '#475569', '#e2e8f0', 'bajo', bajo) +
