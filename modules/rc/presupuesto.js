@@ -62,6 +62,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pct1  = v => (v == null ? '—' : `${(Number(v) * 100).toFixed(1)}%`);
   const esc   = s => KoguUi.escapeHtml(String(s ?? ''));
 
+  // ── Vocabulario (los tres números se parecen y no son lo mismo) ───────────
+  //   Avance              = real ÷ PP anual              → cuánto del PP llevas
+  //   Ritmo esperado      = fracción del año transcurrida → contra qué se compara
+  //   Cumplimiento al corte = real ÷ (PP÷12 × meses)      → si vas al día o no
+  // Se decidió una sola palabra por concepto: la columna volvió a llamarse
+  // "Avance" (antes decía "Ritmo" para el mismo cálculo que la barra) y
+  // "ritmo" quedó reservado para la fracción del año.
   const ppVal      = o => esDinero() ? Number(o.ventas_pp   || 0) : Number(o.kg_pp   || 0);
   const realVal    = o => esDinero() ? Number(o.ventas_real || 0) : Number(o.kg_real || 0);
   const realMapVal = o => esDinero() ? Number(o.ventas_real_mapeado || 0) : Number(o.kg_real_mapeado || 0);
@@ -206,7 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       pend
         ? miniCard(`PP ${anio} (${esDinero() ? 'MXN' : 'kg'})`, 'Por capturar', 'sin presupuesto en el sistema', 'var(--warning,#d97706)')
         : miniCard(`PP ${anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtValC(ppVal(t)), 'presupuesto anual'),
-      miniCard('Real a la fecha', fmtValC(realVal(t)), pend ? 'venta atribuida del ejercicio' : `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col),
+      miniCard('Real a la fecha', fmtValC(realVal(t)), pend ? 'venta atribuida del ejercicio' : `${pct0(av)} del PP · ritmo esperado ${pct0(ritmo)}`, col),
       miniCard(`Meta al corte (${meses} m)`, (!pend && metaCorte) ? fmtValC(metaCorte) : '—', pend ? 'requiere PP' : `PP ÷ 12 × ${meses} meses`),
       miniCard('Cumplimiento al corte', pend ? '—' : pct0(cumpl), pend ? 'requiere PP' : 'real ÷ meta al corte', cumplCol),
       miniCard('Atribuido a sublíneas', pct0(cob), 'cobertura del cruce', cob >= 0.95 ? 'var(--success,#16a34a)' : 'var(--warning,#d97706)'),
@@ -366,7 +373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${th('nombre', 'Categoría / sublínea')}
         ${th('pp', pp.pp_pendiente ? 'PP (por capturar)' : `PP ${anio}`, 'right')}
         ${th('real', 'Real', 'right')}
-        ${th('avance', 'Ritmo', 'right')}
+        ${th('avance', 'Avance', 'right')}
       </tr></thead><tbody>${cuerpo}</tbody>${foot}</table></div>`;
 
     cont.querySelectorAll('tr[data-cat]').forEach(tr => tr.onclick = () => {
@@ -485,9 +492,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           const c = m.get(y);
           if (!c) return `<td style="text-align:right;color:var(--muted)">—</td><td style="text-align:right;color:var(--muted)">—</td><td style="text-align:right;color:var(--muted)">—</td>`;
           const rit = Number(cache.get(y).totales?.ritmo_esperado || 0);
+          // Un ejercicio sin PP capturado va en guion, no en $0.00 — mismo
+          // criterio que la tabla de detalle. El avance sale null solo.
+          const pend = !!cache.get(y).pp_pendiente;
           // nowrap: con 3 ejercicios × 3 columnas los importes se parten en dos
           // renglones y la tabla se vuelve ilegible.
-          return `<td style="text-align:right;white-space:nowrap">${fmtVal(ppVal(c))}</td>
+          return `<td style="text-align:right;white-space:nowrap">${pend ? '—' : fmtVal(ppVal(c))}</td>
                   <td style="text-align:right;white-space:nowrap">${fmtVal(realVal(c))}</td>
                   <td style="text-align:right;white-space:nowrap;font-weight:600;color:${semColor(avVal(c), rit)}">${pct0(avVal(c))}</td>`;
         }).join('');
@@ -510,10 +520,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td></td>
       </tr>`;
 
+    // pp = null en los ejercicios sin PP capturado: el pie lo pinta en guion.
     const sumaDe = d => {
       const p = (d.categorias || []).reduce((a, c) => a + ppVal(c), 0);
       const r = (d.categorias || []).reduce((a, c) => a + realVal(c), 0);
-      return { pp: p, real: r, av: p ? r / p : null };
+      return { pp: d.pp_pendiente ? null : p, real: r, av: p ? r / p : null };
     };
     const sinCruceDe = d => {
       const s = d.sin_cruce || {};
@@ -525,8 +536,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { pp: s.pp, real, av: s.pp ? real / s.pp : null };
     };
 
-    const cabAnios = ys.map(y => `<th colspan="3" style="text-align:center;border-left:1px solid var(--line)">${y}</th>`).join('');
-    const cabCols  = ys.map(() => `<th style="text-align:right;border-left:1px solid var(--line)">PP</th><th style="text-align:right">Real</th><th style="text-align:right">Ritmo</th>`).join('');
+    const cabAnios = ys.map(y => `<th colspan="3" style="text-align:center;border-left:1px solid var(--line)">${y}${cache.get(y)?.pp_pendiente ? ' <span style="font-weight:400;color:var(--warning,#d97706)">· sin PP</span>' : ''}</th>`).join('');
+    const cabCols  = ys.map(() => `<th style="text-align:right;border-left:1px solid var(--line)">PP</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>`).join('');
 
     cont.innerHTML = `
       <div class="hint" style="color:var(--muted);font-size:12px;margin:8px 0 10px">
@@ -559,17 +570,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const det = [];
     for (const c of pp.categorias) {
       det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: '', Sublinea: '(total categoría)',
-        [`PP_${unidad}`]: ppVal(c), [`Real_${unidad}`]: realVal(c), Ritmo: avVal(c) });
+        [`PP_${unidad}`]: ppVal(c), [`Real_${unidad}`]: realVal(c), Avance: avVal(c) });
       for (const s of c.sublineas) {
         det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: s.cve_sublinea, Sublinea: s.sublinea_nombre,
-          [`PP_${unidad}`]: ppVal(s), [`Real_${unidad}`]: realVal(s), Ritmo: avVal(s),
+          [`PP_${unidad}`]: ppVal(s), [`Real_${unidad}`]: realVal(s), Avance: avVal(s),
           Cruzado: s.mapeado ? 'sí' : 'no',
           En_PP: s.en_pp === false ? 'no' : 'sí' });
       }
     }
     const sc = pp.sin_cruce || {};
     det.push({ Categoria: 'SIN CRUCE', Clave: '', Sublinea: 'cliente·producto sin ClavePP',
-      [`PP_${unidad}`]: null, [`Real_${unidad}`]: esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0), Ritmo: null });
+      [`PP_${unidad}`]: null, [`Real_${unidad}`]: esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0), Avance: null });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(det), `Detalle ${anio}`);
 
     // Hoja 2 — comparativo, solo si ya se cargaron los otros ejercicios.
@@ -587,7 +598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const c = m.get(y);
           fila[`PP ${y}`]     = c ? ppVal(c)   : null;
           fila[`Real ${y}`]   = c ? realVal(c) : null;
-          fila[`Ritmo ${y}`] = c ? avVal(c)   : null;
+          fila[`Avance ${y}`] = c ? avVal(c)   : null;
         }
         return fila;
       });

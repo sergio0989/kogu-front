@@ -193,9 +193,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Selector de año ─────────────────────────────────────────────────────────
+  // Semilla: los últimos 3 años, porque hay que pintar algo antes de la primera
+  // respuesta del backend. En cuanto llega el PP se reconstruye con los años
+  // que el backend reporta — unión de PP capturado + años con venta — así que
+  // deja de ser una ventana fija de 3 y no se pierden ejercicios más viejos.
   const anioFil = document.getElementById('anioFil');
   anioFil.innerHTML = [anioActual, anioActual - 1, anioActual - 2].map(a => `<option value="${a}">${a}</option>`).join('');
   anioFil.value = String(anioActual);
+
+  function renderAniosPp() {
+    if (!pp || !Array.isArray(pp.anios) || !pp.anios.length) return;
+    const actual = Number(anioFil.value) || anioActual;
+    const conPp = new Set(pp.anios_pp || []);
+    // El año seleccionado se conserva aunque el backend no lo liste (p. ej. un
+    // ejercicio sin una sola venta cargada): cambiárselo al usuario por debajo
+    // sería peor que mostrarlo vacío.
+    const lista = pp.anios.includes(actual) ? pp.anios : [actual, ...pp.anios];
+    anioFil.innerHTML = lista.map(a =>
+      `<option value="${a}"${a === actual ? ' selected' : ''}>${a}${conPp.size && !conPp.has(a) ? ' · sin PP' : ''}</option>`).join('');
+    anioFil.value = String(actual);
+  }
   document.getElementById('metricaFil').value = metrica;
 
   // ── Carga ─────────────────────────────────────────────────────────────────
@@ -287,6 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `<div class="eyebrow">Radar · Presupuesto</div><div class="empty">No se pudo cargar el PP: ${KoguUi.escapeHtml(err.message)}</div>`;
       return;
     }
+    renderAniosPp();
     renderPp();
     renderTrend();   // la tendencia necesita el PP para dibujar la meta mensual
   }
@@ -312,11 +330,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const el = document.getElementById('ppCard');
     if (!pp) { el.innerHTML = ''; return; }
     if (pp.sin_pp) {
+      const ctlSinPp = pp.control ? (esDinero() ? Number(pp.control.ventas_real || 0) : Number(pp.control.kg_real || 0)) : 0;
       el.innerHTML = `
         <div class="row"><div><div class="eyebrow">Radar · Presupuesto</div><h2>Cumplimiento vs PP ${pp.anio}</h2></div></div>
-        <div class="empty" style="margin-top:10px">No hay presupuesto (PP) cargado para ${pp.anio}.${pp.anios?.length ? ` Disponibles: ${pp.anios.join(', ')}.` : ''}</div>`;
+        <div class="empty" style="margin-top:10px">No hay presupuesto (PP) cargado para ${pp.anio}.${pp.anios?.length ? ` Disponibles: ${pp.anios.join(', ')}.` : ''}
+        ${ctlSinPp ? `<div style="margin-top:6px;font-size:12px">Hay <b>${fmtVal(ctlSinPp)}</b> de venta en ${pp.anio}, pero ninguna combinación cliente·producto tiene ClavePP todavía — <a href="/modules/rc/asignacion-pp.html">Asignación PP</a>.</div>` : ''}</div>`;
       return;
     }
+    // Año con ventas y sin PP capturado: hay real atribuido pero nada contra
+    // qué medirlo. Se dice, en vez de pintar un PP de $0.00 (que se lee como
+    // "presupuesto de cero", no como "presupuesto ausente") y avances vacíos.
+    const pend = !!pp.pp_pendiente;
     const t = pp.totales, ritmo = Number(t.ritmo_esperado || 0);
     const av = avVal(t);
     const col = semColor(av, ritmo);
@@ -331,10 +355,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="eyebrow">Radar · Presupuesto</div>
           <h2>Cumplimiento vs PP ${pp.anio}</h2>
           <div class="hint" style="margin-top:4px;color:var(--muted);font-size:12px">
-            Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} · ritmo esperado <b>${pct0(ritmo)}</b> del año
+            Métrica: <b>${esDinero() ? 'venta (MXN)' : 'volumen (kg)'}</b> · última venta ${ultv} ·
+            ${pend ? `<b style="color:var(--warning,#d97706)">presupuesto ${pp.anio} sin capturar</b>` : `ritmo esperado <b>${pct0(ritmo)}</b> del año`}
           </div>
         </div>
-        <span style="display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff;background:${col}">${pct0(av)} del PP</span>
+        ${pend
+          ? `<span style="display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff;background:var(--warning,#d97706)">PP por capturar</span>`
+          : `<span style="display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;color:#fff;background:${col}">${pct0(av)} del PP</span>`}
       </div>`;
 
     // Cumplimiento al corte = real ÷ meta lineal a la fecha (PP ÷ 12 × meses
@@ -346,17 +373,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       : (cumplCorte >= 1 ? 'var(--success,#16a34a)' : cumplCorte >= 0.9 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)');
     const cards = `
       <div class="grid-4" style="gap:10px;margin-top:14px">
-        ${miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtValC(ppVal(t)), 'presupuesto anual')}
-        ${miniCard('Real a la fecha', fmtValC(realVal(t)), `${pct0(av)} del PP · ritmo ${pct0(ritmo)}`, col)}
-        ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, metaCorte != null ? fmtValC(metaCorte) : '—', `PP ÷ 12 × ${mesesTrans || 0} meses`)}
-        ${miniCard('Cumplimiento al corte', pct0(cumplCorte), 'real ÷ meta al corte', cumplCol)}
+        ${pend
+          ? miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, 'Por capturar', 'sin presupuesto en el sistema', 'var(--warning,#d97706)')
+          : miniCard(`PP ${pp.anio} (${esDinero() ? 'MXN' : 'kg'})`, fmtValC(ppVal(t)), 'presupuesto anual')}
+        ${miniCard('Real a la fecha', fmtValC(realVal(t)), pend ? 'venta atribuida del ejercicio' : `${pct0(av)} del PP · ritmo esperado ${pct0(ritmo)}`, col)}
+        ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, (!pend && metaCorte != null) ? fmtValC(metaCorte) : '—', pend ? 'requiere PP' : `PP ÷ 12 × ${mesesTrans || 0} meses`)}
+        ${miniCard('Cumplimiento al corte', pend ? '—' : pct0(cumplCorte), pend ? 'requiere PP' : 'real ÷ meta al corte', cumplCol)}
       </div>
       ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtValC(scVal)}</b> — se atribuye conforme confirmas las combinaciones cliente·producto en <a href="/modules/rc/asignacion-pp.html">Asignación PP</a>.</div>` : ''}`;
 
     // Barra avance vs ritmo
     const barW = Math.min(100, Math.round((av || 0) * 100));
     const ritW = Math.min(100, Math.round(ritmo * 100));
-    const bar = `
+    const bar = pend
+      ? `<div style="margin-top:14px;padding:10px 12px;border:1px solid var(--warning,#d97706);background:rgba(180,83,9,.06);border-radius:10px;font-size:13px;color:#b45309">
+           El presupuesto de <b>${pp.anio}</b> no está capturado, así que no hay contra qué medir el avance.
+           Lo que ves es la <b>venta real del ejercicio ya atribuida</b> a categoría y sublínea.
+           Captúralo en <a href="/modules/rc/pp-carga.html" style="color:inherit;text-decoration:underline">Carga de PP</a> y esta tarjeta se completa sola.
+         </div>`
+      : `
       <div style="margin-top:14px">
         <div style="position:relative;background:var(--panel2,#f1f5f9);border-radius:8px;height:22px;overflow:hidden">
           <div style="width:${barW}%;height:100%;background:${col};transition:width .3s"></div>
@@ -367,7 +402,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>`;
 
-    // Tabla por categoría (expandible a sublínea)
+    // Tabla por categoría (expandible a sublínea).
+    // Sin PP capturado la columna va en guion: un cero se lee como
+    // "presupuesto de cero", que es una afirmación distinta.
+    const fmtPp = v => pend ? '—' : fmtVal(v);
     const filaCat = c => {
       const a = avVal(c), cc = semColor(a, ritmo);
       const open = ppOpen.has(c.cat);
@@ -380,14 +418,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           : (s.mapeado ? '' : ' <span style="color:var(--warning,#d97706);font-size:11px">·sin cruce</span>');
         return `<tr style="background:var(--panel2,#f8fafc)">
           <td style="padding-left:26px"><span class="chip-compact">${KoguUi.escapeHtml(s.cve_sublinea)}</span> ${KoguUi.escapeHtml(s.sublinea_nombre)}${etq}</td>
-          <td style="text-align:right">${s.en_pp === false ? '—' : fmtVal(ppVal(s))}</td>
+          <td style="text-align:right">${s.en_pp === false ? '—' : fmtPp(ppVal(s))}</td>
           <td style="text-align:right">${fmtVal(realVal(s))}</td>
           <td style="text-align:right;font-weight:600;color:${scol}">${pct0(sa)}</td>
         </tr>`;
       }).join('') : '';
       return `<tr data-cat="${c.cat}" style="cursor:pointer">
           <td><span style="display:inline-block;width:14px;color:var(--muted)">${open ? '▾' : '▸'}</span><b>${KoguUi.escapeHtml(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
-          <td style="text-align:right">${fmtVal(ppVal(c))}</td>
+          <td style="text-align:right">${fmtPp(ppVal(c))}</td>
           <td style="text-align:right">${fmtVal(realVal(c))}</td>
           <td style="text-align:right;font-weight:700;color:${cc}">${pct0(a)}</td>
         </tr>${subs}`;
@@ -416,10 +454,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
         ${miniCard('Promedio de ventas mensual', fmtValC(promMes), `real ÷ ${mesesT || 0} meses`)}
-        ${miniCard('Proyección de cierre', fmtValC(proy), `vs PP ${fmtValC(ppA)}`, proyCol)}
-        ${miniCard('% del PP proyectado', pct0(proyPct), proyPct != null && proyPct < 1 ? 'cerraría por debajo' : 'cerraría en meta', proyCol)}
-        ${miniCard('Faltante proyectado', faltante ? fmtValC(faltante) : '—', 'para alcanzar el PP', faltante > 0 ? 'var(--danger,#dc2626)' : '')}
-        ${miniCard('Ritmo mensual requerido', fmtValC(necesarioMes), `para cerrar el PP (~${mesesRest} meses)`)}
+        ${miniCard('Proyección de cierre', fmtValC(proy), pend ? 'sin PP con qué compararla' : `vs PP ${fmtValC(ppA)}`, pend ? '' : proyCol)}
+        ${miniCard('% del PP proyectado', pend ? '—' : pct0(proyPct), pend ? 'requiere PP' : (proyPct != null && proyPct < 1 ? 'cerraría por debajo' : 'cerraría en meta'), pend ? '' : proyCol)}
+        ${miniCard('Faltante proyectado', (!pend && faltante) ? fmtValC(faltante) : '—', pend ? 'requiere PP' : 'para alcanzar el PP', (!pend && faltante > 0) ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard('Ritmo mensual requerido', pend ? '—' : fmtValC(necesarioMes), pend ? 'requiere PP' : `para cerrar el PP (~${mesesRest} meses)`)}
       </div>`;
 
     const sinMapeo = !cob || cob < 0.001;
@@ -463,7 +501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tfoot>
         <tr style="border-top:2px solid var(--line);font-weight:700;background:var(--panel2,#f8fafc)">
           <td>Suma de categorías <span style="color:var(--muted);font-weight:400;font-size:11px">(${pp.categorias.length})</span></td>
-          <td style="text-align:right">${fmtVal(sumPp)}</td>
+          <td style="text-align:right">${fmtPp(sumPp)}</td>
           <td style="text-align:right">${fmtVal(sumReal)}</td>
           <td style="text-align:right;color:${semColor(avSum, ritmo)}">${pct0(avSum)}</td>
         </tr>
@@ -479,7 +517,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr>` : ''}
         <tr style="border-top:1px solid var(--line);font-weight:800">
           <td>TOTAL ${pp.anio}</td>
-          <td style="text-align:right">${fmtVal(sumPp)}</td>
+          <td style="text-align:right">${fmtPp(sumPp)}</td>
           <td style="text-align:right">${fmtVal(totReal)}</td>
           <td style="text-align:right;color:${semColor(avTot, ritmo)}">${pct0(avTot)}</td>
         </tr>
@@ -488,7 +526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cuerpo = `
       ${bannerCat}
       <div class="table-wrap" style="margin-top:8px"><table><thead><tr>
-        <th>Categoría</th><th style="text-align:right">PP ${pp.anio}</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>
+        <th>Categoría</th><th style="text-align:right">${pend ? 'PP (por capturar)' : `PP ${pp.anio}`}</th><th style="text-align:right">Real</th><th style="text-align:right">Avance</th>
       </tr></thead><tbody>${pp.categorias.map(filaCat).join('')}</tbody>${foot}</table></div>
       ${notaCuadre}`;
     const tabla = `
@@ -543,7 +581,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cont = document.getElementById('trend');
     if (!meses.length) { cont.innerHTML = '<div class="empty">Sin datos</div>'; return; }
     // Meta mensual lineal del PP (PP anual ÷ 12) para comparar mes a mes.
-    const metaMes = pp && pp.totales ? ppVal(pp.totales) / 12 : null;
+    // Sin PP capturado no hay meta: si se dejara en 0, el marcador se pegaría
+    // al origen y TODOS los meses se pintarían de verde por cumplir un cero.
+    const ppAnual = (pp && pp.totales && !pp.pp_pendiente) ? ppVal(pp.totales) : 0;
+    const metaMes = ppAnual ? ppAnual / 12 : null;
     const max = Math.max(...meses.map(m => porMes[m]), metaMes || 0);
     const wMeta = (metaMes != null && max) ? Math.round(100 * metaMes / max) : null;
     const rows = meses.map(m => {
@@ -633,6 +674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
     const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
     const uni = esDinero() ? 'venta (MXN)' : 'volumen (kg)';
+    const pend = !!pp.pp_pendiente;   // sin PP capturado: los pasos 4–6 no aplican
 
     const paso = (n, titulo, formula, resultado) => `
       <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)">
@@ -652,14 +694,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="rcProyClose">Cerrar ✕</button>
           </div>
           <div style="background:var(--panel2,#f1f5f9);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--muted)">
-            <b>Idea.</b> Sacamos el <b>promedio de venta por mes</b> observado hasta el corte y lo extrapolamos a los 12 meses del año. Métrica activa: <b>${uni}</b> · corte al <b>${ultv}</b> · PP ${pp.anio} = <b>${fmtVal(ppA)}</b>.
+            <b>Idea.</b> Sacamos el <b>promedio de venta por mes</b> observado hasta el corte y lo extrapolamos a los 12 meses del año. Métrica activa: <b>${uni}</b> · corte al <b>${ultv}</b> · PP ${pp.anio} = <b>${pend ? 'sin capturar' : fmtVal(ppA)}</b>.
           </div>
           ${paso(1, 'Meses transcurridos', 'Mes del año al que corresponde la última venta cargada (Ene = 1 … Dic = 12).', `= <b>${mesesT || 0} meses</b> (al ${ultv})`)}
           ${paso(2, 'Promedio de ventas mensual', 'Real a la fecha ÷ meses transcurridos.', `${fmtVal(realA)} ÷ ${mesesT || 0} = <b>${fmtVal(promMes)}/mes</b>`)}
           ${paso(3, 'Proyección de cierre', 'Promedio mensual × 12 (lo que se vendería en el año completo manteniendo ese promedio).', `${fmtVal(promMes)} × 12 = <b>${fmtVal(proy)}</b>`)}
-          ${paso(4, '% del PP proyectado', 'Proyección de cierre ÷ PP anual.', `${fmtVal(proy)} ÷ ${fmtVal(ppA)} = <b>${pct0(proyPct)}</b>`)}
+          ${pend
+            ? `<div style="padding:10px 0;font-size:13px;color:var(--muted)">Los pasos 4 a 6 comparan contra el PP anual y el presupuesto de <b>${pp.anio}</b> no está capturado, así que no aplican. La proyección de cierre de arriba sí es válida: no depende del PP.</div>`
+            : `${paso(4, '% del PP proyectado', 'Proyección de cierre ÷ PP anual.', `${fmtVal(proy)} ÷ ${fmtVal(ppA)} = <b>${pct0(proyPct)}</b>`)}
           ${paso(5, 'Faltante proyectado', 'PP anual − Proyección de cierre (cuánto quedaría sin alcanzar si nada cambia).', `${fmtVal(ppA)} − ${fmtVal(proy)} = <b>${faltante ? fmtVal(faltante) : '—'}</b>`)}
-          ${paso(6, 'Ritmo mensual requerido', 'Lo que falta del PP ÷ meses restantes del año (cuánto deberías vender por mes para sí llegar al PP).', `(${fmtVal(ppA)} − ${fmtVal(realA)}) ÷ ${mesesRest} meses = <b>${fmtVal(necesarioMes)}/mes</b>`)}
+          ${paso(6, 'Ritmo mensual requerido', 'Lo que falta del PP ÷ meses restantes del año (cuánto deberías vender por mes para sí llegar al PP).', `(${fmtVal(ppA)} − ${fmtVal(realA)}) ÷ ${mesesRest} meses = <b>${fmtVal(necesarioMes)}/mes</b>`)}`}
           <div style="font-size:12px;color:var(--muted);margin-top:10px">
             <b>Límites.</b> Es una proyección <b>lineal</b>: el mes en curso cuenta como mes completo y no modela estacionalidad ni pedidos puntuales. El toggle <b>$ / kg</b> cambia la métrica de todo el cálculo. El corte usa la <b>última fecha de venta cargada</b> (${ultv}), no la fecha de hoy.
           </div>
