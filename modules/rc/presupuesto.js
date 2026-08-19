@@ -590,34 +590,98 @@ document.addEventListener('DOMContentLoaded', async () => {
   //   2. + producto            → ¿qué producto sostiene esa sublínea?
   //   3. + cliente · producto  → ¿quién compra qué?
   //
-  // Los niveles 2 y 3 salen en hojas APARTE y PLANAS, sin la columna de PP:
+  // Los tres llevan SIEMPRE pesos y kilos, sin importar el toggle de la
+  // pantalla: un Excel se abre una vez y se analiza muchas, y la mitad de las
+  // preguntas de producto (precio implícito, mezcla) necesitan las dos.
+  //
+  // Los niveles 2 y 3 salen en hojas APARTE y PLANAS, sin columnas de PP:
   // repetir el presupuesto en cada renglón de producto haría que cualquier
   // tabla dinámica lo sumara N veces. El PP vive en su hoja y se liga por la
-  // clave de sublínea. Y como a nivel producto casi siempre quieres el precio
-  // implícito, esas hojas traen venta y kg juntos, sin importar el toggle.
+  // columna Clave.
+
+  // Formatos de celda. La build community de SheetJS escribe anchos de
+  // columna, autofiltro y formato numérico; NO escribe estilos (negritas,
+  // colores) ni paneles congelados, así que no se intentan.
+  const FMT = { mxn: '"$"#,##0.00', kg: '#,##0.00', pct: '0.0%', precio: '"$"#,##0.0000', ent: '#,##0', txt: null };
   const fechaCorta = v => (v ? String(v).slice(0, 10) : '');
 
-  // Hoja 1: la de siempre, categoría → sublínea, en la métrica activa.
+  // Arma una hoja con encabezados en orden fijo, anchos y formato por columna.
+  // cols = [{ k: 'Real $', w: 16, z: FMT.mxn }]
+  function hoja(wb, nombre, filas, cols) {
+    const ws = XLSX.utils.json_to_sheet(filas, { header: cols.map(c => c.k) });
+    ws['!cols'] = cols.map(c => ({ wch: c.w }));
+    const r = XLSX.utils.decode_range(ws['!ref']);
+    for (let C = 0; C <= r.e.c; C++) {
+      const z = cols[C]?.z;
+      if (!z) continue;
+      for (let R = 1; R <= r.e.r; R++) {
+        const cel = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+        if (cel && cel.t === 'n') cel.z = z;
+      }
+    }
+    // Autofiltro sobre el encabezado: son hojas para filtrar y pivotear.
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r.e.r, c: r.e.c } }) };
+    XLSX.utils.book_append_sheet(wb, ws, nombre);
+    return ws;
+  }
+
+  const COLS_PP = [
+    { k: 'Nivel',      w: 11 },
+    { k: 'Categoría',  w: 26 },
+    { k: 'Clave',      w: 9 },
+    { k: 'Sublínea',   w: 34 },
+    { k: 'PP $',       w: 16, z: FMT.mxn },
+    { k: 'PP kg',      w: 14, z: FMT.kg },
+    { k: 'Real $',     w: 16, z: FMT.mxn },
+    { k: 'Real kg',    w: 14, z: FMT.kg },
+    { k: 'Avance $',   w: 11, z: FMT.pct },
+    { k: 'Avance kg',  w: 11, z: FMT.pct },
+    { k: 'Cruzado',    w: 9 },
+    { k: 'En PP',      w: 8 },
+  ];
+
+  // Hoja 1: categoría → sublínea, con PP y real en las dos métricas.
+  //
+  // La columna "Nivel" existe para que los renglones de total de categoría no
+  // se sumen junto con sus sublíneas en una tabla dinámica: se filtra por
+  // Nivel = sublínea y ya. Antes había que saberlo de memoria.
   function hojaDetalle(wb) {
-    const unidad = esDinero() ? 'MXN' : 'kg';
-    const det = [];
+    const num = (o, campo) => Number(o?.[campo] || 0);
+    const av = (o, real, pp) => num(o, pp) ? num(o, real) / num(o, pp) : null;
+    const filas = [];
     for (const c of pp.categorias) {
-      det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: '', Sublinea: '(total categoría)',
-        [`PP_${unidad}`]: ppVal(c), [`Real_${unidad}`]: realVal(c), Avance: avVal(c) });
+      const cat = c.cat_nombre || ('Categoría ' + c.cat);
+      filas.push({
+        'Nivel': 'categoría', 'Categoría': cat, 'Clave': '', 'Sublínea': '(total categoría)',
+        'PP $': num(c, 'ventas_pp'), 'PP kg': num(c, 'kg_pp'),
+        'Real $': num(c, 'ventas_real'), 'Real kg': num(c, 'kg_real'),
+        'Avance $': av(c, 'ventas_real', 'ventas_pp'), 'Avance kg': av(c, 'kg_real', 'kg_pp'),
+        'Cruzado': '', 'En PP': '',
+      });
       for (const sub of c.sublineas) {
-        det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: sub.cve_sublinea, Sublinea: sub.sublinea_nombre,
-          [`PP_${unidad}`]: ppVal(sub), [`Real_${unidad}`]: realVal(sub), Avance: avVal(sub),
-          Cruzado: sub.mapeado ? 'sí' : 'no',
-          En_PP: sub.en_pp === false ? 'no' : 'sí' });
+        filas.push({
+          'Nivel': 'sublínea', 'Categoría': cat, 'Clave': sub.cve_sublinea, 'Sublínea': sub.sublinea_nombre,
+          'PP $': num(sub, 'ventas_pp'), 'PP kg': num(sub, 'kg_pp'),
+          'Real $': num(sub, 'ventas_real'), 'Real kg': num(sub, 'kg_real'),
+          'Avance $': av(sub, 'ventas_real', 'ventas_pp'), 'Avance kg': av(sub, 'kg_real', 'kg_pp'),
+          'Cruzado': sub.mapeado ? 'sí' : 'no', 'En PP': sub.en_pp === false ? 'no' : 'sí',
+        });
       }
     }
     const sc = pp.sin_cruce || {};
-    det.push({ Categoria: 'SIN CRUCE', Clave: '', Sublinea: 'cliente·producto sin ClavePP',
-      [`PP_${unidad}`]: null, [`Real_${unidad}`]: esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0), Avance: null });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(det), `PP ${anio}`);
+    filas.push({
+      'Nivel': 'sin cruce', 'Categoría': 'SIN CRUCE', 'Clave': '', 'Sublínea': 'cliente·producto sin ClavePP',
+      'PP $': null, 'PP kg': null,
+      'Real $': Number(sc.ventas_real || 0), 'Real kg': Number(sc.kg_real || 0),
+      'Avance $': null, 'Avance kg': null, 'Cruzado': '', 'En PP': '',
+    });
+    hoja(wb, `PP ${anio}`, filas, COLS_PP);
   }
 
-  // Hoja 2 (opcional): comparativo entre ejercicios, si ya se cargaron.
+  // Hoja 2 (opcional): comparativo entre ejercicios, en formato LARGO —
+  // una fila por categoría y año. Con las dos métricas, el formato ancho se
+  // volvía de 19 columnas; en largo cabe todo y además se pivotea directo.
+  // La variación se calcula contra el ejercicio disponible anterior.
   function hojaComparativo(wb) {
     const ys = (anios.length ? anios : [anio]).filter(a => cache.has(a) && !cache.get(a)?.sin_pp).sort((a, x) => a - x);
     if (ys.length < 2) return;
@@ -627,47 +691,84 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!porCat.has(c.cat)) porCat.set(c.cat, new Map());
       porCat.get(c.cat).set(y, c);
     }
-    const comp = [...porCat.entries()].map(([cat, m]) => {
-      const fila = { Categoria: nombres.get(cat) };
+    const filas = [];
+    for (const [cat, m] of porCat.entries()) {
+      let prev = null;
       for (const y of ys) {
         const c = m.get(y);
+        if (!c) continue;
         const pend = !!cache.get(y).pp_pendiente;
-        fila[`PP ${y}`]     = (c && !pend) ? ppVal(c) : null;
-        fila[`Real ${y}`]   = c ? realVal(c) : null;
-        fila[`Avance ${y}`] = c ? avVal(c)   : null;
+        const rv = Number(c.ventas_real || 0), rk = Number(c.kg_real || 0);
+        const pv = Number(c.ventas_pp || 0),   pk = Number(c.kg_pp || 0);
+        filas.push({
+          'Categoría': nombres.get(cat), 'Año': y,
+          'PP $': pend ? null : pv, 'PP kg': pend ? null : pk,
+          'Real $': rv, 'Real kg': rk,
+          'Avance $': pv ? rv / pv : null, 'Avance kg': pk ? rk / pk : null,
+          'Var real $': prev && prev.rv ? (rv - prev.rv) / prev.rv : null,
+          'Var real kg': prev && prev.rk ? (rk - prev.rk) / prev.rk : null,
+        });
+        prev = { rv, rk };
       }
-      return fila;
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comp), 'Comparativo');
+    }
+    filas.sort((a, b) => String(a['Categoría']).localeCompare(String(b['Categoría']), 'es') || a['Año'] - b['Año']);
+    hoja(wb, 'Comparativo', filas, [
+      { k: 'Categoría',   w: 26 },
+      { k: 'Año',         w: 7,  z: FMT.ent },
+      { k: 'PP $',        w: 16, z: FMT.mxn },
+      { k: 'PP kg',       w: 14, z: FMT.kg },
+      { k: 'Real $',      w: 16, z: FMT.mxn },
+      { k: 'Real kg',     w: 14, z: FMT.kg },
+      { k: 'Avance $',    w: 11, z: FMT.pct },
+      { k: 'Avance kg',   w: 11, z: FMT.pct },
+      { k: 'Var real $',  w: 12, z: FMT.pct },
+      { k: 'Var real kg', w: 12, z: FMT.pct },
+    ]);
   }
 
-  // Hoja del desglose fino. Plana: una fila por combinación, con la categoría
-  // y la sublínea repetidas para que sirva de fuente a una tabla dinámica.
+  // Hoja del desglose fino. Plana: una fila por combinación, con categoría y
+  // sublínea repetidas para que sirva de fuente a una tabla dinámica.
   function hojaDesglose(wb, nivel, items) {
     const porCliente = nivel === 'cliente';
     const filas = items.map(r => {
+      const v = Number(r.ventas_real || 0), k = Number(r.kg_real || 0);
       const f = {
-        Categoria: r.cat_nombre || (r.cat != null ? 'Categoría ' + r.cat : 'Sin cruce'),
-        Clave:     r.cve_sublinea || '',
-        Sublinea:  r.sublinea_nombre || (r.cve_sublinea ? '' : 'sin ClavePP'),
-        En_PP:     r.cve_sublinea ? (r.en_pp ? 'sí' : 'no') : '',
+        'Categoría': r.cat_nombre || (r.cat != null ? 'Categoría ' + r.cat : 'Sin cruce'),
+        'Clave':     r.cve_sublinea || '',
+        'Sublínea':  r.sublinea_nombre || (r.cve_sublinea ? '' : 'sin ClavePP'),
+        'En PP':     r.cve_sublinea ? (r.en_pp ? 'sí' : 'no') : '',
       };
       if (porCliente) {
-        f.Cve_cliente = r.cve_cte || '';
-        f.Cliente     = r.cliente_nombre || '';
+        f['Cve cliente'] = r.cve_cte || '';
+        f['Cliente']     = r.cliente_nombre || '';
       }
-      f.Producto    = r.cve_prod;
-      f.Descripcion = r.desc_prod || '';
-      f.Venta_MXN   = Number(r.ventas_real || 0);
-      f.Kg          = Number(r.kg_real || 0);
+      f['Producto']    = r.cve_prod;
+      f['Descripción'] = r.desc_prod || '';
+      f['Venta $']     = v;
+      f['Kg']          = k;
       // Precio implícito: es la razón principal de bajar a producto.
-      f.Precio_kg   = Number(r.kg_real) ? Number(r.ventas_real) / Number(r.kg_real) : null;
-      f.Facturas    = Number(r.facturas || 0);
-      f.Ultima_venta = fechaCorta(r.ultima_venta);
+      f['Precio $/kg'] = k ? v / k : null;
+      f['Facturas']    = Number(r.facturas || 0);
+      f['Última venta'] = fechaCorta(r.ultima_venta);
       return f;
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas),
-      porCliente ? 'Por cliente-producto' : 'Por producto');
+    const cols = [
+      { k: 'Categoría', w: 26 },
+      { k: 'Clave',     w: 9 },
+      { k: 'Sublínea',  w: 34 },
+      { k: 'En PP',     w: 8 },
+    ];
+    if (porCliente) cols.push({ k: 'Cve cliente', w: 12 }, { k: 'Cliente', w: 34 });
+    cols.push(
+      { k: 'Producto',     w: 14 },
+      { k: 'Descripción',  w: 40 },
+      { k: 'Venta $',      w: 16, z: FMT.mxn },
+      { k: 'Kg',           w: 14, z: FMT.kg },
+      { k: 'Precio $/kg',  w: 13, z: FMT.precio },
+      { k: 'Facturas',     w: 10, z: FMT.ent },
+      { k: 'Última venta', w: 13 },
+    );
+    hoja(wb, porCliente ? 'Por cliente-producto' : 'Por producto', filas, cols);
   }
 
   async function exportar(nivel) {
@@ -678,7 +779,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (nivel === 'sublinea') {
       hojaComparativo(wb);
-      XLSX.writeFile(wb, `KOGU_PP_${anio}_${esDinero() ? 'MXN' : 'kg'}.xlsx`);
+      XLSX.writeFile(wb, `KOGU_PP_${anio}_sublinea.xlsx`);
       return;
     }
 
@@ -708,15 +809,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           ${opcion('sublinea', 'Categoría · sublínea',
             'El avance contra el PP, como se ve en pantalla.',
-            `Incluye el comparativo entre ejercicios si ya lo abriste · en ${esDinero() ? 'MXN' : 'kg'} (la métrica activa)`)}
+            'Incluye el comparativo entre ejercicios si ya lo abriste')}
           ${opcion('producto', '+ Producto',
             'Agrega una hoja con el real abierto por producto dentro de cada sublínea.',
-            'Venta, kg y precio implícito por kg')}
+            'Con precio implícito por kg')}
           ${opcion('cliente', '+ Cliente · producto',
             'Agrega una hoja con el real abierto por cliente y producto.',
             'El nivel más fino: es el mismo grano con el que se asigna la ClavePP')}
           <div style="font-size:11px;color:var(--muted);margin-top:6px">
-            El PP solo existe a nivel sublínea, así que las hojas de desglose traen únicamente el real; se ligan con la hoja "PP ${anio}" por la columna Clave.
+            Los tres traen <b>pesos y kilos</b>. El PP solo existe a nivel sublínea, así que las hojas de desglose traen únicamente el real; se ligan con la hoja "PP ${anio}" por la columna Clave.
           </div>
         </div>
       </div>`;
