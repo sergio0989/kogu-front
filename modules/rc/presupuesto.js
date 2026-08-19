@@ -678,52 +678,145 @@ document.addEventListener('DOMContentLoaded', async () => {
     hoja(wb, `PP ${anio}`, filas, COLS_PP);
   }
 
-  // Hoja 2 (opcional): comparativo entre ejercicios, en formato LARGO —
-  // una fila por categoría y año. Con las dos métricas, el formato ancho se
-  // volvía de 19 columnas; en largo cabe todo y además se pivotea directo.
-  // La variación se calcula contra el ejercicio disponible anterior.
-  function hojaComparativo(wb) {
-    const ys = (anios.length ? anios : [anio]).filter(a => cache.has(a) && !cache.get(a)?.sin_pp).sort((a, x) => a - x);
-    if (ys.length < 2) return;
-    const nombres = new Map(), porCat = new Map();
-    for (const y of ys) for (const c of (cache.get(y).categorias || [])) {
-      nombres.set(c.cat, c.cat_nombre || ('Categoría ' + c.cat));
-      if (!porCat.has(c.cat)) porCat.set(c.cat, new Map());
-      porCat.get(c.cat).set(y, c);
+  // ── Comparativo entre ejercicios, en los mismos 3 niveles ─────────────────
+  //
+  // Todo en formato LARGO: una fila por llave y año. En ancho, con dos
+  // métricas y tres ejercicios, la tabla se vuelve ilegible (19+ columnas) y
+  // no se puede pivotear. En largo, el año es una columna más y armar una
+  // dinámica "producto × año" toma diez segundos.
+  //
+  // La variación se calcula contra el ejercicio ANTERIOR DISPONIBLE de la
+  // misma llave, no contra un año fijo: si un producto no se vendió en 2025,
+  // 2026 se compara con 2024 en vez de dividir entre cero.
+  const MAX_EJERCICIOS = 5;
+  const aniosComp = () => (anios.length ? anios : [anio]).slice(0, MAX_EJERCICIOS).sort((a, b) => a - b);
+
+  // Agrega Var real $ / kg recorriendo cada llave en orden de año.
+  function conVariacion(filas, llave) {
+    const previo = new Map();
+    for (const f of filas) {
+      const k = llave(f);
+      const p = previo.get(k);
+      f['Var real $']  = (p && p.v) ? (f['Real $'] - p.v) / p.v : null;
+      f['Var real kg'] = (p && p.k) ? (f['Real kg'] - p.k) / p.k : null;
+      previo.set(k, { v: f['Real $'], k: f['Real kg'] });
     }
+    return filas;
+  }
+
+  // Nivel 1 del comparativo: categoría · sublínea por año. Sale del payload
+  // que ya se pide por ejercicio, sin tocar el backend.
+  async function filasCompSublinea(ys) {
+    await Promise.all(ys.map(a => traerAnio(a).catch(() => null)));
     const filas = [];
-    for (const [cat, m] of porCat.entries()) {
-      let prev = null;
-      for (const y of ys) {
-        const c = m.get(y);
-        if (!c) continue;
-        const pend = !!cache.get(y).pp_pendiente;
-        const rv = Number(c.ventas_real || 0), rk = Number(c.kg_real || 0);
-        const pv = Number(c.ventas_pp || 0),   pk = Number(c.kg_pp || 0);
+    for (const y of ys) {
+      const d = cache.get(y);
+      if (!d || d.sin_pp) continue;
+      const pend = !!d.pp_pendiente;
+      for (const c of (d.categorias || [])) {
+        const cat = c.cat_nombre || ('Categoría ' + c.cat);
+        for (const sub of c.sublineas) {
+          const pv = Number(sub.ventas_pp || 0), pk = Number(sub.kg_pp || 0);
+          const rv = Number(sub.ventas_real || 0), rk = Number(sub.kg_real || 0);
+          filas.push({
+            'Categoría': cat, 'Clave': sub.cve_sublinea, 'Sublínea': sub.sublinea_nombre, 'Año': y,
+            'PP $': pend ? null : pv, 'PP kg': pend ? null : pk,
+            'Real $': rv, 'Real kg': rk,
+            'Avance $': pv ? rv / pv : null, 'Avance kg': pk ? rk / pk : null,
+          });
+        }
+      }
+      const sc = d.sin_cruce || {};
+      if (Number(sc.ventas_real || 0) || Number(sc.kg_real || 0)) {
         filas.push({
-          'Categoría': nombres.get(cat), 'Año': y,
-          'PP $': pend ? null : pv, 'PP kg': pend ? null : pk,
-          'Real $': rv, 'Real kg': rk,
-          'Avance $': pv ? rv / pv : null, 'Avance kg': pk ? rk / pk : null,
-          'Var real $': prev && prev.rv ? (rv - prev.rv) / prev.rv : null,
-          'Var real kg': prev && prev.rk ? (rk - prev.rk) / prev.rk : null,
+          'Categoría': 'SIN CRUCE', 'Clave': '', 'Sublínea': 'cliente·producto sin ClavePP', 'Año': y,
+          'PP $': null, 'PP kg': null,
+          'Real $': Number(sc.ventas_real || 0), 'Real kg': Number(sc.kg_real || 0),
+          'Avance $': null, 'Avance kg': null,
         });
-        prev = { rv, rk };
       }
     }
-    filas.sort((a, b) => String(a['Categoría']).localeCompare(String(b['Categoría']), 'es') || a['Año'] - b['Año']);
-    hoja(wb, 'Comparativo', filas, [
-      { k: 'Categoría',   w: 26 },
+    filas.sort((a, b) => String(a['Clave']).localeCompare(String(b['Clave']), 'es') || a['Año'] - b['Año']);
+    return conVariacion(filas, f => f['Clave'] + '|' + f['Categoría']);
+  }
+
+  // Niveles 2 y 3: un GET por ejercicio, en paralelo.
+  async function filasCompDesglose(ys, nivel) {
+    const porCliente = nivel === 'cliente';
+    const res = await Promise.all(ys.map(a =>
+      KoguApi.apiFetch(`${BASE}/pp/desglose?anio=${a}&nivel=${nivel}`)
+        .then(r => ({ a, items: KoguApi.unwrapData(r)?.items || [] }))
+        .catch(() => ({ a, items: [] }))));
+    const filas = [];
+    for (const { a, items } of res) {
+      for (const r of items) {
+        const v = Number(r.ventas_real || 0), k = Number(r.kg_real || 0);
+        const f = {
+          'Categoría': r.cat_nombre || (r.cat != null ? 'Categoría ' + r.cat : 'Sin cruce'),
+          'Clave':     r.cve_sublinea || '',
+          'Sublínea':  r.sublinea_nombre || (r.cve_sublinea ? '' : 'sin ClavePP'),
+        };
+        if (porCliente) { f['Cve cliente'] = r.cve_cte || ''; f['Cliente'] = r.cliente_nombre || ''; }
+        f['Producto']     = r.cve_prod;
+        f['Descripción']  = r.desc_prod || '';
+        f['Año']          = a;
+        f['Real $']       = v;
+        f['Real kg']      = k;
+        f['Precio $/kg']  = k ? v / k : null;
+        f['Facturas']     = Number(r.facturas || 0);
+        filas.push(f);
+      }
+    }
+    const llave = porCliente
+      ? (f => `${f['Clave']}|${f['Cve cliente']}|${f['Producto']}`)
+      : (f => `${f['Clave']}|${f['Producto']}`);
+    filas.sort((a, b) => llave(a).localeCompare(llave(b), 'es') || a['Año'] - b['Año']);
+    return conVariacion(filas, llave);
+  }
+
+  const COLS_VAR = [
+    { k: 'Var real $',  w: 12, z: FMT.pct },
+    { k: 'Var real kg', w: 12, z: FMT.pct },
+  ];
+
+  async function exportarComparativo(nivel) {
+    const ys = aniosComp();
+    if (ys.length < 2) { KoguApi.toast('Se necesita más de un ejercicio para comparar.', 'error'); return; }
+    const etq = `${ys[0]}-${ys[ys.length - 1]}`;
+    const wb = XLSX.utils.book_new();
+
+    if (nivel === 'sublinea') {
+      const filas = await filasCompSublinea(ys);
+      if (!filas.length) { KoguApi.toast('No hay ejercicios comparables.', 'error'); return; }
+      hoja(wb, 'Comparativo sublínea', filas, [
+        { k: 'Categoría', w: 26 }, { k: 'Clave', w: 9 }, { k: 'Sublínea', w: 34 },
+        { k: 'Año',       w: 7, z: FMT.ent },
+        { k: 'PP $',      w: 16, z: FMT.mxn }, { k: 'PP kg',   w: 14, z: FMT.kg },
+        { k: 'Real $',    w: 16, z: FMT.mxn }, { k: 'Real kg', w: 14, z: FMT.kg },
+        { k: 'Avance $',  w: 11, z: FMT.pct }, { k: 'Avance kg', w: 11, z: FMT.pct },
+        ...COLS_VAR,
+      ]);
+      XLSX.writeFile(wb, `KOGU_PP_comparativo_${etq}_sublinea.xlsx`);
+      KoguApi.toast(`${filas.length} renglones · ${ys.join(', ')}`, 'success');
+      return;
+    }
+
+    const porCliente = nivel === 'cliente';
+    const filas = await filasCompDesglose(ys, nivel);
+    if (!filas.length) { KoguApi.toast('No hay movimientos en esos ejercicios.', 'error'); return; }
+    const cols = [{ k: 'Categoría', w: 26 }, { k: 'Clave', w: 9 }, { k: 'Sublínea', w: 34 }];
+    if (porCliente) cols.push({ k: 'Cve cliente', w: 12 }, { k: 'Cliente', w: 34 });
+    cols.push(
+      { k: 'Producto',    w: 14 }, { k: 'Descripción', w: 40 },
       { k: 'Año',         w: 7,  z: FMT.ent },
-      { k: 'PP $',        w: 16, z: FMT.mxn },
-      { k: 'PP kg',       w: 14, z: FMT.kg },
-      { k: 'Real $',      w: 16, z: FMT.mxn },
-      { k: 'Real kg',     w: 14, z: FMT.kg },
-      { k: 'Avance $',    w: 11, z: FMT.pct },
-      { k: 'Avance kg',   w: 11, z: FMT.pct },
-      { k: 'Var real $',  w: 12, z: FMT.pct },
-      { k: 'Var real kg', w: 12, z: FMT.pct },
-    ]);
+      { k: 'Real $',      w: 16, z: FMT.mxn }, { k: 'Real kg', w: 14, z: FMT.kg },
+      { k: 'Precio $/kg', w: 13, z: FMT.precio },
+      { k: 'Facturas',    w: 10, z: FMT.ent },
+      ...COLS_VAR,
+    );
+    hoja(wb, porCliente ? 'Comparativo cliente-prod' : 'Comparativo producto', filas, cols);
+    XLSX.writeFile(wb, `KOGU_PP_comparativo_${etq}_${porCliente ? 'cliente-producto' : 'producto'}.xlsx`);
+    KoguApi.toast(`${filas.length} renglones · ${ys.join(', ')}`, 'success');
   }
 
   // Hoja del desglose fino. Plana: una fila por combinación, con categoría y
@@ -778,7 +871,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     hojaDetalle(wb);
 
     if (nivel === 'sublinea') {
-      hojaComparativo(wb);
       XLSX.writeFile(wb, `KOGU_PP_${anio}_sublinea.xlsx`);
       return;
     }
@@ -792,32 +884,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     KoguApi.toast(`${items.length} renglones exportados`, 'success');
   }
 
-  // Modal de selección de nivel.
+  // Modal de selección: dos grupos × tres niveles.
+  //
+  // Un ejercicio y el comparativo responden preguntas distintas ("¿cómo voy
+  // contra el PP?" vs "¿qué cambió contra el año pasado?"), y el nivel de
+  // detalle es la misma pregunta en los dos. Por eso la matriz, y no seis
+  // botones sueltos.
   function abrirExport() {
-    const opcion = (nivel, titulo, desc, nota) => `
-      <button class="btn" data-nivel="${nivel}" style="display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:14px">${titulo}</div>
-        <div style="font-size:12px;color:var(--muted);font-weight:400;margin-top:2px">${desc}</div>
-        ${nota ? `<div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:3px">${nota}</div>` : ''}
+    const ys = aniosComp();
+    const opcion = (modo, nivel, titulo, nota) => `
+      <button class="btn" data-modo="${modo}" data-nivel="${nivel}" style="display:block;width:100%;text-align:left;padding:10px 13px;margin-bottom:7px">
+        <div style="font-weight:700;font-size:13px">${titulo}</div>
+        ${nota ? `<div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:2px">${nota}</div>` : ''}
       </button>`;
     const html = `
-      <div id="ppExportModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px">
-        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-          <div class="row" style="align-items:flex-start;margin-bottom:12px">
-            <div><div class="eyebrow">Radar · Presupuesto</div><h3 style="margin:4px 0 0">Exportar ${anio}</h3></div>
+      <div id="ppExportModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:40px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:760px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:14px">
+            <div><div class="eyebrow">Radar · Presupuesto</div><h3 style="margin:4px 0 0">Exportar a Excel</h3></div>
             <button class="btn" id="ppExportClose">Cerrar ✕</button>
           </div>
-          ${opcion('sublinea', 'Categoría · sublínea',
-            'El avance contra el PP, como se ve en pantalla.',
-            'Incluye el comparativo entre ejercicios si ya lo abriste')}
-          ${opcion('producto', '+ Producto',
-            'Agrega una hoja con el real abierto por producto dentro de cada sublínea.',
-            'Con precio implícito por kg')}
-          ${opcion('cliente', '+ Cliente · producto',
-            'Agrega una hoja con el real abierto por cliente y producto.',
-            'El nivel más fino: es el mismo grano con el que se asigna la ClavePP')}
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">
-            Los tres traen <b>pesos y kilos</b>. El PP solo existe a nivel sublínea, así que las hojas de desglose traen únicamente el real; se ligan con la hoja "PP ${anio}" por la columna Clave.
+          <div class="split" style="gap:18px">
+            <div>
+              <div class="eyebrow" style="margin-bottom:8px">Ejercicio ${anio}</div>
+              ${opcion('anio', 'sublinea', 'Categoría · sublínea', 'PP contra real, como en pantalla')}
+              ${opcion('anio', 'producto', '+ Producto', 'con precio implícito por kg')}
+              ${opcion('anio', 'cliente',  '+ Cliente · producto', 'el grano con el que se asigna la ClavePP')}
+            </div>
+            <div>
+              <div class="eyebrow" style="margin-bottom:8px">Comparativo · ${ys.join(' · ')}</div>
+              ${opcion('comp', 'sublinea', 'Categoría · sublínea', 'una fila por sublínea y año')}
+              ${opcion('comp', 'producto', '+ Producto', 'qué producto subió o cayó vs el año anterior')}
+              ${opcion('comp', 'cliente',  '+ Cliente · producto', 'qué cliente dejó de comprar qué')}
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:10px">
+            Los seis traen <b>pesos y kilos</b>. El comparativo va en formato largo (el año es una columna) con la variación contra el <b>ejercicio anterior disponible</b> de cada renglón, para poder pivotear. El PP solo existe a nivel sublínea, así que las hojas de producto traen únicamente el real y se ligan por la columna Clave.
           </div>
         </div>
       </div>`;
@@ -829,8 +931,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     modal.onclick = e => { if (e.target === modal) cerrar(); };
     modal.querySelectorAll('button[data-nivel]').forEach(b => b.onclick = async () => {
       await KoguUi.withLoading(b, async () => {
-        try { await exportar(b.dataset.nivel); cerrar(); }
-        catch (err) { KoguApi.toast(err.message, 'error'); }
+        try {
+          if (b.dataset.modo === 'comp') await exportarComparativo(b.dataset.nivel);
+          else await exportar(b.dataset.nivel);
+          cerrar();
+        } catch (err) { KoguApi.toast(err.message, 'error'); }
       }, 'Generando…');
     });
   }
