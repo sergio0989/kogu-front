@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard(`Meta al corte (${mesesTrans || 0} m)`, (!pend && metaCorte != null) ? fmtValC(metaCorte) : '—', pend ? 'requiere PP' : `PP ÷ 12 × ${mesesTrans || 0} meses`)}
         ${miniCard('Cumplimiento al corte', pend ? '—' : pct0(cumplCorte), pend ? 'requiere PP' : 'real ÷ meta al corte', cumplCol)}
       </div>
-      ${scVal > 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtValC(scVal)}</b> — se atribuye conforme confirmas las combinaciones cliente·producto en <a href="/modules/rc/asignacion-pp.html">Asignación PP</a>.</div>` : ''}`;
+      ${scVal !== 0 ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">El total de arriba ya es comparable (venta total al corte vs PP). Cobertura de mapeo a sublíneas: <b>${pct0(cob)}</b> · sin cruce <b>${fmtValC(scVal)}</b> — se atribuye conforme confirmas las combinaciones cliente·producto en <a href="/modules/rc/asignacion-pp.html">Asignación PP</a>.</div>` : ''}`;
 
     // Barra avance vs ritmo
     const barW = Math.min(100, Math.round((av || 0) * 100));
@@ -505,9 +505,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right">${fmtVal(sumReal)}</td>
           <td style="text-align:right;color:${semColor(avSum, ritmo)}">${pct0(avSum)}</td>
         </tr>
-        ${scVal > 0 ? `<tr style="background:var(--panel2,#f8fafc);color:var(--warning,#d97706)">
+        ${scVal !== 0 ? `<tr style="background:var(--panel2,#f8fafc);color:var(--warning,#d97706)">
           <td style="padding-left:14px">Sin cruce
-            <span style="font-weight:400;font-size:11px">· cliente·producto todavía sin ClavePP —
+            <span style="font-weight:400;font-size:11px">· cliente·producto todavía sin ClavePP${scVal < 0 ? ' · <b>en negativo</b>: son notas de crédito sin asignar' : ''} —
               <a href="/modules/rc/asignacion-pp.html" style="color:inherit;text-decoration:underline">asignar</a>
             </span>
           </td>

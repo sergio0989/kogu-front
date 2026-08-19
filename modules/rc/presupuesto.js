@@ -354,8 +354,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="text-align:right">${fmtVal(sumReal)}</td>
           <td style="text-align:right;color:${semColor(avSum, ritmo)}">${pct0(avSum)}</td>
         </tr>
-        ${(!filtrando && scVal > 0) ? `<tr style="background:var(--panel2,#f8fafc);color:var(--warning,#d97706)">
-          <td style="padding-left:14px">Sin cruce <span style="font-weight:400;font-size:11px">· cliente·producto todavía sin ClavePP — <a href="/modules/rc/asignacion-pp.html" style="color:inherit;text-decoration:underline">asignar</a></span></td>
+        ${(!filtrando && scVal !== 0) ? `<tr style="background:var(--panel2,#f8fafc);color:var(--warning,#d97706)">
+          <td style="padding-left:14px">Sin cruce <span style="font-weight:400;font-size:11px">· cliente·producto todavía sin ClavePP${scVal < 0 ? ' · <b>en negativo</b>: son notas de crédito sin asignar' : ''} — <a href="/modules/rc/asignacion-pp.html" style="color:inherit;text-decoration:underline">asignar</a></span></td>
           <td style="text-align:right">—</td>
           <td style="text-align:right;font-weight:700">${fmtVal(scVal)}</td>
           <td style="text-align:right">—</td>
