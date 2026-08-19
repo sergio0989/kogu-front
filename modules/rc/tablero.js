@@ -298,6 +298,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Real YA atribuido a sublíneas (totales.*_real_mapeado). El backend lo
   // devuelve aparte del real total: la diferencia es lo que sigue sin ClavePP.
   const realMapVal = o => esDinero() ? Number(o.ventas_real_mapeado || 0) : Number(o.kg_real_mapeado || 0);
+  // Total CRUDO del ERP del año (totales.*_control): no se deriva de las
+  // categorías, así que sirve para cuadrar de verdad contra erp_ventas.
+  const ctrlVal = o => esDinero() ? Number(o.ventas_control || 0) : Number(o.kg_control || 0);
   // Semáforo: avance real contra el ritmo esperado del año.
   function semColor(av, ritmo) {
     if (av == null || !ritmo) return 'var(--muted,#64748b)';
@@ -370,9 +373,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const open = ppOpen.has(c.cat);
       const subs = open ? c.sublineas.map(s => {
         const sa = avVal(s), scol = semColor(sa, ritmo);
+        // ·fuera del PP = tiene venta atribuida pero ese ejercicio no la
+        // presupuestó. Antes esa venta no aparecía en ningún renglón.
+        const etq = s.en_pp === false
+          ? ' <span style="color:var(--brand,#2563eb);font-size:11px" title="Tiene venta atribuida pero no se presupuestó en este ejercicio">·fuera del PP</span>'
+          : (s.mapeado ? '' : ' <span style="color:var(--warning,#d97706);font-size:11px">·sin cruce</span>');
         return `<tr style="background:var(--panel2,#f8fafc)">
-          <td style="padding-left:26px"><span class="chip-compact">${KoguUi.escapeHtml(s.cve_sublinea)}</span> ${KoguUi.escapeHtml(s.sublinea_nombre)}${s.mapeado ? '' : ' <span style="color:var(--warning,#d97706);font-size:11px">·sin cruce</span>'}</td>
-          <td style="text-align:right">${fmtVal(ppVal(s))}</td>
+          <td style="padding-left:26px"><span class="chip-compact">${KoguUi.escapeHtml(s.cve_sublinea)}</span> ${KoguUi.escapeHtml(s.sublinea_nombre)}${etq}</td>
+          <td style="text-align:right">${s.en_pp === false ? '—' : fmtVal(ppVal(s))}</td>
           <td style="text-align:right">${fmtVal(realVal(s))}</td>
           <td style="text-align:right;font-weight:600;color:${scol}">${pct0(sa)}</td>
         </tr>`;
@@ -431,21 +439,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const avSum   = sumPp ? sumReal / sumPp : null;
     const avTot   = sumPp ? totReal / sumPp : null;
 
-    // Doble verificación contra el backend, que calcula lo mismo por su lado:
-    //   · la suma de categorías debe dar totales.*_real_mapeado
-    //   · suma + sin cruce debe dar el "Real a la fecha" del encabezado
-    // Si alguna no cuadra, hay filas perdidas y más vale decirlo que pintar un
-    // total bonito y equivocado.
+    // Triple verificación. Las dos primeras contrastan el front contra el
+    // backend, pero salen de la misma fuente (totales.*_real_mapeado se deriva
+    // de estas mismas categorías): solas nunca detectarían una fila perdida.
+    // La tercera es la buena — Real a la fecha contra el total CRUDO de
+    // erp_ventas del año (totales.*_control), que el backend calcula sin pasar
+    // por la asignación PP. Si esa falla, hay venta cayéndose del tablero.
     const tol      = esDinero() ? 0.5 : 1;
     const dMapeado = sumReal - realMapVal(t);
     const dTotal   = totReal - realVal(t);
-    const notaCuadre = (Math.abs(dMapeado) > tol || Math.abs(dTotal) > tol)
+    const ctl      = ctrlVal(t);              // 0 si el backend aún no lo manda
+    const dCtl     = ctl ? realVal(t) - ctl : 0;
+    const notaCuadre = (Math.abs(dMapeado) > tol || Math.abs(dTotal) > tol || Math.abs(dCtl) > tol)
       ? `<div style="margin-top:8px;padding:9px 12px;border:1px solid var(--danger,#dc2626);border-radius:10px;color:var(--danger,#dc2626);font-size:12px">
            <b>Las sumas no cuadran.</b>
            ${Math.abs(dMapeado) > tol ? `Suma de categorías ${fmtVal(sumReal)} vs atribuido del servidor ${fmtVal(realMapVal(t))} (dif. ${fmtVal(dMapeado)}). ` : ''}
-           ${Math.abs(dTotal) > tol ? `Total de la tabla ${fmtVal(totReal)} vs Real a la fecha ${fmtVal(realVal(t))} (dif. ${fmtVal(dTotal)}).` : ''}
+           ${Math.abs(dTotal) > tol ? `Total de la tabla ${fmtVal(totReal)} vs Real a la fecha ${fmtVal(realVal(t))} (dif. ${fmtVal(dTotal)}). ` : ''}
+           ${Math.abs(dCtl) > tol ? `<b>Real a la fecha ${fmtVal(realVal(t))} vs venta del ERP ${fmtVal(ctl)} (dif. ${fmtVal(dCtl)})</b> — hay líneas de erp_ventas que no llegan ni a una sublínea ni a "sin cruce".` : ''}
          </div>`
-      : '';
+      : (ctl ? `<div style="margin-top:8px;font-size:12px;color:var(--muted)">✓ Cuadra contra el ERP: suma de categorías + sin cruce = ${fmtVal(ctl)} de venta ${pp.anio}.</div>` : '');
 
     const foot = `
       <tfoot>
