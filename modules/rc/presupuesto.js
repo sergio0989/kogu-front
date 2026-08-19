@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <button class="tab" data-m="cantidad">kg</button>
           <button class="tab" data-m="dinero">MXN</button>
         </div>
-        <button class="btn" id="exportBtn" title="Descargar el detalle y el comparativo en Excel">⬇ Exportar</button>
+        <button class="btn" id="exportBtn" title="Descargar en Excel: por sublínea, por producto o por cliente·producto">⬇ Exportar…</button>
       </div>
     </div>
     <div id="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px"></div>
@@ -583,53 +583,155 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Exportar ──────────────────────────────────────────────────────────────
-  function exportar() {
-    if (typeof XLSX === 'undefined') { KoguApi.toast('SheetJS no cargó. Recarga la página.', 'error'); return; }
-    if (!pp || pp.sin_pp) { KoguApi.toast('No hay PP que exportar.', 'error'); return; }
-    const unidad = esDinero() ? 'MXN' : 'kg';
-    const wb = XLSX.utils.book_new();
+  //
+  // Tres niveles, porque son tres preguntas distintas:
+  //   1. categoría · sublínea  → ¿cómo voy contra el PP? (el único con PP:
+  //      el presupuesto se captura por sublínea y no baja de ahí)
+  //   2. + producto            → ¿qué producto sostiene esa sublínea?
+  //   3. + cliente · producto  → ¿quién compra qué?
+  //
+  // Los niveles 2 y 3 salen en hojas APARTE y PLANAS, sin la columna de PP:
+  // repetir el presupuesto en cada renglón de producto haría que cualquier
+  // tabla dinámica lo sumara N veces. El PP vive en su hoja y se liga por la
+  // clave de sublínea. Y como a nivel producto casi siempre quieres el precio
+  // implícito, esas hojas traen venta y kg juntos, sin importar el toggle.
+  const fechaCorta = v => (v ? String(v).slice(0, 10) : '');
 
-    // Hoja 1 — detalle del año seleccionado (sin filtrar: el Excel se exporta
-    // completo aunque la pantalla esté filtrada).
+  // Hoja 1: la de siempre, categoría → sublínea, en la métrica activa.
+  function hojaDetalle(wb) {
+    const unidad = esDinero() ? 'MXN' : 'kg';
     const det = [];
     for (const c of pp.categorias) {
       det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: '', Sublinea: '(total categoría)',
         [`PP_${unidad}`]: ppVal(c), [`Real_${unidad}`]: realVal(c), Avance: avVal(c) });
-      for (const s of c.sublineas) {
-        det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: s.cve_sublinea, Sublinea: s.sublinea_nombre,
-          [`PP_${unidad}`]: ppVal(s), [`Real_${unidad}`]: realVal(s), Avance: avVal(s),
-          Cruzado: s.mapeado ? 'sí' : 'no',
-          En_PP: s.en_pp === false ? 'no' : 'sí' });
+      for (const sub of c.sublineas) {
+        det.push({ Categoria: c.cat_nombre || ('Categoría ' + c.cat), Clave: sub.cve_sublinea, Sublinea: sub.sublinea_nombre,
+          [`PP_${unidad}`]: ppVal(sub), [`Real_${unidad}`]: realVal(sub), Avance: avVal(sub),
+          Cruzado: sub.mapeado ? 'sí' : 'no',
+          En_PP: sub.en_pp === false ? 'no' : 'sí' });
       }
     }
     const sc = pp.sin_cruce || {};
     det.push({ Categoria: 'SIN CRUCE', Clave: '', Sublinea: 'cliente·producto sin ClavePP',
       [`PP_${unidad}`]: null, [`Real_${unidad}`]: esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0), Avance: null });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(det), `Detalle ${anio}`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(det), `PP ${anio}`);
+  }
 
-    // Hoja 2 — comparativo, solo si ya se cargaron los otros ejercicios.
+  // Hoja 2 (opcional): comparativo entre ejercicios, si ya se cargaron.
+  function hojaComparativo(wb) {
     const ys = (anios.length ? anios : [anio]).filter(a => cache.has(a) && !cache.get(a)?.sin_pp).sort((a, x) => a - x);
-    if (ys.length > 1) {
-      const nombres = new Map(), porCat = new Map();
-      for (const y of ys) for (const c of (cache.get(y).categorias || [])) {
-        nombres.set(c.cat, c.cat_nombre || ('Categoría ' + c.cat));
-        if (!porCat.has(c.cat)) porCat.set(c.cat, new Map());
-        porCat.get(c.cat).set(y, c);
+    if (ys.length < 2) return;
+    const nombres = new Map(), porCat = new Map();
+    for (const y of ys) for (const c of (cache.get(y).categorias || [])) {
+      nombres.set(c.cat, c.cat_nombre || ('Categoría ' + c.cat));
+      if (!porCat.has(c.cat)) porCat.set(c.cat, new Map());
+      porCat.get(c.cat).set(y, c);
+    }
+    const comp = [...porCat.entries()].map(([cat, m]) => {
+      const fila = { Categoria: nombres.get(cat) };
+      for (const y of ys) {
+        const c = m.get(y);
+        const pend = !!cache.get(y).pp_pendiente;
+        fila[`PP ${y}`]     = (c && !pend) ? ppVal(c) : null;
+        fila[`Real ${y}`]   = c ? realVal(c) : null;
+        fila[`Avance ${y}`] = c ? avVal(c)   : null;
       }
-      const comp = [...porCat.entries()].map(([cat, m]) => {
-        const fila = { Categoria: nombres.get(cat) };
-        for (const y of ys) {
-          const c = m.get(y);
-          fila[`PP ${y}`]     = c ? ppVal(c)   : null;
-          fila[`Real ${y}`]   = c ? realVal(c) : null;
-          fila[`Avance ${y}`] = c ? avVal(c)   : null;
-        }
-        return fila;
-      });
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comp), 'Comparativo');
+      return fila;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comp), 'Comparativo');
+  }
+
+  // Hoja del desglose fino. Plana: una fila por combinación, con la categoría
+  // y la sublínea repetidas para que sirva de fuente a una tabla dinámica.
+  function hojaDesglose(wb, nivel, items) {
+    const porCliente = nivel === 'cliente';
+    const filas = items.map(r => {
+      const f = {
+        Categoria: r.cat_nombre || (r.cat != null ? 'Categoría ' + r.cat : 'Sin cruce'),
+        Clave:     r.cve_sublinea || '',
+        Sublinea:  r.sublinea_nombre || (r.cve_sublinea ? '' : 'sin ClavePP'),
+        En_PP:     r.cve_sublinea ? (r.en_pp ? 'sí' : 'no') : '',
+      };
+      if (porCliente) {
+        f.Cve_cliente = r.cve_cte || '';
+        f.Cliente     = r.cliente_nombre || '';
+      }
+      f.Producto    = r.cve_prod;
+      f.Descripcion = r.desc_prod || '';
+      f.Venta_MXN   = Number(r.ventas_real || 0);
+      f.Kg          = Number(r.kg_real || 0);
+      // Precio implícito: es la razón principal de bajar a producto.
+      f.Precio_kg   = Number(r.kg_real) ? Number(r.ventas_real) / Number(r.kg_real) : null;
+      f.Facturas    = Number(r.facturas || 0);
+      f.Ultima_venta = fechaCorta(r.ultima_venta);
+      return f;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas),
+      porCliente ? 'Por cliente-producto' : 'Por producto');
+  }
+
+  async function exportar(nivel) {
+    if (typeof XLSX === 'undefined') { KoguApi.toast('SheetJS no cargó. Recarga la página.', 'error'); return; }
+    if (!pp || pp.sin_pp) { KoguApi.toast('No hay PP que exportar.', 'error'); return; }
+    const wb = XLSX.utils.book_new();
+    hojaDetalle(wb);
+
+    if (nivel === 'sublinea') {
+      hojaComparativo(wb);
+      XLSX.writeFile(wb, `KOGU_PP_${anio}_${esDinero() ? 'MXN' : 'kg'}.xlsx`);
+      return;
     }
 
-    XLSX.writeFile(wb, `KOGU_PP_${anio}_${unidad}.xlsx`);
+    const res = await KoguApi.apiFetch(`${BASE}/pp/desglose?anio=${anio}&nivel=${nivel}`);
+    const d = KoguApi.unwrapData(res);
+    const items = d?.items || [];
+    if (!items.length) { KoguApi.toast('No hay movimientos para desglosar en ' + anio, 'error'); return; }
+    hojaDesglose(wb, nivel, items);
+    XLSX.writeFile(wb, `KOGU_PP_${anio}_${nivel === 'cliente' ? 'cliente-producto' : 'producto'}.xlsx`);
+    KoguApi.toast(`${items.length} renglones exportados`, 'success');
+  }
+
+  // Modal de selección de nivel.
+  function abrirExport() {
+    const opcion = (nivel, titulo, desc, nota) => `
+      <button class="btn" data-nivel="${nivel}" style="display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:14px">${titulo}</div>
+        <div style="font-size:12px;color:var(--muted);font-weight:400;margin-top:2px">${desc}</div>
+        ${nota ? `<div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:3px">${nota}</div>` : ''}
+      </button>`;
+    const html = `
+      <div id="ppExportModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:flex-start;margin-bottom:12px">
+            <div><div class="eyebrow">Radar · Presupuesto</div><h3 style="margin:4px 0 0">Exportar ${anio}</h3></div>
+            <button class="btn" id="ppExportClose">Cerrar ✕</button>
+          </div>
+          ${opcion('sublinea', 'Categoría · sublínea',
+            'El avance contra el PP, como se ve en pantalla.',
+            `Incluye el comparativo entre ejercicios si ya lo abriste · en ${esDinero() ? 'MXN' : 'kg'} (la métrica activa)`)}
+          ${opcion('producto', '+ Producto',
+            'Agrega una hoja con el real abierto por producto dentro de cada sublínea.',
+            'Venta, kg y precio implícito por kg')}
+          ${opcion('cliente', '+ Cliente · producto',
+            'Agrega una hoja con el real abierto por cliente y producto.',
+            'El nivel más fino: es el mismo grano con el que se asigna la ClavePP')}
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">
+            El PP solo existe a nivel sublínea, así que las hojas de desglose traen únicamente el real; se ligan con la hoja "PP ${anio}" por la columna Clave.
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('ppExportModal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('ppExportModal');
+    const cerrar = () => modal.remove();
+    document.getElementById('ppExportClose').onclick = cerrar;
+    modal.onclick = e => { if (e.target === modal) cerrar(); };
+    modal.querySelectorAll('button[data-nivel]').forEach(b => b.onclick = async () => {
+      await KoguUi.withLoading(b, async () => {
+        try { await exportar(b.dataset.nivel); cerrar(); }
+        catch (err) { KoguApi.toast(err.message, 'error'); }
+      }, 'Generando…');
+    });
   }
 
   // ── Eventos ───────────────────────────────────────────────────────────────
@@ -644,7 +746,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearTimeout(qTimer);
     qTimer = setTimeout(() => { filtro = e.target.value; renderTabla(); }, 250);
   };
-  document.getElementById('exportBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => exportar(), 'Generando…');
+  document.getElementById('exportBtn').onclick = abrirExport;
   document.getElementById('compHead').onclick = async () => {
     compAbierto = !compAbierto;
     document.getElementById('compCaret').textContent = compAbierto ? '▾' : '▸';
