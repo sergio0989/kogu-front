@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn primary" id="syncBtn">↻ Sincronizar asignaciones</button>
     </div>
     <div id="resumen" style="margin-top:14px"></div>
-    <div class="grid-2" style="gap:12px;margin-top:14px;align-items:end">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;align-items:end">
       <div>
         <div class="label-text">Estado</div>
         <select class="select" id="statusFil">
@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="asignado">Asignadas</option>
           <option value="">Todas</option>
         </select>
+      </div>
+      <div>
+        <div class="label-text">ClavePP (sublínea)</div>
+        <select class="select" id="sublineaFil"><option value="">Todas las ClavePP</option></select>
       </div>
       <div>
         <div class="label-text">Buscar (cliente, producto, descripción)</div>
@@ -66,7 +70,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
 
   const esc = v => KoguUi.escapeHtml(String(v ?? ''));
-  const SIN = '__SIN_ASIGNAR__';
+  const SIN = '__SIN_ASIGNAR__';        // opción del picker (limpiar la clave)
+  const SIN_CLAVE = '__SIN__';          // valor del FILTRO (backend): sin clave asignada
+
+  // Filtro por ClavePP. Con el tope de 500 filas, buscar por cliente o producto
+  // no sirve para revisar "todo lo que quedó clasificado en 2D": eso es lo que
+  // resuelve este filtro. Va agrupado por categoría porque son ~92 claves y
+  // nadie se las sabe de memoria; el <select> nativo permite teclear para
+  // saltar, y aquí sí conviene (es UN control, no uno por renglón).
+  function renderFiltroSublinea() {
+    const el = document.getElementById('sublineaFil');
+    if (!el) return;
+    const actual = el.value;                    // conserva la selección entre cargas
+    const porCat = new Map();
+    for (const x of data.sublineas) {
+      const cat = x.cat_nombre || (x.cat != null ? 'Categoría ' + x.cat : 'Sin categoría');
+      if (!porCat.has(cat)) porCat.set(cat, []);
+      porCat.get(cat).push(x);
+    }
+    const grupos = [...porCat.entries()].map(([cat, subs]) =>
+      `<optgroup label="${esc(cat)}">` + subs.map(x =>
+        `<option value="${esc(x.cve_sublinea)}">${esc(x.cve_sublinea)} · ${esc(x.sublinea_nombre)}</option>`
+      ).join('') + '</optgroup>').join('');
+    el.innerHTML = `<option value="">Todas las ClavePP</option>`
+                 + `<option value="${SIN_CLAVE}">— sin clave asignada —</option>`
+                 + grupos;
+    if (actual) el.value = actual;
+  }
 
   const nombreDe = cve => data.sublineas.find(s => s.cve_sublinea === cve)?.sublinea_nombre || '';
   const etiquetaClave = cve => cve ? `${esc(cve)} · ${esc(nombreDe(cve))}` : '— sin asignar —';
@@ -163,8 +193,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ORI = { seed: 'Histórico', auto: 'Auto', manual: 'Manual' };
   function renderTabla() {
     const items = data.items;
+    const fSub = sel('sublineaFil');
+    const etqSub = !fSub ? ''
+      : (fSub === SIN_CLAVE
+          ? ' · <b>sin clave asignada</b>'
+          : ` · ClavePP <b>${esc(fSub)}${nombreDe(fSub) ? ' · ' + esc(nombreDe(fSub)) : ''}</b>`);
     document.getElementById('tblInfo').innerHTML =
-      `${items.length} fila(s)${items.length === 500 ? ' <b>(tope 500, afina la búsqueda)</b>' : ''}`
+      `${items.length} fila(s)${items.length === 500 ? ' <b>(tope 500, afina la búsqueda)</b>' : ''}${etqSub}`
       + ' · ordenadas por <b>venta descendente</b>: las de arriba son las que mueven el Tablero';
     if (!items.length) {
       document.getElementById('tabla').innerHTML = '<div class="empty">Sin combinaciones para el filtro.</div>';
@@ -237,6 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function load() {
     const qs = new URLSearchParams();
     if (sel('statusFil')) qs.set('status', sel('statusFil'));
+    if (sel('sublineaFil')) qs.set('sublinea', sel('sublineaFil'));
     if (sel('qFil')) qs.set('q', sel('qFil'));
     const res = await KoguApi.apiFetch(`${BASE}/pp/asignaciones?${qs.toString()}`);
     data = res?.data || res;
@@ -244,6 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     data.sublineas = data.sublineas || [];
     dirty.clear();
     renderResumen();
+    renderFiltroSublinea();
     renderTabla();
   }
 
@@ -251,6 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let qTimer = null;
   document.getElementById('qFil').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(load, 350); };
   document.getElementById('statusFil').onchange = load;
+  document.getElementById('sublineaFil').onchange = load;
 
   document.getElementById('syncBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {

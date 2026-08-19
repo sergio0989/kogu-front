@@ -82,6 +82,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const r = av / ritmo;
     return r >= 0.95 ? 'var(--success,#16a34a)' : r >= 0.8 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)';
   };
+  // ── Guardas contra un PP simbólico ────────────────────────────────────────
+  // Visto en 2026: "Food Service" con PP de $0.50 y real de $839,813.60 daba
+  // un avance de 167,962,720% pintado en VERDE, como si fuera un logro. No lo
+  // es: es un PP mal capturado. Dos guardas, ninguna toca los totales:
+  //   · PP < 1 (peso o kg) no es un presupuesto, es ruido → avance en guion.
+  //   · avance > 500% es implausible → se rotula el tope y sale del semáforo
+  //     (azul de aviso), para que nadie lo lea como cumplimiento.
+  const PP_MINIMO = 1;
+  const AV_TOPE = 5;
+  const ppSimbolico = o => { const p = ppVal(o); return p > 0 && p < PP_MINIMO; };
+  const fmtAv = o => {
+    if (ppSimbolico(o)) return '—';
+    const a = avVal(o);
+    return a == null ? '—' : (a > AV_TOPE ? `>${AV_TOPE * 100}%` : pct0(a));
+  };
+  const colAv = (o, ritmo) => {
+    const a = avVal(o);
+    if (ppSimbolico(o) || (a != null && a > AV_TOPE)) return 'var(--brand,#2563eb)';
+    return semColor(a, ritmo);
+  };
+  const tipAv = o => ppSimbolico(o)
+    ? ' title="El PP capturado para este renglón es de centavos: no hay contra qué medir. Revísalo en Carga de PP."'
+    : ((avVal(o) ?? 0) > AV_TOPE ? ' title="Avance implausible: revisa el PP capturado de este renglón."' : '');
+
   const miniCard = (lbl, val, hint = '', color = '') => `
     <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${esc(lbl)}</div>
@@ -326,14 +350,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="padding-left:26px"><span class="chip-compact">${esc(s.cve_sublinea)}</span> ${esc(s.sublinea_nombre)}${etq}</td>
           <td style="text-align:right">${s.en_pp === false ? '—' : fmtPp(ppVal(s))}</td>
           <td style="text-align:right">${fmtVal(realVal(s))}</td>
-          <td style="text-align:right;font-weight:600;color:${semColor(sa, ritmo)}">${pct0(sa)}</td>
+          <td style="text-align:right;font-weight:600;color:${colAv(s, ritmo)}"${tipAv(s)}>${fmtAv(s)}</td>
         </tr>`;
       }).join('');
       return `<tr data-cat="${c.cat}" style="cursor:pointer" title="${abierta ? 'Contraer' : 'Expandir'} ${esc(c.cat_nombre || '')}">
           <td><span style="display:inline-block;width:14px;color:var(--muted)">${abierta ? '▾' : '▸'}</span><b>${esc(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
           <td style="text-align:right">${fmtPp(ppVal(c))}</td>
           <td style="text-align:right">${fmtVal(realVal(c))}</td>
-          <td style="text-align:right;font-weight:700;color:${semColor(a, ritmo)}">${pct0(a)}</td>
+          <td style="text-align:right;font-weight:700;color:${colAv(c, ritmo)}"${tipAv(c)}>${fmtAv(c)}</td>
         </tr>${subs}`;
     }).join('');
 
@@ -499,7 +523,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           // renglones y la tabla se vuelve ilegible.
           return `<td style="text-align:right;white-space:nowrap">${pend ? '—' : fmtVal(ppVal(c))}</td>
                   <td style="text-align:right;white-space:nowrap">${fmtVal(realVal(c))}</td>
-                  <td style="text-align:right;white-space:nowrap;font-weight:600;color:${semColor(avVal(c), rit)}">${pct0(avVal(c))}</td>`;
+                  <td style="text-align:right;white-space:nowrap;font-weight:600;color:${colAv(c, rit)}"${tipAv(c)}>${fmtAv(c)}</td>`;
         }).join('');
         const v = varReal(m);
         return `<tr><td style="min-width:160px"><b>${esc(nombres.get(cat))}</b></td>${celdas}

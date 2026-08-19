@@ -326,6 +326,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     return r >= 0.95 ? 'var(--success,#16a34a)' : r >= 0.8 ? 'var(--warning,#d97706)' : 'var(--danger,#dc2626)';
   }
 
+  // ── Guardas contra un PP simbólico ────────────────────────────────────────
+  // Visto en 2026: "Food Service" con PP de $0.50 y real de $839,813.60 daba
+  // un avance de 167,962,720% pintado en VERDE, como si fuera un logro. No lo
+  // es: es un PP mal capturado. Dos guardas, ninguna toca los totales:
+  //   · PP < 1 (peso o kg) no es un presupuesto, es ruido → avance en guion.
+  //   · avance > 500% es implausible → se rotula el tope y sale del semáforo
+  //     (azul de aviso), para que nadie lo lea como cumplimiento.
+  const PP_MINIMO = 1;
+  const AV_TOPE = 5;
+  const ppSimbolico = o => { const p = ppVal(o); return p > 0 && p < PP_MINIMO; };
+  const fmtAv = o => {
+    if (ppSimbolico(o)) return '—';
+    const a = avVal(o);
+    return a == null ? '—' : (a > AV_TOPE ? `>${AV_TOPE * 100}%` : pct0(a));
+  };
+  const colAv = (o, ritmo) => {
+    const a = avVal(o);
+    if (ppSimbolico(o) || (a != null && a > AV_TOPE)) return 'var(--brand,#2563eb)';
+    return semColor(a, ritmo);
+  };
+  const tipAv = o => ppSimbolico(o)
+    ? ' title="El PP capturado para este renglón es de centavos: no hay contra qué medir. Revísalo en Carga de PP."'
+    : ((avVal(o) ?? 0) > AV_TOPE ? ' title="Avance implausible: revisa el PP capturado de este renglón."' : '');
+
   function renderPp() {
     const el = document.getElementById('ppCard');
     if (!pp) { el.innerHTML = ''; return; }
@@ -420,14 +444,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td style="padding-left:26px"><span class="chip-compact">${KoguUi.escapeHtml(s.cve_sublinea)}</span> ${KoguUi.escapeHtml(s.sublinea_nombre)}${etq}</td>
           <td style="text-align:right">${s.en_pp === false ? '—' : fmtPp(ppVal(s))}</td>
           <td style="text-align:right">${fmtVal(realVal(s))}</td>
-          <td style="text-align:right;font-weight:600;color:${scol}">${pct0(sa)}</td>
+          <td style="text-align:right;font-weight:600;color:${colAv(s, ritmo)}"${tipAv(s)}>${fmtAv(s)}</td>
         </tr>`;
       }).join('') : '';
       return `<tr data-cat="${c.cat}" style="cursor:pointer">
           <td><span style="display:inline-block;width:14px;color:var(--muted)">${open ? '▾' : '▸'}</span><b>${KoguUi.escapeHtml(c.cat_nombre || ('Categoría ' + c.cat))}</b> <span style="color:var(--muted);font-size:11px">(${c.sublineas.length})</span></td>
           <td style="text-align:right">${fmtPp(ppVal(c))}</td>
           <td style="text-align:right">${fmtVal(realVal(c))}</td>
-          <td style="text-align:right;font-weight:700;color:${cc}">${pct0(a)}</td>
+          <td style="text-align:right;font-weight:700;color:${colAv(c, ritmo)}"${tipAv(c)}>${fmtAv(c)}</td>
         </tr>${subs}`;
     };
     // Proyección de cierre por promedio mensual × 12.
