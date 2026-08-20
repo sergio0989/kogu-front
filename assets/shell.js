@@ -47,6 +47,7 @@
     ]},
     {section:'Radar Comercial',items:[
       {href:'/modules/rc/tablero.html',label:'Tablero (Dirección)',perm:'screen.ventas.direccion'},
+      {href:'/modules/rc/facturas.html',label:'Bandeja de facturas',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/bandeja.html',label:'Bandeja de Riesgo',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/cumplimiento.html',label:'Cumplimiento de agentes',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/mi-panel.html',label:'Mi panel (Vendedor)',perm:'screen.ventas.vendedor'},
