@@ -147,6 +147,7 @@
       {href:'/modules/act/proveedores.html',   label:'Proveedores',   perm:'act.proveedores.read'},
     ]},
     {section:'Documental',items:[
+      {href:'/modules/doc/dashboard.html',      label:'Tablero',         perm:'doc.dashboard.read'},
       {href:'/modules/doc/documentos.html',     label:'Documentos',      perm:'doc.documentos.read'},
       {href:'/modules/doc/mis-documentos.html', label:'Mis documentos',  perm:'doc.asignaciones.read'},
     ]},

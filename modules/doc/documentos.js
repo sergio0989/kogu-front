@@ -85,6 +85,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Filtros que llegan por URL desde el tablero: al hacer clic en una
+  // fila de la matriz tipo × subtipo se abre esta bandeja ya acotada.
+  // Sin esto el clic no haría nada y parecería que el tablero está roto.
+  function aplicarFiltrosDeUrl() {
+    const p = new URLSearchParams(window.location.search);
+    const tipoId = p.get('tipo_id') || '';
+    if (tipoId && tipos.some((t) => t.tipo_id === tipoId)) {
+      $('fTipo').value = tipoId;
+      pintarSubtipos(tipoId);
+    }
+    const subtipoId = p.get('subtipo_id') || '';
+    if (subtipoId && subtipos.some((sx) => sx.subtipo_id === subtipoId)) {
+      $('fSubtipo').value = subtipoId;
+    }
+    const estado = p.get('estado') || '';
+    if (estado) $('fEstado').value = estado;
+    const q = p.get('q') || '';
+    if (q) $('q').value = q;
+  }
+
   function pintarSubtipos(tipoId) {
     const lista = tipoId ? subtipos.filter((s) => s.tipo_id === tipoId) : subtipos;
     $('fSubtipo').innerHTML = '<option value="">Todos los subtipos</option>'
@@ -322,5 +342,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   await cargarCatalogos();
+  aplicarFiltrosDeUrl();
   await load();
 });
