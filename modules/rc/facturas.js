@@ -67,7 +67,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   const num = (v, f = nf3) => (v == null ? '—' : f.format(Number(v)));
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  const anioActual = new Date().getFullYear();
+  // Arranque: el MES ANTERIOR completo, no el año entero.
+  //
+  // El mes en curso está a medias y el año entero son decenas de miles de
+  // renglones; el mes cerrado es lo que de verdad se revisa. En enero esto
+  // cae solo en diciembre del año pasado.
+  const _hoy = new Date();
+  const _mesAnt = new Date(_hoy.getFullYear(), _hoy.getMonth() - 1, 1);
+  const anioIni = _mesAnt.getFullYear();
+  const mesIni  = _mesAnt.getMonth() + 1;
 
   const miniCard = (lbl, val, hint = '', color = '') => `
     <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
@@ -86,8 +94,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="eyebrow">Radar · Facturas</div>
         <h2 style="margin:0">Bandeja de facturas</h2>
         <div class="hint" style="margin-top:4px;color:var(--muted);font-size:12px">
-          Un renglón por línea de venta. Los importes están en <b>MXN</b> aunque la factura sea en dólares
-          (el ERP ya los convirtió al tipo de cambio); la columna USD se calcula dividiendo.
+          Un renglón por línea de venta. Abre en el <b>mes anterior</b> (${MESES[mesIni]} ${anioIni}) para no cargar el año completo;
+          cambia el filtro para ver más. Los importes están en <b>MXN</b> aunque la factura sea en dólares
+          (el ERP ya los convirtió al tipo de cambio); el valor en dólares va debajo de cada importe.
         </div>
       </div>
       <button class="btn" id="exportBtn" title="Descargar lo filtrado en Excel">⬇ Exportar</button>
@@ -95,11 +104,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px;align-items:end">
       <div><div class="label-text">Año</div>
-        <select class="select" id="fAnio"><option value="${anioActual}">${anioActual}</option></select></div>
+        <select class="select" id="fAnio"><option value="${anioIni}">${anioIni}</option></select></div>
       <div><div class="label-text">Mes</div>
         <select class="select" id="fMes">
           <option value="">Todos</option>
-          ${MESES.map((m, i) => i ? `<option value="${i}">${m}</option>` : '').join('')}
+          ${MESES.map((m, i) => i ? `<option value="${i}"${i === mesIni ? ' selected' : ''}>${m}</option>` : '').join('')}
         </select>
       </div>
       <div><div class="label-text">ClavePP</div><select class="select" id="fSublinea"><option value="">Todas</option></select></div>
