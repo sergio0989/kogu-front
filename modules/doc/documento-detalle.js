@@ -41,6 +41,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canDevolver   = puede('doc.asignaciones.devolver');
   const canEditarCopia= puede('doc.copias.update');
   const canCancelar   = puede('doc.asignaciones.cancelar');
+  const canEditarDoc  = puede('doc.documentos.update');
+  const canBajaDoc    = puede('doc.documentos.baja');
+  const canBajaCopia  = puede('doc.copias.baja');
   const canVerHilo    = puede('doc.comentarios.read');
   const canComentar   = puede('doc.comentarios.create');
   const canEditarCom  = puede('doc.comentarios.edit_own');
@@ -189,11 +192,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${doc.vigencia_hasta ? `<span class="badge warn">Vigencia ${D.fecha(doc.vigencia_hasta)}</span>` : ''}
       </div>
     </div>
-    <div style="display:flex;gap:8px">
-      ${canCrearCopia ? '<button class="btn primary" id="newCopiaBtn">+ Registrar copia</button>' : ''}
-      <button class="btn" id="backBtn">← Bandeja</button>
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      ${(canCrearCopia && !doc.baja_at) ? '<button class="btn primary" id="newCopiaBtn">+ Registrar copia</button>' : ''}
+      ${(canEditarDoc && !doc.baja_at) ? '<button class="btn" id="editDocBtn">Editar</button>' : ''}
+      <button class="btn ghost" id="backBtn">← Bandeja</button>
+      ${menuDelDocumento()}
     </div>
   </div>
+
+  ${doc.baja_at ? `<div style="margin-top:14px">${D.nota(
+    `<strong>Documento dado de baja</strong>${doc.baja_motivo ? ` — ${esc(doc.baja_motivo)}` : ''}. ` +
+    'Se conserva para consulta y su bitácora queda intacta, pero ya no admite copias ni asignaciones. ' +
+    'Sus copias dejan de listarse aquí.')}</div>` : ''}
 
   <div class="grid-4" style="margin-top:16px">
     ${D.kpi('Copias', copias.length, 'registradas')}
@@ -252,7 +262,8 @@ ${(canVerHilo || canVerEventos) ? `
 </div>` : ''}`;
 
     $('backBtn').onclick = () => { window.location.href = '/modules/doc/documentos.html'; };
-    if (canCrearCopia) $('newCopiaBtn').onclick = abrirModalCopia;
+    if (canCrearCopia && !doc.baja_at) $('newCopiaBtn').onclick = abrirModalCopia;
+    if (canEditarDoc  && !doc.baja_at) $('editDocBtn').onclick = abrirModalEditarDoc;
     renderCopias();
 
     if (canVerHilo || canVerEventos) {
@@ -302,6 +313,17 @@ ${(canVerHilo || canVerEventos) ? `
         </div>`).join('')}</div>`;
   }
 
+  function menuDelDocumento() {
+    if (doc.baja_at) return '';
+    return D.menuAcciones([
+      (canBajaDoc) && {
+        label: 'Dar de baja el documento…',
+        onClick: abrirModalBajaDoc,
+        peligro: true,
+      },
+    ]);
+  }
+
   // La acción principal (Asignar / Devolver) se queda como botón; lo
   // demás entra al menú. Es la diferencia entre una fila que se lee de
   // un vistazo y una que hay que descifrar.
@@ -324,6 +346,13 @@ ${(canVerHilo || canVerEventos) ? `
       (canEditarCopia && !ESTADO_FINAL.has(c.estado)) && {
         label: 'Reportar incidencia…',
         onClick: () => abrirModalIncidencia(c.copia_id, et, asignada),
+        peligro: true,
+      },
+      // Dar de baja una copia asignada no tiene sentido y el backend lo
+      // rechaza: si la tiene alguien, primero hay que recuperarla.
+      (canBajaCopia && !asignada && !c.baja_at) && {
+        label: 'Dar de baja la copia…',
+        onClick: () => abrirModalBajaCopia(c),
         peligro: true,
       },
     ]);
@@ -926,6 +955,190 @@ ${(canVerHilo || canVerEventos) ? `
           await recargar();
         } catch (e) { D.errorToast(e, 'No fue posible actualizar la copia.'); }
       }, 'Guardando…');
+    };
+  }
+
+  // ── Punto 7 · Editar el documento ─────────────────────────
+  // El tipo y el subtipo NO están aquí, y no es un olvido: definen qué
+  // campos se capturaron. Cambiarlos dejaría `datos` con las llaves de
+  // otro formulario, así que el backend los rechaza (422
+  // CLASIFICACION_INMUTABLE). Si la clasificación quedó mal, se da de
+  // baja el documento y se registra de nuevo.
+  function paraInput(v) {
+    const f = D.fecha(v);
+    return f === '—' ? '' : f;
+  }
+
+  function abrirModalEditarDoc() {
+    const m = modal('mEditDoc', 'Editar documento', doc.folio, `
+      <div class="grid-2">
+        <div><div class="label-text">Tipo</div>
+          <input class="input" value="${esc(doc.tipo_nombre)}" readonly
+                 style="background:var(--line);cursor:not-allowed" /></div>
+        <div><div class="label-text">Subtipo</div>
+          <input class="input" value="${esc(doc.subtipo_nombre)}" readonly
+                 style="background:var(--line);cursor:not-allowed" /></div>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:-6px">
+        La clasificación no se cambia: define los campos que ya se capturaron.
+        Si quedó mal, da de baja el documento y regístralo de nuevo.</div>
+
+      <div><div class="label-text">Nombre <span style="color:var(--danger)">*</span></div>
+        <input class="input" id="ed_nombre" value="${esc(doc.nombre)}" /></div>
+      <div><div class="label-text">Descripción</div>
+        <input class="input" id="ed_desc" value="${esc(doc.descripcion || '')}" /></div>
+
+      <div class="grid-2">
+        <div><div class="label-text">Fecha del documento <span style="color:var(--danger)">*</span></div>
+          <input class="input" id="ed_fecha" type="date" value="${paraInput(doc.fecha_documento)}" /></div>
+        <div><div class="label-text">Folio externo${doc.requiere_folio_externo ? ' <span style="color:var(--danger)">*</span>' : ''}</div>
+          <input class="input" id="ed_folioext" value="${esc(doc.folio_externo || '')}" /></div>
+      </div>
+      <div class="grid-2">
+        <div><div class="label-text">Emisor / fedatario</div>
+          <input class="input" id="ed_emisor" value="${esc(doc.emisor || '')}" /></div>
+        <div><div class="label-text">Confidencialidad</div>
+          <select class="select" id="ed_conf">
+            ${['publico', 'interno', 'confidencial', 'restringido'].map((k) =>
+              `<option value="${k}"${doc.confidencialidad === k ? ' selected' : ''}>${k}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="grid-2">
+        <div><div class="label-text">Vigencia desde</div>
+          <input class="input" id="ed_vigdesde" type="date" value="${paraInput(doc.vigencia_desde)}" /></div>
+        <div><div class="label-text">Vigencia hasta${doc.controla_vigencia ? ' <span style="color:var(--danger)">*</span>' : ''}</div>
+          <input class="input" id="ed_vighasta" type="date" value="${paraInput(doc.vigencia_hasta)}" />
+          ${doc.controla_vigencia ? `<div class="muted" style="font-size:11px;margin-top:2px">
+            Los documentos de tipo «${esc(doc.tipo_nombre)}» controlan vigencia: es obligatoria.</div>` : ''}</div>
+      </div>
+
+      <div style="border-top:1px solid var(--line);padding-top:14px">
+        <div class="label-text">Datos de ${esc(doc.subtipo_nombre)}</div>
+        <div id="ed_dyn" style="margin-top:6px"></div>
+      </div>
+    `, 'Guardar', 760);
+
+    // Los campos propios del subtipo se pintan con el mismo render del
+    // alta, precargados con lo ya capturado.
+    D.renderCamposDinamicos($('ed_dyn'), doc.esquema_campos, doc.datos || {});
+
+    m.ok.onclick = async () => {
+      const nombre = $('ed_nombre').value.trim();
+      const fecha  = $('ed_fecha').value;
+      const vigHasta = $('ed_vighasta').value;
+
+      if (!nombre) return KoguApi.toast('El nombre es obligatorio.', 'error');
+      if (!fecha)  return KoguApi.toast('La fecha del documento es obligatoria.', 'error');
+      if (doc.controla_vigencia && !vigHasta) {
+        return KoguApi.toast(`Los documentos de tipo «${doc.tipo_nombre}» exigen fecha de vigencia.`, 'error');
+      }
+
+      const body = {
+        nombre,
+        descripcion:      $('ed_desc').value.trim(),
+        fecha_documento:  fecha,
+        folio_externo:    $('ed_folioext').value.trim(),
+        emisor:           $('ed_emisor').value.trim(),
+        confidencialidad: $('ed_conf').value,
+        // `datos` se manda completo: el backend lo reemplaza entero, así
+        // que vaciar un campo aquí sí lo borra del documento.
+        datos:            D.leerCamposDinamicos(doc.esquema_campos),
+      };
+      if (vigHasta) body.vigencia_hasta = vigHasta;
+      const vigDesde = $('ed_vigdesde').value;
+      if (vigDesde) body.vigencia_desde = vigDesde;
+
+      await KoguUi.withLoading(m.ok, async () => {
+        try {
+          await KoguApi.apiFetch('/protected/doc/documentos/' + encodeURIComponent(documentoId),
+            { method: 'PUT', body: JSON.stringify(body) });
+          KoguApi.toast('Documento actualizado', 'success');
+          m.cerrar();
+          await recargar();
+        } catch (e) { D.errorToast(e, 'No fue posible actualizar el documento.'); }
+      }, 'Guardando…');
+    };
+  }
+
+  // ── Punto 7b · Baja del documento ─────────────────────────
+  // El backend rechaza la baja si alguna copia sigue en resguardo. Se
+  // comprueba aquí primero y se nombran las copias: es más útil leer
+  // "la tiene Fulano" que recibir un error genérico después de escribir
+  // el motivo.
+  function abrirModalBajaDoc() {
+    const enResguardo = copias.filter((c) => c.estado === 'asignada');
+
+    if (enResguardo.length) {
+      modal('mBloqueo', 'No se puede dar de baja', doc.folio, `
+        <div>${D.nota(
+          `Hay <strong>${enResguardo.length} copia(s)</strong> en resguardo. Un documento no se da de baja mientras ` +
+          'alguien tenga copias suyas: se perdería el rastro de quién las tiene, que es justo lo que este módulo evita.')}</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Copia</th><th>La tiene</th><th>Desde</th></tr></thead>
+          <tbody>${enResguardo.map((c) => `<tr>
+            <td><span class="mono">${esc(c.etiqueta)}</span></td>
+            <td>${esc(c.custodio_nombre || '—')}</td>
+            <td>${D.fecha(c.fecha_asignacion)}</td></tr>`).join('')}
+          </tbody></table></div>
+        <div class="muted" style="font-size:12.5px">Registra la devolución de cada una y vuelve a intentarlo.</div>
+      `, 'Entendido').ok.onclick = () => document.getElementById('mBloqueo')?.remove();
+      return;
+    }
+
+    const m = modal('mBajaDoc', 'Dar de baja el documento', doc.folio, `
+      <div><div class="label-text">Motivo <span style="color:var(--danger)">*</span></div>
+        <textarea class="input" id="bd_motivo" rows="3" style="resize:vertical"
+          placeholder="Se protocolizó una versión nueva, se capturó por error, el contrato terminó…"></textarea></div>
+      <div>${D.nota(
+        'Es una baja <strong>lógica</strong>: el documento y su bitácora se conservan, pero deja de aparecer en la ' +
+        'bandeja y ya no admite copias ni asignaciones. No se puede deshacer desde la aplicación.')}</div>
+    `, 'Dar de baja');
+
+    m.ok.onclick = async () => {
+      const motivo = $('bd_motivo').value.trim();
+      if (!motivo) return KoguApi.toast('El motivo es obligatorio.', 'error');
+      await KoguUi.withLoading(m.ok, async () => {
+        try {
+          await KoguApi.apiFetch(`/protected/doc/documentos/${encodeURIComponent(documentoId)}/baja`,
+            { method: 'POST', body: JSON.stringify({ motivo }) });
+          KoguApi.toast(`${doc.folio} dado de baja.`, 'success');
+          m.cerrar();
+          // Ya no pertenece a la bandeja activa: se vuelve a la lista.
+          window.location.href = '/modules/doc/documentos.html';
+        } catch (e) { D.errorToast(e, 'No fue posible dar de baja el documento.'); }
+      }, 'Dando de baja…');
+    };
+  }
+
+  // ── Punto 8 · Baja de copia ───────────────────────────────
+  // Distinta de extravío y destrucción: la baja es para una copia que
+  // NUNCA debió estar registrada —se capturó dos veces, se registró en
+  // el documento equivocado—. Extravío y destrucción cuentan algo que
+  // sí pasó; la baja borra un registro que sobra.
+  function abrirModalBajaCopia(c) {
+    const m = modal('mBajaCopia', 'Dar de baja la copia', c.etiqueta, `
+      <div>${D.nota(
+        'Usa esto solo si la copia <strong>no debió registrarse</strong>: duplicado, documento equivocado. ' +
+        'Si la copia existió y se perdió o se destruyó, lo correcto es <strong>Reportar incidencia</strong> — ' +
+        'la baja no deja constancia de que existió.')}</div>
+      <div><div class="label-text">Motivo <span style="color:var(--danger)">*</span></div>
+        <textarea class="input" id="bc_motivo" rows="3" style="resize:vertical"
+          placeholder="Se capturó dos veces, pertenecía a otro documento…"></textarea></div>
+      <div>${D.nota('Baja lógica: la copia deja de listarse, y su historial de asignaciones se conserva.')}</div>
+    `, 'Dar de baja');
+
+    m.ok.onclick = async () => {
+      const motivo = $('bc_motivo').value.trim();
+      if (!motivo) return KoguApi.toast('El motivo es obligatorio.', 'error');
+      await KoguUi.withLoading(m.ok, async () => {
+        try {
+          await KoguApi.apiFetch(`/protected/doc/copias/${encodeURIComponent(c.copia_id)}/baja`,
+            { method: 'POST', body: JSON.stringify({ motivo }) });
+          KoguApi.toast(`${c.etiqueta} dada de baja.`, 'success');
+          m.cerrar();
+          await recargar();
+        } catch (e) { D.errorToast(e, 'No fue posible dar de baja la copia.'); }
+      }, 'Dando de baja…');
     };
   }
 
