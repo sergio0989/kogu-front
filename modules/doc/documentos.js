@@ -43,7 +43,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       <option value="">Todos los estados</option>
       ${ESTADOS.map((e) => `<option value="${e}">${(D.EST_DOC[e] || [e])[0]}</option>`).join('')}
     </select>
-    <div></div><div></div>
+    <select class="select" id="fBajas">
+      <option value="">Solo documentos vigentes</option>
+      <option value="true">Incluir dados de baja</option>
+    </select>
+    <div></div>
   </div>
 
   <div id="avisoRestringidos" style="display:none;margin-top:12px" class="muted" style="font-size:12.5px;border:1px solid var(--line);border-radius:12px;padding:10px 12px"></div>
@@ -118,6 +122,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       tipo_id:    $('fTipo').value,
       subtipo_id: $('fSubtipo').value,
       estado:     $('fEstado').value,
+      // Sin esto, dar de baja un documento lo hace desaparecer de la
+      // aplicacion para siempre: el backend filtra baja_at IS NULL y no
+      // hay endpoint para revertir la baja. Poder volver a verlo es lo
+      // minimo para comprobar que la baja quedo bien registrada.
+      incluir_bajas: $('fBajas').value || undefined,
     };
   }
 
@@ -331,6 +340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('fTipo').onchange = () => { pintarSubtipos($('fTipo').value); page = 1; load(); };
   $('fSubtipo').onchange = () => { page = 1; load(); };
   $('fEstado').onchange = () => { page = 1; load(); };
+  $('fBajas').onchange  = () => { page = 1; load(); };
   $('refreshBtn').onclick = () => load();
   if (canCreate) { buildModal(); $('newBtn').onclick = abrirModal; }
 
