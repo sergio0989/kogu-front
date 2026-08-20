@@ -146,6 +146,10 @@
       {href:'/modules/act/gestoria.html',      label:'Gestoría',      perm:'act.gestoria.read'},
       {href:'/modules/act/proveedores.html',   label:'Proveedores',   perm:'act.proveedores.read'},
     ]},
+    {section:'Documental',items:[
+      {href:'/modules/doc/documentos.html',     label:'Documentos',      perm:'doc.documentos.read'},
+      {href:'/modules/doc/mis-documentos.html', label:'Mis documentos',  perm:'doc.asignaciones.read'},
+    ]},
     {section:'Activos · Catálogos',items:[
       {href:'/modules/act/ubicaciones.html', label:'Ubicaciones', perm:'act.catalogos.read'},
       {href:'/modules/act/categorias.html',  label:'Categorías',  perm:'act.catalogos.read'},
@@ -432,6 +436,7 @@
     const p = String(currentPage).toLowerCase();
     if (p.includes('/modules/lab/'))     return 'LAB QA';
     if (p.includes('/modules/act/'))     return 'ACTIVOS';
+    if (p.includes('/modules/doc/'))     return 'DOCUMENTAL';
     if (p.includes('/modules/cfdi/'))    return 'CFDI';
     if (p.includes('/modules/erp/'))     return 'ERP';
     if (p.includes('/modules/mat/') ||
