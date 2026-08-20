@@ -150,6 +150,7 @@
       {href:'/modules/doc/dashboard.html',      label:'Tablero',         perm:'doc.dashboard.read'},
       {href:'/modules/doc/documentos.html',     label:'Documentos',      perm:'doc.documentos.read'},
       {href:'/modules/doc/mis-documentos.html', label:'Mis documentos',  perm:'doc.asignaciones.read'},
+      {href:'/modules/doc/catalogos.html',      label:'Catálogos',       perm:'doc.catalogos.read'},
     ]},
     {section:'Activos · Catálogos',items:[
       {href:'/modules/act/ubicaciones.html', label:'Ubicaciones', perm:'act.catalogos.read'},

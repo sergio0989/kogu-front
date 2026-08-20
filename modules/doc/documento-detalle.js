@@ -202,31 +202,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ── Modal genérico ────────────────────────────────────────
-  function modal(id, titulo, eyebrow, cuerpoHtml, textoOk) {
-    let ov = document.getElementById(id);
-    if (ov) ov.remove();
-    ov = document.createElement('div');
-    ov.id = id;
-    ov.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
-    ov.innerHTML = `
-      <div style="width:100%;max-width:620px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-          <div><div class="eyebrow">${esc(eyebrow)}</div><h2 style="margin:0;font-size:20px">${esc(titulo)}</h2></div>
-          <button class="btn ghost" data-close style="padding:6px 10px;font-size:16px">✕</button>
-        </div>
-        <div style="flex:1;overflow-y:auto;padding:20px"><div class="stack">${cuerpoHtml}</div></div>
-        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
-          <button class="btn ghost" data-close>Cancelar</button>
-          <button class="btn primary" data-ok>${esc(textoOk)}</button>
-        </div>
-      </div>`;
-    document.body.appendChild(ov);
-    const cerrar = () => ov.remove();
-    ov.querySelectorAll('[data-close]').forEach((x) => { x.onclick = cerrar; });
-    ov.onclick = (e) => { if (e.target === ov) cerrar(); };
-    return { ov, cerrar, ok: ov.querySelector('[data-ok]') };
-  }
+  // El modal generico vive en doc-comun.js (lo comparten esta
+  // pantalla y la de catalogos).
+  const modal = (...args) => D.modal(...args);
 
   const optsUsuarios = () => usuarios
     .map((u) => `<option value="${u.user_id}">${esc(u.nombre)}</option>`).join('');

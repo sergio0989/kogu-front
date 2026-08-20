@@ -161,8 +161,37 @@
            `border-radius:12px;padding:10px 12px">${html}</div>`;
   }
 
+  // ── Modal generico ────────────────────────────────────────
+  // Vive aqui y no en cada pantalla: lo usan el detalle del documento
+  // y los catalogos, y una tercera copia del mismo overlay era la
+  // senal de que tocaba compartirlo.
+  function modal(id, titulo, eyebrow, cuerpoHtml, textoOk, ancho = 620) {
+    let ov = document.getElementById(id);
+    if (ov) ov.remove();
+    ov = document.createElement('div');
+    ov.id = id;
+    ov.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px 20px;backdrop-filter:blur(2px)';
+    ov.innerHTML = `
+      <div style="width:100%;max-width:${ancho}px;max-height:88vh;background:white;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;color:#0f172a">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div><div class="eyebrow">${esc(eyebrow)}</div><h2 style="margin:0;font-size:20px">${esc(titulo)}</h2></div>
+          <button class="btn ghost" data-close style="padding:6px 10px;font-size:16px">✕</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:20px"><div class="stack">${cuerpoHtml}</div></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+          <button class="btn ghost" data-close>Cancelar</button>
+          <button class="btn primary" data-ok>${esc(textoOk)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const cerrar = () => ov.remove();
+    ov.querySelectorAll('[data-close]').forEach((x) => { x.onclick = cerrar; });
+    ov.onclick = (e) => { if (e.target === ov) cerrar(); };
+    return { ov, cerrar, ok: ov.querySelector('[data-ok]') };
+  }
+
   window.KoguDoc = {
-    kpi, kvRow, nota,
+    kpi, kvRow, nota, modal,
     esc, fecha,
     EST_DOC, EST_COPIA, CARACTER, CONDICION,
     badgeEstadoDoc, badgeEstadoCopia,
