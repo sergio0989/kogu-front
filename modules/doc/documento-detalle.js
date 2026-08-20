@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canAsignar    = puede('doc.asignaciones.create');
   const canDevolver   = puede('doc.asignaciones.devolver');
   const canEditarCopia= puede('doc.copias.update');
+  const canCancelar   = puede('doc.asignaciones.cancelar');
   const canVerHilo    = puede('doc.comentarios.read');
   const canComentar   = puede('doc.comentarios.create');
   const canEditarCom  = puede('doc.comentarios.edit_own');
@@ -301,6 +302,33 @@ ${(canVerHilo || canVerEventos) ? `
         </div>`).join('')}</div>`;
   }
 
+  // La acción principal (Asignar / Devolver) se queda como botón; lo
+  // demás entra al menú. Es la diferencia entre una fila que se lee de
+  // un vistazo y una que hay que descifrar.
+  function menuDeCopia(c, asignada) {
+    const et = c.etiqueta;
+    return D.menuAcciones([
+      canComentar && {
+        label: 'Digitalizar…',
+        onClick: () => irADigitalizar(c.copia_id, et),
+      },
+      (canEditarCopia && !c.baja_at) && {
+        label: 'Editar datos…',
+        onClick: () => abrirModalEditarCopia(c),
+      },
+      (asignada && canCancelar) && {
+        label: 'Cancelar asignación…',
+        onClick: () => abrirModalCancelar(c.asignacion_vigente_id, et),
+        peligro: true,
+      },
+      (canEditarCopia && !ESTADO_FINAL.has(c.estado)) && {
+        label: 'Reportar incidencia…',
+        onClick: () => abrirModalIncidencia(c.copia_id, et, asignada),
+        peligro: true,
+      },
+    ]);
+  }
+
   // Una copia destruida o entregada en definitiva ya no admite más
   // cambios de estado: reportar un extravío sobre ella no significaría
   // nada. El backend también lo rechaza (422 COPIA_ESTADO_FINAL).
@@ -539,13 +567,7 @@ ${(canVerHilo || canVerEventos) ? `
         <td>${D.badgeEstadoCopia(c.estado)}
           ${c.condicion !== 'buena' ? `<div class="muted" style="font-size:11.5px">${esc(D.CONDICION[c.condicion] || c.condicion)}</div>` : ''}</td>
         <td style="text-align:right;white-space:nowrap">
-          ${canComentar ? `<button class="btn ghost" data-dig="${c.copia_id}" data-et="${esc(c.etiqueta)}"
-              title="Subir el escaneo de esta copia" style="padding:4px 9px;font-size:12px">Digitalizar</button>` : ''}
-          ${(canEditarCopia && !ESTADO_FINAL.has(c.estado)) ? `<button class="btn ghost" data-inc="${c.copia_id}"
-              data-et="${esc(c.etiqueta)}" data-asignada="${asignada ? '1' : ''}"
-              title="Reportar extravío o destrucción"
-              style="padding:4px 9px;font-size:12px">Incidencia</button>` : ''}
-          ${accion}</td>
+          ${accion}${menuDeCopia(c, asignada)}</td>
       </tr>`;
     }).join('');
 
@@ -555,23 +577,8 @@ ${(canVerHilo || canVerEventos) ? `
     tb.querySelectorAll('[data-dev]').forEach((btn) => {
       btn.onclick = () => abrirModalDevolver(btn.dataset.dev, btn.dataset.et);
     });
-    tb.querySelectorAll('[data-inc]').forEach((btn) => {
-      btn.onclick = () => abrirModalIncidencia(btn.dataset.inc, btn.dataset.et, !!btn.dataset.asignada);
-    });
-    // Digitalizar no abre otro formulario: lleva al compositor con la
-    // clase y la copia ya puestas. Un solo camino de entrada para los
-    // archivos, y siempre con su explicación al lado.
-    tb.querySelectorAll('[data-dig]').forEach((btn) => {
-      btn.onclick = () => {
-        pestanaHilo = 'comentarios';
-        renderHilo();
-        $('cm_clase').value = 'escaneo';
-        $('cm_copia').value = btn.dataset.dig;
-        $('cm_txt').value   = `Escaneo de la copia ${btn.dataset.et}. `;
-        $('cm_txt').focus();
-        $('cm_txt').scrollIntoView({ block: 'center', behavior: 'smooth' });
-      };
-    });
+
+
   }
 
   // El modal generico vive en doc-comun.js (lo comparten esta
@@ -773,6 +780,152 @@ ${(canVerHilo || canVerEventos) ? `
           await recargar();
         } catch (e) { D.errorToast(e, 'No fue posible registrar la devolución.'); }
       }, 'Registrando…');
+    };
+  }
+
+  // Digitalizar no abre otro formulario: lleva al compositor con la
+  // clase y la copia ya puestas. Un solo camino de entrada para los
+  // archivos, y siempre con su explicación al lado.
+  function irADigitalizar(copiaId, etiqueta) {
+    pestanaHilo = 'comentarios';
+    renderHilo();
+    $('cm_clase').value = 'escaneo';
+    $('cm_copia').value = copiaId;
+    $('cm_txt').value   = `Escaneo de la copia ${etiqueta}. `;
+    $('cm_txt').focus();
+    $('cm_txt').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  // ── Punto 5 · Cancelar asignación ─────────────────────────
+  // Cancelar NO es devolver. Devolver dice "la copia regresó";
+  // cancelar dice "esta asignación nunca debió existir" — se capturó
+  // mal la persona, la copia o el uso. Por eso no pide condición ni
+  // fecha de devolución: no hubo tal.
+  function abrirModalCancelar(asignacionId, etiqueta) {
+    const m = modal('mCancelar', 'Cancelar asignación', etiqueta, `
+      <div>${D.nota(
+        'Úsalo solo para corregir un <strong>error de captura</strong>. Si la copia sí estuvo prestada y ya regresó, ' +
+        'lo correcto es <strong>Devolver</strong>: cancelar borraría de la historia que esa persona la tuvo.')}</div>
+
+      <div><div class="label-text">Motivo <span style="color:var(--danger)">*</span></div>
+        <textarea class="input" id="cn_motivo" rows="3" style="resize:vertical"
+          placeholder="Se capturó a la persona equivocada, era otra copia, el préstamo no se concretó…"></textarea>
+        <div class="muted" style="font-size:11px;margin-top:2px">
+          Queda en la bitácora, que no se puede editar. Es lo que va a explicar por qué desapareció
+          este resguardo del historial activo.</div></div>
+
+      <div>${D.nota(
+        `La copia <span class="mono">${esc(etiqueta)}</span> vuelve al archivo y queda disponible para asignarse de nuevo.`)}</div>
+    `, 'Cancelar asignación');
+
+    m.ok.onclick = async () => {
+      const motivo = $('cn_motivo').value.trim();
+      if (!motivo) return KoguApi.toast('El motivo es obligatorio.', 'error');
+      await KoguUi.withLoading(m.ok, async () => {
+        try {
+          await KoguApi.apiFetch(`/protected/doc/asignaciones/${encodeURIComponent(asignacionId)}/cancelar`,
+            { method: 'POST', body: JSON.stringify({ motivo }) });
+          KoguApi.toast(`Asignación de ${etiqueta} cancelada.`, 'success');
+          m.cerrar();
+          await recargar();
+        } catch (e) { D.errorToast(e, 'No fue posible cancelar la asignación.'); }
+      }, 'Cancelando…');
+    };
+  }
+
+  // ── Punto 6 · Editar datos de la copia ────────────────────
+  // Solo datos descriptivos. El estado, el custodio y la asignación
+  // vigente NO están aquí: los mueve asignar / devolver / incidencia,
+  // cada uno dentro de su transacción. Si se pudieran teclear, el
+  // denormalizado y el historial se separarían y la bandeja empezaría
+  // a mentir sobre quién tiene qué.
+  function abrirModalEditarCopia(c) {
+    const asignada = c.estado === 'asignada';
+
+    // El repositorio del backend usa COALESCE: mandar null NO limpia el
+    // campo, lo deja como estaba. Así que "sin ubicación" solo se
+    // ofrece cuando la copia todavía no tiene una; una vez puesta,
+    // se puede cambiar pero no quitar.
+    const yaTieneUbi = !!c.ubicacion_id;
+    const opcionesUbi = ubicaciones
+      .map((u) => `<option value="${u.ubicacion_id}"${u.ubicacion_id === c.ubicacion_id ? ' selected' : ''}>${esc(u.nombre)}</option>`)
+      .join('');
+
+    const m = modal('mEditCopia', 'Editar copia', c.etiqueta, `
+      <div class="grid-2">
+        <div><div class="label-text">Carácter</div>
+          <select class="select" id="ec_car">
+            ${Object.entries(D.CARACTER).map(([k, v]) =>
+              `<option value="${k}"${c.caracter === k ? ' selected' : ''}>${v}</option>`).join('')}
+          </select></div>
+        <div><div class="label-text">Folio de la copia</div>
+          <input class="input" id="ec_folio" value="${esc(c.folio_copia || '')}"
+                 placeholder="Folio que asignó el fedatario" /></div>
+      </div>
+      <div class="grid-2">
+        <div><div class="label-text">Fecha de expedición</div>
+          <input class="input" id="ec_fecha" type="date" value="${D.fecha(c.fecha_expedicion) !== '—' ? D.fecha(c.fecha_expedicion) : ''}" /></div>
+        <div><div class="label-text">Expedida por</div>
+          <input class="input" id="ec_por" value="${esc(c.expedida_por || '')}" placeholder="Notaría, autoridad…" /></div>
+      </div>
+      <div class="grid-2">
+        <div><div class="label-text">Páginas</div>
+          <input class="input" id="ec_pag" type="number" min="1" step="1" value="${c.num_paginas ?? ''}" /></div>
+        <div><div class="label-text">Condición</div>
+          <select class="select" id="ec_cond">
+            ${Object.entries(D.CONDICION).map(([k, v]) =>
+              `<option value="${k}"${c.condicion === k ? ' selected' : ''}>${v}</option>`).join('')}
+          </select></div>
+      </div>
+
+      <div><div class="label-text">Ubicación en el archivo</div>
+        ${asignada
+          ? `<input class="input" value="En resguardo de ${esc(c.custodio_nombre || 'un usuario')}" readonly
+                    style="background:var(--line);cursor:not-allowed" />
+             <div class="muted" style="font-size:11px;margin-top:2px">
+               La ubicación de archivo se define al registrar la devolución: mientras la copia esté prestada,
+               no está en ningún archivero.</div>`
+          : `<select class="select" id="ec_ubi">
+               ${yaTieneUbi ? '' : '<option value="">Sin ubicación</option>'}${opcionesUbi}
+             </select>
+             ${yaTieneUbi ? `<div class="muted" style="font-size:11px;margin-top:2px">
+               Se puede cambiar de ubicación, pero no dejarla sin ninguna.</div>` : ''}`}
+      </div>
+
+      <div><div class="label-text">Notas</div>
+        <input class="input" id="ec_notas" value="${esc(c.notas || '')}" /></div>
+
+      <div>${D.nota(
+        'El estado y el custodio no se editan aquí: los mueven Asignar, Devolver y las incidencias, ' +
+        'para que el historial y la bandeja nunca se contradigan.')}</div>
+    `, 'Guardar');
+
+    m.ok.onclick = async () => {
+      const body = {
+        caracter:    $('ec_car').value,
+        folio_copia: $('ec_folio').value.trim(),
+        expedida_por:$('ec_por').value.trim(),
+        condicion:   $('ec_cond').value,
+        notas:       $('ec_notas').value.trim(),
+      };
+      const f = $('ec_fecha').value;
+      if (f) body.fecha_expedicion = f;
+      const pag = $('ec_pag').value.trim();
+      if (pag) body.num_paginas = Number(pag);
+      if (!asignada) {
+        const ubi = $('ec_ubi').value;
+        if (ubi) body.ubicacion_id = ubi;
+      }
+
+      await KoguUi.withLoading(m.ok, async () => {
+        try {
+          await KoguApi.apiFetch('/protected/doc/copias/' + encodeURIComponent(c.copia_id),
+            { method: 'PUT', body: JSON.stringify(body) });
+          KoguApi.toast(`${c.etiqueta} actualizada.`, 'success');
+          m.cerrar();
+          await recargar();
+        } catch (e) { D.errorToast(e, 'No fue posible actualizar la copia.'); }
+      }, 'Guardando…');
     };
   }
 

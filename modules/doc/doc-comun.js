@@ -190,8 +190,62 @@
     return { ov, cerrar, ok: ov.querySelector('[data-ok]') };
   }
 
+  // ── Menu de acciones secundarias ──────────────────────────
+  // Una fila de la tabla de copias puede tener hasta seis acciones
+  // (digitalizar, editar, asignar, devolver, cancelar, incidencia, baja).
+  // Ponerlas todas como botones vuelve la fila ilegible y empuja las
+  // columnas de datos fuera de la pantalla. La accion principal se
+  // queda visible; el resto vive aqui.
+  //
+  // No es un <select>: un menu de acciones que parece un campo de
+  // formulario invita a "elegir" algo y esperar un boton de guardar.
+  function menuAcciones(items) {
+    const vivos = items.filter(Boolean);
+    if (!vivos.length) return '';
+    const id = 'menu_' + Math.random().toString(36).slice(2, 9);
+
+    // Se pinta despues del ciclo de render actual para poder colgarlo
+    // del <body> y que no lo recorte el overflow de la tabla.
+    setTimeout(() => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        document.querySelectorAll('.doc-menu-pop').forEach((x) => x.remove());
+
+        const pop = document.createElement('div');
+        pop.className = 'doc-menu-pop';
+        pop.style.cssText = 'position:fixed;z-index:10000;background:var(--panel,#fff);' +
+          'border:1px solid var(--line,#e2e8f0);border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.16);' +
+          'padding:5px;min-width:190px';
+        pop.innerHTML = vivos.map((it, i) => `
+          <button data-i="${i}" style="display:block;width:100%;text-align:left;border:none;background:none;
+            padding:8px 11px;font-size:13px;border-radius:7px;cursor:pointer;font-family:inherit;
+            color:${it.peligro ? 'var(--danger,#dc2626)' : 'var(--text,#0f172a)'}"
+            onmouseover="this.style.background='var(--panel2,#f8fafc)'"
+            onmouseout="this.style.background='none'">${esc(it.label)}</button>`).join('');
+        document.body.appendChild(pop);
+
+        // Se alinea a la derecha del boton, y sube si no cabe abajo.
+        const r = btn.getBoundingClientRect();
+        const alto = pop.offsetHeight;
+        pop.style.left = Math.max(8, r.right - pop.offsetWidth) + 'px';
+        pop.style.top  = (r.bottom + alto + 8 > window.innerHeight ? r.top - alto - 4 : r.bottom + 4) + 'px';
+
+        pop.querySelectorAll('[data-i]').forEach((b2) => {
+          b2.onclick = () => { pop.remove(); vivos[Number(b2.dataset.i)].onClick(); };
+        });
+        const cerrar = () => { pop.remove(); document.removeEventListener('click', cerrar); };
+        setTimeout(() => document.addEventListener('click', cerrar), 0);
+      };
+    }, 0);
+
+    return `<button class="btn ghost" id="${id}" title="Más acciones"
+      style="padding:4px 10px;font-size:13px;line-height:1">···</button>`;
+  }
+
   window.KoguDoc = {
-    kpi, kvRow, nota, modal,
+    kpi, kvRow, nota, modal, menuAcciones,
     esc, fecha,
     EST_DOC, EST_COPIA, CARACTER, CONDICION,
     badgeEstadoDoc, badgeEstadoCopia,
