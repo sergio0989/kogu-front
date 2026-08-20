@@ -264,8 +264,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Un solo tono: son nombres, no categorías con significado propio.
     // Colorear cada barra distinto gastaría el color en repetir lo que
     // el largo ya dice.
+    // Cada custodio lleva a la bandeja de copias ya filtrada: la
+    // pregunta que sigue a "quién tiene copias" es siempre "cuáles".
     $('custodios').innerHTML = lista.map((c) => `
-      <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div data-cust="${c.user_id}" style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             ${esc(c.user_nombre || 'Sin nombre')}</div>
@@ -278,6 +280,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             : `<div class="muted" style="font-size:11px">${fmt(c.max_dias_fuera)} d máx.</div>`}
         </div>
       </div>`).join('');
+
+    $('custodios').querySelectorAll('[data-cust]').forEach((el) => {
+      el.onclick = () => {
+        window.location.href = '/modules/doc/copias.html?'
+          + KoguUi.queryParams({ custodio_user_id: el.dataset.cust, estado: 'asignada' });
+      };
+    });
   }
 
   // ── Alertas ───────────────────────────────────────────────
@@ -288,7 +297,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       bloques.push(`
         <div style="margin-bottom:16px">
           <div style="font-size:12.5px;font-weight:700;color:var(--danger);margin-bottom:6px">
-            Devoluciones vencidas (${al.devoluciones_vencidas.length})</div>
+            Devoluciones vencidas (${al.devoluciones_vencidas.length})
+            <a href="/modules/doc/asignaciones.html?solo_vencidas=true"
+               style="float:right;font-weight:600">ver todas</a></div>
           ${al.devoluciones_vencidas.slice(0, 6).map((r) => `
             <div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:12.5px">
               <span><span class="mono">${esc(r.etiqueta)}</span> · ${esc(r.custodio_nombre || 'sin custodio')}</span>

@@ -149,6 +149,8 @@
     {section:'Documental',items:[
       {href:'/modules/doc/dashboard.html',      label:'Tablero',         perm:'doc.dashboard.read'},
       {href:'/modules/doc/documentos.html',     label:'Documentos',      perm:'doc.documentos.read'},
+      {href:'/modules/doc/copias.html',        label:'Copias',          perm:'doc.copias.read'},
+      {href:'/modules/doc/asignaciones.html',  label:'Resguardos',      perm:'doc.asignaciones.read'},
       {href:'/modules/doc/mis-documentos.html', label:'Mis documentos',  perm:'doc.asignaciones.read'},
       {href:'/modules/doc/catalogos.html',      label:'Catálogos',       perm:'doc.catalogos.read'},
     ]},
