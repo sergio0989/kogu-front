@@ -34,6 +34,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let data = null;
   let offset = 0;
   let primeraCarga = true;
+  let opcionesPp = [];
+  let ppEtiqueta = 'Todas las ClavePP';
 
   const $ = id => document.getElementById(id);
   const sel = id => $(id)?.value ?? '';
@@ -111,7 +113,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${MESES.map((m, i) => i ? `<option value="${i}"${i === mesIni ? ' selected' : ''}>${m}</option>` : '').join('')}
         </select>
       </div>
-      <div><div class="label-text">ClavePP</div><select class="select" id="fSublinea"><option value="">Todas</option></select></div>
+      <div><div class="label-text">ClavePP</div>
+        <button class="btn" type="button" id="fSublineaBtn" style="width:100%;text-align:left;font-weight:400">Todas las ClavePP</button>
+        <input type="hidden" id="fSublinea" value=""/>
+      </div>
       <div><div class="label-text">Agente</div><select class="select" id="fAgente"><option value="">Todos</option></select></div>
       <div><div class="label-text">Cruce al PP</div>
         <select class="select" id="fCruce">
@@ -158,9 +163,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Carga ─────────────────────────────────────────────────────────────────
   function filtrosActuales() {
     const qs = new URLSearchParams();
-    const map = { anio: 'fAnio', mes: 'fMes', sublinea: 'fSublinea', agente: 'fAgente',
+    const map = { anio: 'fAnio', mes: 'fMes', agente: 'fAgente',
                   cruce: 'fCruce', moneda: 'fMoneda', tipo: 'fTipo', orden: 'fOrden', q: 'fQ' };
     for (const [k, id] of Object.entries(map)) if (sel(id)) qs.set(k, sel(id));
+    const pp = sel('fSublinea');
+    if (pp.startsWith('cat:')) qs.set('categoria', pp.slice(4));
+    else if (pp) qs.set('sublinea', pp);
     return qs;
   }
 
@@ -196,20 +204,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     else if (anios.length) { $('fAnio').value = String(anios[0]); cambio = true; }
     else { $('fAnio').value = ''; cambio = previo !== ''; }
 
-    const porCat = new Map();
-    for (const x of (data.sublineas || [])) {
-      const cat = x.cat_nombre || (x.cat != null ? 'Categoría ' + x.cat : 'Sin categoría');
-      if (!porCat.has(cat)) porCat.set(cat, []);
-      porCat.get(cat).push(x);
-    }
-    $('fSublinea').innerHTML = '<option value="">Todas</option><option value="__SIN__">— sin ClavePP —</option>'
-      + [...porCat.entries()].map(([cat, subs]) =>
-          `<optgroup label="${esc(cat)}">` + subs.map(x =>
-            `<option value="${esc(x.cve_sublinea)}">${esc(x.cve_sublinea)} · ${esc(x.sublinea_nombre)}</option>`).join('') + '</optgroup>').join('');
+    // El catálogo de ClavePP se arma para el picker, no para un <select>:
+    // son ~92 claves en 21 categorías y encontrar "Ext. Ceb. Power Pack 1X"
+    // en una lista desplegable es a ojo. El picker con búsqueda es el mismo
+    // que ya usan comex, lab, mat y Asignación PP.
+    opcionesPp = armarOpcionesPp();
 
     $('fAgente').innerHTML = '<option value="">Todos</option><option value="__SIN__">— sin agente —</option>'
       + (data.agentes || []).map(a => `<option value="${esc(a.agente_id)}">${esc(a.nombre)}</option>`).join('');
     return cambio;
+  }
+
+  // ── Selector de ClavePP (modal con búsqueda) ──────────────────────────────
+  //
+  // Dos granos en la misma lista: la LÍNEA COMPLETA ("todo Aderome", valor
+  // "cat:<n>") y cada sublínea suelta. Sin lo primero había que elegir sus
+  // ~11 claves una por una y exportar una línea comercial entera era
+  // imposible. La categoría la resuelve el backend con un EXISTS contra el
+  // PP, no una lista de claves armada aquí: así una sublínea nueva entra sola.
+  function armarOpcionesPp() {
+    const porCat = new Map();
+    for (const x of (data.sublineas || [])) {
+      const clave = x.cat != null ? String(x.cat) : '';
+      const nombre = x.cat_nombre || (x.cat != null ? 'Categoría ' + x.cat : 'Sin categoría');
+      if (!porCat.has(clave)) porCat.set(clave, { nombre, subs: [] });
+      porCat.get(clave).subs.push(x);
+    }
+    const items = [
+      { valor: '', clave: '—', nombre: 'Todas las ClavePP', categoria: '', grano: '' },
+      { valor: '__SIN__', clave: '—', nombre: 'Sin ClavePP asignada', categoria: '', grano: 'sin cruce' },
+    ];
+    for (const [clave, g] of porCat.entries()) {
+      if (clave === '') continue;
+      items.push({ valor: `cat:${clave}`, clave: 'Todo', nombre: `Todo · ${g.nombre} (${g.subs.length})`,
+                   categoria: g.nombre, grano: 'línea completa' });
+    }
+    for (const g of porCat.values()) {
+      for (const x of g.subs) {
+        items.push({ valor: x.cve_sublinea, clave: x.cve_sublinea, nombre: x.sublinea_nombre,
+                     categoria: g.nombre, grano: 'sublínea' });
+      }
+    }
+    return items;
+  }
+
+  function abrirPickerPp() {
+    if (!opcionesPp.length) { KoguApi.toast('Todavía no se cargó el catálogo de ClavePP.', 'error'); return; }
+    const actual = sel('fSublinea');
+    KoguUi.openSearchPicker({
+      title: 'Filtrar por ClavePP',
+      items: opcionesPp,
+      columns: [
+        { key: 'nombre',    label: 'Sublínea o línea', primary: true },
+        { key: 'clave',     label: 'Clave' },
+        { key: 'categoria', label: 'Categoría' },
+        { key: 'grano',     label: 'Tipo' },
+      ],
+      placeholder: actual ? `Actual: ${ppEtiqueta} — buscar otra…` : 'Buscar por clave, sublínea o categoría…',
+      onSelect: (x) => {
+        $('fSublinea').value = x.valor;
+        ppEtiqueta = x.valor ? x.nombre : 'Todas las ClavePP';
+        $('fSublineaBtn').textContent = ppEtiqueta;
+        $('fSublineaBtn').style.fontWeight = x.valor ? '600' : '400';
+        load(true);
+      },
+    });
   }
 
   // ── Totales del filtro ────────────────────────────────────────────────────
@@ -382,15 +441,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     ws['!autofilter'] = { ref: ws['!ref'] };
     XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
+    const pp = sel('fSublinea');
+    const etqPp = pp.startsWith('cat:')
+      ? '_' + ppEtiqueta.replace(/^Todo · /, '').replace(/\s*\(\d+\)$/, '').replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/g, '-')
+      : (pp && pp !== '__SIN__' ? '_' + pp : (pp === '__SIN__' ? '_sin-clavepp' : ''));
     const etq = sel('fAnio') || 'todos';
-    XLSX.writeFile(wb, `KOGU_facturas_${etq}${sel('fMes') ? '_' + sel('fMes') : ''}.xlsx`);
+    XLSX.writeFile(wb, `KOGU_facturas_${etq}${sel('fMes') ? '_' + sel('fMes') : ''}${etqPp}.xlsx`);
     KoguApi.toast(`${filas.length} renglones exportados${total > TOPE_EXPORT ? ` (tope ${nf0.format(TOPE_EXPORT)}, afina el filtro)` : ''}`,
       total > TOPE_EXPORT ? 'error' : 'success');
   }
 
   // ── Eventos ───────────────────────────────────────────────────────────────
-  ['fAnio', 'fMes', 'fSublinea', 'fAgente', 'fCruce', 'fMoneda', 'fTipo', 'fOrden']
+  ['fAnio', 'fMes', 'fAgente', 'fCruce', 'fMoneda', 'fTipo', 'fOrden']
     .forEach(id => { $(id).onchange = () => load(true); });
+  $('fSublineaBtn').onclick = abrirPickerPp;
   let qTimer = null;
   $('fQ').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(() => load(true), 350); };
   $('prevBtn').onclick = () => { offset = Math.max(0, offset - PAGINA); load(false); };
