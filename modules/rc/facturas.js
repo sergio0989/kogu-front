@@ -47,6 +47,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     return money(n);
   };
   const fecha = v => (v ? String(v).slice(0, 10) : '—');
+  // Los importes del ERP vienen en MXN aunque la factura sea en dólares, así
+  // que el valor original del documento se recupera DIVIDIENDO entre el tipo
+  // de cambio de esa factura. Se muestra debajo de cada importe en vez de en
+  // columnas nuevas: la tabla ya trae 13 y el dólar es contexto de la fila,
+  // no una dimensión aparte.
+  const esUsd = r => r.cve_mon === 2 && Number(r.tip_cam || 0) > 0;
+  const usdDe = (r, v) => (esUsd(r) && v != null ? Number(v) / Number(r.tip_cam) : null);
+  const subUsd = (r, v, dec = 2) => {
+    const u = usdDe(r, v);
+    if (u == null) return '';
+    const txt = dec === 4
+      ? 'US$' + u.toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+      : 'US$' + u.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Azul y en negritas, igual que la convención que ya usa Costo
+    // ("P.venta/kg MXN · USD"): el dólar tiene que saltar a la vista, no
+    // esconderse en gris junto a las notas al pie.
+    return `<div style="font-size:10px;font-weight:600;color:var(--brand,#2563eb)" title="Valor original de la factura, al tipo de cambio ${num(r.tip_cam)}">${txt}</div>`;
+  };
   const num = (v, f = nf3) => (v == null ? '—' : f.format(Number(v)));
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   const anioActual = new Date().getFullYear();
@@ -237,14 +255,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:center;font-size:11px">${esc(r.unidad || '—')}</td>
         <td style="text-align:right;white-space:nowrap">${num(r.cant_surt)}</td>
         <td style="text-align:right;white-space:nowrap">${r.precio_efectivo == null ? '—' : money(r.precio_efectivo)}
+          ${subUsd(r, r.precio_efectivo, 4)}
           ${(r.precio_lista != null && Number(r.descu_prod || 0) !== 0)
             ? `<div style="font-size:10px;color:var(--muted)" title="Precio de lista antes del descuento de línea">lista ${money(r.precio_lista)}</div>` : ''}</td>
-        <td style="text-align:right;white-space:nowrap;font-weight:600">${money(r.subtotal_mxn)}</td>
-        <td style="text-align:right;white-space:nowrap">${money(r.iva_mxn)}</td>
-        <td style="text-align:right;white-space:nowrap;font-weight:700">${money(r.total_mxn)}</td>
+        <td style="text-align:right;white-space:nowrap;font-weight:600">${money(r.subtotal_mxn)}${subUsd(r, r.subtotal_mxn)}</td>
+        <td style="text-align:right;white-space:nowrap">${money(r.iva_mxn)}${subUsd(r, r.iva_mxn)}</td>
+        <td style="text-align:right;white-space:nowrap;font-weight:700">${money(r.total_mxn)}${subUsd(r, r.total_mxn)}</td>
         <td style="text-align:center;font-size:11px;white-space:nowrap">${r.cve_mon === 2 ? 'USD' : 'MXN'}
           ${r.cve_mon === 2 ? `<div style="color:var(--muted)">tc ${num(r.tip_cam)}</div>` : ''}</td>
-        <td style="text-align:right;white-space:nowrap">${r.subtotal_usd == null ? '—' : money(r.subtotal_usd)}</td>
         <td style="min-width:150px">${chipPp(r)}</td>
         <td style="font-size:12px">${r.agente_nombre ? esc(r.agente_nombre) : '<span style="color:var(--warning,#d97706);font-size:11px">sin agente</span>'}</td>
       </tr>`;
@@ -260,7 +278,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         <th style="text-align:right">IVA $</th>
         <th style="text-align:right">Total $</th>
         <th style="text-align:center">Moneda</th>
-        <th style="text-align:right">Subtotal USD</th>
         <th>ClavePP</th><th>Agente</th>
       </tr></thead><tbody>${filas}</tbody>${pie(items)}</table></div>`;
   }
@@ -276,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="text-align:right">${money(s('subtotal_mxn'))}</td>
       <td style="text-align:right">${money(s('iva_mxn'))}</td>
       <td style="text-align:right">${money(s('total_mxn'))}</td>
-      <td colspan="4"></td>
+      <td colspan="3"></td>
     </tr></tfoot>`;
   }
 
@@ -310,7 +327,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       'Total $': Number(r.total_mxn || 0),
       'Moneda': r.cve_mon === 2 ? 'USD' : 'MXN',
       'Tipo de cambio': r.tip_cam == null ? null : Number(r.tip_cam),
-      'Subtotal USD': r.subtotal_usd == null ? null : Number(r.subtotal_usd),
+      'Precio USD': usdDe(r, r.precio_efectivo),
+      'Subtotal USD': usdDe(r, r.subtotal_mxn),
+      'IVA USD': usdDe(r, r.iva_mxn),
+      'Total USD': usdDe(r, r.total_mxn),
       'Régimen IVA': r.cve_iva || '',
       'ClavePP': r.cve_sublinea || '',
       'Sublínea': r.sublinea_nombre || '',
@@ -331,7 +351,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       { k: 'Total $', w: 16, z: '"$"#,##0.00' },
       { k: 'Moneda', w: 9 },
       { k: 'Tipo de cambio', w: 13, z: '#,##0.0000' },
+      { k: 'Precio USD',   w: 13, z: '"$"#,##0.0000' },
       { k: 'Subtotal USD', w: 15, z: '"$"#,##0.00' },
+      { k: 'IVA USD',      w: 13, z: '"$"#,##0.00' },
+      { k: 'Total USD',    w: 15, z: '"$"#,##0.00' },
       { k: 'Régimen IVA', w: 11 },
       { k: 'ClavePP', w: 10 }, { k: 'Sublínea', w: 34 },
       { k: 'Cruza al PP', w: 11 }, { k: 'Agente', w: 26 },
