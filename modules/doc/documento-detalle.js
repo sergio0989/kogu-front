@@ -301,6 +301,11 @@ ${(canVerHilo || canVerEventos) ? `
         </div>`).join('')}</div>`;
   }
 
+  // Una copia destruida o entregada en definitiva ya no admite más
+  // cambios de estado: reportar un extravío sobre ella no significaría
+  // nada. El backend también lo rechaza (422 COPIA_ESTADO_FINAL).
+  const ESTADO_FINAL = new Set(['destruida', 'entregada_definitiva']);
+
   // Archivos elegidos en el compositor, antes de enviarse.
   let adjuntosPendientes = [];
 
@@ -536,6 +541,10 @@ ${(canVerHilo || canVerEventos) ? `
         <td style="text-align:right;white-space:nowrap">
           ${canComentar ? `<button class="btn ghost" data-dig="${c.copia_id}" data-et="${esc(c.etiqueta)}"
               title="Subir el escaneo de esta copia" style="padding:4px 9px;font-size:12px">Digitalizar</button>` : ''}
+          ${(canEditarCopia && !ESTADO_FINAL.has(c.estado)) ? `<button class="btn ghost" data-inc="${c.copia_id}"
+              data-et="${esc(c.etiqueta)}" data-asignada="${asignada ? '1' : ''}"
+              title="Reportar extravío o destrucción"
+              style="padding:4px 9px;font-size:12px">Incidencia</button>` : ''}
           ${accion}</td>
       </tr>`;
     }).join('');
@@ -545,6 +554,9 @@ ${(canVerHilo || canVerEventos) ? `
     });
     tb.querySelectorAll('[data-dev]').forEach((btn) => {
       btn.onclick = () => abrirModalDevolver(btn.dataset.dev, btn.dataset.et);
+    });
+    tb.querySelectorAll('[data-inc]').forEach((btn) => {
+      btn.onclick = () => abrirModalIncidencia(btn.dataset.inc, btn.dataset.et, !!btn.dataset.asignada);
     });
     // Digitalizar no abre otro formulario: lleva al compositor con la
     // clase y la copia ya puestas. Un solo camino de entrada para los
@@ -760,6 +772,54 @@ ${(canVerHilo || canVerEventos) ? `
           m.cerrar();
           await recargar();
         } catch (e) { D.errorToast(e, 'No fue posible registrar la devolución.'); }
+      }, 'Registrando…');
+    };
+  }
+
+  // ── Incidencia: extravío o destrucción ────────────────────
+  // Las dos comparten formulario porque comparten consecuencia: la
+  // copia sale de circulación y, si estaba prestada, esa asignación se
+  // cierra como NO DEVUELTA. No como devolución — perder una copia no
+  // es lo mismo que entregarla, y si se registrara igual, el historial
+  // del custodio y el aging quedarían limpios sin serlo.
+  function abrirModalIncidencia(copiaId, etiqueta, estabaAsignada) {
+    const m = modal('mInc', 'Reportar incidencia', etiqueta, `
+      <div><div class="label-text">¿Qué pasó? <span style="color:var(--danger)">*</span></div>
+        <select class="select" id="in_tipo">
+          <option value="extravio">Se extravió — no aparece</option>
+          <option value="destruccion">Se destruyó — ya no existe</option>
+        </select></div>
+
+      <div><div class="label-text">Motivo <span style="color:var(--danger)">*</span></div>
+        <textarea class="input" id="in_motivo" rows="3" style="resize:vertical"
+          placeholder="Qué se sabe, desde cuándo, quién lo reportó, qué se hizo para buscarla…"></textarea>
+        <div class="muted" style="font-size:11px;margin-top:2px">
+          Es lo único que va a explicar en la bitácora qué pasó con esta copia. Dentro de un año,
+          este texto será todo lo que quede.</div></div>
+
+      ${estabaAsignada ? `<div>${D.nota(
+        'Esta copia está en resguardo. Al reportar la incidencia, su asignación se cerrará como <strong>no devuelta</strong> — no como devolución.')}</div>` : ''}
+
+      <div>${D.nota(
+        'La copia queda fuera de circulación y no se podrá volver a asignar. El movimiento queda en la bitácora y no se puede deshacer.')}</div>
+    `, 'Reportar');
+
+    m.ok.onclick = async () => {
+      const tipo   = $('in_tipo').value;
+      const motivo = $('in_motivo').value.trim();
+      if (!motivo) {
+        return KoguApi.toast('El motivo es obligatorio: sin él la bitácora no explica nada.', 'error');
+      }
+      const ruta = tipo === 'destruccion' ? 'destruccion' : 'extravio';
+
+      await KoguUi.withLoading(m.ok, async () => {
+        try {
+          await KoguApi.apiFetch(`/protected/doc/copias/${encodeURIComponent(copiaId)}/${ruta}`,
+            { method: 'POST', body: JSON.stringify({ motivo }) });
+          KoguApi.toast(`${etiqueta} marcada como ${tipo === 'destruccion' ? 'destruida' : 'extraviada'}.`, 'success');
+          m.cerrar();
+          await recargar();
+        } catch (e) { D.errorToast(e, 'No fue posible registrar la incidencia.'); }
       }, 'Registrando…');
     };
   }
