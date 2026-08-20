@@ -99,7 +99,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="label-text">Fecha final</div>
             <input class="input" id="date_to" type="date">
           </div>
-          <div></div>
+          <div>
+            <div class="label-text">Moneda</div>
+            <select class="select" id="moneda">
+              <option value="">Todas</option>
+              <option value="MXN">MXN</option>
+              <option value="USD">USD</option>
+              <option value="OTRAS">Otras</option>
+            </select>
+          </div>
         </div>
 
         <div class="grid-4" style="margin-top:16px">
@@ -276,6 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('uuid').value = '';
     document.getElementById('rfc').value = '';
     document.getElementById('metodo_pago').value = '';
+    document.getElementById('moneda').value = '';
     document.getElementById('date_from').value = start.toISOString().slice(0, 10);
     document.getElementById('date_to').value = now.toISOString().slice(0, 10);
     document.getElementById('periodo_anio').value = '';
@@ -334,6 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       date_from: document.getElementById('date_from').value,
       date_to: document.getElementById('date_to').value,
       metodo_pago: document.getElementById('metodo_pago').value,
+      moneda: document.getElementById('moneda').value,
       scope: state.scope,
       tipo_comprobante: state.tipo,
       limit: state.limit,
@@ -805,6 +815,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         rfc: filters.rfc || '',
         estatus_sat: filters.estatus_sat || '',
         metodo_pago: filters.metodo_pago || '',
+        moneda: filters.moneda || '',
         scope: filters.scope || '',
         tipo_comprobante: filters.tipo_comprobante || '',
         date_from: filters.date_from || '',
@@ -863,6 +874,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('pageSize').onchange = async (e) => {
     state.limit = Number(e.target.value || 50);
+    state.page = 1;
+    await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
+  };
+
+  // Moneda auto-aplica: su razón de ser es cortar volumen rápido (p. ej. para
+  // que un export anual quepa), así que no obliga a pasar por "Aplicar".
+  document.getElementById('moneda').onchange = async () => {
     state.page = 1;
     await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
   };
