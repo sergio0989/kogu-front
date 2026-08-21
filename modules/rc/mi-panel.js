@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="max-width:260px">
           <div class="label-text">Periodo comparativo (independiente)</div>
           <select class="select" id="presetFil">
-            <option value="auto">Automático (2 meses vs 2 meses)</option>
+            <option value="auto">Meses cerrados vs mismo periodo del año pasado</option>
             <option value="mes">Mes vs mes anterior</option>
             <option value="custom">Personalizado</option>
           </select>
@@ -234,13 +234,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // "Solo en riesgo": comparativo ON-DEMAND con el periodo propio de Mi panel.
+  // El backend ya devuelve la caída con el mismo criterio que la Bandeja
+  // (caida_mxn / caida_kg); el cálculo local queda sólo como respaldo.
   const riesgoCli = c => {
+    // Un cliente dormido no "cayó": no tiene base contra qué compararse. Lo que
+    // está en riesgo es lo que venía comprando dentro de la ventana.
+    if (!c.caida && c.dormancia) return esDinero() ? Number(c.dormancia.venta_ventana || 0) : 0;
+    const listo = esDinero() ? c.caida_mxn : c.caida_kg;
+    if (listo != null) return Math.max(0, Number(listo));
     if (esDinero()) {
       if (c.caida) return Math.max(0, Number(c.caida.venta_p1) - Number(c.caida.venta_p2));
       return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.importe_p1) - Number(p.importe_p2)), 0);
     }
     if (c.caida) return Math.max(0, Number(c.caida.cant_p1) - Number(c.caida.cant_p2));
     return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
+  };
+  const BASE_TXT = { yoy: 'vs año pasado', secuencial: 'vs periodo anterior' };
+  // Rango legible de una ventana con extremos INCLUSIVOS (act_/yoy_).
+  const rangoIncl = (d, h) => {
+    if (!d || !h) return '';
+    const a = new Date(d), b = new Date(h);
+    const mA = `${MESES[a.getUTCMonth() + 1]} ${String(a.getUTCFullYear()).slice(2)}`;
+    const mB = `${MESES[b.getUTCMonth() + 1]} ${String(b.getUTCFullYear()).slice(2)}`;
+    return mA === mB ? mA : `${mA}–${mB}`;
   };
 
   function renderRiesgo() {
@@ -255,14 +271,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nDorm = clientes.filter(c => c.dormancia).length;
     document.getElementById('carteraResumen').innerHTML = `
       <div class="grid-4" style="gap:10px">
-        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes en caída', String(clientes.length), `${nCrit} críticos`)}
-        ${miniCard('Productos en caída', String(nProd), 'cae el producto')}
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
+        ${miniCard('Clientes en caída', String(clientes.length), `${nCrit} críticos · atiende estos primero`)}
+        ${miniCard('Productos en caída', String(nProd), 'evidencia dentro del cliente')}
         ${miniCard('Sin compra', String(nDorm), 'clientes dormidos')}
       </div>`;
 
     const p = comp.periodos;
-    const banner = p ? `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · periodo propio de Mi panel</div>` : '';
+    // Antes decía "P1 Jun–Jul vs P2 Jun–Jul": el mismo rango dos veces, porque
+    // la etiqueta no imprimía el año. Ahora dice contra QUÉ se compara.
+    const cr = comp.criterio || {};
+    const cab = p?.act_d
+      ? `Periodo <b>${rangoIncl(p.act_d, p.act_h)}</b> contra <b>${rangoIncl(p.yoy_d, p.yoy_h)}</b> (mismo periodo del año pasado)`
+      : (p ? `Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b>` : '');
+    const piso = cr.materialidad_mxn ? ` · sólo caídas de <b>${money(cr.materialidad_mxn)}</b> o más` : '';
+    const cierre = p?.mes_en_curso_excluido ? ' · el mes en curso queda fuera (sólo meses cerrados)' : '';
+    const banner = p ? `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">${cab}${piso}${cierre} · periodo propio de Mi panel</div>` : '';
     if (!clientes.length) { document.getElementById('alertas').innerHTML = banner + '<div class="empty">Sin clientes en riesgo para el periodo. ¡Bien!</div>'; return; }
 
     const sevBg = { critica: 'var(--danger,#dc2626)', alerta: 'var(--warning,#d97706)', info: 'var(--muted,#64748b)' };
@@ -270,7 +294,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('alertas').innerHTML = banner + clientes.map(c => {
       const color = sevBg[c.severidad] || sevBg.info;
       const varTxt = c.caida ? fmtPctCap(esDinero() ? c.caida.delta_importe : c.caida.delta_cantidad) : '';
-      const prods = (c.productos || []).slice(0, 6).map(pr => {
+      // Un −40% "vs año pasado" y uno "vs periodo anterior" no se leen igual.
+      const baseTxt = c.base_comparacion ? `<span style="color:var(--muted)">${BASE_TXT[c.base_comparacion] || ''}</span>` : '';
+      const prods = (c.productos || []).slice().sort((a, b) =>
+        (a.caida_mxn != null && b.caida_mxn != null)
+          ? (esDinero() ? b.caida_mxn - a.caida_mxn : b.caida_kg - a.caida_kg) : 0)
+        .slice(0, 6).map(pr => {
         const v1 = esDinero() ? pr.importe_p1 : pr.cant_p1, v2 = esDinero() ? pr.importe_p2 : pr.cant_p2, dl = esDinero() ? pr.delta_importe : pr.delta_cantidad;
         return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
           <span style="color:var(--muted)">${pr.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(pr.desc_prod || '')}${pr.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
@@ -284,8 +313,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${color}">${sevWord[c.severidad] || 'Alerta'}</span>
               <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
             </div>
-            ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
-            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}</div>` : ''}
+            ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
+            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
             ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">
