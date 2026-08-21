@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="max-width:260px">
           <div class="label-text">Periodo comparativo (independiente)</div>
           <select class="select" id="presetFil">
-            <option value="auto">Meses cerrados vs mismo periodo del año pasado</option>
+            <option value="auto">Meses cerrados vs año pasado</option>
             <option value="mes">Mes vs mes anterior</option>
             <option value="custom">Personalizado</option>
           </select>
