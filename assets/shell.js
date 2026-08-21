@@ -49,6 +49,7 @@
       {href:'/modules/rc/tablero.html',label:'Tablero (Dirección)',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/facturas.html',label:'Bandeja de facturas',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/bandeja.html',label:'Bandeja de Riesgo',perm:'screen.ventas.direccion'},
+      {href:'/modules/rc/revision.html',label:'Revisión de cartera',perm:'screen.ventas.vendedor'},
       {href:'/modules/rc/cumplimiento.html',label:'Cumplimiento de agentes',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/mi-panel.html',label:'Mi panel (Vendedor)',perm:'screen.ventas.vendedor'},
       {href:'/modules/rc/mi-panel.html',label:'Panel por agente',perm:'screen.ventas.direccion'},
