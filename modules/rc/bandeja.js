@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     <div class="grid-2" style="gap:12px;margin-top:14px;align-items:end">
       <div>
-        <div class="label-text">Periodo comparativo (RC-005/006)</div>
+        <div class="label-text">Periodo de comparación</div>
         <select class="select" id="presetFil">
-          <option value="auto">Automático (2 meses vs 2 meses)</option>
+          <option value="auto">Meses cerrados vs mismo periodo del año pasado</option>
           <option value="mes">Mes vs mes anterior</option>
           <option value="custom">Personalizado</option>
         </select>
@@ -157,11 +157,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       '<option value="">Todos los agentes</option>' + ags.map(a => `<option value="${KoguUi.escapeHtml(a)}">${KoguUi.escapeHtml(a)}</option>`).join('');
     document.getElementById('agenteFil').value = cur;
   }
+  // Rango legible de una ventana con extremos INCLUSIVOS (act_/yoy_/prev_).
+  const rangoIncl = (d, h) => {
+    if (!d || !h) return '';
+    const a = new Date(d), b = new Date(h);
+    const mA = `${MESES[a.getUTCMonth() + 1]} ${String(a.getUTCFullYear()).slice(2)}`;
+    const mB = `${MESES[b.getUTCMonth() + 1]} ${String(b.getUTCFullYear()).slice(2)}`;
+    return mA === mB ? mA : `${mA}–${mB}`;
+  };
   function periodosBanner() {
     const p = comp?.periodos;
     if (!p) return '';
+    const cr = comp?.criterio || {};
+    // Con las tres ventanas nuevas el encabezado dice contra QUÉ se compara y
+    // desde qué piso; antes decía "P1 vs P2" y había que adivinar el criterio.
+    const cab = p.act_d
+      ? `Periodo <b>${rangoIncl(p.act_d, p.act_h)}</b> contra <b>${rangoIncl(p.yoy_d, p.yoy_h)}</b> (mismo periodo del año pasado)`
+      : `Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b>`;
+    const piso = cr.materialidad_mxn ? ` · sólo caídas de <b>${money(cr.materialidad_mxn)}</b> o más` : '';
+    const cierre = p.mes_en_curso_excluido ? ' · el mes en curso queda fuera (sólo meses cerrados)' : '';
+    const nuevos = p.act_d ? ' · los clientes que no existían hace un año se comparan contra el periodo anterior' : '';
     return `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">
-      Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b> · prioridad por ${esDinero() ? 'monto' : 'volumen (kg)'} que dejó de comprar (P1−P2) · cálculo on-demand (no depende de Recalcular)
+      ${cab}${piso}${cierre}${nuevos} · prioridad por ${esDinero() ? 'monto' : 'volumen (kg)'} que dejó de comprar · cálculo on-demand (no depende de Recalcular)
     </div>`;
   }
 
@@ -199,8 +216,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Riesgo (P1−P2) de un cliente del comparativo on-demand, según la métrica activa.
+  // Riesgo de un cliente: lo que dejó de comprar contra su base de comparación.
+  // El backend ya lo devuelve calculado (caida_mxn / caida_kg) con el mismo
+  // criterio que usa Recalcular; el cálculo local queda sólo como respaldo.
   function riesgoCli(c) {
+    // Un cliente dormido no "cayó": no tiene base contra qué compararse. Lo
+    // que está en riesgo es lo que venía comprando dentro de la ventana.
+    if (!c.caida && c.dormancia) return esDinero() ? Number(c.dormancia.venta_ventana || 0) : 0;
+    const listo = esDinero() ? c.caida_mxn : c.caida_kg;
+    if (listo != null) return Math.max(0, Number(listo));
     if (c.caida) {
       return esDinero()
         ? Math.max(0, Number(c.caida.venta_p1) - Number(c.caida.venta_p2))
@@ -209,6 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return (c.productos || []).reduce((s, p) => s + Math.max(0,
       esDinero() ? Number(p.importe_p1) - Number(p.importe_p2) : Number(p.cant_p1) - Number(p.cant_p2)), 0);
   }
+  const BASE_TXT = { yoy: 'vs año pasado', secuencial: 'vs periodo anterior' };
 
   function renderAlertas() {
     const sv = sel('sevFil'), ag = sel('agenteFil');
@@ -226,13 +251,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const totalRiesgo = clientes.reduce((s, c) => s + c._riesgo, 0);
     const nCriticas = clientes.filter(c => c.severidad === 'critica').length;
-    const nProds = clientes.reduce((s, c) => s + (c.productos?.length || 0), 0);
+    const nCaida = clientes.filter(c => c.caida).length;
+    const nDormidos = clientes.filter(c => c.dormancia).length;
     document.getElementById('alertasResumen').innerHTML = `
       <div class="grid-4" style="gap:10px">
-        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes en caída', String(clientes.length), `${nCriticas} críticos`)}
-        ${miniCard('Productos en caída', String(nProds), 'alertas RC-006')}
-        ${miniCard('Otras alertas', String(otras.length), 'empresa / agentes')}
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
+        ${miniCard('Clientes a atender', String(clientes.length), `${nCriticas} críticos · atiende estos primero`)}
+        ${miniCard('En caída', String(nCaida), 'compran menos que su base')}
+        ${miniCard('Sin comprar', String(nDormidos), 'dejaron de facturar')}
       </div>`;
 
     if (!clientes.length && !otras.length) {
@@ -246,8 +272,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cardCliente = c => {
       const bg = sevBg[c.severidad] || sevBg.info;
       const varTxt = c.caida ? fmtPctCap(esDinero() ? c.caida.delta_importe : c.caida.delta_cantidad) : '';
+      // Contra qué se comparó: un −40% "vs año pasado" y uno "vs periodo
+      // anterior" no se leen igual, y antes la tarjeta no lo decía.
+      const baseTxt = c.base_comparacion ? `<span style="color:var(--muted)">${BASE_TXT[c.base_comparacion] || ''}</span>` : '';
+      // El backend ya manda los productos ordenados por caída; el sort local
+      // sólo se aplica al respaldo (respuesta vieja sin caida_mxn).
       const prods = (c.productos || []).slice().sort((a, b) =>
-        (esDinero() ? (b.importe_p1 - b.importe_p2) - (a.importe_p1 - a.importe_p2) : (b.cant_p1 - b.cant_p2) - (a.cant_p1 - a.cant_p2)));
+        (a.caida_mxn != null && b.caida_mxn != null)
+          ? (esDinero() ? b.caida_mxn - a.caida_mxn : b.caida_kg - a.caida_kg)
+          : (esDinero() ? (b.importe_p1 - b.importe_p2) - (a.importe_p1 - a.importe_p2) : (b.cant_p1 - b.cant_p2) - (a.cant_p1 - a.cant_p2)));
       const top = prods.slice(0, 6).map(p => {
         const v1 = esDinero() ? p.importe_p1 : p.cant_p1;
         const v2 = esDinero() ? p.importe_p2 : p.cant_p2;
@@ -266,8 +299,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
               <span style="font-size:12px;color:var(--muted)">· ${c.agente_nombre ? KoguUi.escapeHtml(c.agente_nombre) : 'sin agente'}</span>
             </div>
-            ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída general ${varTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
-            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}</div>` : ''}
+            ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
+            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
             ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">
@@ -430,15 +463,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn" id="rcReglasClose">Cerrar ✕</button>
           </div>
           <div style="background:var(--panel2,#f1f5f9);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--muted)">
-            <b>Bases del cálculo.</b> La métrica primaria es <b>cantidad (kg)</b>: el importe en pesos se distorsiona con el tipo de cambio (~70% de la venta es USD), así que las caídas se miden en volumen. La venta se atribuye a un agente por el <b>cliente</b> (cat_clientes → agente vigente), nunca por la clave de agente del ERP. El comparativo <b>P1 vs P2</b> usa por defecto los <b>últimos 2 meses vs los 2 previos</b> (configurable). Las metas se comparan contra el <b>presupuesto anual</b> del agente.
+            <b>Bases del cálculo.</b> La métrica primaria es <b>cantidad (kg)</b>: el importe en pesos se distorsiona con el tipo de cambio (~70% de la venta es USD), así que las caídas se miden en volumen. La venta se atribuye a un agente por el <b>cliente</b> (cat_clientes → agente vigente), nunca por la clave de agente del ERP. El comparativo usa por defecto los <b>últimos 2 meses cerrados contra los mismos meses del año pasado</b>: el mes en curso <b>no entra</b> —comparar 43 días contra 61 hacía "caer" ~30% a todos por pura aritmética— y el año contra año separa la estacionalidad de la caída real. Las metas se comparan contra el <b>presupuesto anual</b> del agente.
           </div>
           ${regla('RC-001', 'Cumplimiento vs meta', 'Agentes que van por debajo del ritmo necesario para llegar a su meta anual.', 'Venta acumulada del año ÷ meta anual = % avance. El <i>ritmo esperado</i> = meta × (meses transcurridos ÷ 12). Se compara el avance real contra ese ritmo. Base kg si el agente tiene meta de cantidad; si no, en importe.', 'Alerta si el ritmo < 90% del esperado · Crítica si < 70%.')}
           ${regla('RC-002', 'Concentración de cliente', 'Agentes que dependen demasiado de un solo cliente (riesgo si ese cliente se va).', 'Para cada agente, se calcula qué % de su venta (ventana de 12 meses) representa su cliente más grande.', 'Alerta si un cliente concentra ≥ 30% · Crítica si ≥ 50%. (En importe.)')}
           ${regla('RC-003', 'Caída de volumen (mes vs mes)', 'Caída del volumen vendido del último mes contra el mes anterior, a nivel empresa y por agente.', 'Compara los kg del último mes con los del mes previo: (mes actual − mes anterior) ÷ mes anterior.', 'Alerta si cae ≥ 20% · Crítica si cae ≥ 40%. (En kg.)')}
-          ${regla('RC-004', 'Cliente sin compra (dormido)', 'Clientes con historial que dejaron de comprar.', 'Días entre la última compra del cliente y la fecha de la última venta de la empresa.', 'Alerta si lleva ≥ 60 días sin comprar · Crítica si ≥ 120 días.')}
-          ${regla('RC-005', 'Cliente comprando menos (P1 vs P2)', 'Clientes cuyo volumen de compra cayó entre dos periodos.', 'Suma de kg del cliente en P2 vs P1: (P2 − P1) ÷ P1.', 'Alerta si cae ≥ 25% · Crítica si cae ≥ 50%. (En kg.)')}
-          ${regla('RC-006', 'Producto que el cliente compra menos (P1 vs P2)', 'A nivel cliente×producto: qué producto específico dejó de comprar o redujo un cliente.', 'Por cada cliente y producto, compara P1 vs P2 en importe y en cantidad; basta que caiga en cualquiera de las dos. Se filtran productos chicos (mínimo de venta en P1) para evitar ruido.', 'Alerta si cae ≥ 30% (importe o kg) y la venta de P1 ≥ $5,000. "Abandonado" = cayó a 0.')}
-          <div style="font-size:12px;color:var(--muted);margin-top:8px">El <b>"monto/volumen en riesgo"</b> de cada cliente es lo que dejó de comprar (P1 − P2). Los umbrales son configurables en el catálogo de reglas.</div>
+          ${regla('RC-004', 'Cliente sin compra (dormido)', 'Clientes que venían comprando y dejaron de hacerlo.', 'Días entre la última compra del cliente y la última venta de la empresa. Sólo entran clientes cuya última compra cae dentro de una <b>ventana de 12 meses</b> —quien se fue hace dos años ya no es un pendiente de seguimiento— y que dentro de esa ventana facturaron al menos la materialidad.', 'Alerta a partir de 60 días sin comprar. Crítica: los 10 de mayor venta en riesgo, no los de más días.')}
+          ${regla('RC-005', 'Cliente comprando menos', 'Clientes que siguen comprando pero por debajo de su base, con los productos que explican la caída dentro de la misma incidencia.', 'Se compara el periodo actual (<b>meses cerrados</b>) contra el <b>mismo periodo del año pasado</b>. Si el cliente no existía hace un año, se cae al periodo inmediato anterior y la tarjeta lo dice. Dentro de cada cliente se listan los productos que más aportan a la caída.', 'Entra si la caída llega a la <b>materialidad</b> (por defecto $75,000) y el descenso es ≥ 25% en kg o en importe.')}
+          ${regla('RC-006', 'Producto que el cliente compra menos', 'Ya no emite alertas propias: sus productos viajan como evidencia dentro de la incidencia del cliente (RC-005).', 'Antes RC-005 y RC-006 contaban el mismo hecho con distinto zoom y el dinero se sumaba dos veces: 340 alertas para 167 clientes, con un solo cliente generando 45 renglones.', 'Sin renglones sueltos. El detalle por producto está en la tarjeta del cliente y en su ficha.')}
+          <div style="font-size:12px;color:var(--muted);margin-top:8px">
+            <b>Por qué cambió.</b> Con umbrales fijos y sin piso de materialidad, una caída de $8,000 pesaba igual que una de $4M y el 80% salía "crítica" — cuando todo es crítico, la severidad no ordena nada. Ahora hay dos filtros y un orden: <b>materialidad</b> (¿vale el tiempo de un gerente?), <b>caída relativa</b> (¿de verdad bajó?) y <b>severidad por ranking</b> (las mayores caídas son las críticas). El <b>"monto/volumen en riesgo"</b> es lo que el cliente dejó de comprar contra su base. Todo es configurable en el catálogo de reglas.
+          </div>
         </div>
       </div>`;
     document.getElementById('rcReglasModal')?.remove();

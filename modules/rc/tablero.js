@@ -37,9 +37,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div style="margin-top:14px">
       <div style="max-width:340px">
-        <div class="label-text">Periodo comparativo (reglas RC-005/006)</div>
+        <div class="label-text">Periodo de comparación</div>
         <select class="select" id="presetFil">
-          <option value="auto">Automático (2 meses vs 2 meses)</option>
+          <option value="auto">Meses cerrados vs mismo periodo del año pasado</option>
           <option value="mes">Mes vs mes anterior</option>
           <option value="custom">Personalizado</option>
         </select>
@@ -661,7 +661,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         let g = groups.get(a.cliente_ref);
         if (!g) { g = { alertas: [], rc005: null, rc004: null, productos: [] }; groups.set(a.cliente_ref, g); }
         g.alertas.push(a);
-        if (a.regla_clave === 'RC-005') g.rc005 = a;
+        if (a.regla_clave === 'RC-005') {
+          g.rc005 = a;
+          // Los productos ya no son alertas sueltas: viajan como evidencia
+          // dentro de la incidencia del cliente. Se cuentan de ahí.
+          productos += (a.detalle?.productos?.length || 0);
+        }
         if (a.regla_clave === 'RC-004') g.rc004 = a;
         if (a.regla_clave === 'RC-006') { g.productos.push(a); productos++; }
       } else otras++;
@@ -674,9 +679,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nCriticas = arr.filter(g => grpSev(g) === 0).length;
     document.getElementById('riesgoResumen').innerHTML = `
       <div class="grid-4" style="gap:10px">
-        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'dejaron de comprar (P1−P2)', 'var(--danger,#dc2626)')}
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
         ${miniCard('Clientes en caída', String(arr.length), `${nCriticas} críticos`)}
-        ${miniCard('Productos en caída', String(productos), 'alertas RC-006')}
+        ${miniCard('Productos en caída', String(productos), 'evidencia dentro del cliente')}
         ${miniCard('Otras alertas', String(otras), 'empresa / agentes')}
       </div>
       <div class="hint" style="margin-top:10px;color:var(--muted);font-size:12px">El detalle accionable, filtros y ficha por cliente están en la <a href="/modules/rc/bandeja.html">Bandeja de Riesgo</a>.</div>`;
@@ -761,17 +766,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
 
           <div style="background:var(--panel2,#f1f5f9);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--muted)">
-            <b>Bases del cálculo.</b> La métrica primaria es <b>cantidad (kg)</b>: el importe en pesos se distorsiona con el tipo de cambio (~70% de la venta es USD), así que las caídas se miden en volumen. La venta se atribuye a un agente por el <b>cliente</b> (cat_clientes → agente vigente), nunca por la clave de agente del ERP. El comparativo <b>P1 vs P2</b> usa por defecto los <b>últimos 2 meses vs los 2 previos</b> (configurable). Las metas se comparan contra el <b>presupuesto anual</b> del agente.
+            <b>Bases del cálculo.</b> La métrica primaria es <b>cantidad (kg)</b>: el importe en pesos se distorsiona con el tipo de cambio (~70% de la venta es USD), así que las caídas se miden en volumen. La venta se atribuye a un agente por el <b>cliente</b> (cat_clientes → agente vigente), nunca por la clave de agente del ERP. El comparativo usa por defecto los <b>últimos 2 meses cerrados contra los mismos meses del año pasado</b>: el mes en curso <b>no entra</b> —comparar 43 días contra 61 hacía "caer" ~30% a todos por pura aritmética— y el año contra año separa la estacionalidad de la caída real. Las metas se comparan contra el <b>presupuesto anual</b> del agente.
           </div>
 
           ${regla('RC-001', 'Cumplimiento vs meta', 'Agentes que van por debajo del ritmo necesario para llegar a su meta anual.', 'Venta acumulada del año ÷ meta anual = % avance. El <i>ritmo esperado</i> = meta × (meses transcurridos ÷ 12). Se compara el avance real contra ese ritmo. Base kg si el agente tiene meta de cantidad; si no, en importe.', 'Alerta si el ritmo < 90% del esperado · Crítica si < 70%.')}
           ${regla('RC-002', 'Concentración de cliente', 'Agentes que dependen demasiado de un solo cliente (riesgo si ese cliente se va).', 'Para cada agente, se calcula qué % de su venta (ventana de 12 meses) representa su cliente más grande.', 'Alerta si un cliente concentra ≥ 30% · Crítica si ≥ 50%. (En importe.)')}
           ${regla('RC-003', 'Caída de volumen (mes vs mes)', 'Caída del volumen vendido del último mes contra el mes anterior, a nivel empresa y por agente.', 'Compara los kg del último mes con los del mes previo: (mes actual − mes anterior) ÷ mes anterior.', 'Alerta si cae ≥ 20% · Crítica si cae ≥ 40%. (En kg.)')}
-          ${regla('RC-004', 'Cliente sin compra (dormido)', 'Clientes con historial que dejaron de comprar.', 'Días entre la última compra del cliente y la fecha de la última venta de la empresa.', 'Alerta si lleva ≥ 60 días sin comprar · Crítica si ≥ 120 días.')}
-          ${regla('RC-005', 'Cliente comprando menos (P1 vs P2)', 'Clientes cuyo volumen de compra cayó entre dos periodos.', 'Suma de kg del cliente en P2 vs P1: (P2 − P1) ÷ P1.', 'Alerta si cae ≥ 25% · Crítica si cae ≥ 50%. (En kg.)')}
-          ${regla('RC-006', 'Producto que el cliente compra menos (P1 vs P2)', 'A nivel cliente×producto: qué producto específico dejó de comprar o redujo un cliente.', 'Por cada cliente y producto, compara P1 vs P2 en importe y en cantidad; basta que caiga en cualquiera de las dos. Se filtran productos chicos (mínimo de venta en P1) para evitar ruido.', 'Alerta si cae ≥ 30% (importe o kg) y la venta de P1 ≥ $5,000. "Abandonado" = cayó a 0.')}
-
-          <div style="font-size:12px;color:var(--muted);margin-top:8px">El <b>"monto/volumen en riesgo"</b> de cada cliente es lo que dejó de comprar (P1 − P2). Los umbrales son configurables en el catálogo de reglas.</div>
+          ${regla('RC-004', 'Cliente sin compra (dormido)', 'Clientes que venían comprando y dejaron de hacerlo.', 'Días entre la última compra del cliente y la última venta de la empresa. Sólo entran clientes cuya última compra cae dentro de una <b>ventana de 12 meses</b> —quien se fue hace dos años ya no es un pendiente de seguimiento— y que dentro de esa ventana facturaron al menos la materialidad.', 'Alerta a partir de 60 días sin comprar. Crítica: los 10 de mayor venta en riesgo, no los de más días.')}
+          ${regla('RC-005', 'Cliente comprando menos', 'Clientes que siguen comprando pero por debajo de su base, con los productos que explican la caída dentro de la misma incidencia.', 'Se compara el periodo actual (<b>meses cerrados</b>) contra el <b>mismo periodo del año pasado</b>. Si el cliente no existía hace un año, se cae al periodo inmediato anterior y la tarjeta lo dice. Dentro de cada cliente se listan los productos que más aportan a la caída.', 'Entra si la caída llega a la <b>materialidad</b> (por defecto $75,000) y el descenso es ≥ 25% en kg o en importe.')}
+          ${regla('RC-006', 'Producto que el cliente compra menos', 'Ya no emite alertas propias: sus productos viajan como evidencia dentro de la incidencia del cliente (RC-005).', 'Antes RC-005 y RC-006 contaban el mismo hecho con distinto zoom y el dinero se sumaba dos veces: 340 alertas para 167 clientes, con un solo cliente generando 45 renglones.', 'Sin renglones sueltos. El detalle por producto está en la tarjeta del cliente y en su ficha.')}
+          <div style="font-size:12px;color:var(--muted);margin-top:8px">
+            <b>Por qué cambió.</b> Con umbrales fijos y sin piso de materialidad, una caída de $8,000 pesaba igual que una de $4M y el 80% salía "crítica" — cuando todo es crítico, la severidad no ordena nada. Ahora hay dos filtros y un orden: <b>materialidad</b> (¿vale el tiempo de un gerente?), <b>caída relativa</b> (¿de verdad bajó?) y <b>severidad por ranking</b> (las mayores caídas son las críticas). El <b>"monto/volumen en riesgo"</b> es lo que el cliente dejó de comprar contra su base. Todo es configurable en el catálogo de reglas.
+          </div>
         </div>
       </div>`;
     document.getElementById('rcReglasModal')?.remove();
