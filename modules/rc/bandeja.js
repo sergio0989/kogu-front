@@ -44,6 +44,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       <div style="display:flex;gap:10px">
+        <select class="select" id="estadoFil">
+          <option value="pendiente">Pendientes</option>
+          <option value="">Todas</option>
+          <option value="atendida">Atendidas</option>
+          <option value="descartada">Descartadas</option>
+        </select>
         <select class="select" id="sevFil">
           <option value="">Toda severidad</option>
           <option value="critica">Crítica</option>
@@ -235,14 +241,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const BASE_TXT = { yoy: 'vs año pasado', secuencial: 'vs periodo anterior' };
 
+  // Estado del triaje. `null` = el cliente no tiene alerta materializada
+  // todavía (falta Recalcular), así que cuenta como pendiente: es trabajo por
+  // hacer, no trabajo hecho.
+  const ESTADO = {
+    descartada: { txt: 'Descartada', bg: 'var(--muted,#64748b)' },
+    resuelta:   { txt: 'Atendida',   bg: 'var(--ok,#059669)' },
+    vista:      { txt: 'Vista',      bg: 'var(--brand,#2563eb)' },
+  };
+  const esPendiente = c => !c.estado || c.estado === 'abierta';
+  function pasaEstado(c, filtro) {
+    if (!filtro) return true;
+    if (filtro === 'pendiente')  return esPendiente(c);
+    if (filtro === 'atendida')   return c.estado === 'resuelta';
+    if (filtro === 'descartada') return c.estado === 'descartada';
+    return true;
+  }
+
   function renderAlertas() {
-    const sv = sel('sevFil'), ag = sel('agenteFil');
+    const sv = sel('sevFil'), ag = sel('agenteFil'), es = sel('estadoFil');
 
     // Clientes en riesgo: comparativo on-demand (independiente del Recalcular).
-    const clientes = (comp?.clientes || [])
-      .filter(c => (!sv || c.severidad === sv) && (!ag || (c.agente_nombre || '') === ag))
+    const todos = (comp?.clientes || [])
+      .filter(c => (!sv || c.severidad === sv) && (!ag || (c.agente_nombre || '') === ag));
+    const clientes = todos
+      .filter(c => pasaEstado(c, es))
       .map(c => ({ ...c, _riesgo: riesgoCli(c) }))
       .sort((a, b) => b._riesgo - a._riesgo);
+    const nTriados = todos.filter(c => !esPendiente(c)).length;
 
     // Otras alertas (empresa / agentes): materializadas, NO de cliente.
     const otras = alertas.filter(a =>
@@ -259,7 +285,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${miniCard('Clientes a atender', String(clientes.length), `${nCriticas} críticos · atiende estos primero`)}
         ${miniCard('En caída', String(nCaida), 'compran menos que su base')}
         ${miniCard('Sin comprar', String(nDormidos), 'dejaron de facturar')}
-      </div>`;
+      </div>
+      ${nTriados ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">${nTriados} cliente(s) ya triado(s) — se conservan al recalcular. Cámbialo en el filtro de estado para verlos.</div>` : ''}`;
 
     if (!clientes.length && !otras.length) {
       document.getElementById('alertas').innerHTML = periodosBanner() + '<div class="empty">Sin alertas para el filtro</div>';
@@ -268,6 +295,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const sevBg = { critica: 'var(--danger,#dc2626)', alerta: 'var(--warning,#d97706)', info: 'var(--muted,#64748b)' };
     const sevWordC = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
+
+    const estadoBadge = c => {
+      const m = ESTADO[c.estado];
+      if (!m) return '';
+      return `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${m.bg}">${m.txt}</span>`;
+    };
+    // El triaje se aplica a TODAS las alertas del cliente a la vez: la tarjeta
+    // es el cliente, no la regla. Si no hay alerta materializada todavía, no
+    // hay a qué fila apuntar y se dice, en vez de dejar botones muertos.
+    const triajeBotones = c => {
+      const ids = (c.alertas || []).map(a => a.alerta_id);
+      if (!ids.length) {
+        return `<span style="font-size:11px;color:var(--muted);align-self:center" title="Las alertas se materializan al recalcular">Recalcula para triar</span>`;
+      }
+      const refs = KoguUi.escapeHtml(ids.join(','));
+      if (esPendiente(c)) {
+        return `<button class="btn" data-triaje="resuelta" data-ids="${refs}" style="font-size:12px">✓ Atendida</button>
+                <button class="btn" data-triaje="descartada" data-ids="${refs}" style="font-size:12px">Descartar</button>`;
+      }
+      return `<button class="btn" data-triaje="abierta" data-ids="${refs}" style="font-size:12px">↺ Reabrir</button>`;
+    };
 
     const cardCliente = c => {
       const bg = sevBg[c.severidad] || sevBg.info;
@@ -298,6 +346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${bg}">${sevWordC[c.severidad] || 'Info'}</span>
               <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
               <span style="font-size:12px;color:var(--muted)">· ${c.agente_nombre ? KoguUi.escapeHtml(c.agente_nombre) : 'sin agente'}</span>
+              ${estadoBadge(c)}
             </div>
             ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
             ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
@@ -306,7 +355,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div style="text-align:right;min-width:150px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
             <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(c._riesgo)}</div>
-            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap">
+              ${triajeBotones(c)}
               <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px">Detalle</button>
             </div>
           </div>
@@ -341,6 +391,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       periodosBanner() + (clientes.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
 
     document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () => openFicha(x.dataset.fichaRef));
+    document.querySelectorAll('#alertas .btn[data-triaje]').forEach(x => x.onclick = async () => {
+      const ids = x.dataset.ids.split(',').filter(Boolean);
+      const nuevo = x.dataset.triaje;
+      await KoguUi.withLoading(x, async () => {
+        try {
+          for (const id of ids) {
+            await KoguApi.apiFetch(`${BASE}/alertas/${id}/status`, { method: 'PUT', body: JSON.stringify({ status: nuevo }) });
+          }
+          // Se actualiza en memoria en vez de recargar todo: recargar volvería
+          // a pedir el comparativo completo por un clic.
+          const cli = (comp?.clientes || []).find(z => (z.alertas || []).some(a => ids.includes(a.alerta_id)));
+          if (cli) { cli.alertas.forEach(a => { if (ids.includes(a.alerta_id)) a.status = nuevo; }); cli.estado = nuevo; }
+          KoguApi.toast(nuevo === 'abierta' ? 'Cliente reabierto' : 'Listo — se conserva al recalcular', 'success');
+          renderAlertas();
+        } catch (err) { KoguApi.toast(err.message, 'error'); }
+      }, '...');
+    });
     document.querySelectorAll('#alertas .btn[data-act]').forEach(x => x.onclick = async () => {
       try {
         await KoguApi.apiFetch(`${BASE}/alertas/${x.dataset.id}/status`, { method: 'PUT', body: JSON.stringify({ status: x.dataset.act }) });
@@ -507,6 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderAlertas();
   };
   document.getElementById('sevFil').onchange = renderAlertas;
+  document.getElementById('estadoFil').onchange = renderAlertas;
   document.getElementById('agenteFil').onchange = renderAlertas;
   // Resumen del Recalcular. Ya no basta con "N alertas": ahora la pregunta
   // que importa es si el triaje humano sobrevivió, así que el aviso lo dice.
