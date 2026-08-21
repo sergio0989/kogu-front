@@ -790,6 +790,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Eventos ───────────────────────────────────────────────────────────────
   document.getElementById('reglasBtn').onclick = openReglas;
   document.getElementById('presetFil').onchange = () => show('customPeriodos', sel('presetFil') === 'custom');
+  // Resumen del Recalcular. Ya no basta con "N alertas": ahora la pregunta
+  // que importa es si el triaje humano sobrevivió, así que el aviso lo dice.
+  function msgRecalculo(d) {
+    const a = d?.alertas;
+    const base = `Recalculado: ${d?.kpi_filas ?? 0} filas KPI, ${d?.total_alertas ?? 0} alertas`;
+    if (!a) return base;
+    const partes = [];
+    if (a.nuevas)          partes.push(`${a.nuevas} nueva(s)`);
+    if (a.actualizadas)    partes.push(`${a.actualizadas} actualizada(s)`);
+    if (a.cerradas)        partes.push(`${a.cerradas} cerrada(s)`);
+    if (a.triaje_preservado) partes.push(`${a.triaje_preservado} con tu triaje intacto`);
+    return partes.length ? `${base} · ${partes.join(' · ')}` : base;
+  }
+
   document.getElementById('recalcBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {
       try {
@@ -797,7 +811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const body = periodos ? { periodos } : {};
         const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: JSON.stringify(body) });
         const d = res?.data || res;
-        KoguApi.toast(`Recalculado: ${d?.kpi_filas ?? 0} filas KPI, ${d?.total_alertas ?? 0} alertas`, 'success');
+        KoguApi.toast(msgRecalculo(d), 'success');
         await loadAll();
       } catch (err) { KoguApi.toast(err.message, 'error'); }
     }, 'Recalculando...');
