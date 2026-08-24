@@ -99,6 +99,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .narr h3 { font-size:13px; margin:0 0 6px; text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid #0e7490; padding-bottom:4px; }
   #reporte .narr p { font-size:12px; line-height:1.65; color:#1e293b; margin:0 0 9px; text-align:justify; }
   #reporte .narr ul { margin:4px 0 0; padding-left:18px; }
+  #reporte .narr ul.res li { margin-bottom:7px; }
+  #reporte .aviso { border-left:4px solid #d97706; background:#fffbeb; color:#78350f; padding:9px 12px; border-radius:0 6px 6px 0; font-size:11.5px; margin:0 0 12px; }
   #reporte .narr li { font-size:12px; line-height:1.6; color:#1e293b; margin-bottom:5px; }
   #reporte .metod { font-size:10.5px; color:#64748b; font-style:italic; margin-top:2px; }
 
@@ -243,8 +245,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function secResumen(d) {
     const n = d.narrativa || {};
     if (!n.resumen || !n.resumen.length) return '';
+    // Viñeta = etiqueta + cifra. Se tolera el formato viejo (texto plano) por si
+    // el backend todavía no está desplegado.
+    const li = (p) => (typeof p === 'string'
+      ? `<li>${esc(p)}</li>`
+      : `<li><b>${esc(p.etiqueta)}:</b> ${esc(p.texto)}</li>`);
     return `<div class="narr memo-only"><h3>Resumen ejecutivo</h3>
-      ${n.resumen.map((p) => `<p>${esc(p)}</p>`).join('')}
+      <ul class="res">${n.resumen.map(li).join('')}</ul>
       ${n.nota_metodologia ? `<div class="metod">${esc(n.nota_metodologia)}</div>` : ''}</div>`;
   }
 
@@ -322,9 +329,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Sección 2 — Utilidad bruta menos gasto de venta ──
-  function secOperacion(r, ag) {
+  function secOperacion(r, ag, d) {
     let h = `<div class="sec">${band('2', 'Utilidad Bruta Menos Gasto de Venta', true, 'Resultado del mes', PER)}`;
     h += `<p style="font-size:12px;color:#334155;margin:0 0 12px">Sobre la utilidad bruta se descuenta el <b>gasto de venta</b> (comisiones, sueldo, gasto y carga social) prorrateado por kilo vendido de cada agente.</p>`;
+    // Sin gasto capturado esta sección no resta nada y la cifra repite la bruta:
+    // hay que decirlo, o se lee como un mes sin gasto de venta.
+    if (d && d.narrativa && d.narrativa.sin_gasto_venta) {
+      h += `<div class="aviso"><b>Preliminar:</b> no hay gasto de venta capturado para ${esc(PER)}. Las cifras de esta sección repiten la utilidad bruta y se actualizarán al cargar el archivo de gastos del periodo.</div>`;
+    }
     h += `<div class="kgrid">
       ${kc('Utilidad bruta', mon2(r.utilidad_bruta), pct(r.utilidad_bruta_pct))}
       ${kc('(−) Gastos de venta', mon2(r.gastos_venta), pct1((Number(r.gastos_venta) || 0) / (Number(r.total_ventas) || 1)) + ' de ventas')}
@@ -451,7 +463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ACUM = d.periodo.mes === 1 ? PER : `Enero–${d.periodo.mes_nombre} ${d.periodo.anio}`;
       $('reporte').innerHTML =
         secPortada(d) + secIndice(d) + secResumen(d) + secPp(d) +
-        secBruta(d.resultado, d.factores) + secOperacion(d.resultado, d.agentes) +
+        secBruta(d.resultado, d.factores) + secOperacion(d.resultado, d.agentes, d) +
         secAnalisis(d) + secCierre(d);
       $('msg').innerHTML = 'Informe generado. Pulsa <b>Imprimir / Guardar PDF</b> (Ctrl/Cmd+P → Guardar como PDF).';
     } catch (e) {
