@@ -133,6 +133,8 @@
       {href:'/modules/lab/lab-liberaciones.html',     label:'Liberaciones',        perm:'screen.lab.liberaciones'},
       {href:'/modules/lab/lab-excepciones.html',      label:'Excepciones',         perm:'screen.lab.bandeja'},
       {href:'/modules/lab/lab-coa.html',              label:'Certificados COA',    perm:'screen.lab.coa'},
+      // ── Gestión del área ──
+      {href:'/modules/lab/lab-costos.html',            label:'Costos de laboratorio', perm:'screen.lab.costos'},
       // ── Transversal / Configuración ──
       {href:'/modules/lab/lab-no-conformidades.html',    label:'No Conformidades',    perm:'screen.lab.no_conformidades'},
       {href:'/modules/lab/lab-maestros.html',            label:'Maestros analíticos', perm:'screen.lab.maestros'},
