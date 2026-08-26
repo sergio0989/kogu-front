@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="tabs-costos" style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:16px">
     <button class="tabc" data-pane="captura"   style="border:0;background:none;padding:11px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:-1px">Captura del periodo</button>
     <button class="tabc" data-pane="resultado" style="border:0;background:none;padding:11px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:-1px">Resultado del reparto</button>
+    <button class="tabc" data-pane="abc" style="border:0;background:none;padding:11px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:-1px">Comparativo vs ABC</button>
   </div>
 
   <div id="pane-captura">
@@ -222,6 +223,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   </div>
 
+  <div id="pane-abc" style="display:none">
+    <div class="card" style="margin-top:16px">
+      <div class="eyebrow">Por qué existe esta pantalla</div>
+      <h3 style="margin:6px 0 2px">El ABC ya reparte el costo del laboratorio — proporcional al volumen</h3>
+      <div style="color:var(--muted);font-size:12.5px;line-height:1.6">
+        El laboratorio vive dentro del costo B, y el costo B se divide entre kilos.
+        Eso significa que hoy, sin que nadie lo haya decidido,
+        <strong>cada producto ya carga un costo de laboratorio proporcional a los kilos
+        que vende</strong>. Esta pantalla pone al lado el costo que realmente consumió.
+        La diferencia no propone cambiar el ABC: lo mide.
+      </div>
+    </div>
+
+    <div id="abcCards" class="grid-3" style="margin-top:16px;gap:16px"></div>
+    <div id="abcConciliacion" style="margin-top:16px"></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="eyebrow">El entregable</div>
+      <h3 style="margin:6px 0 2px">Quién está subsidiando a quién</h3>
+      <div style="color:var(--muted);font-size:12px">
+        Costo de laboratorio que el ABC le carga a cada producto por volumen,
+        contra el que consumió por actividad.
+      </div>
+      <div id="tablaAbc" style="margin-top:14px"></div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px">
+        <span><i style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#dc2626;margin-right:6px;vertical-align:-1px"></i>Subsidiado — consume más laboratorio del que le cobran</span>
+        <span><i style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#0891b2;margin-right:6px;vertical-align:-1px"></i>Sobrecargado — paga laboratorio que no consumió</span>
+      </div>
+      <div id="abcExcluidos" style="margin-top:14px"></div>
+      <div style="margin-top:12px">
+        <div style="border-left:3px solid #d97706;background:#fffbeb;color:#78350f;border-radius:0 12px 12px 0;padding:11px 14px;font-size:12px;line-height:1.6">
+          <strong>Estas cifras no cuadran con <code>costo_promedio</code> del ABC, y está bien.</strong>
+          El ABC divide entre kilos <em>vendidos</em> y opera sobre el mes de la factura;
+          laboratorio analiza kilos <em>producidos y recibidos</em> sobre el mes del análisis,
+          e incluye lotes de compra que el ABC no tiene. Son universos distintos a propósito.
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
   `;
 
@@ -318,8 +359,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('totalPeriodo').textContent = money(p.total_periodo);
 
     // Conciliación
-    $('importeB').value    = p.importe_b_laboratorio != null ? String(p.importe_b_laboratorio) : '';
-    $('importeB').disabled = bloqueado;
+    $('importeB').value = p.importe_b_laboratorio != null ? String(p.importe_b_laboratorio) : '';
+    // La porción de laboratorio en importe_b llega junto con el importe del
+    // ABC, o sea DESPUÉS de cerrar el mes. No entra en ninguna fórmula del
+    // reparto, así que se puede capturar con el periodo cerrado — igual que
+    // lo permite el backend, y como lo promete el banner del comparativo.
+    $('importeB').disabled = !puedeEditar || p.status === 'historico';
     $('conciliacionNota').innerHTML = p.importe_b_laboratorio == null
       ? nota('warn', '<strong>Total estimado por laboratorio.</strong> Contabilidad no ha desglosado qué parte del costo B corresponde al área, así que este total no concilia con la contabilidad. Las comparaciones relativas entre productos siguen siendo válidas.')
       : diferenciaB(p);
@@ -340,6 +385,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     renderPorOrigen();
     cargarResultado();
+    // Si el usuario está parado en el comparativo y cambia de periodo o de
+    // empresa, hay que repintarlo: si no, se queda mostrando las cifras del
+    // periodo —o de la empresa— anterior sin ninguna señal.
+    if (paneActivo === 'abc') cargarComparativo();
   }
 
   function renderGrupo(tipo, titulo, cont, bloqueado) {
@@ -674,6 +723,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function cargarResultado() {
+    if (!actual || !actual.periodo) return;
     const p = actual.periodo;
     const calculado = p.status === 'calculado' || p.status === 'cerrado';
 
@@ -766,6 +816,133 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
   }
 
+  // ══════════════════════════════════════════════════════
+  // Comparativo contra el ABC
+  // ══════════════════════════════════════════════════════
+
+  async function cargarComparativo() {
+    if (!actual || !actual.periodo) return;
+    const p = actual.periodo;
+    const calculado = p.status === 'calculado' || p.status === 'cerrado';
+
+    if (!calculado) {
+      $('abcCards').innerHTML = '';
+      $('abcConciliacion').innerHTML = '';
+      $('abcExcluidos').innerHTML = '';
+      $('tablaAbc').innerHTML = nota('warn',
+        '<strong>El comparativo necesita el reparto ya calculado.</strong> '
+        + 'Sin repartir el bolsón no hay con qué comparar el cargo del ABC.');
+      return;
+    }
+
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/periodos/${encodeURIComponent(p.periodo_id)}/comparativo-abc`);
+      renderComparativo(KoguApi.unwrapData(res));
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  function renderComparativo(r) {
+    const base = r.base || {};
+    const ext  = r.extremos;
+
+    $('abcCards').innerHTML = [
+      card('Reparto implícito del ABC',
+           base.factor_kg != null ? money(base.factor_kg) : '—',
+           `por kilo, parejo para todos los productos · cubre ${base.cobertura_pct ?? 0} % del costo del mes`),
+      ext ? card('Producto más sobrecargado', ext.mas_sobrecargado.cve_prod || '—',
+           `${escapeHtml(ext.mas_sobrecargado.desc_prod || '')} · el ABC le carga <strong>${money(Math.abs(ext.mas_sobrecargado.delta))}</strong> de más`)
+        : card('Producto más sobrecargado', '—', 'sin datos'),
+      ext ? card('Producto más subsidiado', ext.mas_subsidiado.cve_prod || '—',
+           `${escapeHtml(ext.mas_subsidiado.desc_prod || '')} · el ABC le carga <strong>${money(Math.abs(ext.mas_subsidiado.delta))}</strong> de menos`)
+        : card('Producto más subsidiado', '—', 'sin datos'),
+    ].join('');
+
+    const con = r.conciliacion || {};
+    $('abcConciliacion').innerHTML = !con.informado
+      ? nota('warn',
+          '<strong>Total estimado por laboratorio.</strong> Contabilidad todavía no ha informado qué '
+          + `parte de <code>importe_b</code> corresponde al área, así que los ${money(con.total_capturado)} `
+          + 'capturados no están anclados a una cifra contable. El comparativo sigue siendo válido en forma '
+          + '—quién consume más que su proporción— pero no en pesos frente a contabilidad. '
+          + 'La porción se puede capturar en la pestaña de captura, incluso con el periodo ya cerrado.')
+      : nota(con.concilia ? 'ok' : 'warn',
+          `<strong>Capturado ${money(con.total_capturado)}</strong> contra ${money(con.importe_b_laboratorio)} `
+          + 'de la porción de laboratorio en el costo B. '
+          + `Diferencia: ${money(con.diferencia)}${con.pct_diferencia != null ? ` (${con.pct_diferencia} %)` : ''}. `
+          + (con.concilia ? 'Las dos vistas amarran.'
+                          : 'Vale la pena revisar qué conceptos entran de cada lado.'));
+
+    const filas = r.data || [];
+    if (!filas.length) {
+      $('tablaAbc').innerHTML = `<div style="color:var(--muted);font-size:13px">
+        Sin productos de producción con kilos en este periodo, así que no hay comparativo posible.</div>`;
+      $('abcExcluidos').innerHTML = '';
+      return;
+    }
+
+    const maxAbs = Math.max(...filas.map(x => Math.abs(Number(x.delta)))) || 1;
+
+    $('tablaAbc').innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Producto</th>
+            <th style="text-align:right">Det./lote</th>
+            <th style="text-align:right">kg</th>
+            <th style="text-align:right">Le carga el ABC</th>
+            <th style="text-align:right">Consumió</th>
+            <th style="text-align:right">Diferencia</th>
+            <th style="min-width:150px">Desvío</th>
+          </tr></thead>
+          <tbody>
+            ${filas.map(x => {
+              const pos   = Number(x.delta) > 0;
+              const w     = Math.abs(Number(x.delta)) / maxAbs * 50;
+              const color = pos ? 'var(--danger)' : 'var(--primary)';
+              const fill  = pos
+                ? `<div style="position:absolute;top:3px;height:14px;border-radius:4px;background:#dc2626;left:50%;width:${w}%"></div>`
+                : `<div style="position:absolute;top:3px;height:14px;border-radius:4px;background:#0891b2;right:50%;width:${w}%"></div>`;
+              return `
+              <tr>
+                <td><strong>${escapeHtml(x.cve_prod ?? '—')}</strong>
+                  ${x.desc_prod ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(x.desc_prod)}</div>` : ''}
+                </td>
+                <td style="text-align:right">${x.det_por_lote}</td>
+                <td style="text-align:right">${int(Math.round(Number(x.kg)))}</td>
+                <td style="text-align:right">${money(x.carga_abc)}</td>
+                <td style="text-align:right">${money(x.consumido)}</td>
+                <td style="text-align:right;color:${color};font-weight:800">
+                  ${pos ? '+' : '−'} ${money(Math.abs(Number(x.delta)))}
+                  ${x.pct_delta != null ? `<div style="font-size:11px;font-weight:600;opacity:.8">${x.pct_delta > 0 ? '+' : ''}${x.pct_delta} %</div>` : ''}
+                </td>
+                <td>
+                  <div style="position:relative;height:20px;background:#f1f5f9;border-radius:6px;min-width:130px">
+                    <div style="position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:#cbd5e1"></div>
+                    ${fill}
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    // Lo que quedó fuera del comparativo se declara siempre. Un comparativo
+    // que cubre el 77 % del costo sin decirlo es peor que no tenerlo.
+    const e = r.excluidos || {};
+    const partes = [];
+    if (e.lotes_no_produccion) partes.push(`${int(e.lotes_no_produccion)} lote(s) de compra (${money(e.costo_no_produccion)}) — materia prima, sin contraparte en el ABC`);
+    if (e.lotes_arrastrados)   partes.push(`${int(e.lotes_arrastrados)} lote(s) arrastrado(s) de meses anteriores (${money(e.costo_arrastrado)}) — su costo del mes es parcial`);
+    if (e.lotes_sin_kg)        partes.push(`${int(e.lotes_sin_kg)} lote(s) sin kilos utilizables (${money(e.costo_sin_kg)})`);
+    if (e.lotes_sin_producto)  partes.push(`${int(e.lotes_sin_producto)} lote(s) sin producto asignado (${money(e.costo_sin_producto)})`);
+
+    $('abcExcluidos').innerHTML = partes.length
+      ? nota('info',
+          `<strong>El comparativo cubre ${base.cobertura_pct} % del costo del mes.</strong> `
+          + `Quedan fuera: ${partes.join('; ')}. Su costo sí está repartido y aparece en las otras pestañas.`)
+      : '';
+  }
+
   function card(label, valor, hint) {
     return `<div class="kpi">
       <div class="label">${escapeHtml(label)}</div>
@@ -774,7 +951,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
   }
 
+  let paneActivo = 'captura';
+
   function irA(pane) {
+    paneActivo = pane;
     document.querySelectorAll('.tabc').forEach(t => {
       const activo = t.dataset.pane === pane;
       t.style.color = activo ? 'var(--text)' : 'var(--muted)';
@@ -782,6 +962,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     $('pane-captura').style.display   = pane === 'captura'   ? '' : 'none';
     $('pane-resultado').style.display = pane === 'resultado' ? '' : 'none';
+    $('pane-abc').style.display       = pane === 'abc'       ? '' : 'none';
+    // El comparativo se pide solo cuando se abre su pestaña: es una consulta
+    // más pesada y no tiene sentido lanzarla en cada repintado de la captura.
+    if (pane === 'abc') cargarComparativo();
   }
 
   // ══════════════════════════════════════════════════════
