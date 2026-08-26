@@ -413,6 +413,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     const readonly = (e.status && e.status !== 'borrador' && e.status !== 'vigente');
     const lockMetadata = (e.status === 'vigente');   // vigente: no se cambia folio/cliente/producto/vigencia
+    // Los PARÁMETROS de un pliego vigente tampoco se tocan: son los límites
+    // pactados con el cliente y hay COAs que los citan. El backend lo rechaza
+    // con 422; aquí se bloquea la edición para no dejar al usuario capturar
+    // cambios que después no van a entrar.
+    const lockParametros = lockMetadata;
 
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto';
@@ -523,8 +528,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         </fieldset>
 
         <!-- Sección 3: Parámetros del pliego -->
-        <fieldset style="border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:14px" ${readonly ? 'disabled' : ''}>
+        <fieldset style="border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:14px" ${(readonly || lockParametros) ? 'disabled' : ''}>
           <legend style="padding:0 8px;font-size:12px;color:#64748b">Parámetros del pliego</legend>
+          ${lockParametros && !readonly ? `<div style="background:#eff6ff;color:#1e40af;padding:10px;border-radius:6px;margin-bottom:10px;font-size:13px">
+            Este pliego está <strong>vigente</strong>: sus parámetros no se modifican porque son los límites pactados con el cliente
+            y hay certificados que los citan. Para cambiarlos, crea una versión nueva que lo reemplace.
+          </div>` : ''}
           <div class="row" style="margin-bottom:10px">
             <div class="muted" style="font-size:12px">
               Cada tarjeta es un parámetro. Click para expandir y capturar/editar. Tipo <strong>Rango</strong> requiere mín y máx; <strong>Cualitativo</strong> requiere valor esperado; etc.
@@ -921,6 +930,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         observaciones:  oQ('#f_obs').value.trim() || null,
         parametros:     paramsState.map(toPayloadParam).filter(p => !!p.parametro_id && !!p.tipo_evaluacion),
       };
+      // En un pliego vigente el detalle es inmutable: ni siquiera se manda,
+      // así que se puede seguir corrigiendo observaciones o el archivo adjunto
+      // sin chocar con la validación del backend.
+      if (lockParametros && !firmar) delete body.parametros;
       if (!body.folio_spec)  return KoguApi.toast('Folio es obligatorio.', 'error');
       if (!body.cliente_id)  return KoguApi.toast('Cliente es obligatorio.', 'error');
       if (!body.producto_id) return KoguApi.toast('Producto es obligatorio.', 'error');
