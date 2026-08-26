@@ -5,6 +5,15 @@
 // copiar URL pública de verificación.
 // ============================================================
 
+// Fechas DATE ('AAAA-MM-DD'): se formatean por TEXTO. Pasarlas por new Date()
+// las interpreta como UTC medianoche y las corre un dia en zonas horarias
+// negativas — en un certificado eso no se puede.
+function fmtFechaISO(v) {
+  const s = String(v ?? '').slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (s || '—');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/lab/lab-coa-detalle.html';
   const PERM = 'screen.lab.coa';
@@ -351,7 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="coa-block">
             <strong>Folio</strong>${escapeHtml(coa.folio_factura_externa)}
           </div>
-          ${coa.fecha_factura ? `<div class="coa-block"><strong>Fecha</strong>${escapeHtml(new Date(coa.fecha_factura).toLocaleDateString())}</div>` : ''}
+          ${coa.fecha_factura ? `<div class="coa-block"><strong>Fecha</strong>${escapeHtml(fmtFechaISO(coa.fecha_factura))}</div>` : ''}
           <div class="coa-block">
             <strong>Lotes</strong>${coa.lotes.length}
           </div>
