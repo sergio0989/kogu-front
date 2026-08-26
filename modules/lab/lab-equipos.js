@@ -381,7 +381,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('pgPrev').addEventListener('click',  () => { if (currentPage > 1) { currentPage--;    load(); } });
   $('pgNext').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage++; load(); } });
   $('pgLast').addEventListener('click',  () => { if (currentPage < totalPages) { currentPage = totalPages; load(); } });
-  KoguShell.subscribeEmpresaActivaChange(() => load({ showToast: true, resetPage: true }));
+  // Al cambiar de empresa activa NO basta con recargar la lista: los catálogos
+  // que alimentan los selectores del modal (parámetros, clientes, productos)
+  // siguen siendo los de la empresa anterior. Como las FK no son compuestas y
+  // el backend no valida pertenencia campo por campo, se podía grabar un
+  // registro apuntando a un id de la otra empresa.
+  KoguShell.subscribeEmpresaActivaChange(async () => {
+    await loadParametros();
+    await load({ showToast: true, resetPage: true });
+  });
 
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
   function escapeAttr(s) { return String(s ?? '').replace(/"/g, '&quot;'); }
