@@ -47,7 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // (la función abre con `if(!perm) return true`), y analista_lab, que solo
   // tiene lectura, vería todos los botones de captura y cierre.
   const puedeEditar = KoguShell.hasPerm(b, 'lab.costos.manage');
-  const puedeCerrar = KoguShell.hasPerm(b, 'lab.costos.cerrar');
+  const puedeCerrar   = KoguShell.hasPerm(b, 'lab.costos.cerrar');
+  const puedeCalcular = KoguShell.hasPerm(b, 'lab.costos.calcular');
 
   // ── Estado ────────────────────────────────────────────
   let periodos   = [];    // cabeceras para el selector
@@ -83,6 +84,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div id="detalle" style="display:none">
+
+  <div class="tabs-costos" style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:16px">
+    <button class="tabc" data-pane="captura"   style="border:0;background:none;padding:11px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:-1px">Captura del periodo</button>
+    <button class="tabc" data-pane="resultado" style="border:0;background:none;padding:11px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:-1px">Resultado del reparto</button>
+  </div>
+
+  <div id="pane-captura">
   <div class="grid-2" style="margin-top:16px;align-items:start;gap:16px">
 
     <!-- ── Columna izquierda: captura ── -->
@@ -185,6 +193,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
 
   </div>
+  </div>
+
+  <div id="pane-resultado" style="display:none">
+    <div id="resumenCards" class="grid-4" style="margin-top:16px;gap:16px"></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="row">
+        <div>
+          <div class="eyebrow">Resultado</div>
+          <h3 style="margin:6px 0 2px">Costo asignado</h3>
+          <div style="color:var(--muted);font-size:12px">
+            El costo por kg se calcula al final, sobre el costo ya asignado por actividad.
+            Nunca es la base del reparto.
+          </div>
+        </div>
+        <select class="select" id="agruparSel" style="width:auto;min-width:200px">
+          <option value="producto">Por producto</option>
+          <option value="lote">Por lote</option>
+          <option value="origen">Por origen</option>
+          <option value="analista">Por analista</option>
+          <option value="parametro">Por parámetro</option>
+          <option value="metodo">Por método</option>
+        </select>
+      </div>
+      <div id="granoNota" style="margin-top:12px"></div>
+      <div id="tablaResultado" style="margin-top:12px"></div>
+    </div>
+  </div>
+
 </div>
   `;
 
@@ -256,7 +293,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (puedeEditar && !bloqueado) {
       acciones.push('<button class="btn ghost" id="copiarBtn">Copiar estructura del mes anterior</button>');
     }
-    if (puedeCerrar && p.status !== 'cerrado' && p.status !== 'historico') {
+    if (puedeCalcular && p.status !== 'cerrado' && p.status !== 'historico') {
+      acciones.push(`<button class="btn primary" id="calcularBtn">${p.status === 'calculado' ? 'Recalcular reparto' : 'Calcular reparto'}</button>`);
+    }
+    if (puedeCerrar && p.status === 'calculado') {
       acciones.push('<button class="btn primary" id="cerrarBtn">Cerrar periodo</button>');
     }
     if (puedeCerrar && p.status === 'cerrado') {
@@ -267,6 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     $('accionesBar').innerHTML = acciones.join('');
     if ($('copiarBtn'))   $('copiarBtn').addEventListener('click', copiarMesAnterior);
+    if ($('calcularBtn')) $('calcularBtn').addEventListener('click', calcularReparto);
     if ($('cerrarBtn'))   $('cerrarBtn').addEventListener('click', cerrarPeriodo);
     if ($('reabrirBtn'))  $('reabrirBtn').addEventListener('click', reabrirPeriodo);
     if ($('eliminarBtn')) $('eliminarBtn').addEventListener('click', eliminarPeriodo);
@@ -298,6 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ].join('');
 
     renderPorOrigen();
+    cargarResultado();
   }
 
   function renderGrupo(tipo, titulo, cont, bloqueado) {
@@ -614,6 +656,135 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ══════════════════════════════════════════════════════
+  // Resultado del reparto
+  // ══════════════════════════════════════════════════════
+
+  async function calcularReparto() {
+    const p = actual.periodo;
+    const rehacer = p.status === 'calculado';
+    if (!confirm(rehacer
+      ? '¿Recalcular el reparto? Se reemplaza el resultado anterior con los importes y el porcentaje actuales.'
+      : `¿Calcular el reparto de ${etiqueta(p.anio, p.mes)}?`)) return;
+    try {
+      await KoguApi.apiFetch(`${BASE}/periodos/${encodeURIComponent(p.periodo_id)}/calcular`, { method: 'POST' });
+      KoguApi.toast('Reparto calculado', 'success');
+      await cargarDetalle(p.periodo_id);
+      irA('resultado');
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  async function cargarResultado() {
+    const p = actual.periodo;
+    const calculado = p.status === 'calculado' || p.status === 'cerrado';
+
+    if (!calculado) {
+      $('resumenCards').innerHTML = '';
+      $('granoNota').innerHTML = '';
+      $('tablaResultado').innerHTML = nota('warn',
+        '<strong>El reparto todavía no se ha calculado para este periodo.</strong> '
+        + 'Captura la mano de obra y los gastos, ajusta el porcentaje de la bolsa fija y pulsa '
+        + '<strong>Calcular reparto</strong>. Cualquier cambio posterior en un importe o en el '
+        + 'porcentaje invalida el resultado y hay que volver a calcular — así no se publica una cifra vieja.');
+      return;
+    }
+
+    try {
+      const res = await KoguApi.apiFetch(
+        `${BASE}/periodos/${encodeURIComponent(p.periodo_id)}/resultado?agrupar=${encodeURIComponent($('agruparSel').value)}&pageSize=300`);
+      renderResultado(KoguApi.unwrapData(res));
+    } catch (err) { KoguApi.toast(err.message, 'error'); }
+  }
+
+  function renderResultado(r) {
+    const s = r.resumen || {};
+
+    $('resumenCards').innerHTML = [
+      card('Costo asignado', money(s.costo_total),
+           `fijo ${money(s.costo_fijo)} · variable ${money(s.costo_variable)}`),
+      card('Lotes', int(s.lotes),
+           `${int(s.lotes_nuevos)} nuevos cargan la bolsa fija`),
+      card('Determinaciones', int(s.determinaciones),
+           `peso: ${escapeHtml(s.peso_origen || 'unitario')}`),
+      card('Costo por kg', s.costo_por_kg != null ? money(s.costo_por_kg) : '—',
+           s.lotes_sin_kg > 0
+             ? `${int(s.lotes_sin_kg)} lote(s) sin kg · ${money(s.costo_sin_kg)} fuera de esta vista`
+             : 'sobre todos los lotes del mes'),
+    ].join('');
+
+    $('granoNota').innerHTML = r.grano === 'determinacion'
+      ? nota('info',
+          '<strong>Este corte solo lleva costo variable.</strong> La bolsa fija es un costo del '
+          + 'lote —recepción, preparación de muestra, revisión, liberación, COA— y no es atribuible '
+          + `a un analista ni a un parámetro concreto. Los ${money(s.costo_fijo)} de bolsa fija `
+          + 'aparecen en los cortes por lote, producto y origen.')
+      // El residuo es casi siempre distinto de cero por redondeo a la sexta
+      // decimal. Solo se avisa cuando alcanza a verse en pesos y centavos;
+      // si no, el banner ámbar estaría permanente diciendo "$0.00".
+      : (Math.abs(Number(s.residuo || 0)) >= 0.005 ? nota('warn',
+          `<strong>Residuo de división: ${money(s.residuo)}.</strong> Sobra de repartir el bolsón `
+          + 'entre los denominadores del mes. Se muestra en vez de esconderse.') : '');
+
+    const filas = r.data || [];
+    if (!filas.length) {
+      $('tablaResultado').innerHTML = `<div style="color:var(--muted);font-size:13px">Sin renglones para esta agrupación.</div>`;
+      return;
+    }
+
+    const conKg = r.grano === 'lote';
+    $('tablaResultado').innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>${conKg ? 'Concepto' : 'Dimensión'}</th>
+            <th style="text-align:right">Lotes</th>
+            <th style="text-align:right">Det.</th>
+            ${conKg ? '<th style="text-align:right">Fijo</th>' : ''}
+            <th style="text-align:right">Variable</th>
+            <th style="text-align:right">Costo</th>
+            ${conKg ? '<th style="text-align:right">kg</th><th style="text-align:right">Costo / kg</th>' : ''}
+          </tr></thead>
+          <tbody>
+            ${filas.map(x => `
+              <tr>
+                <td><strong>${escapeHtml(x.etiqueta ?? '—')}</strong>
+                  ${x.sub_etiqueta || x.sub_clave
+                    ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml([x.sub_clave, x.sub_etiqueta].filter(Boolean).join(' · '))}</div>` : ''}
+                </td>
+                <td style="text-align:right">${int(x.lotes)}</td>
+                <td style="text-align:right">${int(x.determinaciones)}</td>
+                ${conKg ? `<td style="text-align:right">${money(x.costo_fijo)}</td>` : ''}
+                <td style="text-align:right">${money(x.costo_variable)}</td>
+                <td style="text-align:right"><strong>${money(x.costo_total)}</strong></td>
+                ${conKg ? `
+                  <td style="text-align:right">${Number(x.kg) > 0 ? int(Math.round(Number(x.kg))) : '—'}</td>
+                  <td style="text-align:right">${x.costo_por_kg != null ? money(x.costo_por_kg) : '—'}
+                    ${Number(x.lotes_sin_kg) > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${int(x.lotes_sin_kg)} sin kg</div>` : ''}
+                  </td>` : ''}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function card(label, valor, hint) {
+    return `<div class="kpi">
+      <div class="label">${escapeHtml(label)}</div>
+      <div class="value" style="font-size:24px">${escapeHtml(String(valor))}</div>
+      <div class="hint">${hint}</div>
+    </div>`;
+  }
+
+  function irA(pane) {
+    document.querySelectorAll('.tabc').forEach(t => {
+      const activo = t.dataset.pane === pane;
+      t.style.color = activo ? 'var(--text)' : 'var(--muted)';
+      t.style.borderBottom = activo ? '2px solid var(--primary)' : '2px solid transparent';
+    });
+    $('pane-captura').style.display   = pane === 'captura'   ? '' : 'none';
+    $('pane-resultado').style.display = pane === 'resultado' ? '' : 'none';
+  }
+
+  // ══════════════════════════════════════════════════════
   // Listeners
   // ══════════════════════════════════════════════════════
 
@@ -628,6 +799,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   $('importeB').addEventListener('change', e => guardarImporteB(e.target.value));
+
+  document.querySelectorAll('.tabc').forEach(t =>
+    t.addEventListener('click', () => irA(t.dataset.pane)));
+  $('agruparSel').addEventListener('change', cargarResultado);
+  irA('captura');
 
   // Al cambiar de empresa activa hay que recargar todo: los periodos, los
   // conceptos y los denominadores son de la empresa anterior.
