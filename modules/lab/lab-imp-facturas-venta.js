@@ -365,14 +365,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = KoguApi.unwrapData(res);
 
         oQ('#importProgress').style.display = 'none';
-        const hayAdvertencias = (data?.sin_cliente?.length ?? 0) > 0 || (data?.sin_producto?.length ?? 0) > 0;
+        // Filas que ya generaron liberación: el reimport NO las pisa, así que
+        // una corrección del ERP sobre ellas no entró. Antes esto pasaba en
+        // silencio y el resumen decía "importadas" igual.
+        const yaProcesadas = data?.ya_procesadas ?? 0;
+        const hayAdvertencias = (data?.sin_cliente?.length ?? 0) > 0
+          || (data?.sin_producto?.length ?? 0) > 0
+          || yaProcesadas > 0;
         oQ('#importResult').style.cssText = hayAdvertencias
           ? 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#fef9c3;color:#854d0e'
           : 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#dcfce7;color:#166534';
         oQ('#importResult').innerHTML = `
           <strong>${hayAdvertencias ? '⚠ Import completado con advertencias' : '✅ Import completado'}</strong><br>
           ${escapeHtml(data?.mensaje_resumen || `${data?.filas_validas ?? '?'} filas procesadas`)}
-          ${hayAdvertencias ? `<br><span style="font-size:12px">Las filas con cve_cte o cve_prod sin match importaron sin cliente/producto — vincúlalos desde los catálogos.</span>` : ''}
+          ${(data?.sin_cliente?.length ?? 0) > 0 || (data?.sin_producto?.length ?? 0) > 0
+              ? `<br><span style="font-size:12px">Las filas con cve_cte o cve_prod sin match importaron sin cliente/producto — vincúlalos desde los catálogos.</span>`
+              : ''}
+          ${yaProcesadas > 0
+              ? `<br><span style="font-size:12px"><strong>${yaProcesadas} fila(s) NO se actualizaron</strong> porque ya generaron su liberación.
+                 Si el ERP corrigió alguna de ellas, ese cambio no entró.
+                 ${(data?.folios_ya_procesados?.length ?? 0) > 0
+                     ? `Facturas: ${escapeHtml(data.folios_ya_procesados.join(', '))}.` : ''}</span>`
+              : ''}
         `;
         KoguApi.toast(hayAdvertencias ? 'Import con advertencias' : 'Import completado',
                       hayAdvertencias ? 'warning' : 'success');
