@@ -4,6 +4,27 @@
 // URL: /modules/lab/lab-lote-detalle.html?id=<lote_id>
 // ============================================================
 
+// Convierte a numero lo que el usuario escribio, o null si no es un numero.
+// Tolera lo que la gente teclea de verdad: "1,234.56", "8,85", " 12 ", "1 234,5".
+// NO acepta unidades pegadas ("8.85 %") — eso es texto, y como texto se guarda.
+function aNumero(txt) {
+  let s = String(txt ?? '').trim().replace(/\s+/g, '');
+  if (!s) return null;
+  const tieneComa = s.includes(','), tienePunto = s.includes('.');
+  if (tieneComa && tienePunto) {
+    // El ultimo separador que aparece es el decimal; el otro es de miles.
+    s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s.replace(/,/g, '');
+  } else if (tieneComa) {
+    // Una sola coma con 1-2 decimales = decimal; si no, separador de miles.
+    s = /,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.replace(/,/g, '');
+  }
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/lab/lab-lote-detalle.html';
   const PERM = 'screen.lab.lotes';
@@ -31,12 +52,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     pendiente_eval:{ label: 'Pendiente',     color: '#475569', bg: '#e2e8f0' },
     no_aplica:     { label: 'N/A',           color: '#64748b', bg: '#f1f5f9' },
   };
+  // Estrategias del CALCULO masivo. 'manual' NO va aquí: es el estado en que
+  // queda un oficial cuando alguien edita el valor a mano con su
+  // justificación, no una forma de calcular. Ofrecerla siempre terminaba en
+  // error porque dejaría todos los oficiales en null y sin justificación.
   const ESTRATEGIAS = [
     { code: 'promedio',        label: 'Promedio'         },
     { code: 'mediana',         label: 'Mediana'          },
     { code: 'ultimo',          label: 'Último resultado' },
     { code: 'mas_restrictivo', label: 'Más restrictivo'  },
-    { code: 'manual',          label: 'Manual'           },
   ];
 
   // ── ID del lote por query param ───────────────────────────
@@ -410,8 +434,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       const filasResultados = resultadosDeMuestra.length
         ? resultadosDeMuestra.map(r => {
             const sinValor = r.valor_numerico == null && (r.valor_texto == null || r.valor_texto === '');
+            // OJO: dos valores distintos a proposito.
+            //  · valorDisplay  = bonito, con unidad y separadores. SOLO para leer.
+            //  · valorEdit     = el dato crudo. Es lo que va al <input>.
+            // Antes se usaba el bonito para ambas cosas: al guardar, el regex
+            // rechazaba "8.85 %" y "1,234.56" y el valor se mandaba como TEXTO,
+            // dejando intacto el valor_numerico viejo — que es el que sigue
+            // evaluando el cumplimiento. Cualquier resultado con unidad o
+            // >= 1000 se corrompia en silencio al editarlo.
             const valorDisplay = r.valor_numerico != null
-              ? `${parseFloat(r.valor_numerico).toLocaleString()} ${r.unidad_capturada_simbolo || ''}`
+              ? `${parseFloat(r.valor_numerico).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${r.unidad_capturada_simbolo || ''}`.trim()
+              : (r.valor_texto || '');
+            const valorEdit = r.valor_numerico != null
+              ? String(parseFloat(r.valor_numerico))
               : (r.valor_texto || '');
             const rowBg = sinValor ? 'background:#fffbeb' : '';
             return `
@@ -427,7 +462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                       : `<span style="font-size:13px">${escapeHtml(valorDisplay)}</span>`}
                     <button class="btn ghost" style="font-size:11px;padding:2px 8px"
                       data-editar-resultado="${r.resultado_id}"
-                      data-val-prev="${escapeHtml(valorDisplay)}"
+                      data-val-prev="${escapeHtml(valorEdit)}"
                       data-obs-prev="${escapeHtml(r.observaciones || '')}"
                     >${sinValor ? '↳ Ingresar' : 'Editar'}</button>
                   </div>
@@ -443,7 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <div style="display:flex;gap:8px;align-items:center">
                     <span style="font-family:monospace;font-size:12px;color:var(--muted);white-space:nowrap">${escapeHtml(r.parametro_clave || '')}</span>
                     <input class="input" type="text" placeholder="Valor…" style="width:120px"
-                      id="vr-val-${r.resultado_id}" value="${escapeHtml(valorDisplay)}"/>
+                      id="vr-val-${r.resultado_id}" value="${escapeHtml(valorEdit)}"/>
                     <input class="input" type="text" placeholder="Observaciones…" style="flex:1"
                       id="vr-obs-${r.resultado_id}" value="${escapeHtml(r.observaciones || '')}"/>
                     <button title="Guardar"
@@ -654,11 +689,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!valorRaw) { KoguApi.toast('Ingresa un valor', 'error'); return; }
 
         const payload = { observaciones: obs };
-        const num = parseFloat(valorRaw.replace(',', '.'));
-        if (isFinite(num) && /^-?\d+(\.\d+)?$/.test(valorRaw.replace(',', '.'))) {
+        const num = aNumero(valorRaw);
+        if (num != null) {
           payload.valor_numerico = num;
+          payload.valor_texto    = null;   // si antes era texto, deja de serlo
         } else {
-          payload.valor_texto = valorRaw;
+          payload.valor_texto    = valorRaw;
+          payload.valor_numerico = null;   // y al reves: no dejar el numero viejo evaluando
         }
 
         btn.disabled = true;
