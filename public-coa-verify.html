@@ -14,6 +14,15 @@
            font-weight: 600; margin: 16px 0; text-align: center; }
     .nok { background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px;
            font-weight: 600; margin: 16px 0; text-align: center; }
+    .baja { background: #fee2e2; color: #991b1b; padding: 14px; border-radius: 6px;
+            font-weight: 700; margin: 16px 0; text-align: center; letter-spacing: .02em; }
+    .baja small { display: block; font-weight: 500; margin-top: 6px; letter-spacing: 0; }
+    .lotes { margin: 10px 0 0; padding: 10px 12px; background: #f8fafc;
+             border: 1px solid #e2e8f0; border-radius: 6px; }
+    .lotes h2 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase;
+                letter-spacing: .06em; color: #64748b; font-weight: 600; }
+    .lotes ul { margin: 0; padding-left: 18px; font-size: 13px; }
+    .lotes li { padding: 2px 0; }
     .row { display: flex; justify-content: space-between; padding: 8px 0;
            border-bottom: 1px solid #e2e8f0; font-size: 14px; }
     .row:last-child { border-bottom: 0; }
@@ -49,24 +58,72 @@
         const res = await fetch(`${baseUrl}/public/lab/coa/verify/${encodeURIComponent(token)}`);
         const data = await res.json();
         const c = data?.data || {};
-        if (!c.autentico) {
+
+        // Token que no corresponde a ningún COA de KOGU.
+        // (`existe` es nuevo; si el backend aún no lo manda, se cae al
+        //  comportamiento anterior y se trata como token desconocido.)
+        if (!c.autentico && c.existe !== true) {
           content.innerHTML = `
             <div class="nok">✗ Este certificado NO es auténtico</div>
             <div class="muted">El token no coincide con ningún COA emitido.</div>`;
           return;
         }
+
         const fecha = c.fecha_emision ? new Date(c.fecha_emision).toLocaleString() : '—';
+
+        // Encabezado: verde solo si el COA sigue vigente. Un COA anulado o
+        // sustituido SÍ es un documento de KOGU, pero ya no ampara nada —
+        // decirlo con claridad es justo lo que el cliente necesita saber.
+        const ESTADO_BAJA = {
+          anulado:    { titulo: 'CERTIFICADO ANULADO',
+                        nota: 'Este certificado fue dado de baja por el laboratorio y ya no es válido. Solicita el certificado vigente a tu contacto comercial.' },
+          sustituido: { titulo: 'CERTIFICADO SUSTITUIDO',
+                        nota: 'Este certificado fue reemplazado por una versión posterior. Solicita el certificado vigente a tu contacto comercial.' },
+        };
+        const baja = ESTADO_BAJA[c.estado] || {
+          titulo: 'CERTIFICADO NO VIGENTE',
+          nota:   'Este certificado ya no se encuentra vigente.',
+        };
+        const banner = c.autentico
+          ? `<div class="ok">✓ Certificado auténtico y vigente</div>`
+          : `<div class="baja">⚠ ${esc(baja.titulo)}<small>${esc(baja.nota)}</small></div>`;
+
+        // Lotes amparados: en los COA por factura (ruta principal) el material
+        // vive en lab_coa_lotes, no en la cabecera.
+        const lotes = Array.isArray(c.lotes) ? c.lotes : [];
+        const bloqueLotes = lotes.length > 1
+          ? `<div class="lotes">
+               <h2>Lotes amparados (${lotes.length})</h2>
+               <ul>${lotes.map(l => `<li><strong>${esc(l.numero_lote)}</strong>${
+                     l.cve_prod || l.desc_prod
+                       ? ` — ${esc([l.cve_prod, l.desc_prod].filter(Boolean).join(' '))}`
+                       : ''}</li>`).join('')}</ul>
+             </div>`
+          : '';
+
+        const filaProducto = (c.producto?.cve || c.producto?.descripcion)
+          ? `<div class="row"><strong>Producto</strong><span>${esc([c.producto?.cve, c.producto?.descripcion].filter(Boolean).join(' — '))}</span></div>`
+          : '';
+        const filaLote = (lotes.length <= 1 && c.numero_lote)
+          ? `<div class="row"><strong>Lote</strong><span>${esc(c.numero_lote)}</span></div>`
+          : '';
+        const filaFactura = c.folio_factura
+          ? `<div class="row"><strong>Factura</strong><span>${esc(c.folio_factura)}${c.fecha_factura ? ' · ' + esc(fmtFecha(c.fecha_factura)) : ''}</span></div>`
+          : '';
+
         content.innerHTML = `
           ${c.logo_url ? `<img class="logo" src="${esc(c.logo_url)}" alt="${esc(c.razon_social || c.empresa || 'logo')}" onerror="this.style.display='none'"/>` : ''}
           ${(c.razon_social || c.empresa) ? `<div class="empresa-name">${esc(c.razon_social || c.empresa)}</div>` : ''}
-          <div class="ok">✓ Certificado auténtico</div>
+          ${banner}
           <div class="row"><strong>Folio</strong><span>${esc(c.folio)}</span></div>
           <div class="row"><strong>Empresa</strong><span>${esc(c.razon_social || c.empresa)}</span></div>
-          <div class="row"><strong>Producto</strong><span>${esc(c.producto?.cve)} — ${esc(c.producto?.descripcion)}</span></div>
-          <div class="row"><strong>Lote</strong><span>${esc(c.numero_lote)}</span></div>
+          ${filaProducto}
+          ${filaLote}
+          ${filaFactura}
           <div class="row"><strong>Idioma</strong><span>${esc((c.idioma || '').toUpperCase())}</span></div>
           <div class="row"><strong>Estado</strong><span>${esc(c.estado)}${c.tiene_excepcion ? ' (con excepción)' : ''}</span></div>
           <div class="row"><strong>Emitido</strong><span>${esc(fecha)}</span></div>
+          ${bloqueLotes}
           ${c.hash ? `<div class="hash">SHA-256: ${esc(c.hash)}</div>` : ''}
         `;
       } catch (err) {
@@ -76,6 +133,15 @@
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    }
+
+    // Fechas DATE ('YYYY-MM-DD'): se formatean por texto. Pasarlas por
+    // new Date() las interpreta como UTC medianoche y las corre un día
+    // en zonas horarias negativas — en un documento contractual eso no.
+    function fmtFecha(v) {
+      const s = String(v ?? '').slice(0, 10);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
     }
   </script>
 </body></html>
