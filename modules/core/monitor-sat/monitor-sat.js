@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async()=>{
-  await KoguShell.initShell({currentPage:'/modules/core/monitor-sat/monitor-sat.html',title:'Monitoreo SAT',description:'Vista administrativa de pendientes y autoprocesamiento por empresa.',requiredPermission:'screen.root.index'});
+  await KoguShell.initShell({currentPage:'/modules/core/monitor-sat/monitor-sat.html',title:'Monitoreo SAT',description:'Vista administrativa de pendientes y autoprocesamiento por empresa.',requiredPermission:'screen.core.monitor_sat'});
   const c=document.getElementById('pageContent');
   async function load(showToast=false){
     const [r1,r2,b] = await Promise.all([

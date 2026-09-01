@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async()=>{
-  await KoguShell.initShell({currentPage:'/modules/core/salud-fiscal/salud-fiscal.html',title:'Salud fiscal',description:'Semáforo operativo por empresa activa para certificados y capacidad SAT.',requiredPermission:'screen.root.index'});
+  await KoguShell.initShell({currentPage:'/modules/core/salud-fiscal/salud-fiscal.html',title:'Salud fiscal',description:'Semáforo operativo por empresa activa para certificados y capacidad SAT.',requiredPermission:'screen.core.salud_fiscal'});
   const c=document.getElementById('pageContent');
   async function load(showToast=false){
     const b = await KoguShell.loadBootstrap();

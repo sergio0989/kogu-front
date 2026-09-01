@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async()=>{
-  let b=await KoguShell.initShell({currentPage:'/modules/core/certificados/certificados.html',title:'Certificados',description:'Gestión de certificados por empresa activa.',requiredPermission:'screen.root.index'});
+  let b=await KoguShell.initShell({currentPage:'/modules/core/certificados/certificados.html',title:'Certificados',description:'Gestión de certificados por empresa activa.',requiredPermission:'screen.core.certificados'});
   if(!b) return;
   const c=document.getElementById('pageContent');
   let empresa=b.empresa_activa||{};

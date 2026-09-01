@@ -11,9 +11,9 @@
       // sólo para resolver nombres en pickers, no para gestionar usuarios.
       {href:'/modules/core/perfiles/perfiles.html',label:'Perfiles',perm:'screen.catalogos.perfiles'},
       {href:'/modules/core/permisos/permisos.html',label:'Permisos',perm:'screen.catalogos.permisos'},
-      {href:'/modules/core/certificados/certificados.html',label:'Certificados',perm:'screen.root.index'},
-      {href:'/modules/core/salud-fiscal/salud-fiscal.html',label:'Salud fiscal',perm:'screen.root.index'},
-      {href:'/modules/core/monitor-sat/monitor-sat.html',label:'Monitoreo SAT',perm:'screen.root.index'},
+      {href:'/modules/core/certificados/certificados.html',label:'Certificados',perm:'screen.core.certificados'},
+      {href:'/modules/core/salud-fiscal/salud-fiscal.html',label:'Salud fiscal',perm:'screen.core.salud_fiscal'},
+      {href:'/modules/core/monitor-sat/monitor-sat.html',label:'Monitoreo SAT',perm:'screen.core.monitor_sat'},
       {href:'/modules/core/contexto/cambio-empresa.html',label:'Cambio de empresa',perm:'screen.root.index'},
     ]},
     {section:'Negocio CFDI',items:[
