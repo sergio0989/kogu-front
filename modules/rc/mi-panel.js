@@ -255,6 +255,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (c.caida) return Math.max(0, Number(c.caida.cant_p1) - Number(c.caida.cant_p2));
     return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
   };
+  // Deriva de 12 meses rodantes, pegada a la tarjeta.
+  //
+  // Distingue dos cosas que se ven igual en una caída bimestral: el cliente que
+  // tuvo un mal bimestre y el que lleva un año encogiendo. El motor de
+  // incidencias (RC-005) no puede verlo — compara dos meses contra dos meses—,
+  // así que un cliente que baja 3% cada mes nunca lo dispara y aun así pierde
+  // un tercio de su volumen.
+  function derivaTxt(c) {
+    const r = c.rolling;
+    if (!r) return '';
+    const d = esDinero() ? r.delta_mxn : r.delta_kg;
+    if (d == null) return '';
+    const pct = `${d >= 0 ? '+' : ''}${(d * 100).toFixed(0)}%`;
+    const col = d <= -0.10 ? 'var(--danger,#dc2626)' : (d >= 0.05 ? 'var(--ok,#16a34a)' : 'var(--muted)');
+    const act = esDinero() ? r.mxn_12m : r.kg_12m;
+    const prv = esDinero() ? r.mxn_prev12 : r.kg_prev12;
+    return `<div style="font-size:12px;color:var(--muted);margin-top:3px" title="Últimos 12 meses cerrados contra los 12 anteriores">`
+         + `12 meses: <b style="color:${col}">${pct}</b> · ${fmtVal(act)} vs ${fmtVal(prv)}</div>`;
+  }
+
   const BASE_TXT = { yoy: 'vs año pasado', secuencial: 'vs periodo anterior' };
   // Rango legible de una ventana con extremos INCLUSIVOS (act_/yoy_).
   const rangoIncl = (d, h) => {
@@ -321,6 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
             ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
+            ${derivaTxt(c)}
             ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">

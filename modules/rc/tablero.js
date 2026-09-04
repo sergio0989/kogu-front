@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Estado ────────────────────────────────────────────────────────────────
   let kpis = [];
+  let rolling = null;      // deriva de 12 meses rodantes (viene con /kpis)
   let alertas = [];
   let pp = null;                 // presupuesto anual vs real { anio, totales, categorias, sin_cruce }
   const ppOpen = new Set();      // categorías expandidas (cat)
@@ -193,6 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       KoguApi.apiFetch(`${BASE}/cumplimiento?anio=${anio}`).catch(() => null),
     ]);
     kpis = KoguApi.unwrapRows(kRes);
+    rolling = (kRes?.data?.rolling) || null;
     alertas = KoguApi.unwrapRows(aRes);
     cumpl = cRes ? (cRes.data || cRes) : null;
     const calc = (kRes?.data?.calculado_at) || null;
@@ -553,6 +555,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const usd = sum(kpis.filter(k => k.moneda === 'USD'));
     const pc = v => totMet ? Math.round(100 * v / totMet) : 0;
     const abiertas = alertas.filter(a => a.status === 'abierta').length;
+
+    // Deriva: los últimos 12 meses cerrados contra los 12 anteriores.
+    //
+    // Es la única cifra de esta pantalla que dice si la cartera CRECE O ENCOGE.
+    // Todo lo demás mira el ejercicio en curso contra su presupuesto, y un año
+    // puede ir bien contra un PP flojo mientras el negocio se achica. Doce meses
+    // rodantes no tienen estacionalidad y no dependen de cuándo cierra el año.
+    const rl = rolling;
+    const dRoll = rl ? (esDinero() ? rl.delta_mxn : rl.delta_kg) : null;
+    const cardRolling = () => {
+      if (dRoll == null) return statCard('Últimos 12 meses', '—', 'sin base comparable', 'var(--muted,#64748b)');
+      const pct = `${dRoll >= 0 ? '+' : ''}${(dRoll * 100).toFixed(1)}%`;
+      const col = dRoll <= -0.05 ? 'var(--danger,#dc2626)' : (dRoll >= 0.05 ? 'var(--ok,#16a34a)' : 'var(--warning,#d97706)');
+      const act = esDinero() ? rl.mxn_12m : rl.kg_12m;
+      const prv = esDinero() ? rl.mxn_prev12 : rl.kg_prev12;
+      return statCard('Últimos 12 meses', pct, `${fmtVal(act)} vs ${fmtVal(prv)} de los 12 previos`, col);
+    };
     // Tarjeta cruzada: muestra siempre la OTRA unidad (kg si estás en $, y viceversa).
     const cruzada = esDinero()
       ? statCard('Volumen total (kg)', `${nf0.format(totKg)} kg`, 'cantidad surtida', '#7c3aed')
@@ -562,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       cruzada,
       statCard('Nacional', fmtVal(nal), `${pc(nal)}% del total`, '#059669'),
       statCard('Exportación', fmtVal(ext), `${pc(ext)}% del total`, '#4f46e5'),
+      cardRolling(),
       statCard('% en USD', `${pc(usd)}%`, 'exposición a tipo de cambio', '#d97706'),
       statCard('Alertas abiertas', String(abiertas), `${alertas.length} en total`, 'var(--danger,#dc2626)'),
     ].join('');
