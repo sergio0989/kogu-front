@@ -262,6 +262,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // incidencias (RC-005) no puede verlo — compara dos meses contra dos meses—,
   // así que un cliente que baja 3% cada mes nunca lo dispara y aun así pierde
   // un tercio de su volumen.
+  // La DERIVA como razón de la tarjeta: el cliente que encoge despacio.
+  //
+  // Distinta de `derivaTxt`, que es sólo contexto informativo en cualquier
+  // tarjeta. Esta línea aparece cuando RC-009 lo señaló: compra con
+  // regularidad —10 de 12 meses o más— y aun así perdió volumen en el año.
+  function derivaRazon(c) {
+    const d = c.deriva;
+    if (!d) return '';
+    const v = esDinero() ? d.delta_mxn : d.delta_kg;
+    const perdido = esDinero() ? d.caida_mxn : d.caida_kg;
+    return `<div style="font-size:12px;color:var(--danger,#dc2626);margin-top:3px">`
+         + `📉 Encogiendo: <b>${fmtPctCap(v)}</b> en 12 meses · ${fmtVal(perdido)} menos que los 12 previos`
+         + ` · compró ${d.meses_con_compra} de 12 meses</div>`;
+  }
+
   function derivaTxt(c) {
     const r = c.rolling;
     if (!r) return '';
@@ -291,16 +306,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientes = (comp.clientes || []).filter(c => !sv || c.severidad === sv).slice().sort((a, b) => riesgoCli(b) - riesgoCli(a));
 
     // Resumen
-    const totalRiesgo = clientes.reduce((s, c) => s + riesgoCli(c), 0);
+    // Suma sólo caída y dormancia: la deriva mide un año y mezclarla en el
+    // mismo total daría una cifra sin significado. Va en su propia tarjeta.
+    const totalRiesgo = clientes.filter(c => c.caida || c.dormancia).reduce((s, c) => s + riesgoCli(c), 0);
     const nCrit = clientes.filter(c => c.severidad === 'critica').length;
     const nProd = clientes.reduce((s, c) => s + (c.productos || []).length, 0);
     const nDorm = clientes.filter(c => c.dormancia).length;
+    const enDeriva = clientes.filter(c => c.deriva);
+    const perdidoDeriva = enDeriva.reduce((s, c) =>
+      s + Number((esDinero() ? c.deriva.caida_mxn : c.deriva.caida_kg) || 0), 0);
     document.getElementById('carteraResumen').innerHTML = `
-      <div class="grid-4" style="gap:10px">
+      <div class="grid-5" style="gap:10px;display:grid;grid-template-columns:repeat(5,1fr)">
         ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes en caída', String(clientes.length), `${nCrit} críticos · atiende estos primero`)}
-        ${miniCard('Productos en caída', String(nProd), 'evidencia dentro del cliente')}
+        ${miniCard('Clientes a atender', String(clientes.length), `${nCrit} críticos · atiende estos primero`)}
+        ${miniCard('En caída', String(clientes.filter(x => x.caida).length), 'compran menos que su base')}
         ${miniCard('Sin compra', String(nDorm), 'clientes dormidos')}
+        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '')}
       </div>`;
 
     const p = comp.periodos;
@@ -341,7 +362,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
             ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
-            ${derivaTxt(c)}
+            ${derivaRazon(c)}
+            ${c.deriva ? '' : derivaTxt(c)}
             ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">

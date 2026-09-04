@@ -251,6 +251,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // incidencias (RC-005) no puede verlo — compara dos meses contra dos meses—,
   // así que un cliente que baja 3% cada mes nunca lo dispara y aun así pierde
   // un tercio de su volumen.
+  // La DERIVA como razón de la tarjeta: el cliente que encoge despacio.
+  //
+  // Distinta de `derivaTxt`, que es sólo contexto informativo en cualquier
+  // tarjeta. Esta línea aparece cuando RC-009 lo señaló: compra con
+  // regularidad —10 de 12 meses o más— y aun así perdió volumen en el año.
+  function derivaRazon(c) {
+    const d = c.deriva;
+    if (!d) return '';
+    const v = esDinero() ? d.delta_mxn : d.delta_kg;
+    const perdido = esDinero() ? d.caida_mxn : d.caida_kg;
+    return `<div style="font-size:12px;color:var(--danger,#dc2626);margin-top:3px">`
+         + `📉 Encogiendo: <b>${fmtPctCap(v)}</b> en 12 meses · ${fmtVal(perdido)} menos que los 12 previos`
+         + ` · compró ${d.meses_con_compra} de 12 meses</div>`;
+  }
+
   function derivaTxt(c) {
     const r = c.rolling;
     if (!r) return '';
@@ -300,16 +315,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       !(a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto'))
       && (!sv || a.severidad === sv) && (!ag || a.agente_nombre === ag) && a.status !== 'descartada');
 
-    const totalRiesgo = clientes.reduce((s, c) => s + c._riesgo, 0);
+    // El total de "en riesgo" suma SOLO caída y dormancia. La deriva mide un
+    // AÑO y las otras dos un bimestre o una ventana de dormancia: meterlas en
+    // el mismo número daría una cifra que no significa nada. La deriva lleva su
+    // propio contador. (Ordenar sí las mezcla, y ahí es lo correcto: un cliente
+    // que perdió $41M en el año tiene que salir arriba de la cola.)
+    const totalRiesgo = clientes.filter(c => c.caida || c.dormancia).reduce((s, c) => s + c._riesgo, 0);
     const nCriticas = clientes.filter(c => c.severidad === 'critica').length;
     const nCaida = clientes.filter(c => c.caida).length;
     const nDormidos = clientes.filter(c => c.dormancia).length;
+    const enDeriva = clientes.filter(c => c.deriva);
+    const perdidoDeriva = enDeriva.reduce((s, c) =>
+      s + Number((esDinero() ? c.deriva.caida_mxn : c.deriva.caida_kg) || 0), 0);
     document.getElementById('alertasResumen').innerHTML = `
-      <div class="grid-4" style="gap:10px">
+      <div class="grid-5" style="gap:10px;display:grid;grid-template-columns:repeat(5,1fr)">
         ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
         ${miniCard('Clientes a atender', String(clientes.length), `${nCriticas} críticos · atiende estos primero`)}
         ${miniCard('En caída', String(nCaida), 'compran menos que su base')}
         ${miniCard('Sin comprar', String(nDormidos), 'dejaron de facturar')}
+        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '')}
       </div>
       ${nTriados ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">${nTriados} cliente(s) ya triado(s) — se conservan al recalcular. Cámbialo en el filtro de estado para verlos.</div>` : ''}`;
 
@@ -375,7 +399,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
             ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
-            ${derivaTxt(c)}
+            ${derivaRazon(c)}
+            ${c.deriva ? '' : derivaTxt(c)}
             ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
           </div>
           <div style="text-align:right;min-width:150px">
@@ -564,6 +589,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${regla('RC-004', 'Cliente sin compra (dormido)', 'Clientes que venían comprando y dejaron de hacerlo.', 'Días entre la última compra del cliente y la última venta de la empresa. Sólo entran clientes cuya última compra cae dentro de una <b>ventana de 12 meses</b> —quien se fue hace dos años ya no es un pendiente de seguimiento— y que dentro de esa ventana facturaron al menos la materialidad.', 'Alerta a partir de 60 días sin comprar. Crítica: los 10 de mayor venta en riesgo, no los de más días.')}
           ${regla('RC-005', 'Cliente comprando menos', 'Clientes que siguen comprando pero por debajo de su base, con los productos que explican la caída dentro de la misma incidencia.', 'Se compara el periodo actual (<b>meses cerrados</b>) contra el <b>mismo periodo del año pasado</b>. Si el cliente no existía hace un año, se cae al periodo inmediato anterior y la tarjeta lo dice. Dentro de cada cliente se listan los productos que más aportan a la caída.', 'Entra si la caída llega a la <b>materialidad</b> (por defecto $75,000) y el descenso es ≥ 25% en kg o en importe.')}
           ${regla('RC-006', 'Producto que el cliente compra menos', 'Ya no emite alertas propias: sus productos viajan como evidencia dentro de la incidencia del cliente (RC-005).', 'Antes RC-005 y RC-006 contaban el mismo hecho con distinto zoom y el dinero se sumaba dos veces: 340 alertas para 167 clientes, con un solo cliente generando 45 renglones.', 'Sin renglones sueltos. El detalle por producto está en la tarjeta del cliente y en su ficha.')}
+          ${regla('RC-009', 'Cliente encogiendo (deriva de 12 meses)', 'El cliente que se va DESPACIO: compra todos los meses, nunca falta, nunca se desploma — y aun así pierde volumen en el año.', 'Compara los <b>últimos 12 meses cerrados</b> contra los <b>12 anteriores</b>. Las dos ventanas contienen los doce meses del año, así que la estacionalidad se cancela sola. Exige además <b>regularidad</b>: al menos 10 de los 12 meses con compra — eso separa al que encoge del que ya se fue y del que compra por proyecto.', 'Entra si cae ≥ 15% en importe, pierde ≥ $75,000 en el año y compró en 10 de los últimos 12 meses. Ni RC-005 ni RC-004 pueden verlo: no cruza el umbral bimestral y nunca deja de comprar.')}
           <div style="font-size:12px;color:var(--muted);margin-top:8px">
             <b>Por qué cambió.</b> Con umbrales fijos y sin piso de materialidad, una caída de $8,000 pesaba igual que una de $4M y el 80% salía "crítica" — cuando todo es crítico, la severidad no ordena nada. Ahora hay dos filtros y un orden: <b>materialidad</b> (¿vale el tiempo de un gerente?), <b>caída relativa</b> (¿de verdad bajó?) y <b>severidad por ranking</b> (las mayores caídas son las críticas). El <b>"monto/volumen en riesgo"</b> es lo que el cliente dejó de comprar contra su base. Todo es configurable en el catálogo de reglas.
           </div>
