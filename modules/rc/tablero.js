@@ -132,10 +132,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   //  que ya no manda periodo. Siguen vivos en bandeja.js, donde sí manejan el
   //  comparativo on-demand.)
 
-  // "En riesgo" = lo que dejó de comprar (P1 − P2), en la métrica activa.
+  // "En riesgo", en la métrica activa.
+  //
+  // La alerta ya trae el número resuelto en detalle.riesgo_mxn / riesgo_kg, con
+  // la MISMA definición que usan la Bandeja y Mi panel (riesgoDe() en
+  // rc-engine.service.js). Antes esta función lo derivaba por su cuenta y no
+  // coincidía: al cliente dormido le daba `qty_anio` —el año calendario del
+  // corte— mientras la Bandeja le daba cero. Medido: 180,400 kg aquí contra
+  // 174,519 allá, y la diferencia exacta eran los 19 clientes sólo dormidos.
+  //
+  // El respaldo de abajo sólo actúa contra alertas materializadas por un
+  // backend anterior, o para las reglas de empresa/agente (RC-003), que no
+  // pasan por riesgoDe().
   const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
   function montoRiesgo(a) {
     const d = a.detalle || {};
+    const resuelto = esDinero() ? d.riesgo_mxn : d.riesgo_kg;
+    if (resuelto != null) return Math.max(0, Number(resuelto));
     if (esDinero()) {
       if (d.venta_p1 != null && d.venta_p2 != null) return Math.max(0, Number(d.venta_p1) - Number(d.venta_p2));
       if (d.importe_p1 != null) return Math.max(0, Number(d.importe_p1) - Number(d.importe_p2));

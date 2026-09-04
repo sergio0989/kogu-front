@@ -222,15 +222,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Riesgo de un cliente: lo que dejó de comprar contra su base de comparación.
-  // El backend ya lo devuelve calculado (caida_mxn / caida_kg) con el mismo
-  // criterio que usa Recalcular; el cálculo local queda sólo como respaldo.
+  // Riesgo de un cliente. El backend lo manda ya resuelto en `riesgo_mxn` /
+  // `riesgo_kg`, con UNA definición para las tres pantallas (ver riesgoDe() en
+  // rc-engine.service.js). Aquí sólo se elige la métrica activa.
+  //
+  // Antes cada pantalla lo calculaba a su manera y no coincidían: en kg —la
+  // métrica por defecto— esta función le ponía CERO a todo cliente dormido
+  // porque no existía el dato, mientras el Tablero le ponía su venta del año.
+  // El respaldo de abajo sólo actúa contra un backend viejo.
   function riesgoCli(c) {
-    // Un cliente dormido no "cayó": no tiene base contra qué compararse. Lo
-    // que está en riesgo es lo que venía comprando dentro de la ventana.
-    if (!c.caida && c.dormancia) return esDinero() ? Number(c.dormancia.venta_ventana || 0) : 0;
-    const listo = esDinero() ? c.caida_mxn : c.caida_kg;
+    const listo = esDinero() ? c.riesgo_mxn : c.riesgo_kg;
     if (listo != null) return Math.max(0, Number(listo));
+    if (!c.caida && c.dormancia) return esDinero() ? Number(c.dormancia.venta_ventana || 0) : 0;
+    const previo = esDinero() ? c.caida_mxn : c.caida_kg;
+    if (previo != null) return Math.max(0, Number(previo));
     if (c.caida) {
       return esDinero()
         ? Math.max(0, Number(c.caida.venta_p1) - Number(c.caida.venta_p2))

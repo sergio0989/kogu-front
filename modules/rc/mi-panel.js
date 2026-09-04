@@ -234,11 +234,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // "Solo en riesgo": comparativo ON-DEMAND con el periodo propio de Mi panel.
-  // El backend ya devuelve la caída con el mismo criterio que la Bandeja
-  // (caida_mxn / caida_kg); el cálculo local queda sólo como respaldo.
+  //
+  // El riesgo viene ya resuelto del backend en `riesgo_mxn` / `riesgo_kg`, con
+  // UNA definición para las tres pantallas (ver riesgoDe() en
+  // rc-engine.service.js). Aquí sólo se elige la métrica activa.
+  //
+  // El respaldo de abajo es el criterio viejo y sólo actúa contra un backend
+  // anterior. Su defecto conocido: en kg —la métrica por defecto— le ponía CERO
+  // a todo cliente dormido, porque el dato de kilos de la ventana no existía.
   const riesgoCli = c => {
-    // Un cliente dormido no "cayó": no tiene base contra qué compararse. Lo que
-    // está en riesgo es lo que venía comprando dentro de la ventana.
+    const resuelto = esDinero() ? c.riesgo_mxn : c.riesgo_kg;
+    if (resuelto != null) return Math.max(0, Number(resuelto));
     if (!c.caida && c.dormancia) return esDinero() ? Number(c.dormancia.venta_ventana || 0) : 0;
     const listo = esDinero() ? c.caida_mxn : c.caida_kg;
     if (listo != null) return Math.max(0, Number(listo));
