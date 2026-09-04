@@ -35,37 +35,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn" id="recalcBtn">↻ Recalcular</button>
       </div>
     </div>
-    <div style="margin-top:14px">
-      <div style="max-width:340px">
-        <div class="label-text">Periodo de comparación</div>
-        <select class="select" id="presetFil">
-          <option value="auto">Meses cerrados vs mismo periodo del año pasado</option>
-          <option value="mes">Mes vs mes anterior</option>
-          <option value="custom">Personalizado</option>
-        </select>
-      </div>
-      <div id="customPeriodos" style="display:none;margin-top:14px">
-        <div class="grid-2" style="gap:16px">
-          <div style="border:1px solid var(--line);border-radius:12px;padding:14px">
-            <div class="eyebrow" style="margin-bottom:10px">Periodo 1 (base)</div>
-            <div class="grid-2" style="gap:10px">
-              <div><div class="label-text">Desde</div><input class="input" id="p1d" type="date"/></div>
-              <div><div class="label-text">Hasta</div><input class="input" id="p1h" type="date"/></div>
-            </div>
-          </div>
-          <div style="border:1px solid var(--line);border-radius:12px;padding:14px">
-            <div class="eyebrow" style="margin-bottom:10px">Periodo 2 (comparado)</div>
-            <div class="grid-2" style="gap:10px">
-              <div><div class="label-text">Desde</div><input class="input" id="p2d" type="date"/></div>
-              <div><div class="label-text">Hasta</div><input class="input" id="p2h" type="date"/></div>
-            </div>
-          </div>
-        </div>
-        <div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">
-          Fechas inclusivas. La variación se calcula (P2 − P1) / P1.
-        </div>
-      </div>
-    </div>
+    <!--
+      Aquí vivía un selector de periodo de comparación. Sólo servía para
+      mandarle un rango a mano a Recalcular, y eso resultó ser destructivo:
+      el periodo entra en la condición que preserva el triaje, así que cambiar
+      el selector y darle Recalcular reabría todas las alertas ya atendidas de
+      toda la empresa. Nunca afectó lo que esta pantalla MUESTRA (el Tablero lee
+      las alertas materializadas). La exploración por periodo está donde
+      corresponde: en la Bandeja de Riesgo, sobre el comparativo on-demand.
+    -->
 
     <!-- KPIs enriquecidos -->
     <div id="kpiCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,1fr));gap:10px;margin-top:16px"></div>
@@ -149,32 +127,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-  // ── Periodos / fechas (para Recalcular) ─────────────────────────────────────
-  const pad = n => String(n).padStart(2, '0');
-  const isoUTC = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
-  const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const addDays = (iso, n) => { const d = new Date(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-  function maxMesKpis() {
-    let best = null;
-    kpis.forEach(k => { const key = k.anio * 12 + k.mes; if (!best || key > best.key) best = { key, y: k.anio, m: k.mes }; });
-    return best;
-  }
-  function computePeriodos() {
-    const preset = sel('presetFil');
-    if (preset === 'mes') {
-      const mx = maxMesKpis();
-      if (!mx) return null;
-      const py = mx.m === 1 ? mx.y - 1 : mx.y;
-      const pm = mx.m === 1 ? 12 : mx.m - 1;
-      return { p1d: isoUTC(py, pm, 1), p1h: isoUTC(mx.y, mx.m, 1), p2d: isoUTC(mx.y, mx.m, 1), p2h: isoUTC(mx.y, mx.m, lastDay(mx.y, mx.m)) };
-    }
-    if (preset === 'custom') {
-      const p1d = sel('p1d'), p1hIn = sel('p1h'), p2d = sel('p2d'), p2h = sel('p2h');
-      if (!p1d || !p1hIn || !p2d || !p2h) return null;
-      return { p1d, p1h: addDays(p1hIn, 1), p2d, p2h };
-    }
-    return null;
-  }
+  // (Aquí vivían los helpers de periodo — pad/isoUTC/lastDay/addDays/
+  //  maxMesKpis/computePeriodos. Su único consumidor era el body de Recalcular,
+  //  que ya no manda periodo. Siguen vivos en bandeja.js, donde sí manejan el
+  //  comparativo on-demand.)
 
   // "En riesgo" = lo que dejó de comprar (P1 − P2), en la métrica activa.
   const SEV_RANK = { critica: 0, alerta: 1, info: 2 };
@@ -789,7 +745,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Eventos ───────────────────────────────────────────────────────────────
   document.getElementById('reglasBtn').onclick = openReglas;
-  document.getElementById('presetFil').onchange = () => show('customPeriodos', sel('presetFil') === 'custom');
   // Resumen del Recalcular. Ya no basta con "N alertas": ahora la pregunta
   // que importa es si el triaje humano sobrevivió, así que el aviso lo dice.
   function msgRecalculo(d) {
@@ -807,9 +762,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('recalcBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {
       try {
-        const periodos = computePeriodos();
-        const body = periodos ? { periodos } : {};
-        const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: JSON.stringify(body) });
+        // Recalcular NO manda el periodo del selector: graba siempre la
+        // medición canónica de meses cerrados. Ver la nota en bandeja.js — el
+        // rango a mano reabría el triaje de toda la empresa.
+        const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: '{}' });
         const d = res?.data || res;
         KoguApi.toast(msgRecalculo(d), 'success');
         await loadAll();

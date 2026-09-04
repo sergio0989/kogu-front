@@ -593,9 +593,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('recalcBtn').onclick = async (e) => {
     await KoguUi.withLoading(e.target, async () => {
       try {
-        const periodos = computePeriodos();
-        const body = periodos ? { periodos } : {};
-        const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: JSON.stringify(body) });
+        // Recalcular NO manda el periodo del selector. El selector cambia lo
+        // que se MIRA —el comparativo, que se calcula al vuelo—; Recalcular
+        // graba la medición canónica de meses cerrados. Mandarle el rango
+        // reabría todas las alertas ya triadas, porque el periodo entra en la
+        // condición que preserva el estado del triaje.
+        const res = await KoguApi.apiFetch(`${BASE}/engine/recalcular`, { method: 'POST', body: '{}' });
         const d = res?.data || res;
         KoguApi.toast(msgRecalculo(d), 'success');
         await loadAll();
