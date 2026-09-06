@@ -100,8 +100,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   const mesIni = iso => MESES[new Date(iso).getUTCMonth() + 1] || '';
   const mesPrev = iso => MESES[new Date(iso).getUTCMonth()] || MESES[12];
-  const rangoP1 = p => p?.p1d ? `${mesIni(p.p1d)}–${mesPrev(p.p1h)}` : '';
-  const rangoP2 = p => p?.p2d ? `${mesIni(p.p2d)}–${mesIni(p.p2h)}` : '';
+  // Etiqueta de un periodo de la ficha. Lleva AÑO.
+  //
+  // Sin el año, la cabecera decía "JUL–AGO VS JUL–AGO" — que se lee como
+  // comparar un periodo contra sí mismo, y contradecía al filtro de arriba, que
+  // sí decía "Jul 26 contra Jul 25".
+  //
+  // `p1h` es EXCLUSIVO (día siguiente al cierre), así que la etiqueta se arma
+  // sobre el día anterior. Restar el día ANTES de leer el año importa: con un
+  // p1h del 1-ene-2026 el mes correcto es diciembre, pero el año es 2025, no
+  // 2026.
+  const menosDia = iso => { const d = new Date(iso); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+  const rangoP1 = p => p?.p1d ? rangoIncl(p.p1d, menosDia(p.p1h)) : '';
+  const rangoP2 = p => p?.p2d ? rangoIncl(p.p2d, p.p2h) : '';
 
   // Periodos propios de Mi panel (independientes de Tablero/Bandeja).
   const pad = n => String(n).padStart(2, '0');
@@ -370,7 +381,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase">En riesgo</div>
             <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(riesgoCli(c))}</div>
             <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
-              <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px">Detalle</button>
+              <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" data-ficha-base="${KoguUi.escapeHtml(c.base_comparacion || '')}" style="font-size:12px">Detalle</button>
               <button class="btn" data-act-ref="${KoguUi.escapeHtml(c.cliente_ref)}" title="Generar actividad de seguimiento" style="font-size:12px">+ Actividad</button>
             </div>
           </div>
@@ -378,7 +389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
     }).join('');
     document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () =>
-      openFicha({ cliente_ref: x.dataset.fichaRef, detalle: { periodos: comp.periodos } }));
+      openFicha({ cliente_ref: x.dataset.fichaRef, base_comparacion: x.dataset.fichaBase || null, detalle: { periodos: comp.periodos } }));
     document.querySelectorAll('#alertas .btn[data-act-ref]').forEach(x => x.onclick = () => {
       const cli = (comp.clientes || []).find(k => k.cliente_ref === x.dataset.actRef);
       if (cli) openCrearActividad(cli);
@@ -556,9 +567,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Ficha (modal) ───────────────────────────────────────────────────────────
+  // Ver la nota de bandeja.js: la ficha se abre contra la MISMA base que usó
+  // la tarjeta. Si el cliente no existía hace un año, el motor comparó contra
+  // el periodo anterior y la ficha tiene que hacer lo mismo — si no, abre en
+  // cero contra cero.
   async function openFicha(a) {
     const p = a.detalle?.periodos;
-    const qs = p ? `?p1d=${p.p1d}&p1h=${p.p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
+    let p1d = p?.p1d, p1h = p?.p1h;
+    if (a.base_comparacion === 'secuencial' && p?.prev_d && p?.prev_h) {
+      p1d = p.prev_d;
+      p1h = addDays(p.prev_h, 1);
+    }
+    const qs = p ? `?p1d=${p1d}&p1h=${p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
     try {
       const res = await KoguApi.apiFetch(`${BASE}/clientes/${encodeURIComponent(a.cliente_ref)}/comparativo${qs}`);
       renderFicha(res?.data || res);

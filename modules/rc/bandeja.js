@@ -113,8 +113,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const mesIni = iso => MESES[new Date(iso).getUTCMonth() + 1] || '';
   const mesPrev = iso => MESES[new Date(iso).getUTCMonth()] || MESES[12];
-  const rangoP1 = p => p?.p1d ? `${mesIni(p.p1d)}–${mesPrev(p.p1h)}` : '';
-  const rangoP2 = p => p?.p2d ? `${mesIni(p.p2d)}–${mesIni(p.p2h)}` : '';
+  // Etiqueta de un periodo de la ficha. Lleva AÑO.
+  //
+  // Sin el año, la cabecera decía "JUL–AGO VS JUL–AGO" — que se lee como
+  // comparar un periodo contra sí mismo, y contradecía al filtro de arriba, que
+  // sí decía "Jul 26 contra Jul 25".
+  //
+  // `p1h` es EXCLUSIVO (día siguiente al cierre), así que la etiqueta se arma
+  // sobre el día anterior. Restar el día ANTES de leer el año importa: con un
+  // p1h del 1-ene-2026 el mes correcto es diciembre, pero el año es 2025, no
+  // 2026.
+  const menosDia = iso => { const d = new Date(iso); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+  const rangoP1 = p => p?.p1d ? rangoIncl(p.p1d, menosDia(p.p1h)) : '';
+  const rangoP2 = p => p?.p2d ? rangoIncl(p.p2d, p.p2h) : '';
 
   const pad = n => String(n).padStart(2, '0');
   const isoUTC = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
@@ -408,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div style="font-size:19px;font-weight:800;color:var(--danger,#dc2626)">${fmtVal(c._riesgo)}</div>
             <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap">
               ${triajeBotones(c)}
-              <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" style="font-size:12px">Detalle</button>
+              <button class="btn primary" data-ficha-ref="${KoguUi.escapeHtml(c.cliente_ref)}" data-ficha-base="${KoguUi.escapeHtml(c.base_comparacion || '')}" style="font-size:12px">Detalle</button>
             </div>
           </div>
         </div>
@@ -441,7 +452,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('alertas').innerHTML =
       periodosBanner() + (clientes.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
 
-    document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () => openFicha(x.dataset.fichaRef));
+    document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () => openFicha(x.dataset.fichaRef, x.dataset.fichaBase || null));
     document.querySelectorAll('#alertas .btn[data-triaje]').forEach(x => x.onclick = async () => {
       const ids = x.dataset.ids.split(',').filter(Boolean);
       const nuevo = x.dataset.triaje;
@@ -470,9 +481,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Ficha de detalle (modal) ────────────────────────────────────────────────
-  async function openFicha(clienteRef) {
+  // La ficha tiene que abrirse contra LA MISMA BASE que usó la tarjeta.
+  //
+  // Cuando un cliente no existía hace un año, el motor cae al periodo anterior
+  // y la tarjeta lo dice ("vs periodo anterior"). La ficha, en cambio, siempre
+  // pedía la ventana del año pasado — y para esos clientes eso es cero contra
+  // cero: la tarjeta gritaba "−100%, 48,000 kg → 0" y la ficha abría en blanco,
+  // con 0 kg, 0.0% de variación y "Sin productos".
+  async function openFicha(clienteRef, base = null) {
     const p = comp?.periodos;
-    const qs = p ? `?p1d=${p.p1d}&p1h=${p.p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
+    let p1d = p?.p1d, p1h = p?.p1h;
+    if (base === 'secuencial' && p?.prev_d && p?.prev_h) {
+      p1d = p.prev_d;
+      p1h = addDays(p.prev_h, 1);   // el límite superior de P1 es exclusivo
+    }
+    const qs = p ? `?p1d=${p1d}&p1h=${p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
     try {
       const res = await KoguApi.apiFetch(`${BASE}/clientes/${encodeURIComponent(clienteRef)}/comparativo${qs}`);
       renderFicha(res?.data || res);
