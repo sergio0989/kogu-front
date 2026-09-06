@@ -92,6 +92,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   let alertas = [];        // materializadas (otras alertas: RC-001/002/003 empresa/agente)
   let comp = null;         // comparativo on-demand a nivel empresa { periodos, clientes }
 
+  // Filtro por MOTIVO, que se maneja con clic en los KPI de arriba.
+  //
+  // Los tres selects filtran severidad, estado y agente. Ninguno filtra por
+  // motivo, así que hasta ahora el número "Encogiendo: 7" no se podía abrir:
+  // había que buscar esos siete a ojo entre cincuenta tarjetas. Los KPI ya
+  // nombran los subconjuntos; hacerlos clicables es darles el filtro que ya
+  // prometían.
+  //
+  // '' = sin filtro. 'riesgo' es el subconjunto que SUMA el primer KPI (caída
+  // más dormancia, sin deriva — ver el comentario del total en renderAlertas).
+  let motivoFil = '';
+  const MOTIVO_PRED = {
+    riesgo:    c => !!(c.caida || c.dormancia),
+    caida:     c => !!c.caida,
+    dormancia: c => !!c.dormancia,
+    deriva:    c => !!c.deriva,
+  };
+  const MOTIVO_TXT = {
+    riesgo: 'los que suman el monto en riesgo',
+    caida: 'en caída',
+    dormancia: 'sin comprar',
+    deriva: 'encogiendo',
+  };
+
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
@@ -103,12 +127,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const measSubt = r => esDinero() ? Number(r.subt || 0) : Number(r.cantidad || 0);
   const metricaLbl = () => esDinero() ? 'MXN-eq' : 'kg (aprox)';
   // Tarjeta KPI compacta homologada con todas las pantallas del Radar.
-  const miniCard = (lbl, val, hint = '', color = '') => `
-    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
-      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+  //
+  // Con `motivo` la tarjeta se vuelve un filtro: un clic recorta la lista de
+  // abajo a ese subconjunto, otro clic la suelta. `motivo: ''` es el botón de
+  // limpiar (la tarjeta "Clientes a atender" ES la lista completa).
+  const miniCard = (lbl, val, hint = '', color = '', motivo = null) => {
+    const esFil = motivo !== null;
+    const on = esFil && motivoFil === motivo;
+    const borde = on ? 'var(--brand,#2563eb)' : 'var(--line)';
+    const extra = esFil
+      ? `cursor:pointer;user-select:none;transition:background .12s,border-color .12s${on ? ';background:rgba(37,99,235,.07)' : ''}`
+      : '';
+    const attr = esFil
+      ? ` data-motivo="${KoguUi.escapeHtml(motivo)}" title="${on ? 'Quitar el filtro' : motivo === '' ? 'Ver todos' : `Ver sólo ${MOTIVO_TXT[motivo] || ''}`}"`
+      : '';
+    return `
+    <div${attr} style="border:1px solid ${borde};border-radius:10px;padding:9px 12px;${extra}">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}${on ? ' ●' : ''}</div>
       <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
       ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
     </div>`;
+  };
   const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   const mesIni = iso => MESES[new Date(iso).getUTCMonth() + 1] || '';
@@ -350,18 +389,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     const enDeriva = clientes.filter(c => c.deriva);
     const perdidoDeriva = enDeriva.reduce((s, c) =>
       s + Number((esDinero() ? c.deriva.caida_mxn : c.deriva.caida_kg) || 0), 0);
+
+    // Los cinco conteos se calculan sobre `clientes`, o sea ANTES del filtro de
+    // motivo. Si se calcularan después, al hacer clic en "En caída" los otros
+    // cuatro se irían a cero y ya no habría a dónde saltar sin limpiar primero.
+    // El motivo sólo recorta la lista de tarjetas, nunca los KPI.
+    const visibles = motivoFil ? clientes.filter(MOTIVO_PRED[motivoFil] || (() => true)) : clientes;
+
+    // Con un motivo activo, las alertas de empresa/agente estorban: el filtro
+    // dice "sólo los que encogen" y abajo aparecerían RC-001 y RC-002, que no
+    // son clientes. Se ocultan mientras dure el filtro.
+    const otrasVis = motivoFil ? [] : otras;
+
+    // 30 en caída + 28 sin comprar + 7 encogiendo no dan 54: un mismo cliente
+    // puede estar en dos motivos a la vez. Sin decirlo, el usuario lee un error.
+    const solapan = (nCaida + nDormidos + enDeriva.length) > clientes.length;
+    const notas = [
+      motivoFil ? `Filtro activo: <b>${MOTIVO_TXT[motivoFil] || ''}</b> — ${visibles.length} de ${clientes.length}. Clic otra vez en la tarjeta para quitarlo.` : '',
+      nTriados ? `${nTriados} cliente(s) ya triado(s) — se conservan al recalcular. Cámbialo en el filtro de estado para verlos.` : '',
+      solapan ? 'Un cliente puede aparecer en más de un motivo, por eso los conteos no suman el total.' : '',
+    ].filter(Boolean);
+
     document.getElementById('alertasResumen').innerHTML = `
       <div class="grid-5" style="gap:10px;display:grid;grid-template-columns:repeat(5,1fr)">
-        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes a atender', String(clientes.length), `${nCriticas} críticos · atiende estos primero`)}
-        ${miniCard('En caída', String(nCaida), 'compran menos que su base')}
-        ${miniCard('Sin comprar', String(nDormidos), 'dejaron de facturar')}
-        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '')}
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)', 'riesgo')}
+        ${miniCard('Clientes a atender', String(clientes.length), `${nCriticas} críticos · atiende estos primero`, '', '')}
+        ${miniCard('En caída', String(nCaida), 'compran menos que su base', '', 'caida')}
+        ${miniCard('Sin comprar', String(nDormidos), 'dejaron de facturar', '', 'dormancia')}
+        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '', 'deriva')}
       </div>
-      ${nTriados ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">${nTriados} cliente(s) ya triado(s) — se conservan al recalcular. Cámbialo en el filtro de estado para verlos.</div>` : ''}`;
+      ${notas.length ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">${notas.join('<br>')}</div>` : ''}`;
 
-    if (!clientes.length && !otras.length) {
-      document.getElementById('alertas').innerHTML = periodosBanner() + '<div class="empty">Sin alertas para el filtro</div>';
+    document.querySelectorAll('#alertasResumen [data-motivo]').forEach(x => x.onclick = () => {
+      const m = x.dataset.motivo;
+      motivoFil = (m && motivoFil === m) ? '' : m;
+      renderAlertas();
+    });
+
+    if (!visibles.length && !otrasVis.length) {
+      document.getElementById('alertas').innerHTML = periodosBanner()
+        + `<div class="empty">Sin alertas para el filtro${motivoFil ? ' — quita el filtro de la tarjeta para ver el resto' : ''}</div>`;
       return;
     }
 
@@ -457,12 +524,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
     };
 
-    const otrasHtml = otras.length
-      ? `<div class="eyebrow" style="margin:18px 0 8px">Otras alertas (empresa / agentes)</div>${otras.map(cardOtra).join('')}`
+    const otrasHtml = otrasVis.length
+      ? `<div class="eyebrow" style="margin:18px 0 8px">Otras alertas (empresa / agentes)</div>${otrasVis.map(cardOtra).join('')}`
       : '';
 
     document.getElementById('alertas').innerHTML =
-      periodosBanner() + (clientes.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
+      periodosBanner() + (visibles.map(cardCliente).join('') || '<div class="empty">Sin clientes en caída para el filtro</div>') + otrasHtml;
 
     document.querySelectorAll('#alertas .btn[data-ficha-ref]').forEach(x => x.onclick = () => openFicha(x.dataset.fichaRef, x.dataset.fichaBase || null));
     document.querySelectorAll('#alertas .btn[data-triaje]').forEach(x => x.onclick = async () => {

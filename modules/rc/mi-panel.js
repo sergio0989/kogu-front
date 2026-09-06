@@ -82,13 +82,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = v => KoguUi.money(Number(v || 0));
   const sel = id => document.getElementById(id)?.value ?? '';
   const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  // Filtro por MOTIVO, igual que en la Bandeja: se maneja con clic en los KPI
+  // de la cartera en riesgo. El select de arriba filtra severidad; ninguno
+  // filtraba motivo, así que "Encogiendo: 3" no se podía abrir.
+  //
+  // '' = sin filtro. 'riesgo' es el subconjunto que SUMA el primer KPI: caída
+  // más dormancia, sin deriva.
+  let motivoFil = '';
+  const MOTIVO_PRED = {
+    riesgo:    c => !!(c.caida || c.dormancia),
+    caida:     c => !!c.caida,
+    dormancia: c => !!c.dormancia,
+    deriva:    c => !!c.deriva,
+  };
+  const MOTIVO_TXT = {
+    riesgo: 'los que suman el monto en riesgo',
+    caida: 'en caída',
+    dormancia: 'sin compra',
+    deriva: 'encogiendo',
+  };
   // Tarjeta KPI compacta (más eficiente en espacio que KoguUi.cardStat).
-  const miniCard = (lbl, val, hint = '', color = '') => `
-    <div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
-      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}</div>
+  //
+  // Con `motivo` la tarjeta se vuelve un filtro: un clic recorta la lista de
+  // abajo, otro clic la suelta. `motivo: ''` limpia (es la lista completa).
+  const miniCard = (lbl, val, hint = '', color = '', motivo = null) => {
+    const esFil = motivo !== null;
+    const on = esFil && motivoFil === motivo;
+    const borde = on ? 'var(--brand,#2563eb)' : 'var(--line)';
+    const extra = esFil
+      ? `cursor:pointer;user-select:none;transition:background .12s,border-color .12s${on ? ';background:rgba(37,99,235,.07)' : ''}`
+      : '';
+    const attr = esFil
+      ? ` data-motivo="${KoguUi.escapeHtml(motivo)}" title="${on ? 'Quitar el filtro' : motivo === '' ? 'Ver todos' : `Ver sólo ${MOTIVO_TXT[motivo] || ''}`}"`
+      : '';
+    return `
+    <div${attr} style="border:1px solid ${borde};border-radius:10px;padding:9px 12px;${extra}">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${KoguUi.escapeHtml(lbl)}${on ? ' ●' : ''}</div>
       <div style="font-size:17px;font-weight:800;line-height:1.15;margin-top:1px;${color ? `color:${color}` : ''}">${KoguUi.escapeHtml(val)}</div>
       ${hint ? `<div style="font-size:10px;color:var(--muted)">${KoguUi.escapeHtml(hint)}</div>` : ''}
     </div>`;
+  };
   let metrica = localStorage.getItem('kogu:rc-metrica') || 'cantidad';
   const esDinero = () => metrica === 'dinero';
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
@@ -326,14 +359,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     const enDeriva = clientes.filter(c => c.deriva);
     const perdidoDeriva = enDeriva.reduce((s, c) =>
       s + Number((esDinero() ? c.deriva.caida_mxn : c.deriva.caida_kg) || 0), 0);
+    const nCaida = clientes.filter(x => x.caida).length;
+
+    // Los conteos se calculan sobre `clientes`, o sea ANTES del filtro de
+    // motivo: si se calcularan después, al filtrar "En caída" los demás se
+    // irían a cero y no habría a dónde saltar. El motivo recorta la lista de
+    // tarjetas, nunca los KPI.
+    const visibles = motivoFil ? clientes.filter(MOTIVO_PRED[motivoFil] || (() => true)) : clientes;
+
+    // Los conteos no suman el total: un cliente puede estar en caída y
+    // encogiendo a la vez. Sin decirlo, se lee como un error de cuentas.
+    const solapan = (nCaida + nDorm + enDeriva.length) > clientes.length;
+    const notas = [
+      motivoFil ? `Filtro activo: <b>${MOTIVO_TXT[motivoFil] || ''}</b> — ${visibles.length} de ${clientes.length}. Clic otra vez en la tarjeta para quitarlo.` : '',
+      solapan ? 'Un cliente puede aparecer en más de un motivo, por eso los conteos no suman el total.' : '',
+    ].filter(Boolean);
+
     document.getElementById('carteraResumen').innerHTML = `
       <div class="grid-5" style="gap:10px;display:grid;grid-template-columns:repeat(5,1fr)">
-        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)')}
-        ${miniCard('Clientes a atender', String(clientes.length), `${nCrit} críticos · atiende estos primero`)}
-        ${miniCard('En caída', String(clientes.filter(x => x.caida).length), 'compran menos que su base')}
-        ${miniCard('Sin compra', String(nDorm), 'clientes dormidos')}
-        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '')}
-      </div>`;
+        ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)', 'riesgo')}
+        ${miniCard('Clientes a atender', String(clientes.length), `${nCrit} críticos · atiende estos primero`, '', '')}
+        ${miniCard('En caída', String(nCaida), 'compran menos que su base', '', 'caida')}
+        ${miniCard('Sin compra', String(nDorm), 'clientes dormidos', '', 'dormancia')}
+        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '', 'deriva')}
+      </div>
+      ${notas.length ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">${notas.join('<br>')}</div>` : ''}`;
+
+    document.querySelectorAll('#carteraResumen [data-motivo]').forEach(x => x.onclick = () => {
+      const m = x.dataset.motivo;
+      motivoFil = (m && motivoFil === m) ? '' : m;
+      renderRiesgo();
+    });
 
     const p = comp.periodos;
     // Antes decía "P1 Jun–Jul vs P2 Jun–Jul": el mismo rango dos veces, porque
@@ -345,11 +401,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const piso = cr.materialidad_mxn ? ` · sólo caídas de <b>${money(cr.materialidad_mxn)}</b> o más` : '';
     const cierre = p?.mes_en_curso_excluido ? ' · el mes en curso queda fuera (sólo meses cerrados)' : '';
     const banner = p ? `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">${cab}${piso}${cierre} · periodo propio de Mi panel</div>` : '';
-    if (!clientes.length) { document.getElementById('alertas').innerHTML = banner + '<div class="empty">Sin clientes en riesgo para el periodo. ¡Bien!</div>'; return; }
+    if (!visibles.length) {
+      document.getElementById('alertas').innerHTML = banner + `<div class="empty">${motivoFil
+        ? 'Sin clientes con ese motivo — quita el filtro de la tarjeta para ver el resto'
+        : 'Sin clientes en riesgo para el periodo. ¡Bien!'}</div>`;
+      return;
+    }
 
     const sevBg = { critica: 'var(--danger,#dc2626)', alerta: 'var(--warning,#d97706)', info: 'var(--muted,#64748b)' };
     const sevWord = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
-    document.getElementById('alertas').innerHTML = banner + clientes.map(c => {
+    document.getElementById('alertas').innerHTML = banner + visibles.map(c => {
       const color = sevBg[c.severidad] || sevBg.info;
       const varTxt = c.caida ? fmtPctCap(esDinero() ? c.caida.delta_importe : c.caida.delta_cantidad) : '';
       // Un −40% "vs año pasado" y uno "vs periodo anterior" no se leen igual.
