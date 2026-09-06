@@ -193,7 +193,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       : `Comparativo: <b>P1 ${rangoP1(p)}</b> vs <b>P2 ${rangoP2(p)}</b>`;
     const piso = cr.materialidad_mxn ? ` · sólo caídas de <b>${money(cr.materialidad_mxn)}</b> o más` : '';
     const cierre = p.mes_en_curso_excluido ? ' · el mes en curso queda fuera (sólo meses cerrados)' : '';
-    const nuevos = p.act_d ? ' · los clientes que no existían hace un año se comparan contra el periodo anterior' : '';
+    // Decía "los clientes que no existían hace un año". El motor no comprueba
+    // eso: sólo comprueba que la ventana del año pasado esté VACÍA —
+    //     base = (imp_yoy > 0) ? 'yoy' : 'secuencial'
+    // — y por ahí caen también los clientes VIEJOS de compra irregular, que sí
+    // existían. Medido en ADGM: de 4 clientes con base secuencial, 3 eran
+    // viejos (uno compró 9 de los últimos 12 meses) y sólo 1 era nuevo de
+    // verdad. La frase afirmaba de tres clientes algo que no era cierto.
+    //
+    // Se corrigió la frase y no la lógica: cambiar la base afectaría a 3
+    // clientes de 30 y $814k de $14.2M. Comparar a un cliente irregular contra
+    // su periodo inmediato anterior es razonable — es su comportamiento
+    // reciente.
+    const nuevos = p.act_d ? ' · los clientes sin compras en ese periodo del año pasado se comparan contra el periodo anterior' : '';
     return `<div class="hint" style="margin:0 0 12px;color:var(--muted);font-size:12px">
       ${cab}${piso}${cierre}${nuevos} · prioridad por ${esDinero() ? 'monto' : 'volumen (kg)'} que dejó de comprar · cálculo on-demand (no depende de Recalcular)
     </div>`;
