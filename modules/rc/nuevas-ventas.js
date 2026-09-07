@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn" id="clienteBtn" data-picker="cliente" style="max-width:300px">Todos los clientes ▾</button>
       <button class="btn" id="productoBtn" data-picker="producto" style="max-width:280px">Todos los productos ▾</button>
       <button class="btn" id="sublineaBtn" data-picker="sublinea" style="max-width:280px">Todas las líneas de PP ▾</button>
+      <button class="btn" id="agenteBtn" data-picker="agente" style="max-width:260px">Todos los agentes ▾</button>
       <select class="select" id="segFil" style="max-width:200px">
         <option value="">Todo el seguimiento</option>
         <option value="pendiente">Pendientes de repetir</option>
@@ -73,12 +74,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     <div id="avisos" style="margin-top:12px"></div>
     <div id="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:14px"></div>
-  </div>
-
-  <div class="card">
-    <div class="eyebrow">Ritmo</div>
-    <h3 style="margin:4px 0 12px">Ventas nuevas por mes</h3>
-    <div id="serie"></div>
   </div>
 
   <div class="card">
@@ -95,6 +90,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div class="eyebrow">¿Pegan? ¿Crecen?</div>
     <h3 style="margin:4px 0 12px">Supervivencia por cohorte</h3>
     <div id="cohortes"></div>
+  </div>
+
+  <!--
+    El ritmo va al final a propósito. Lo que se trabaja a diario es la lista de
+    eventos del mes; la gráfica es contexto histórico y, arriba, empujaba la
+    lista fuera de la primera pantalla.
+  -->
+  <div class="card">
+    <div class="eyebrow">Ritmo</div>
+    <h3 style="margin:4px 0 12px">Ventas nuevas por mes</h3>
+    <div id="serie"></div>
   </div>
 
 </div>`;
@@ -140,8 +146,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Filtros de cliente / producto / sublínea. Viven aquí y no en el DOM porque
   // ya no son selects: los pone el modal de búsqueda.
-  const filtros = { cliente: '', producto: '', sublinea: '' };
-  const etiquetas = { cliente: '', producto: '', sublinea: '' };
+  const filtros = { cliente: '', producto: '', sublinea: '', agente: '' };
+  const etiquetas = { cliente: '', producto: '', sublinea: '', agente: '' };
 
   // ── Carga ───────────────────────────────────────────────────────────────────
   async function cargar(mes = null) {
@@ -150,6 +156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (filtros.cliente)  qs.set('cliente',  filtros.cliente);
     if (filtros.producto) qs.set('producto', filtros.producto);
     if (filtros.sublinea) qs.set('sublinea', filtros.sublinea);
+    if (filtros.agente)   qs.set('agente',   filtros.agente);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/nuevas-ventas?${qs.toString()}`);
       data = res?.data || res;
@@ -165,11 +172,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Se arman UNA vez, con el universo completo. Si se rearmaran en cada carga,
   // filtrar por un cliente dejaría la lista de productos con un solo elemento
   // y ya no se podría cambiar de idea sin limpiar antes.
-  const LISTAS = { cliente: [], producto: [], sublinea: [] };
+  const LISTAS = { cliente: [], producto: [], sublinea: [], agente: [] };
   const PICKER = {
-    cliente:  { titulo: 'Cliente',        todos: 'Todos los clientes' },
-    producto: { titulo: 'Producto',       todos: 'Todos los productos' },
-    sublinea: { titulo: 'Línea de PP',    todos: 'Todas las líneas de PP' },
+    cliente:  { titulo: 'Cliente',     todos: 'Todos los clientes' },
+    producto: { titulo: 'Producto',    todos: 'Todos los productos' },
+    sublinea: { titulo: 'Línea de PP', todos: 'Todas las líneas de PP' },
+    agente:   { titulo: 'Agente',      todos: 'Todos los agentes' },
   };
   let listasListas = false;
 
@@ -185,6 +193,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }));
     LISTAS.sublinea = (o.sublineas || []).map(x => ({
       value: x.cve_sublinea, label: x.cve_sublinea, sub: x.sublinea_nombre || '',
+    }));
+    LISTAS.agente = (o.agentes || []).map(x => ({
+      value: String(x.agente_id), label: x.nombre || String(x.agente_id),
+      sub: Number(x.eventos) ? `${x.eventos} evento(s)` : '',
     }));
     listasListas = true;
     pintarBotones();
@@ -365,18 +377,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderKpis() {
     const k = data.kpis;
     const shareVol = k.kg_mes_total ? k.kg / k.kg_mes_total : null;
+    // Cada categoría lleva su porcentaje. "5 y 16" no dice si el negocio crece
+    // por cuentas nuevas o por venta cruzada; "24% y 76%" sí, y ese reparto es
+    // la lectura de fondo: en esta cartera el motor es meterle un producto más
+    // a un cliente que ya se tiene, no abrir cuentas.
+    const share = (n, tot) => tot ? ` (${Math.round(100 * n / tot)}%)` : '';
+    const totalEventos = k.nuevas + k.reactivadas;
+    const totalSeg = k.repitieron + k.pendientes + k.perdidas;
     document.getElementById('kpis').innerHTML = [
       miniCard('Ventas nuevas', String(k.nuevas),
-        `${k.cliente_nuevo} cliente nuevo · ${k.venta_cruzada} venta cruzada`),
+        `${k.cliente_nuevo} cliente nuevo${share(k.cliente_nuevo, k.nuevas)} · ${k.venta_cruzada} venta cruzada${share(k.venta_cruzada, k.nuevas)}`),
       miniCard('Volumen nuevo', kg(k.kg),
         shareVol != null ? `${pctTxt(shareVol)} del volumen del mes` : ''),
       miniCard('Importe', money(k.mxn),
         Number(k.usd) ? `de los cuales ${usd(k.usd)} facturados en dólares` : 'sin facturación en dólares'),
       miniCard('Reactivaciones', String(k.reactivadas),
-        `${kg(k.kg_react)} · volvieron tras ${data.criterio.hueco_meses} meses`,
+        `${share(k.reactivadas, totalEventos).replace(/[() ]/g, '')} de los eventos · ${kg(k.kg_react)}`,
         Number(k.reactivadas) ? 'var(--warning,#d97706)' : ''),
       miniCard('Seguimiento', `${k.repitieron} / ${k.pendientes} / ${k.perdidas}`,
-        'repitieron · pendientes · perdidas',
+        `repitieron${share(k.repitieron, totalSeg)} · pendientes${share(k.pendientes, totalSeg)} · perdidas${share(k.perdidas, totalSeg)}`,
         Number(k.perdidas) ? 'var(--danger,#dc2626)' : ''),
     ].join('');
   }
@@ -443,8 +462,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td><span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:${t.bg}">${t.txt}</span></td>
         <td>
           <div style="font-weight:600">${esc(e.cliente_nombre)}${e.en_catalogo ? '' : ' <span title="No está en el catálogo de clientes" style="color:var(--warning,#d97706);font-size:11px">⚠ sin alta</span>'}</div>
-          <div style="font-size:11px;color:var(--muted)">${e.agente_nombre ? esc(e.agente_nombre) : 'sin agente'}</div>
+          <div style="font-size:11px;color:var(--muted)">clave ${esc(e.cliente_ref)}</div>
         </td>
+        <td style="font-size:12px">${e.agente_nombre
+          ? esc(e.agente_nombre)
+          : '<span style="color:var(--warning,#d97706)" title="El cliente no tiene agente asignado en cat_clientes">sin agente</span>'}</td>
         <td>
           <div><span class="chip-compact">${esc(e.cve_prod)}</span></div>
           <div style="font-size:11px;color:var(--muted)">${esc(e.desc_prod || '')}</div>
@@ -461,15 +483,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const sumKg = ev.reduce((s, e) => s + Number(e.kg || 0), 0);
+    // Un evento sin agente no le llega a nadie: no lo ve ningún vendedor al
+    // filtrar su cartera. Vale la pena decirlo, no sólo pintarlo en ámbar.
+    const sinAgente = ev.filter(e => !e.agente_nombre).length;
     document.getElementById('eventos').innerHTML = `
       <div class="table-wrap"><table><thead><tr>
-        <th>Tipo</th><th>Cliente</th><th>Producto</th>
+        <th>Tipo</th><th>Cliente</th><th>Agente</th><th>Producto</th>
         <th style="text-align:right">kg</th><th style="text-align:right">MXN</th><th style="text-align:right">USD</th>
         <th>PP</th><th>Seguimiento</th>
       </tr></thead><tbody>${ev.map(fila).join('')}</tbody></table></div>
       <div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">
         ${ev.length} evento(s) · ${kg(sumKg)}${segF ? ` de ${todos.length} en el mes` : ''} ·
         ordenados por volumen. El importe en dólares es la porción facturada en esa moneda, no un total aparte.
+        ${sinAgente ? `<br><b>${sinAgente} sin agente asignado</b> — no aparecen al filtrar por agente y nadie les da seguimiento.` : ''}
       </div>`;
   }
 
