@@ -42,8 +42,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Semáforo del margen. El verde NO es un umbral fijo: es el margen real de la
   // casa, que el backend manda en umbrales.margen_casa. Así la escala se
   // recalibra cada mes en vez de quedarse en un número que alguien puso una vez.
+  //
+  // El color se decide sobre la cifra REDONDEADA, la que el lector tiene
+  // enfrente — no sobre el valor completo. Comparando el valor completo, dos
+  // celdas que muestran "27.1%" pueden salir de distinto color (27.148% verde,
+  // 27.104% sin color) y eso se lee como un error del reporte, no como
+  // precisión. El costo es aceptar hasta media décima de holgura en el borde;
+  // la alternativa es un informe firmado que se contradice a sí mismo.
   let CASA = 0; let BAJO = 0.15;
-  const cls = (v) => (v == null ? '' : (v >= CASA ? 'pos' : (v < BAJO ? 'neg' : '')));
+  const cls = (v, d = 1) => {
+    if (v == null) return '';
+    const r = (x) => Number((Number(x) * 100).toFixed(d));
+    const val = r(v);
+    return val >= r(CASA) ? 'pos' : (val < r(BAJO) ? 'neg' : '');
+  };
   // El rojo lo decide el SIGNO del dato, no la fila donde cae: la venta de una
   // muestra es positiva aunque su resultado sea negativo, y pintarla en rojo
   // "porque es la fila de muestras" la hace parecer un cargo.
@@ -236,7 +248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       h += `<tr><td>${esc(g.nombre)}<div class="sub">${esc((g.segmentos || []).join(', '))}</div></td>
         <td>${num(g.clientes)}</td><td>${mon(g.acum.ventas)}</td><td>${pc(g.pct_venta)}</td>
         <td>${mon(g.acum.utilidad)}</td><td>${pc(g.pct_utilidad)}</td>
-        <td class="${cls(g.acum.margen)}"><b>${pc(g.acum.margen, 2)}</b></td>
+        <td class="${cls(g.acum.margen, 2)}"><b>${pc(g.acum.margen, 2)}</b></td>
         <td class="${g.indice >= 1 ? 'pos' : 'neg'}"><b>${g.indice == null ? '—' : g.indice.toFixed(2)}</b></td></tr>`;
     }
     h += `<tr class="tot"><td>Total operación</td><td>—</td><td>${mon(a.ventas)}</td><td>100.0%</td>
