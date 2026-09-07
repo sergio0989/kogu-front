@@ -632,30 +632,88 @@ document.addEventListener('DOMContentLoaded', async () => {
   // la tarjeta. Si el cliente no existía hace un año, el motor comparó contra
   // el periodo anterior y la ficha tiene que hacer lo mismo — si no, abre en
   // cero contra cero.
+  //
+  // La ventana PRINCIPAL es el rolling 12M, no el bimestre. Ver la nota larga
+  // en bandeja.js: con clientes de compra irregular, dos meses contra dos meses
+  // miden en qué semana cayó el pedido, no la tendencia. Pidiéndole al endpoint
+  // las ventanas del rolling, la tabla de productos también se calcula sobre el
+  // año. Los bordes empatan porque P1 es medio abierto (`< p1h`) y p12_h es el
+  // día anterior a r12_d.
+  const rollPeriodos = () => {
+    const r = comp?.criterio?.rolling;
+    if (!r?.r12_d || !r?.p12_d) return null;
+    return { p1d: r.p12_d, p1h: r.r12_d, p2d: r.r12_d, p2h: r.r12_h };
+  };
+
+  // Etiqueta del periodo corto, con año y contra qué se compara.
+  function rangoReciente(base) {
+    const p = comp?.periodos;
+    if (!p?.act_d) return '';
+    const act = rangoIncl(p.act_d, p.act_h);
+    const ref = (base === 'secuencial' && p.prev_d) ? rangoIncl(p.prev_d, p.prev_h) : rangoIncl(p.yoy_d, p.yoy_h);
+    return `${act} vs ${ref}`;
+  }
+
   async function openFicha(a) {
-    const p = a.detalle?.periodos;
-    let p1d = p?.p1d, p1h = p?.p1h;
-    if (a.base_comparacion === 'secuencial' && p?.prev_d && p?.prev_h) {
-      p1d = p.prev_d;
-      p1h = addDays(p.prev_h, 1);
+    const roll = rollPeriodos();
+    let qs = '';
+    if (roll) {
+      qs = `?p1d=${roll.p1d}&p1h=${roll.p1h}&p2d=${roll.p2d}&p2h=${roll.p2h}`;
+    } else {
+      const p = a.detalle?.periodos;
+      let p1d = p?.p1d, p1h = p?.p1h;
+      if (a.base_comparacion === 'secuencial' && p?.prev_d && p?.prev_h) {
+        p1d = p.prev_d;
+        p1h = addDays(p.prev_h, 1);
+      }
+      qs = p ? `?p1d=${p1d}&p1h=${p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
     }
-    const qs = p ? `?p1d=${p1d}&p1h=${p1h}&p2d=${p.p2d}&p2h=${p.p2h}` : '';
+    const cli = (comp?.clientes || []).find(c => c.cliente_ref === a.cliente_ref) || null;
     try {
       const res = await KoguApi.apiFetch(`${BASE}/clientes/${encodeURIComponent(a.cliente_ref)}/comparativo${qs}`);
-      renderFicha(res?.data || res);
+      renderFicha(res?.data || res, { cli, base: a.base_comparacion || null, esRolling: !!roll });
     } catch (err) { KoguApi.toast(err.message, 'error'); }
   }
   function closeFicha() { document.getElementById('rcFichaModal')?.remove(); }
-  function renderFicha(d) {
+  function renderFicha(d, ctx = {}) {
     const ind = d.indicadores || {};
     const p = d.periodos || {};
+    const esRolling = !!ctx.esRolling;
     const r1 = rangoP1(p), r2 = rangoP2(p);
+    const vent1 = esRolling ? `12M previo ${r1}` : `P1 ${r1}`;
+    const vent2 = esRolling ? `12M actual ${r2}` : `P2 ${r2}`;
     const valP1 = pr => esDinero() ? Number(pr.p1 || 0) : Number(pr.cant_p1 || 0);
     const valP2 = pr => esDinero() ? Number(pr.p2 || 0) : Number(pr.cant_p2 || 0);
     const prods = (d.productos || []).slice().sort((a, b) => (valP2(a) - valP1(a)) - (valP2(b) - valP1(b)));
-    const totP1 = esDinero() ? Number(ind.p1_total || 0) : prods.reduce((s, x) => s + Number(x.cant_p1 || 0), 0);
-    const totP2 = esDinero() ? Number(ind.p2_total || 0) : prods.reduce((s, x) => s + Number(x.cant_p2 || 0), 0);
-    const deltaTot = totP1 ? (totP2 - totP1) / totP1 : null;
+
+    // Los totales salen del `rolling` de la TARJETA: en kg se venían sumando de
+    // la tabla de productos, que descarta renglones sin cve_prod, y el número
+    // no cuadraba con el de la lista.
+    const roll = (ctx.cli?.rolling || ctx.cli?.deriva) || null;
+    const usaRoll = esRolling && !!roll;
+    const totP1 = usaRoll ? Number((esDinero() ? roll.mxn_prev12 : roll.kg_prev12) || 0)
+      : (esDinero() ? Number(ind.p1_total || 0) : prods.reduce((s, x) => s + Number(x.cant_p1 || 0), 0));
+    const totP2 = usaRoll ? Number((esDinero() ? roll.mxn_12m : roll.kg_12m) || 0)
+      : (esDinero() ? Number(ind.p2_total || 0) : prods.reduce((s, x) => s + Number(x.cant_p2 || 0), 0));
+    const deltaTot = usaRoll ? (esDinero() ? roll.delta_mxn : roll.delta_kg)
+      : (totP1 ? (totP2 - totP1) / totP1 : null);
+    const perdido = Math.abs(totP2 - totP1);
+    const colDelta = v => Number(v) < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)';
+    const mesesTxt = roll?.meses_con_compra != null ? ` · compró ${roll.meses_con_compra} de 12 meses` : '';
+    const titular = esRolling ? `
+      <div style="border:1px solid var(--line);border-left:4px solid ${colDelta(deltaTot)};border-radius:12px;padding:14px 16px;margin-bottom:12px;background:var(--panel2,#f8fafc)">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Rolling 12 meses · ${metricaLbl()} · ${r2} vs ${r1}</div>
+        <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-top:4px">
+          <div style="font-size:30px;font-weight:800;line-height:1.05;color:${colDelta(deltaTot)}">${fmtPctCap(deltaTot)}</div>
+          <div style="font-size:15px;font-weight:700;color:${colDelta(deltaTot)}">${deltaTot == null
+            ? 'sin base de comparación: no compró en los 12 meses previos'
+            : `${fmtVal(perdido)} ${deltaTot < 0 ? 'menos' : 'más'} que los 12 previos`}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">${fmtVal(totP1)} → ${fmtVal(totP2)}${mesesTxt} · ventanas contiguas de 12 meses cerrados</div>
+      </div>` : '';
+    const cai = ctx.cli?.caida || null;
+    const deltaRec = cai ? (esDinero() ? cai.delta_importe : cai.delta_cantidad) : null;
+    const lblRec = rangoReciente(ctx.base);
     const kpi = (lbl, val, hint = '') =>
       `<div style="border:1px solid var(--line);border-radius:10px;padding:10px"><div style="font-size:11px;color:var(--muted);text-transform:uppercase">${lbl}</div><div style="font-size:18px;font-weight:700;margin-top:2px">${val}</div>${hint ? `<div style="font-size:11px;color:var(--muted)">${hint}</div>` : ''}</div>`;
     const filas = prods.slice(0, 40).map(pr => {
@@ -678,18 +736,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div id="rcFichaModal" style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px">
         <div style="background:var(--panel,#fff);border-radius:16px;max-width:920px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
           <div class="row" style="align-items:flex-start;margin-bottom:8px">
-            <div><div class="eyebrow">Ficha de cliente · ${r1} vs ${r2}</div>
+            <div><div class="eyebrow">Ficha de cliente · ${esRolling ? `rolling 12 meses · ${r2} vs ${r1}` : `${r1} vs ${r2}`}</div>
               <h2 style="margin:4px 0 0">${KoguUi.escapeHtml(d.cliente_nombre || d.cliente_ref)}</h2></div>
             <button class="btn" id="rcFichaClose">Cerrar ✕</button>
           </div>
+          ${titular}
           <div class="grid-4" style="gap:12px;margin-bottom:8px">
-            ${kpi(`P1 ${r1}`, fmtVal(totP1))}
-            ${kpi(`P2 ${r2}`, fmtVal(totP2))}
-            ${kpi('Variación', `<span style="color:${Number(deltaTot) < 0 ? 'var(--danger,#dc2626)' : 'var(--brand,#2563eb)'}">${fmtPctCap(deltaTot)}</span>`)}
+            ${kpi(`${vent1} (${metricaLbl()})`, fmtVal(totP1))}
+            ${kpi(`${vent2} (${metricaLbl()})`, fmtVal(totP2))}
+            ${esRolling
+              ? kpi('Periodo reciente', deltaRec == null
+                    ? '<span style="color:var(--muted)">—</span>'
+                    : `<span style="color:${colDelta(deltaRec)}">${fmtPctCap(deltaRec)}</span>`,
+                  deltaRec == null ? 'sin caída marcada en el bimestre' : `${lblRec} · contexto, no titular`)
+              : kpi('Variación', `<span style="color:${colDelta(deltaTot)}">${fmtPctCap(deltaTot)}</span>`)}
             ${kpi('Última compra', KoguUi.fmtDate(ind.ultima_compra).split(',')[0] || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
           </div>
-          <div class="eyebrow" style="margin:16px 0 8px">Productos (${prods.length}) · ${metricaLbl()}</div>
-          <div class="table-wrap"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">P1</th><th style="text-align:right">P2</th><th style="text-align:right">Var</th></tr></thead><tbody>${filas || '<tr><td colspan="5" class="empty">Sin productos</td></tr>'}</tbody></table></div>
+          <div class="eyebrow" style="margin:16px 0 8px">Productos (${prods.length}) · ${metricaLbl()} · ${esRolling ? `últimos 12 meses ${r2} vs los 12 previos ${r1}` : `${r1} vs ${r2}`} · ordenados por mayor caída</div>
+          <div class="table-wrap"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">${vent1}</th><th style="text-align:right">${vent2}</th><th style="text-align:right">Var</th></tr></thead><tbody>${filas || '<tr><td colspan="5" class="empty">Sin productos</td></tr>'}</tbody></table></div>
           <div style="margin-top:16px"><div class="eyebrow" style="margin-bottom:8px">Tendencia mensual</div>${trend || '<div class="empty">Sin datos</div>'}</div>
         </div>
       </div>`;
