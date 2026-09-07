@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .leyenda { font-size:10px; color:#64748b; margin-top:6px; }
   #reporte .leyenda i { font-style:normal; font-weight:700; }
   #reporte .metod { font-size:10.5px; color:#64748b; font-style:italic; margin-top:6px; }
+  #reporte .bsub2 { font-size:11px; color:#64748b; font-weight:700; margin:-2px 0 8px; }
 
   @media print {
     @page { size: letter; margin: 20mm 0 16mm; }
@@ -123,7 +124,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     #reporte table.rt td:first-child { overflow-wrap:anywhere; }
     #reporte .pb { page-break-before: always; padding-top: 6mm; }
     #reporte .band.pb { padding-top:12px; margin-top:6mm; }
-    #reporte tr, #reporte .kc, #reporte .band { page-break-inside: avoid; }
+    #reporte tr, #reporte .kc, #reporte .band, #reporte ul.res li { page-break-inside: avoid; }
+    /* Un .cont con salto es el encabezado de una hoja nueva: sin este margen
+       queda pegado al borde superior, donde @page ya no puede empujarlo. */
+    #reporte .cont.pb { margin-top: 0 !important; }
     #reporte .kgrid { page-break-inside: avoid; }
     /* Una banda de sección al pie, sin su contenido, es un encabezado colgado. */
     #reporte .band, #reporte h4, #reporte .narr h3, #reporte .cont { page-break-after: avoid; }
@@ -197,7 +201,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     h += kc('Costo integrado', mon(a.costo_integrado), `${pc(a.costo_pct)} de la venta`);
     h += kc('Utilidad acumulada', mon(a.utilidad), `margen ${pc(a.margen, 2)}`, true);
     h += '</div>';
-    h += `<div class="narr"><h3>Resumen ejecutivo</h3><ul class="res">${
+    h += `<div class="narr pb"><h3>Resumen ejecutivo</h3>
+      <div class="bsub2">${esc(PER)} · ${esc(ACUM)}</div><ul class="res">${
       d.narrativa.resumen.map((p) => `<li><b>${esc(p.etiqueta)}:</b> ${esc(p.texto)}</li>`).join('')
     }</ul></div>`;
     return h;
@@ -333,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (nc.renglones) {
-      h += '<div class="cont" style="margin-top:16px">Notas de crédito</div>';
+      h += '<div class="cont pb" style="margin-top:16px">Notas de crédito</div>';
       h += `<div class="metod" style="margin-bottom:8px">Los ${nc.renglones} renglones de nota SÍ están dentro del margen de las
         secciones anteriores, restando venta y utilidad al segmento donde cayeron. Se listan para explicar caídas puntuales de margen.</div>`;
       h += '<table class="rt"><thead><tr><th>Segmento</th><th>Renglones</th><th>Venta reversada</th><th>Utilidad reversada</th></tr></thead><tbody>';
