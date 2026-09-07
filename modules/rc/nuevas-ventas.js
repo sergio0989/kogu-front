@@ -301,20 +301,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     inp.focus();
   }
 
+  // Meses comparables: del piso en adelante. Los del arranque del archivo NO se
+  // ofrecen — ahí todo par es nuevo por definición porque no hay historia
+  // detrás, así que elegir uno sólo produce un número que no significa nada.
+  const desdePiso = serie => {
+    const piso = data?.periodos?.piso_cohortes;
+    return (serie || []).filter(s => !piso || new Date(s.mes) >= new Date(piso));
+  };
+
   function llenarMeses(serie, mesActual) {
     const el = document.getElementById('mesFil');
     if (el.options.length && el.value) return;   // ya está armado
     const piso = data?.periodos?.piso_cohortes;
-    // Se listan del más reciente al más viejo. Los meses anteriores al piso se
-    // marcan: en el arranque del archivo TODO es nuevo por definición y ese mes
-    // no se puede leer como un buen mes comercial.
-    const opts = serie.slice().reverse().map(s => {
-      const k = mesKey(s.mes);
-      const antes = piso && new Date(s.mes) < new Date(piso);
-      return `<option value="${k}">${mesLbl(s.mes)}${antes ? ' · arranque del archivo' : ''}</option>`;
-    }).join('');
+    // "Todos los meses" quita el filtro de fecha: es la vista para revisar de
+    // corrido todo lo que se perdió, sin ir mes por mes.
+    const opts = `<option value="todos">Todos los meses</option>`
+      + desdePiso(serie).reverse().map(s =>
+          `<option value="${mesKey(s.mes)}">${mesLbl(s.mes)}</option>`).join('');
     el.innerHTML = opts;
-    el.value = mesKey(mesActual);
+    el.value = data?.periodos?.todos_los_meses ? 'todos' : mesKey(mesActual);
+    el.title = piso ? `Meses comparables desde ${piso}` : '';
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -325,9 +331,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     llenarOpciones(data.opciones);
     llenarMeses(data.serie, p.mes);
 
+    const todos = !!p.todos_los_meses;
     document.getElementById('metaInfo').innerHTML =
-      `Mes <b>${mesLbl(p.mes)}</b> · datos al ${esc(p.ultimo_dato)}`
+      (todos
+        ? `<b>Todos los meses</b> desde ${esc(p.piso_cohortes)} · datos al ${esc(p.ultimo_dato)}`
+        : `Mes <b>${mesLbl(p.mes)}</b> · datos al ${esc(p.ultimo_dato)}`)
       + (p.mes_en_curso_excluido ? ' · el mes en curso queda fuera (sólo meses cerrados)' : '')
+      + (p.eventos_truncados ? ' · <b>lista recortada</b>: filtra para verla completa' : '')
       + ` · un par se da por perdido si no repite en <b>${cr.seguimiento_meses} meses</b>`
       + ` · vuelve a contar como nueva tras <b>${cr.hueco_meses} meses</b> sin comprar`;
 
@@ -340,15 +350,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderAvisos() {
     const p = data.periodos, con = data.concentracion, pp = data.cobertura_pp;
+    const todos = !!p.todos_los_meses;
     const av = [];
 
     // Un mes donde un renglón se lleva casi todo NO mide ritmo comercial: mide
     // un pedido. Decirlo evita que alguien lea el promedio como cadencia.
     if (con?.avisar) {
       av.push(`<div style="border:1px solid var(--warning,#d97706);border-left:4px solid var(--warning,#d97706);border-radius:10px;padding:10px 12px;font-size:12px">
-        <b>Un solo renglón es el ${pctTxt(con.share_kg)} del volumen nuevo del mes</b> —
+        <b>Un solo renglón es el ${pctTxt(con.share_kg)} del volumen nuevo ${todos ? 'del periodo' : 'del mes'}</b> —
         ${esc(con.cliente_nombre)} / ${esc(con.cve_prod)}, ${kg(con.kg)}.
-        Este mes no mide ritmo comercial, mide un pedido: sin ese par cierra en ${kg(con.kg_sin_top)}.
+        ${todos
+          ? `Un solo par pesa más que todo lo demás junto: sin él el periodo cierra en ${kg(con.kg_sin_top)}.`
+          : `Este mes no mide ritmo comercial, mide un pedido: sin ese par cierra en ${kg(con.kg_sin_top)}.`}
       </div>`);
     }
 
@@ -362,11 +375,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`);
     }
 
-    if (new Date(p.mes) < new Date(p.piso_cohortes)) {
-      av.push(`<div style="border:1px solid var(--line);border-left:4px solid var(--muted,#64748b);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted)">
-        Este mes es anterior al ${esc(p.piso_cohortes)}, el arranque del archivo de ventas.
-        Ahí <b>todo par es nuevo por definición</b> porque no hay historia detrás: el número no se puede
-        comparar con el de un mes normal.
+    if (todos) {
+      av.push(`<div style="border:1px solid var(--line);border-left:4px solid var(--brand,#2563eb);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted)">
+        Sin filtro de fecha: la lista trae <b>todos los eventos desde ${esc(p.piso_cohortes)}</b>, mezclando meses.
+        Cada renglón lleva su mes de nacimiento. Es la vista para revisar de corrido lo que se perdió —
+        combínala con el filtro <b>Perdidas</b>.
       </div>`);
     }
 
@@ -388,7 +401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       miniCard('Ventas nuevas', String(k.nuevas),
         `${k.cliente_nuevo} cliente nuevo${share(k.cliente_nuevo, k.nuevas)} · ${k.venta_cruzada} venta cruzada${share(k.venta_cruzada, k.nuevas)}`),
       miniCard('Volumen nuevo', kg(k.kg),
-        shareVol != null ? `${pctTxt(shareVol)} del volumen del mes` : ''),
+        shareVol != null ? `${pctTxt(shareVol)} del volumen ${data.periodos.todos_los_meses ? 'del periodo' : 'del mes'}` : ''),
       miniCard('Importe', money(k.mxn),
         Number(k.usd) ? `de los cuales ${usd(k.usd)} facturados en dólares` : 'sin facturación en dólares'),
       miniCard('Reactivaciones', String(k.reactivadas),
@@ -408,17 +421,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // aplastaría todas las demás hasta volverlas invisibles. El conteo mide
     // ritmo comercial, que es lo que esta gráfica quiere mostrar; el volumen
     // vive en el tooltip y en los KPI.
-    const vis = s.slice(-24);
-    const piso = data.periodos.piso_cohortes;
+    const vis = desdePiso(s).slice(-24);
+    if (!vis.length) { document.getElementById('serie').innerHTML = '<div class="empty">Sin meses comparables</div>'; return; }
     const max = Math.max(1, ...vis.map(x => Number(x.cliente_nuevo) + Number(x.venta_cruzada)));
     document.getElementById('serie').innerHTML = vis.map(x => {
       const cn = Number(x.cliente_nuevo), vc = Number(x.venta_cruzada), re = Number(x.reactivadas);
       const tot = cn + vc;
       const wc = Math.round(100 * cn / max), wv = Math.round(100 * vc / max);
-      const antes = piso && new Date(x.mes) < new Date(piso);
       const t = `${mesLbl(x.mes)}: ${tot} nuevas (${cn} cliente nuevo, ${vc} cruzada)`
               + `, ${re} reactivaciones, ${kg(x.kg)}, ${money(x.mxn)}`;
-      return `<div style="display:flex;align-items:center;gap:10px;margin:4px 0${antes ? ';opacity:.45' : ''}" title="${esc(t)}">
+      return `<div style="display:flex;align-items:center;gap:10px;margin:4px 0" title="${esc(t)}">
         <div style="width:66px;font-size:12px;color:var(--muted)">${mesLbl(x.mes)}</div>
         <div style="flex:1;display:flex;background:var(--panel2,#f1f5f9);border-radius:6px;overflow:hidden;height:16px">
           <div style="width:${wc}%;background:var(--brand,#2563eb)"></div>
@@ -432,21 +444,23 @@ document.addEventListener('DOMContentLoaded', async () => {
            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--brand,#2563eb)"></span> cliente nuevo</span>
            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--ok,#059669)"></span> venta cruzada</span>
            <span>La barra cuenta EVENTOS, no kilos: un pedido grande deformaría la escala. El volumen va a la derecha.</span>
-           <span>Los meses tenues son anteriores al arranque del archivo.</span>
+           <span>Desde ${esc(data.periodos.piso_cohortes)}: antes de esa fecha no hay historia detrás y todo par sale "nuevo".</span>
          </div>`;
   }
 
   function renderEventos() {
     const segF = sel('segFil');
-    const todos = data.eventos || [];
-    const ev = segF ? todos.filter(e => e.seguimiento === segF) : todos;
+    const todos = !!data.periodos.todos_los_meses;
+    const lista = data.eventos || [];
+    const ev = segF ? lista.filter(e => e.seguimiento === segF) : lista;
 
     document.getElementById('tituloLista').textContent =
-      `Eventos de ${mesLbl(data.periodos.mes)}${segF ? ` · ${SEG[segF].txt.replace(/^[^ ]+ /, '')}` : ''}`;
+      (todos ? `Eventos desde ${data.periodos.piso_cohortes}` : `Eventos de ${mesLbl(data.periodos.mes)}`)
+      + (segF ? ` · ${SEG[segF].txt.replace(/^[^ ]+ /, '')}` : '');
 
     if (!ev.length) {
       document.getElementById('eventos').innerHTML =
-        `<div class="empty">${todos.length ? 'Ningún evento con ese seguimiento' : 'Sin ventas nuevas ni reactivaciones este mes'}</div>`;
+        `<div class="empty">${lista.length ? 'Ningún evento con ese seguimiento' : 'Sin ventas nuevas ni reactivaciones en el periodo'}</div>`;
       return;
     }
 
@@ -459,6 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? `sin repetir · lleva ${e.edad_meses} de ${data.criterio.seguimiento_meses} meses`
             : `nunca repitió · ${e.edad_meses} meses después`);
       return `<tr>
+        ${todos ? `<td style="font-size:12px;color:var(--muted);white-space:nowrap">${mesLbl(e.mes)}</td>` : ''}
         <td><span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:${t.bg}">${t.txt}</span></td>
         <td>
           <div style="font-weight:600">${esc(e.cliente_nombre)}${e.en_catalogo ? '' : ' <span title="No está en el catálogo de clientes" style="color:var(--warning,#d97706);font-size:11px">⚠ sin alta</span>'}</div>
@@ -488,12 +503,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sinAgente = ev.filter(e => !e.agente_nombre).length;
     document.getElementById('eventos').innerHTML = `
       <div class="table-wrap"><table><thead><tr>
-        <th>Tipo</th><th>Cliente</th><th>Agente</th><th>Producto</th>
+        ${todos ? '<th>Mes</th>' : ''}<th>Tipo</th><th>Cliente</th><th>Agente</th><th>Producto</th>
         <th style="text-align:right">kg</th><th style="text-align:right">MXN</th><th style="text-align:right">USD</th>
         <th>PP</th><th>Seguimiento</th>
       </tr></thead><tbody>${ev.map(fila).join('')}</tbody></table></div>
       <div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">
-        ${ev.length} evento(s) · ${kg(sumKg)}${segF ? ` de ${todos.length} en el mes` : ''} ·
+        ${ev.length} evento(s) · ${kg(sumKg)}${segF ? ` de ${lista.length} en ${todos ? 'el periodo' : 'el mes'}` : ''} ·
         ordenados por volumen. El importe en dólares es la porción facturada en esa moneda, no un total aparte.
         ${sinAgente ? `<br><b>${sinAgente} sin agente asignado</b> — no aparecen al filtrar por agente y nadie les da seguimiento.` : ''}
       </div>`;
