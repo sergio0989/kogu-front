@@ -52,10 +52,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
     </div>
 
+    <!--
+      Cliente, producto y línea de PP NO son selects nativos: son 179, 275 y 64
+      opciones. Un desplegable de ese tamaño tapa media pantalla y obliga a
+      buscar a ojo. Cada uno abre un modal con búsqueda; el botón muestra qué
+      está aplicado. El seguimiento sí es un select: son cuatro opciones.
+    -->
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
-      <select class="select" id="clienteFil" style="max-width:280px"><option value="">Todos los clientes</option></select>
-      <select class="select" id="productoFil" style="max-width:240px"><option value="">Todos los productos</option></select>
-      <select class="select" id="sublineaFil" style="max-width:240px"><option value="">Todas las líneas de PP</option></select>
+      <button class="btn" id="clienteBtn" data-picker="cliente" style="max-width:300px">Todos los clientes ▾</button>
+      <button class="btn" id="productoBtn" data-picker="producto" style="max-width:280px">Todos los productos ▾</button>
+      <button class="btn" id="sublineaBtn" data-picker="sublinea" style="max-width:280px">Todas las líneas de PP ▾</button>
       <select class="select" id="segFil" style="max-width:200px">
         <option value="">Todo el seguimiento</option>
         <option value="pendiente">Pendientes de repetir</option>
@@ -132,13 +138,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     perdida:   { txt: '✕ Perdida',  color: 'var(--danger,#dc2626)' },
   };
 
+  // Filtros de cliente / producto / sublínea. Viven aquí y no en el DOM porque
+  // ya no son selects: los pone el modal de búsqueda.
+  const filtros = { cliente: '', producto: '', sublinea: '' };
+  const etiquetas = { cliente: '', producto: '', sublinea: '' };
+
   // ── Carga ───────────────────────────────────────────────────────────────────
   async function cargar(mes = null) {
     const qs = new URLSearchParams();
     if (mes) qs.set('mes', mes);
-    if (sel('clienteFil'))  qs.set('cliente',  sel('clienteFil'));
-    if (sel('productoFil')) qs.set('producto', sel('productoFil'));
-    if (sel('sublineaFil')) qs.set('sublinea', sel('sublineaFil'));
+    if (filtros.cliente)  qs.set('cliente',  filtros.cliente);
+    if (filtros.producto) qs.set('producto', filtros.producto);
+    if (filtros.sublinea) qs.set('sublinea', filtros.sublinea);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/nuevas-ventas?${qs.toString()}`);
       data = res?.data || res;
@@ -149,24 +160,133 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Los selectores se llenan UNA vez, con el universo completo. Si se
-  // repoblaran en cada carga, filtrar por un cliente dejaría la lista de
-  // productos con un solo elemento y ya no se podría cambiar de idea.
-  let opcionesListas = false;
+  // ── Listas de los pickers ───────────────────────────────────────────────────
+  //
+  // Se arman UNA vez, con el universo completo. Si se rearmaran en cada carga,
+  // filtrar por un cliente dejaría la lista de productos con un solo elemento
+  // y ya no se podría cambiar de idea sin limpiar antes.
+  const LISTAS = { cliente: [], producto: [], sublinea: [] };
+  const PICKER = {
+    cliente:  { titulo: 'Cliente',        todos: 'Todos los clientes' },
+    producto: { titulo: 'Producto',       todos: 'Todos los productos' },
+    sublinea: { titulo: 'Línea de PP',    todos: 'Todas las líneas de PP' },
+  };
+  let listasListas = false;
+
   function llenarOpciones(o) {
-    if (opcionesListas || !o) return;
-    const put = (id, items, val, txt) => {
-      const el = document.getElementById(id);
-      el.innerHTML = el.options[0].outerHTML
-        + items.map(x => `<option value="${esc(val(x))}">${esc(txt(x))}</option>`).join('');
+    if (listasListas || !o) return;
+    LISTAS.cliente = (o.clientes || []).map(x => ({
+      value: String(x.cliente_ref), label: x.nombre || String(x.cliente_ref),
+      sub: `clave ${x.cliente_ref}${Number(x.eventos) ? ` · ${x.eventos} evento(s)` : ''}`,
+    }));
+    LISTAS.producto = (o.productos || []).map(x => ({
+      value: x.cve_prod, label: x.cve_prod,
+      sub: x.desc_prod || '', extra: `${Number(x.eventos) ? `${x.eventos} evento(s)` : ''}`,
+    }));
+    LISTAS.sublinea = (o.sublineas || []).map(x => ({
+      value: x.cve_sublinea, label: x.cve_sublinea, sub: x.sublinea_nombre || '',
+    }));
+    listasListas = true;
+    pintarBotones();
+  }
+
+  function pintarBotones() {
+    for (const k of Object.keys(PICKER)) {
+      const btn = document.getElementById(`${k}Btn`);
+      if (!btn) continue;
+      const activo = !!filtros[k];
+      const t = activo ? etiquetas[k] : PICKER[k].todos;
+      btn.textContent = `${t.length > 34 ? `${t.slice(0, 33)}…` : t} ▾`;
+      btn.title = activo ? `${PICKER[k].titulo}: ${etiquetas[k]} — clic para cambiar` : `Filtrar por ${PICKER[k].titulo.toLowerCase()}`;
+      // El filtro activo se ve sin tener que leer: si no, con tres botones que
+      // dicen "Todos" y uno que no, nadie nota cuál está aplicado.
+      btn.style.borderColor = activo ? 'var(--brand,#2563eb)' : '';
+      btn.style.color = activo ? 'var(--brand,#2563eb)' : '';
+      btn.style.fontWeight = activo ? '700' : '';
+    }
+  }
+
+  // Búsqueda sin acentos ni mayúsculas: nadie escribe "Sabores Lácteos" con el
+  // acento puesto, y la lista de PP está llena de ellos.
+  const plano = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  function abrirPicker(clave) {
+    const cfg = PICKER[clave];
+    const items = LISTAS[clave] || [];
+    const html = `
+      <div id="nvPicker" style="position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;padding:48px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
+          <div style="padding:18px 20px 12px;border-bottom:1px solid var(--line)">
+            <div class="row" style="align-items:flex-start">
+              <div><div class="eyebrow">Filtrar por</div><h3 style="margin:2px 0 0">${esc(cfg.titulo)}</h3></div>
+              <button class="btn" id="nvPickerClose">Cerrar ✕</button>
+            </div>
+            <input class="input" id="nvPickerQ" type="text" autocomplete="off"
+                   placeholder="Escribe para buscar — Enter elige el primero"
+                   style="width:100%;margin-top:12px"/>
+            <div id="nvPickerCount" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+          </div>
+          <div id="nvPickerList" style="overflow:auto;padding:8px"></div>
+        </div>
+      </div>`;
+    document.getElementById('nvPicker')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    const modal = document.getElementById('nvPicker');
+    const inp = document.getElementById('nvPickerQ');
+    const lista = document.getElementById('nvPickerList');
+    const cont = document.getElementById('nvPickerCount');
+    const cerrar = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+
+    let visibles = items;
+    const pintar = () => {
+      const q = plano(inp.value.trim());
+      visibles = !q ? items
+        : items.filter(x => plano(x.label).includes(q) || plano(x.sub).includes(q) || plano(x.value).includes(q));
+      cont.textContent = q
+        ? `${visibles.length} de ${items.length} coinciden`
+        : `${items.length} opciones`;
+      const fila = (val, titulo, sub, activo) => `
+        <div data-val="${esc(val)}" style="padding:8px 12px;border-radius:8px;cursor:pointer;${activo ? 'background:rgba(37,99,235,.08)' : ''}">
+          <div style="font-weight:${activo ? '700' : '600'};font-size:13px">${activo ? '✓ ' : ''}${esc(titulo)}</div>
+          ${sub ? `<div style="font-size:11px;color:var(--muted)">${esc(sub)}</div>` : ''}
+        </div>`;
+      lista.innerHTML =
+        fila('', cfg.todos, 'quita este filtro', !filtros[clave])
+        + (visibles.length
+            ? visibles.map(x => fila(x.value, x.label, [x.sub, x.extra].filter(Boolean).join(' · '), filtros[clave] === x.value)).join('')
+            : '<div class="empty" style="padding:16px">Ninguna opción coincide</div>');
+      lista.querySelectorAll('[data-val]').forEach(el => {
+        el.onmouseenter = () => { if (el.style.background === '') el.style.background = 'var(--panel2,#f1f5f9)'; };
+        el.onmouseleave = () => { if (el.style.background === 'var(--panel2, #f1f5f9)') el.style.background = ''; };
+        el.onclick = () => elegir(el.dataset.val);
+      });
     };
-    put('clienteFil', o.clientes, x => x.cliente_ref,
-        x => `${x.nombre}${Number(x.eventos) ? ` (${x.eventos})` : ''}`);
-    put('productoFil', o.productos, x => x.cve_prod,
-        x => `${x.cve_prod}${x.desc_prod ? ` · ${x.desc_prod}` : ''}`);
-    put('sublineaFil', o.sublineas, x => x.cve_sublinea,
-        x => `${x.cve_sublinea}${x.sublinea_nombre ? ` · ${x.sublinea_nombre}` : ''}`);
-    opcionesListas = true;
+
+    const elegir = val => {
+      filtros[clave] = val || '';
+      etiquetas[clave] = val ? (items.find(x => x.value === val)?.label || val) : '';
+      cerrar();
+      pintarBotones();
+      cargar(sel('mesFil'));
+    };
+
+    const onKey = e => {
+      if (e.key === 'Escape') { cerrar(); return; }
+      // Enter elige la primera coincidencia: con una búsqueda que deja un solo
+      // resultado, obligar a apuntar con el mouse es trabajo de más.
+      if (e.key === 'Enter' && document.activeElement === inp) {
+        if (!inp.value.trim()) return;
+        if (visibles.length) elegir(visibles[0].value);
+      }
+    };
+
+    inp.oninput = pintar;
+    document.addEventListener('keydown', onKey);
+    document.getElementById('nvPickerClose').onclick = cerrar;
+    modal.onclick = e => { if (e.target === modal) cerrar(); };
+    pintar();
+    inp.focus();
   }
 
   function llenarMeses(serie, mesActual) {
@@ -447,14 +567,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Eventos de UI ───────────────────────────────────────────────────────────
   document.getElementById('mesFil').onchange = e => cargar(e.target.value);
-  ['clienteFil', 'productoFil', 'sublineaFil'].forEach(id => {
-    document.getElementById(id).onchange = () => cargar(sel('mesFil'));
+  document.querySelectorAll('[data-picker]').forEach(b => {
+    b.onclick = () => abrirPicker(b.dataset.picker);
   });
   // El seguimiento filtra en memoria: es un atributo de los eventos que ya
   // están en pantalla, no hace falta volver a pedir el mes.
   document.getElementById('segFil').onchange = renderEventos;
   document.getElementById('limpiarBtn').onclick = () => {
-    ['clienteFil', 'productoFil', 'sublineaFil', 'segFil'].forEach(id => { document.getElementById(id).value = ''; });
+    Object.keys(filtros).forEach(k => { filtros[k] = ''; etiquetas[k] = ''; });
+    document.getElementById('segFil').value = '';
+    pintarBotones();
     cargar(sel('mesFil'));
   };
   document.getElementById('comoBtn').onclick = openComo;
