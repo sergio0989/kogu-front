@@ -170,7 +170,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function secIndice(d) {
     const filas = [
       ['Sección 1 · Panorama del periodo', 'Mes y acumulado'],
-      ['Sección 2 · Utilidad por segmento', 'Mes y acumulado'],
+      ['Sección 2 · Utilidad por segmento — resultado del mes', PER],
+      ['Sección 2 · Utilidad por segmento — acumulado', ACUM],
       ['Sección 3 · Contribución por grupo de cliente', 'Acumulado'],
       d.apertura ? [`Sección 4 · Apertura del segmento «${d.apertura.nombre}»`, 'Acumulado'] : null,
       ['Sección 5 · Evolución del margen por segmento', ACUM],
@@ -208,33 +209,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     return h;
   }
 
-  function secSegmentos(d) {
-    const a = d.totales.acum; const m = d.totales.mes;
-    let h = band(2, 'Utilidad por segmento', 'Mes y acumulado', `${PER} · ${ACUM}`, true);
-    h += `<table class="rt wide"><thead>
-      <tr><th rowspan="2">Segmento</th>
-          <th colspan="3" style="text-align:center;border-bottom:1px solid rgba(255,255,255,.25)">${esc(PER)}</th>
-          <th colspan="5" style="text-align:center;border-bottom:1px solid rgba(255,255,255,.25)">Acumulado ${esc(ACUM)}</th></tr>
-      <tr><th>Ventas</th><th>Utilidad</th><th>Margen</th>
-          <th>Ventas</th><th>% vta</th><th>Utilidad</th><th>Margen</th><th>Prom. s/factura</th></tr></thead><tbody>`;
-    for (const s of d.segmentos) {
-      const sm = s.mes; const sa = s.acum;
-      // La marca de dispersión no es un juicio: dice dónde el promedio simple
-      // exagera (▲) o subestima (▼) el margen real por el tamaño de las facturas.
-      const disp = s.dispersion_alta
+  // Sección 2: DOS tablas, una por alcance, con las mismas columnas que el
+  // reporte de origen — participación en ventas, en costo y en utilidad, y el
+  // promedio por factura. Antes iban mes y acumulado en una sola tabla ancha, y
+  // no cabían las tres participaciones; separarlas las devuelve.
+  //
+  // Se conserva "Margen" junto al promedio por factura: es la columna que el
+  // origen no tenía y la única que cuadra con el estado de resultados. Quitarla
+  // por parecerse más al Excel sería deshacer lo que este informe vino a
+  // corregir.
+  function tablaSegmentos(d, alcance) {
+    const T = alcance === 'mes' ? d.totales.mes : d.totales.acum;
+    if (!T || !T.ventas) {
+      return '<div class="aviso">Sin ventas costeadas en el periodo.</div>';
+    }
+    const filas = d.segmentos.map((s) => {
+      const c = alcance === 'mes' ? s.mes : s.acum;
+      // Un segmento sin venta en el mes se muestra con rayas, no se omite: así
+      // las dos tablas tienen las mismas filas en el mismo orden y se pueden
+      // leer una contra otra sin buscar.
+      if (!c || !c.ventas) {
+        return `<tr><td>${esc(s.nombre)}</td>${'<td>—</td>'.repeat(8)}</tr>`;
+      }
+      const disp = alcance === 'acum' && s.dispersion_alta
         ? ` <span class="${s.dispersion_pp > 0 ? 'neg' : 'pos'}">${s.dispersion_pp > 0 ? '▲' : '▼'}${Math.abs(s.dispersion_pp).toFixed(1)}</span>`
         : '';
-      h += `<tr><td>${esc(s.nombre)}</td>
-        <td>${sm ? mon(sm.ventas) : '—'}</td><td>${sm ? mon(sm.utilidad) : '—'}</td>
-        <td class="${sm ? cls(sm.margen) : ''}">${sm ? pc(sm.margen) : '—'}</td>
-        <td>${mon(sa.ventas)}</td><td>${pc(s.pct_venta)}</td><td>${mon(sa.utilidad)}</td>
-        <td class="${cls(sa.margen)}"><b>${pc(sa.margen)}</b></td>
-        <td>${pc(sa.prom_simple)}${disp}</td></tr>`;
-    }
-    h += `<tr class="tot"><td>Total operación</td>
-      <td>${m ? mon(m.ventas) : '—'}</td><td>${m ? mon(m.utilidad) : '—'}</td><td>${m ? pc(m.margen, 2) : '—'}</td>
-      <td>${mon(a.ventas)}</td><td>100.0%</td><td>${mon(a.utilidad)}</td><td>${pc(a.margen, 2)}</td>
-      <td>${pc(a.prom_simple)}</td></tr></tbody></table>`;
+      return `<tr><td>${esc(s.nombre)}</td>
+        <td>${mon(c.ventas)}</td><td>${pc(c.ventas / T.ventas, 2)}</td>
+        <td>${mon(c.costo_integrado)}</td><td>${pc(c.costo_integrado / T.costo_integrado, 2)}</td>
+        <td>${mon(c.utilidad)}</td><td>${pc(c.utilidad / T.utilidad, 2)}</td>
+        <td class="${cls(c.margen)}"><b>${pc(c.margen)}</b></td>
+        <td>${pc(c.prom_simple)}${disp}</td></tr>`;
+    }).join('');
+
+    return `<table class="rt wide"><thead><tr>
+        <th>Segmento</th><th>Ventas</th><th>% Ventas</th>
+        <th>Costo integrado</th><th>% Costo</th>
+        <th>Utilidad</th><th>% Utilidad</th>
+        <th>Margen</th><th>Prom. s/factura</th></tr></thead><tbody>
+      ${filas}
+      <tr class="tot"><td>Total operación</td>
+        <td>${mon(T.ventas)}</td><td>100.00%</td>
+        <td>${mon(T.costo_integrado)}</td><td>100.00%</td>
+        <td>${mon(T.utilidad)}</td><td>100.00%</td>
+        <td>${pc(T.margen, 2)}</td><td>${pc(T.prom_simple)}</td></tr>
+      </tbody></table>`;
+  }
+
+  function secSegmentos(d) {
+    const a = d.totales.acum;
+    let h = band(2, 'Utilidad por segmento', 'Mes y acumulado', `${PER} · ${ACUM}`, true);
+
+    h += `<div class="cont">Resultado del mes · ${esc(PER)}</div>`;
+    h += tablaSegmentos(d, 'mes');
+    h += `<div class="leyenda">Las tres columnas de porcentaje son <i>participación</i> —cuánto del total aporta cada segmento— y suman 100%. <i>Margen</i> es utilidad entre ventas del propio segmento.</div>`;
+
+    h += `<div class="cont pb" style="margin-top:16px">Acumulado del ejercicio · ${esc(ACUM)}</div>`;
+    h += tablaSegmentos(d, 'acum');
     h += `<div class="leyenda">Color del margen: <i class="pos">verde</i> igual o mejor que el margen de la casa (${pc(CASA, 2)}) · sin color entre ${pc(BAJO)} y ese umbral · <i class="neg">rojo</i> por debajo de ${pc(BAJO)}.</div>`;
     h += `<div class="aviso"><b>Sobre la columna «Prom. s/factura».</b> Es el promedio simple del margen renglón por renglón:
       pondera igual una factura de mil pesos y una de diez millones, por eso no suma al total
