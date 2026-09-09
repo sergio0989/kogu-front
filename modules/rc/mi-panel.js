@@ -334,6 +334,29 @@ document.addEventListener('DOMContentLoaded', async () => {
          + `12 meses: <b style="color:${col}">${pct}</b> · ${fmtVal(act)} vs ${fmtVal(prv)}</div>`;
   }
 
+
+  // Estado del producto dentro de la tarjeta. Son dos cosas distintas y antes
+  // se veían iguales:
+  //
+  //   pausa      — no compró en el bimestre, pero SIGUE comprando en el año.
+  //   abandonado — cero en el bimestre y cero en los doce meses.
+  //
+  // Medido en ADGM antes de separarlos: de 41 etiquetas rojas, 23 eran falsas
+  // —164,788 kg de volumen vivo dado por perdido— y 19 de 30 tarjetas tenían
+  // al menos una. La fecha de última compra va al lado porque el volumen solo
+  // no basta: 8,685 kg hace diez meses y 550 kg el mes pasado no son la misma
+  // conversación.
+  const estadoProd = p => {
+    if (p.estado === 'abandonado' || (p.estado == null && p.abandonado)) {
+      return ' <span style="color:var(--danger,#dc2626);font-weight:600" title="Sin compra en el bimestre y sin compra en los últimos 12 meses">·abandonado</span>';
+    }
+    if (p.estado !== 'pausa') return '';
+    const u = p.ultima_venta ? ` · última ${KoguUi.fmtDate(p.ultima_venta).split(',')[0]}` : '';
+    const m = Number(p.meses_12m) ? ` · ${p.meses_12m} de 12 meses` : '';
+    return ` <span style="color:var(--warning,#d97706);font-weight:600" title="No compró en el bimestre, pero sigue comprando dentro de los últimos 12 meses">·pausa</span>`
+         + `<span style="color:var(--muted)">${u}${m}</span>`;
+  };
+
   const BASE_TXT = { yoy: 'vs año pasado', secuencial: 'vs periodo anterior' };
   // Rango legible de una ventana con extremos INCLUSIVOS (act_/yoy_).
   const rangoIncl = (d, h) => {
@@ -421,7 +444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         .slice(0, 6).map(pr => {
         const v1 = esDinero() ? pr.importe_p1 : pr.cant_p1, v2 = esDinero() ? pr.importe_p2 : pr.cant_p2, dl = esDinero() ? pr.delta_importe : pr.delta_cantidad;
         return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
-          <span style="color:var(--muted)">${pr.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(pr.desc_prod || '')}${pr.abandonado ? ' <span style="color:var(--danger,#dc2626);font-weight:600">·abandonado</span>' : ''}</span>
+          <span style="color:var(--muted)">${pr.cve_prod ? `<span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span> ` : ''}${KoguUi.escapeHtml(pr.desc_prod || '')}${estadoProd(pr)}</span>
           <span>${fmtVal(v1)} → ${fmtVal(v2)} <b style="color:var(--danger,#dc2626)">${fmtPctCap(dl)}</b></span>
         </div>`;
       }).join('');
