@@ -351,7 +351,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return ' <span style="color:var(--danger,#dc2626);font-weight:600" title="Sin compra en el bimestre y sin compra en los últimos 12 meses">·abandonado</span>';
     }
     if (p.estado !== 'pausa') return '';
-    const u = p.ultima_venta ? ` · última ${KoguUi.fmtDate(p.ultima_venta).split(',')[0]}` : '';
+    // fmtDateOnly y NO fmtDate: `ultima_venta` viaja dentro del json_agg de la
+    // consulta, así que llega como texto "YYYY-MM-DD". fmtDate hace
+    // new Date(cadena), que JS lee como medianoche UTC, y al renderizar en
+    // horario de México retrocede un día: el 23 de marzo se veía como 22.
+    // fmtDateOnly lee la cadena con regex y no toca zonas horarias.
+    const u = p.ultima_venta ? ` · última ${KoguUi.fmtDateOnly(p.ultima_venta)}` : '';
     const m = Number(p.meses_12m) ? ` · ${p.meses_12m} de 12 meses` : '';
     return ` <span style="color:var(--warning,#d97706);font-weight:600" title="No compró en el bimestre, pero sigue comprando dentro de los últimos 12 meses">·pausa</span>`
          + `<span style="color:var(--muted)">${u}${m}</span>`;
