@@ -79,13 +79,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   table.mx td .sn { font-weight:700; }
   table.mx td .sv { font-size:10px; color:#64748b; }
   table.mx td.vacio { background:#fafafa; color:#94a3b8; }
+  /* Transpuesta: la primera columna es la línea y se queda fija al hacer scroll,
+     porque con 22 líneas se pierde de vista cuál se está editando. */
+  table.mx th.ln { position:sticky; left:0; z-index:2; min-width:190px; background:#0e7490; }
+  table.mx thead th { position:sticky; top:0; z-index:3; }
+  table.mx thead th.ln { z-index:4; }
+  table.mx th.ln .lc { font-weight:400; opacity:.75; font-size:10px; }
+  table.mx tbody tr.resto th.ln, table.mx tbody tr.resto td { background:#f8fafc; }
+  .mxwrap { overflow:auto; max-height:70vh; border:1px solid #e2e8f0; border-radius:6px; }
   table.sp { width:100%; border-collapse:collapse; font-size:12px; }
   table.sp th { background:#f1f5f9; color:#334155; padding:5px 8px; text-align:right; font-size:10.5px; }
   table.sp th:first-child, table.sp th:nth-child(2) { text-align:left; }
   table.sp td { padding:4px 8px; text-align:right; border-bottom:1px solid #eef2f6; white-space:nowrap; }
   table.sp td:first-child, table.sp td:nth-child(2) { text-align:left; white-space:normal; }
   table.sp select { font-size:11px; padding:2px 4px; }
-  .pie { position:sticky; bottom:0; background:#0f172a; color:#fff; padding:10px 14px; border-radius:10px;
+  /* z-index por encima de los encabezados pegajosos de la matriz (z 2-4): la
+     barra de Guardar no puede quedar tapada por una columna de la tabla. */
+  .pie { position:sticky; bottom:0; z-index:20; background:#0f172a; color:#fff; padding:10px 14px; border-radius:10px;
          display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:14px; }
   .pie .txt { font-size:12.5px; }
   .pie .txt b { color:#5eead4; }
@@ -148,6 +158,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>`;
   }
 
+  // La matriz, con las LÍNEAS como renglones y los grupos como columnas.
+  //
+  // Antes iba al revés, y funcionaba: eran 5 grupos × 5 familias. Con el
+  // catálogo por línea del presupuesto son 5 × 22, y 22 columnas de campos de
+  // texto no se pueden usar — hay que hacer scroll horizontal para leer el
+  // nombre de la columna que se está editando. Transpuesta se lee de arriba
+  // abajo como cualquier lista, y la columna de la línea se queda fija.
   function pintarMatriz() {
     const gs = CAT.grupos, fs = CAT.familias;
     const celda = (g, f) => {
@@ -162,14 +179,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="sv">${m.peso.renglones ? `${mon(m.peso.ventas)} · ${pc(m.peso.margen)}` : 'sin venta'}</div>
       </td>`;
     };
+    // Las líneas con venta primero: son las que alguien va a querer nombrar.
+    // Las de cero existen para que ningún renglón futuro quede fuera, pero no
+    // tienen por qué estorbar arriba.
+    const peso = (f) => CAT.matriz
+      .filter((x) => x.familia_clave === f.clave)
+      .reduce((t, x) => t + (Number(x.peso.ventas) || 0), 0);
+    const orden = fs.slice().sort((a, b) => {
+      if (a.es_resto !== b.es_resto) return a.es_resto ? 1 : -1;
+      return Math.abs(peso(b)) - Math.abs(peso(a));
+    });
+
     return `<div class="card"><h3 style="margin-top:0">La matriz</h3>
       <p class="muted" style="font-size:12.5px;margin-top:0">
-        Cada celda es el nombre con el que se publica esa combinación. Varias celdas pueden compartir
-        nombre — así es como todo lo que no tiene segmento propio termina en «Otro».
+        Un renglón por línea de producto, una columna por grupo de cliente. Cada celda es el nombre
+        con el que se publica esa combinación. Varias celdas pueden compartir nombre — así es como
+        todo lo que no amerita segmento propio termina en «Otro».
         Las combinaciones sin venta se muestran igual: existen para que ningún renglón futuro quede fuera.</p>
-      <div style="overflow-x:auto"><table class="mx">
-      <thead><tr><th>Grupo \\ Familia</th>${fs.map((f) => `<th class="rot">${esc(f.nombre)}</th>`).join('')}</tr></thead>
-      <tbody>${gs.map((g) => `<tr><th>${esc(g.nombre)}</th>${fs.map((f) => celda(g, f)).join('')}</tr>`).join('')}</tbody>
+      <div class="mxwrap"><table class="mx">
+      <thead><tr><th class="ln">Línea \\ Grupo</th>${
+        gs.map((g) => `<th class="rot">${esc(g.etiqueta_corta || g.nombre)}</th>`).join('')}</tr></thead>
+      <tbody>${orden.map((f) => `<tr${f.es_resto ? ' class="resto"' : ''}>
+        <th class="ln">${esc(f.nombre)}<div class="lc">${esc(f.clave)}${f.es_resto ? ' · respaldo' : ''} · ${mon(peso(f))}</div></th>
+        ${gs.map((g) => celda(g, f)).join('')}</tr>`).join('')}</tbody>
       </table></div></div>`;
   }
 
@@ -187,13 +219,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<div class="card"><h3 style="margin-top:0">Lo que hoy cae al respaldo</h3>
       <p class="muted" style="font-size:12.5px;margin-top:0">
         Esta venta no empata con ningún patrón, así que se informa dentro del segmento residual.
-        No es un error —el mercado abierto vive aquí— pero un cliente o una familia grande en esta
-        lista es venta que Dirección lee como «Otro». Asignarla es el trabajo de esta pantalla.</p>
+        No es un error —el mercado abierto vive aquí— pero un cliente o un producto grande en esta
+        lista es venta que Dirección lee como «Otro».</p>
+      <p class="muted" style="font-size:12.5px;margin-top:0">
+        Los dos lados se arreglan en lugares distintos. Un <b>cliente</b> sin grupo se asigna aquí.
+        Un <b>producto</b> normalmente está aquí porque no tiene ClavePP capturada en Radar Comercial:
+        asignarla allá lo saca del residual sin tocar este catálogo, y es lo que conviene hacer. El
+        selector de abajo existe para la excepción — un producto que de verdad no pertenece a ninguna
+        línea del presupuesto.</p>
       <div class="cat-grid">
         <div><div class="eyebrow" style="margin-bottom:6px">Clientes sin grupo</div>
           <table class="sp"><thead><tr><th>Clave</th><th>Cliente</th><th>Ventas</th><th>Margen</th><th>Asignar a</th></tr></thead>
           <tbody>${CAT.sin_patron.clientes.map((x) => fila(x, 'cliente')).join('') || '<tr><td colspan="5">Ninguno.</td></tr>'}</tbody></table></div>
-        <div><div class="eyebrow" style="margin-bottom:6px">Productos sin familia</div>
+        <div><div class="eyebrow" style="margin-bottom:6px">Productos sin línea (normalmente, sin ClavePP)</div>
           <table class="sp"><thead><tr><th>Clave</th><th>Producto</th><th>Ventas</th><th>Margen</th><th>Asignar a</th></tr></thead>
           <tbody>${CAT.sin_patron.productos.map((x) => fila(x, 'producto')).join('') || '<tr><td colspan="5">Ninguno.</td></tr>'}</tbody></table></div>
       </div></div>`;
@@ -248,7 +286,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('cuerpo').innerHTML = `
       <div class="card"><div class="cat-grid">
         <div><h3 style="margin-top:0">Grupos de cliente</h3>${CAT.grupos.map(pintarDim).join('')}</div>
-        <div><h3 style="margin-top:0">Familias de producto</h3>${CAT.familias.map(pintarDim).join('')}</div>
+        <div><h3 style="margin-top:0">Líneas de producto</h3>
+          <p class="muted" style="font-size:12px;margin:-4px 0 10px">
+            Las líneas y sus ClavePP vienen del presupuesto de producto que mantiene Radar Comercial.
+            Se pueden editar aquí, pero lo que se cambie en esta pantalla no vuelve a Radar: si una
+            ClavePP está en la línea equivocada, el arreglo va en Radar y llega solo.</p>
+          ${CAT.familias.map(pintarDim).join('')}</div>
       </div></div>
       ${pintarMatriz()}
       ${pintarSinPatron()}

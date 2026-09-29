@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const b = await KoguShell.initShell({
     currentPage: PAGE,
     title: 'Utilidad por segmento',
-    description: 'Utilidad por segmento de negocio (grupo de cliente × familia de producto), del mes y acumulada, sobre costo integrado ABC. Lista para imprimir o guardar como PDF.',
+    description: 'Utilidad por segmento de negocio (grupo de cliente × línea del presupuesto de producto), del mes y acumulada, sobre costo integrado ABC. Lista para imprimir o guardar como PDF.',
     requiredPermission: PERM,
   });
   if (!b) return;
@@ -70,19 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .band h2 { margin:0; font-size:16px; }
   #reporte .band .bsub { font-size:16px; color:#a5f3fc; margin-top:3px; font-weight:700; letter-spacing:.2px; }
   #reporte .band .n { font-size:11.5px; font-weight:800; opacity:.7; letter-spacing:.8px; text-transform:uppercase; white-space:nowrap; }
-  #reporte .idx { border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; margin-top:14px; }
-  #reporte .idx h4 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
-  #reporte .idx table.rt td { border-bottom:0; padding:3px 0; }
-  #reporte .idx table.rt td:nth-child(2) { text-align:right; color:#64748b; }
   #reporte .cont { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.6px; border-bottom:1px solid #e2e8f0; padding-bottom:5px; }
-  #reporte .kgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-  #reporte .kc { background:#f1f5f9; border-radius:8px; padding:12px 14px; }
-  #reporte .kc.dark { background:#0e7490; color:#fff; }
-  #reporte .kc .l { font-size:11px; color:#64748b; }
-  #reporte .kc.dark .l { color:#cbd5e1; }
-  #reporte .kc .v { font-size:19px; font-weight:800; margin-top:3px; }
-  #reporte .kc .s { font-size:11px; font-weight:700; color:#059669; margin-top:2px; }
-  #reporte .kc.dark .s { color:#5eead4; }
   #reporte table.rt { width:100%; border-collapse:collapse; font-size:12px; }
   #reporte table.rt th { background:#0e7490; color:#fff; padding:6px 8px; text-align:right; font-size:10.5px; font-weight:700; white-space:nowrap; }
   #reporte table.rt th:first-child { text-align:left; }
@@ -94,6 +82,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte table.rt.wide { font-size:10.5px; }
   #reporte table.rt.wide td, #reporte table.rt.wide th { padding:4px 5px; }
   #reporte table.rt.txt3 td:nth-child(-n+3), #reporte table.rt.txt3 th:nth-child(-n+3) { text-align:left; white-space:normal; }
+  #reporte table.rt.txt2 td:nth-child(-n+2), #reporte table.rt.txt2 th:nth-child(-n+2) { text-align:left; white-space:normal; }
+  #reporte table.rt.txt2 td:first-child { white-space:nowrap; font-variant-numeric:tabular-nums; }
   #reporte .sub { font-size:9.5px; color:#64748b; font-weight:400; }
   #reporte .neg { color:#dc2626; }
   #reporte .pos { color:#059669; font-weight:700; }
@@ -108,7 +98,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte .leyenda { font-size:10px; color:#64748b; margin-top:6px; }
   #reporte .leyenda i { font-style:normal; font-weight:700; }
   #reporte .metod { font-size:10.5px; color:#64748b; font-style:italic; margin-top:6px; }
-  #reporte .bsub2 { font-size:11px; color:#64748b; font-weight:700; margin:-2px 0 8px; }
 
   @media print {
     @page { size: letter; margin: 20mm 0 16mm; }
@@ -124,11 +113,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     #reporte table.rt td:first-child { overflow-wrap:anywhere; }
     #reporte .pb { page-break-before: always; padding-top: 6mm; }
     #reporte .band.pb { padding-top:12px; margin-top:6mm; }
-    #reporte tr, #reporte .kc, #reporte .band, #reporte ul.res li { page-break-inside: avoid; }
+    #reporte tr, #reporte .band, #reporte ul.res li { page-break-inside: avoid; }
+    /* Con el catálogo por línea del PP la tabla de segmentos pasó de 14 a ~31
+       renglones y ya no cabe en una hoja. Sin esto, la hoja 2 de una tabla sale
+       sin encabezados y las columnas de cifras quedan sin nombre — nueve
+       columnas de números sin título no se pueden leer. */
+    #reporte table.rt thead { display: table-header-group; }
+    #reporte table.rt tfoot { display: table-footer-group; }
+    /* El renglón de total no puede quedarse solo al inicio de una hoja. */
+    #reporte tr.tot { page-break-before: avoid; }
     /* Un .cont con salto es el encabezado de una hoja nueva: sin este margen
        queda pegado al borde superior, donde @page ya no puede empujarlo. */
     #reporte .cont.pb { margin-top: 0 !important; }
-    #reporte .kgrid { page-break-inside: avoid; }
     /* Una banda de sección al pie, sin su contenido, es un encabezado colgado. */
     #reporte .band, #reporte h4, #reporte .narr h3, #reporte .cont { page-break-after: avoid; }
   }
@@ -156,7 +152,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sub = alcance ? `<div class="bsub">${esc(alcance)}${periodo ? ' · ' + esc(periodo) : ''}</div>` : '';
     return `<div class="band${pb ? ' pb' : ''}"><div><h2>${esc(title)}</h2>${sub}</div><span class="n">Sección ${n}</span></div>`;
   };
-  const kc = (l, v, s, dark) => `<div class="kc${dark ? ' dark' : ''}"><div class="l">${esc(l)}</div><div class="v">${v}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
 
   function secEncabezado(d) {
     const emp = (d.empresa && (d.empresa.razon_social || d.empresa.nombre_corto)) || 'Empresa';
@@ -167,43 +162,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="font-size:10px;color:#94a3b8">Reporte para Dirección</div></div></div>`;
   }
 
-  function secIndice(d) {
-    const filas = [
-      ['Sección 1 · Panorama del periodo', 'Mes y acumulado'],
-      ['Sección 2 · Utilidad por segmento — resultado del mes', PER],
-      ['Sección 2 · Utilidad por segmento — acumulado', ACUM],
-      ['Sección 3 · Contribución por grupo de cliente', 'Acumulado'],
-      d.apertura ? [`Sección 4 · Apertura del segmento «${d.apertura.nombre}»`, 'Acumulado'] : null,
-      ['Sección 5 · Evolución del margen por segmento', ACUM],
-      ['Sección 6 · Partidas fuera del margen: muestras y notas', 'Acumulado'],
-      ['Sección 7 · Conclusiones y metodología', '—'],
-    ].filter(Boolean);
-    return `<div class="idx"><h4>Contenido</h4><table class="rt">${
-      filas.map(([a, c]) => `<tr><td>${esc(a)}</td><td>${esc(c)}</td></tr>`).join('')
-    }</table><div class="metod">Cada sección declara en su encabezado si informa el mes que se cierra o el acumulado del ejercicio.</div></div>`;
-  }
-
-  function secPanorama(d) {
-    const m = d.totales.mes; const a = d.totales.acum;
-    let h = band(1, 'Panorama del periodo', 'Mes y acumulado', `${PER} · ${ACUM}`);
-    h += '<div class="cont">Resultado del mes</div><div class="kgrid" style="margin-top:8px">';
-    if (m && m.ventas) {
-      h += kc('Venta del mes', mon(m.ventas), `${num(m.facturas)} facturas · ${num(m.kilos)} kg`);
-      h += kc('Costo integrado', mon(m.costo_integrado), `${pc(m.costo_pct)} de la venta`);
-      h += kc('Utilidad del mes', mon(m.utilidad), `margen ${pc(m.margen, 2)}`, true);
-    } else {
-      h += kc('Venta del mes', '—', 'Sin ventas costeadas en el mes');
-      h += kc('Costo integrado', '—', '');
-      h += kc('Utilidad del mes', '—', '', true);
-    }
-    h += '</div>';
-    h += '<div class="cont" style="margin-top:14px">Acumulado del ejercicio</div><div class="kgrid" style="margin-top:8px">';
-    h += kc('Venta acumulada', mon(a.ventas), `${num(a.facturas)} facturas · ${d.periodo.meses_acumulados} meses`);
-    h += kc('Costo integrado', mon(a.costo_integrado), `${pc(a.costo_pct)} de la venta`);
-    h += kc('Utilidad acumulada', mon(a.utilidad), `margen ${pc(a.margen, 2)}`, true);
-    h += '</div>';
-    h += `<div class="narr pb"><h3>Resumen ejecutivo</h3>
-      <div class="bsub2">${esc(PER)} · ${esc(ACUM)}</div><ul class="res">${
+  // Sección 1: el resumen ejecutivo, solo. Antes vivía dentro de "Panorama del
+  // periodo", debajo de seis tarjetas que repetían cifras que las tablas de la
+  // Sección 2 ya dan con más detalle. Dirección pidió quitar el panorama; las
+  // viñetas se quedan porque son lo que de verdad se lee, y ahora abren el
+  // informe en vez de colgar de una sección que ya no existe.
+  function secResumen(d) {
+    let h = band(1, 'Resumen ejecutivo', 'Mes y acumulado', `${PER} · ${ACUM}`);
+    h += `<div class="narr"><ul class="res">${
       d.narrativa.resumen.map((p) => `<li><b>${esc(p.etiqueta)}:</b> ${esc(p.texto)}</li>`).join('')
     }</ul></div>`;
     return h;
@@ -272,7 +238,56 @@ document.addEventListener('DOMContentLoaded', async () => {
       (${pc(a.prom_simple, 2)} contra el margen real de ${pc(a.margen, 2)}). Se conserva para comparar contra el archivo de trabajo,
       pero la cifra que cuadra con el estado de resultados es <b>Margen</b>. Se marcan con ▲ los segmentos donde el promedio simple
       se separa más de ${d.umbrales.dispersion_pp} puntos: ahí hay facturas grandes con margen distinto al del resto del segmento.</div>`;
+    h += plegados(d);
     return h;
+  }
+
+  // Qué es el renglón «Otro» y qué se juntó dentro de él.
+  //
+  // Hacen falta las dos cosas. El residual ya no es un bloque de negocio: es la
+  // venta sin ClavePP asignada, casi toda ajustes de precio sin costo, así que
+  // su margen ronda el 100% y en una tabla donde todo lo demás va entre 7% y
+  // 40% ese renglón salta a la vista y hay que poder explicarlo en la junta.
+  //
+  // Y lo plegado se declara porque una cifra que se movió sin decirlo es una
+  // cifra que alguien va a tener que rastrear después: la pregunta "¿y dónde
+  // quedó tal línea?" no tiene buena respuesta improvisada.
+  function plegados(d) {
+    const p = d.plegados || [];
+    const r = d.segmentos.find((x) => x.clave === 'OTRO');
+    if (!p.length && !r) return '';
+
+    let h = '<div class="aviso info">';
+    if (r && r.acum && r.acum.ventas) {
+      h += `<b>Sobre el renglón «${esc(r.nombre)}».</b> Es la venta que todavía no tiene ClavePP
+        asignada en Radar Comercial — ${mon2(r.acum.ventas)}, ${pc(r.pct_venta, 2)} del ejercicio, en
+        ${num(r.productos)} ${r.productos === 1 ? 'producto' : 'productos'}. No es un segmento de negocio
+        y su margen no es comparable con el de los demás: son en su mayoría ajustes de precio, que
+        entran sin costo. Asignarles ClavePP los reparte solo, sin tocar el catálogo de segmentos. `;
+    }
+    if (p.length) {
+      const t = p.reduce((x, y) => x + (Number(y.ventas) || 0), 0);
+      const lista = p
+        .slice()
+        .sort((x, y) => Math.abs(Number(y.ventas) || 0) - Math.abs(Number(x.ventas) || 0))
+        .map((x) => `${esc(x.nombre)} (${mon2(x.ventas)})`)
+        .join(' · ');
+      h += `<b>Combinaciones sin materialidad.</b>
+        ${p.length === 1 ? 'Una combinación' : `${num(p.length)} combinaciones`} de grupo × línea
+        ${p.length === 1 ? 'vendió' : 'vendieron'} menos de ${mon(d.umbrales.materialidad_min)} en el
+        ejercicio y se ${p.length === 1 ? 'informa' : 'informan'} dentro de ese renglón en vez de ocupar
+        uno propio — ${mon2(t)} en total. ${lista}.`;
+    }
+    return `${h}</div>`;
+  }
+
+  // Con el catálogo por línea del PP, "Mercado abierto" llega a ~16 segmentos y
+  // la lista completa convierte el renglón del grupo en un párrafo. Se acota: el
+  // detalle está en la Sección 2 y esta línea sólo sitúa de qué se compone.
+  function listaSegmentos(xs) {
+    const a = xs || [];
+    if (a.length <= 6) return a.join(', ');
+    return `${a.slice(0, 6).join(', ')} y ${a.length - 6} más`;
   }
 
   function secGrupos(d) {
@@ -281,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     h += `<table class="rt"><thead><tr><th>Grupo de cliente</th><th>Clientes</th><th>Ventas</th><th>% vta</th>
       <th>Utilidad</th><th>% util.</th><th>Margen</th><th>Índice</th></tr></thead><tbody>`;
     for (const g of d.grupos) {
-      h += `<tr><td>${esc(g.nombre)}<div class="sub">${esc((g.segmentos || []).join(', '))}</div></td>
+      h += `<tr><td>${esc(g.nombre)}<div class="sub">${esc(listaSegmentos(g.segmentos))}</div></td>
         <td>${num(g.clientes)}</td><td>${mon(g.acum.ventas)}</td><td>${pc(g.pct_venta)}</td>
         <td>${mon(g.acum.utilidad)}</td><td>${pc(g.pct_utilidad)}</td>
         <td class="${cls(g.acum.margen, 2)}"><b>${pc(g.acum.margen, 2)}</b></td>
@@ -293,22 +308,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     return h;
   }
 
+  // Sección 4: abre los segmentos mayores por sublínea del PP.
+  //
+  // Reemplaza la apertura del residual por cliente. Esa sección existía porque
+  // el residual era un tercio del negocio en una sola línea; con el catálogo por
+  // línea del PP el residual es una fracción de punto y lo que hay que explicar
+  // es otra cosa: de dónde sale el margen de los segmentos grandes.
+  //
+  // La apertura cuadra por construcción —es el siguiente nivel de la misma
+  // taxonomía que define el segmento—, así que no hay renglón de "resto" ni
+  // diferencia que justificar. Por eso el total de cada tabla es el propio
+  // segmento y se puede leer contra la Sección 2 sin sumar nada.
   function secApertura(d) {
     const o = d.apertura;
-    if (!o) return '';
-    let h = band(4, `Apertura del segmento «${o.nombre}»`, 'Acumulado', ACUM, true);
-    h += `<div class="aviso info">«${esc(o.nombre)}» concentra <b>${mon2(o.total.ventas)}</b> — ${pc(o.pct_compania)} de la venta del ejercicio —
-      repartidos en <b>${num(o.n_clientes)} clientes</b> y <b>${num(o.n_productos)} productos</b>. Sin abrirlo, esa parte del negocio
-      queda como una sola línea. Los diez clientes principales explican ${pc(o.top_pct)} del segmento.</div>`;
-    h += `<table class="rt"><thead><tr><th>Cliente</th><th>Ventas</th><th>% del segmento</th><th>Utilidad</th><th>Margen</th></tr></thead><tbody>`;
-    for (const t of o.top) {
-      h += `<tr><td>${esc(t.nombre || t.clave)}</td><td>${mon(t.ventas)}</td><td>${pc(t.pct_segmento)}</td>
-        <td>${mon(t.utilidad)}</td><td class="${cls(t.margen)}"><b>${pc(t.margen)}</b></td></tr>`;
+    if (!o || !o.segmentos || !o.segmentos.length) return '';
+    let h = band(4, 'Apertura de los segmentos mayores por sublínea', 'Acumulado', ACUM, true);
+    h += `<div class="aviso info">Un segmento con buen margen puede ser varias sublíneas parejas o una
+      sublínea fuerte cargando a otra que se vende cerca del costo, y son dos conversaciones distintas.
+      Esta sección abre ${o.segmentos.length === 1 ? 'el segmento mayor' : `los ${o.segmentos.length} segmentos mayores`}
+      por sublínea del presupuesto de producto. La suma de las sublíneas <b>es</b> la venta del segmento:
+      no hay «resto» porque es el mismo criterio que define el segmento, un nivel más abajo.</div>`;
+
+    for (const g of o.segmentos) {
+      // El rango se enuncia sólo cuando dice algo. Dos sublíneas al 27% y al
+      // 28% no son un hallazgo, son la misma cifra escrita dos veces.
+      const rango = g.rango_pp != null && g.rango_pp >= 5
+        ? ` — sus márgenes van del <b class="${cls(g.margen_min)}">${pc(g.margen_min)}</b>
+            al <b class="${cls(g.margen_max)}">${pc(g.margen_max)}</b>, ${g.rango_pp.toFixed(1)} puntos de diferencia`
+        : '';
+      h += `<h4>${esc(g.nombre)} · ${mon2(g.total.ventas)} · margen ${pc(g.total.margen, 2)}</h4>`;
+      h += `<div class="leyenda" style="margin:2px 0 6px">${pc(g.pct_compania)} de la venta del ejercicio
+        en ${num(g.n_sublineas)} ${g.n_sublineas === 1 ? 'sublínea' : 'sublíneas'}${rango}.</div>`;
+      h += `<table class="rt txt2"><thead><tr><th>ClavePP</th><th>Sublínea</th><th>Clientes</th><th>Productos</th>
+        <th>Ventas</th><th>% del segmento</th><th>Utilidad</th><th>Margen</th></tr></thead><tbody>`;
+      for (const x of g.sublineas) {
+        h += `<tr><td>${esc(x.clave)}</td><td>${esc(x.nombre)}</td>
+          <td>${num(x.clientes)}</td><td>${num(x.productos)}</td>
+          <td>${mon(x.ventas)}</td><td>${pc(x.pct_segmento)}</td>
+          <td>${mon(x.utilidad)}</td>
+          <td class="${cls(x.margen)}"><b>${pc(x.margen)}</b></td></tr>`;
+      }
+      // colspan hasta la columna de Ventas: con la clase txt2 un td suelto en la
+      // segunda posición se alinearía a la izquierda y el guion quedaría bajo el
+      // nombre en vez de bajo su columna.
+      h += `<tr class="tot"><td colspan="4">Total «${esc(g.nombre)}»</td>
+        <td>${mon(g.total.ventas)}</td><td>100.0%</td>
+        <td>${mon(g.total.utilidad)}</td><td>${pc(g.total.margen, 2)}</td></tr></tbody></table>`;
+      if (g.truncado) {
+        h += `<div class="leyenda">Se listan las ${num(g.sublineas.length)} sublíneas de mayor venta; el total del renglón inferior es el del segmento completo.</div>`;
+      }
     }
-    h += `<tr><td>Resto (${num(o.resto.clientes)} clientes)</td><td>${mon(o.resto.ventas)}</td><td>${pc(o.resto.pct)}</td>
-      <td>${mon(o.resto.utilidad)}</td><td class="${cls(o.resto.margen)}">${pc(o.resto.margen)}</td></tr>
-      <tr class="tot"><td>Total «${esc(o.nombre)}»</td><td>${mon(o.total.ventas)}</td><td>100.0%</td>
-      <td>${mon(o.total.utilidad)}</td><td>${pc(o.total.margen, 2)}</td></tr></tbody></table>`;
+
+    h += `<div class="leyenda">La segunda columna es el nombre de la sublínea tal como la mantiene
+      Radar Comercial en el presupuesto de producto. <i>(sin ClavePP)</i> agrupa la venta que todavía
+      no tiene asignación cliente-producto capturada.</div>`;
     return h;
   }
 
@@ -438,7 +491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ACUM = d.periodo.etiqueta_acum;
 
       $('reporte').innerHTML =
-        secEncabezado(d) + secIndice(d) + secPanorama(d) + secSegmentos(d) +
+        secEncabezado(d) + secResumen(d) + secSegmentos(d) +
         secGrupos(d) + secApertura(d) + secSerie(d) + secPartidas(d) + secCierre(d);
       $('msg').innerHTML = 'Informe generado. Pulsa <b>Imprimir / Guardar PDF</b> (Ctrl/Cmd+P → Guardar como PDF).';
     } catch (e) {
