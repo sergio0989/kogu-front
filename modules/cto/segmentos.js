@@ -79,6 +79,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   #reporte table.rt td { padding:5px 8px; text-align:right; border-bottom:1px solid #eef2f6; white-space:nowrap; }
   #reporte table.rt td:first-child { text-align:left; white-space:normal; }
   #reporte table.rt tr.tot td { background:#ecfdf5; font-weight:800; border-top:2px solid #059669; }
+  /* Encabezado de bloque y subtotal de la Sección 2. El bloque no lleva cifras:
+     es un rótulo. El subtotal sí, y se distingue del total de operación por el
+     tono y por no llevar la línea verde. */
+  #reporte table.rt tr.blq td { background:#0f172a; color:#fff; font-weight:800; font-size:10px;
+        letter-spacing:.7px; text-transform:uppercase; padding:5px 8px; text-align:left; }
+  #reporte table.rt tr.sub td { background:#f1f5f9; color:#0f172a; font-weight:700;
+        border-top:1px solid #cbd5e1; border-bottom:1px solid #cbd5e1; }
+  /* El bloque y su subtotal no se separan en el salto de hoja: un subtotal
+     solo al inicio de una página no dice de qué es. */
+  #reporte table.rt tr.blq { page-break-after: avoid; }
+  #reporte table.rt tr.sub { page-break-before: avoid; }
   #reporte table.rt.wide { font-size:10.5px; }
   #reporte table.rt.wide td, #reporte table.rt.wide th { padding:4px 5px; }
   #reporte table.rt.txt3 td:nth-child(-n+3), #reporte table.rt.txt3 th:nth-child(-n+3) { text-align:left; white-space:normal; }
@@ -189,7 +200,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!T || !T.ventas) {
       return '<div class="aviso">Sin ventas costeadas en el periodo.</div>';
     }
-    const filas = d.segmentos.map((s) => {
+
+    const fila = (s) => {
       const c = alcance === 'mes' ? s.mes : s.acum;
       // Un segmento sin venta en el mes se muestra con rayas, no se omite: así
       // las dos tablas tienen las mismas filas en el mismo orden y se pueden
@@ -206,14 +218,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${mon(c.utilidad)}</td><td>${pc(c.utilidad / T.utilidad, 2)}</td>
         <td class="${cls(c.margen)}"><b>${pc(c.margen)}</b></td>
         <td>${pc(c.prom_simple)}${disp}</td></tr>`;
-    }).join('');
+    };
+
+    // El subtotal sale de sumar los renglones del bloque, no de otra consulta:
+    // ventas, costo y utilidad son aditivos y por construcción reconcilian con
+    // el total. «Prom. s/factura» NO es aditivo —es un promedio por renglón—,
+    // así que el subtotal lo deja en blanco en vez de inventar una cifra.
+    const subtotal = (xs, titulo) => {
+      const cs = xs.map((s) => (alcance === 'mes' ? s.mes : s.acum)).filter(Boolean);
+      const v = cs.reduce((a, c) => a + (Number(c.ventas) || 0), 0);
+      const k = cs.reduce((a, c) => a + (Number(c.costo_integrado) || 0), 0);
+      const u = cs.reduce((a, c) => a + (Number(c.utilidad) || 0), 0);
+      return `<tr class="sub"><td>${esc(titulo)}</td>
+        <td>${mon(v)}</td><td>${pc(v / T.ventas, 2)}</td>
+        <td>${mon(k)}</td><td>${pc(k / T.costo_integrado, 2)}</td>
+        <td>${mon(u)}</td><td>${pc(u / T.utilidad, 2)}</td>
+        <td class="${cls(v ? u / v : null)}"><b>${pc(v ? u / v : null)}</b></td>
+        <td>—</td></tr>`;
+    };
+
+    const enc = (t) => `<tr class="blq"><td colspan="9">${esc(t)}</td></tr>`;
+
+    // El corte es por grupo de cliente, el mismo de la Sección 3. El servicio
+    // ya trae el bloque resuelto; aquí sólo se reparte conservando el orden del
+    // catálogo, que es el que Dirección controla desde la pantalla.
+    const nombrados = d.segmentos.filter((s) => s.bloque === 'nombrado');
+    const mercado = d.segmentos.filter((s) => s.bloque === 'mercado');
+    const residual = d.segmentos.filter((s) => s.bloque === 'residual');
+
+    let cuerpo = '';
+    if (nombrados.length) {
+      cuerpo += enc('Cuentas nombradas') + nombrados.map(fila).join('')
+              + subtotal(nombrados, 'Subtotal cuentas nombradas');
+    }
+    if (mercado.length) {
+      cuerpo += enc('Mercado abierto') + mercado.map(fila).join('')
+              + subtotal(mercado, 'Subtotal mercado abierto');
+    }
+    // El residual va suelto al final: no pertenece a ninguno de los dos. Los
+    // dos subtotales más este renglón dan el total de operación.
+    cuerpo += residual.map(fila).join('');
+    // Si algún segmento se quedara sin bloque, entra igual en vez de perderse.
+    const huerfanos = d.segmentos.filter((s) => !['nombrado', 'mercado', 'residual'].includes(s.bloque));
+    cuerpo += huerfanos.map(fila).join('');
 
     return `<table class="rt wide"><thead><tr>
         <th>Segmento</th><th>Ventas</th><th>% Ventas</th>
         <th>Costo integrado</th><th>% Costo</th>
         <th>Utilidad</th><th>% Utilidad</th>
         <th>Margen</th><th>Prom. s/factura</th></tr></thead><tbody>
-      ${filas}
+      ${cuerpo}
       <tr class="tot"><td>Total operación</td>
         <td>${mon(T.ventas)}</td><td>100.00%</td>
         <td>${mon(T.costo_integrado)}</td><td>100.00%</td>
@@ -228,7 +282,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     h += `<div class="cont">Resultado del mes · ${esc(PER)}</div>`;
     h += tablaSegmentos(d, 'mes');
-    h += `<div class="leyenda">Las tres columnas de porcentaje son <i>participación</i> —cuánto del total aporta cada segmento— y suman 100%. <i>Margen</i> es utilidad entre ventas del propio segmento.</div>`;
+    h += `<div class="leyenda">La tabla se parte por grupo de cliente, el mismo corte de la Sección 3:
+      arriba las cuentas nombradas, abajo mercado abierto. Los dos subtotales más el renglón «Otro»
+      dan el total de operación. Las tres columnas de porcentaje son <i>participación</i> —cuánto del
+      total aporta cada segmento— y suman 100%. <i>Margen</i> es utilidad entre ventas del propio
+      segmento; el subtotal deja «Prom. s/factura» en blanco porque es un promedio por renglón y no se suma.</div>`;
 
     h += `<div class="cont pb" style="margin-top:16px">Acumulado del ejercicio · ${esc(ACUM)}</div>`;
     h += tablaSegmentos(d, 'acum');
