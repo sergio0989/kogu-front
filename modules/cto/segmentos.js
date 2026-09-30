@@ -253,12 +253,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // cifra que alguien va a tener que rastrear después: la pregunta "¿y dónde
   // quedó tal línea?" no tiene buena respuesta improvisada.
   function plegados(d) {
-    // Sólo se dibuja si el backend mandó el arreglo de plegados, aunque venga
-    // vacío. Ese campo únicamente existe desde el catálogo por línea del PP, y
-    // sin él no se puede afirmar QUÉ es el residual: con el catálogo anterior
+    // Sólo se dibuja cuando el catálogo ya resuelve por línea del presupuesto.
+    // Sin eso no se puede afirmar QUÉ es el residual: con el catálogo anterior
     // «Otro» era un tercio del negocio por falta de familia, no por falta de
-    // ClavePP, y esta nota estaría explicándolo al revés.
-    if (!Array.isArray(d.plegados)) return '';
+    // ClavePP, y esta nota lo estaría explicando al revés.
+    //
+    // La condición mira el catálogo, que es lo que manda, y no la presencia del
+    // campo: el backend nuevo envía plegados siempre, incluso sobre una base
+    // donde la migración todavía no corrió.
+    if (!d.catalogo_por_linea_pp || !Array.isArray(d.plegados)) return '';
     const p = d.plegados;
     const r = d.segmentos.find((x) => x.clave === 'OTRO');
     if (!p.length && !r) return '';
