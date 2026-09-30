@@ -203,14 +203,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const SEV = { critica: { txt: 'Crítica', bg: 'var(--danger,#dc2626)' }, alerta: { txt: 'Alerta', bg: 'var(--warning,#d97706)' }, info: { txt: 'Info', bg: 'var(--muted,#64748b)' } };
   const sevBadge = s => { const m = SEV[s] || SEV.info; return `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:${m.bg}">${m.txt}</span>`; };
 
+  // Centinela del filtro: un cliente sin agente no tiene nombre por el que
+  // filtrar, así que necesita un valor propio. No puede ser '' porque ése ya
+  // significa "todos".
+  const SIN_AGENTE = '__SIN_AGENTE__';
+
   function fillAgenteFil() {
+    const cls = comp?.clientes || [];
     const ags = [...new Set([
       ...alertas.map(a => a.agente_nombre),
-      ...(comp?.clientes || []).map(c => c.agente_nombre),
+      ...cls.map(c => c.agente_nombre),
     ].filter(Boolean))].sort();
+    // Las tarjetas sin agente NO aparecen en Mi panel de nadie: el vendedor no
+    // las ve y hasta ahora Dirección tampoco las podía separar de las otras 54.
+    // Medido el día antes del arranque en ADGM: 7 tarjetas, 9,453 kg, una de
+    // ellas en crítica. Sin esta opción son trabajo que no le toca a nadie.
+    const nSin = cls.filter(c => !c.agente_nombre).length;
     const cur = sel('agenteFil');
     document.getElementById('agenteFil').innerHTML =
-      '<option value="">Todos los agentes</option>' + ags.map(a => `<option value="${KoguUi.escapeHtml(a)}">${KoguUi.escapeHtml(a)}</option>`).join('');
+      '<option value="">Todos los agentes</option>'
+      + (nSin ? `<option value="${SIN_AGENTE}">⚠ Sin agente (${nSin})</option>` : '')
+      + ags.map(a => `<option value="${KoguUi.escapeHtml(a)}">${KoguUi.escapeHtml(a)}</option>`).join('');
     document.getElementById('agenteFil').value = cur;
   }
   // Rango legible de una ventana con extremos INCLUSIVOS (act_/yoy_/prev_).
@@ -388,12 +401,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     return true;
   }
 
+  // '' = todas · SIN_AGENTE = sólo las huérfanas · cualquier otra = ese agente.
+  const pasaAgente = (nombre, filtro) => {
+    if (!filtro) return true;
+    if (filtro === SIN_AGENTE) return !nombre;
+    return (nombre || '') === filtro;
+  };
+
   function renderAlertas() {
     const sv = sel('sevFil'), ag = sel('agenteFil'), es = sel('estadoFil');
 
     // Clientes en riesgo: comparativo on-demand (independiente del Recalcular).
     const todos = (comp?.clientes || [])
-      .filter(c => (!sv || c.severidad === sv) && (!ag || (c.agente_nombre || '') === ag));
+      .filter(c => (!sv || c.severidad === sv) && pasaAgente(c.agente_nombre, ag));
     const clientes = todos
       .filter(c => pasaEstado(c, es))
       .map(c => ({ ...c, _riesgo: riesgoCli(c) }))
@@ -403,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Otras alertas (empresa / agentes): materializadas, NO de cliente.
     const otras = alertas.filter(a =>
       !(a.cliente_ref && (a.entidad_tipo === 'cliente' || a.entidad_tipo === 'cliente_producto'))
-      && (!sv || a.severidad === sv) && (!ag || a.agente_nombre === ag) && a.status !== 'descartada');
+      && (!sv || a.severidad === sv) && pasaAgente(a.agente_nombre, ag) && a.status !== 'descartada');
 
     // El total de "en riesgo" suma SOLO caída y dormancia. La deriva mide un
     // AÑO y las otras dos un bimestre o una ventana de dormancia: meterlas en

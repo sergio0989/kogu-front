@@ -401,6 +401,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const notas = [
       motivoFil ? `Filtro activo: <b>${MOTIVO_TXT[motivoFil] || ''}</b> — ${visibles.length} de ${clientes.length}. Clic otra vez en la tarjeta para quitarlo.` : '',
       solapan ? 'Un cliente puede aparecer en más de un motivo, por eso los conteos no suman el total.' : '',
+      // La severidad se reparte DENTRO de la cartera, no contra la empresa.
+      //
+      // `Math.max(1, ceil(n * 0.2))` garantiza al menos una crítica por lista,
+      // y hay tres listas independientes: caída, dormancia y deriva. Un agente
+      // con una tarjeta de cada motivo abre las tres en rojo aunque sean
+      // chicas. Caso real medido el día antes del arranque: Leticia Ceron con
+      // 3 de 3 críticas y 837 kg en juego, contra ALEJANDRA con 4 críticas
+      // sobre 46,364 kg. Sin decirlo, la primera cree que tiene una emergencia
+      // y la segunda subestima la suya.
+      nCrit ? `El rojo compara <b>dentro de tu cartera</b>, no contra la empresa: son tus ${nCrit === 1 ? 'peor caso' : `${nCrit} peores casos`}, no necesariamente los mayores de la empresa.` : '',
     ].filter(Boolean);
 
     document.getElementById('carteraResumen').innerHTML = `
