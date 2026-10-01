@@ -14,6 +14,7 @@
       {href:'/modules/core/certificados/certificados.html',label:'Certificados',perm:'screen.core.certificados'},
       {href:'/modules/core/salud-fiscal/salud-fiscal.html',label:'Salud fiscal',perm:'screen.core.salud_fiscal'},
       {href:'/modules/core/monitor-sat/monitor-sat.html',label:'Monitoreo SAT',perm:'screen.core.monitor_sat'},
+      {href:'/modules/rpt/programaciones.html',label:'Reportes programados',perm:'rpt.read'},
       {href:'/modules/core/contexto/cambio-empresa.html',label:'Cambio de empresa',perm:'screen.root.index'},
     ]},
     {section:'Negocio CFDI',items:[

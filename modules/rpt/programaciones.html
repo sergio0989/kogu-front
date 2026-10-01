@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <title>Reportes programados · KOGU</title>
+  <link rel="stylesheet" href="/assets/styles.css"/>
+  <style>
+    .rpt-dias{display:flex;gap:6px;flex-wrap:wrap}
+    .rpt-dia{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+    .rpt-dia input{margin:0}
+    .rpt-dia:has(input:checked){background:#0f172a;color:#fff;border-color:#0f172a}
+    .rpt-disp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .rpt-disp label{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:block}
+    .rpt-disp label:has(input:checked){border-color:#0891b2;box-shadow:0 0 0 2px rgba(8,145,178,.15)}
+    .rpt-disp small{display:block;color:var(--muted);margin-top:4px;line-height:1.35}
+    .rpt-sec{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+    .rpt-sec h4{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .rpt-cuando{font-size:12.5px;line-height:1.4}
+    .rpt-cuando small{color:var(--muted)}
+    .rpt-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}
+    .rpt-err{color:#b91c1c;font-size:12.5px;margin-top:10px;min-height:1em}
+    @media (max-width:700px){.rpt-disp{grid-template-columns:1fr}}
+  </style>
+</head><body>
+  <div id="app"></div>
+  <script src="/assets/config.js"></script>
+  <script src="/assets/api.js"></script>
+  <script src="/assets/ui.js"></script>
+  <script src="/assets/auth.js"></script>
+  <script src="/assets/shell.js"></script>
+  <script src="./programaciones.js"></script>
+</body></html>
