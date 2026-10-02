@@ -122,7 +122,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const landing = await resolveLanding();
 
       KoguApi.toast('Sesión iniciada correctamente', 'success');
-      window.location.href = landing;
+      // Selector de herramienta: /inicio.html decide. Con una sola herramienta
+      // entra directo a `landing` (mismo comportamiento de siempre).
+      window.location.href = '/inicio.html?next=' + encodeURIComponent(landing);
     } catch (err) {
       KoguApi.toast(err.message || 'No fue posible iniciar sesión', 'error');
     }

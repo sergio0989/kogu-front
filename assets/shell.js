@@ -187,6 +187,34 @@
 
 
   const SIDEBAR_STORAGE_KEY='kogu:sidebar-hidden';
+
+  // ── Herramientas (empresa → herramienta → menú) ───────────────────────────
+  // La lógica vive en /assets/herramientas.js (con pruebas). Se carga aquí para
+  // no tocar las páginas. Si no carga, el menú se ve completo como antes.
+  const HERRAMIENTA_KEY='kogu:herramienta';
+  let _herramientaActiva = null;
+  let _herramientasPromise = null;
+  function ensureHerramientas(){
+    if (window.KoguHerramientas) return Promise.resolve(window.KoguHerramientas);
+    if (_herramientasPromise) return _herramientasPromise;
+    _herramientasPromise = new Promise((resolve) => {
+      const sc = document.createElement('script');
+      sc.src = '/assets/herramientas.js';
+      const t = setTimeout(() => resolve(null), 3000);
+      sc.onload = () => { clearTimeout(t); resolve(window.KoguHerramientas || null); };
+      sc.onerror = () => { clearTimeout(t); resolve(null); };
+      document.head.appendChild(sc);
+    });
+    return _herramientasPromise;
+  }
+  function leerHerramienta(){ try { return localStorage.getItem(HERRAMIENTA_KEY); } catch(_) { return null; } }
+  function guardarHerramienta(id){
+    try { if (id) localStorage.setItem(HERRAMIENTA_KEY, id); else localStorage.removeItem(HERRAMIENTA_KEY); } catch(_) {}
+  }
+  function permsDe(bootstrap){
+    const p = bootstrap?.permissions || bootstrap?.permisos || [];
+    return Array.isArray(p) ? p : [];
+  }
   let _bootstrap = null; // F-06: variable privada, nunca expuesta en window
 
   function getSidebarHidden(){
@@ -338,6 +366,8 @@
   // 1) pagina_inicio del perfil (si es ruta válida), 2) primer ítem del
   // menú al que tiene permiso, 3) login como último recurso.
   function resolveHome(bootstrap){
+    const Hh = window.KoguHerramientas;
+    if (Hh && Hh.disponibles(NAV, permsDe(bootstrap)).length > 1) return '/inicio.html';
     const pi = bootstrap && (bootstrap.pagina_inicio || (bootstrap.user && bootstrap.user.pagina_inicio));
     if (typeof pi === 'string' && pi.startsWith('/')) return pi;
     for (const s of NAV){
@@ -384,11 +414,17 @@
     _bootstrap=bootstrap; // F-06: privado
     const empresa=bootstrap.empresa_activa||{};
     const env=bootstrap.environment||{};
-    const sections=NAV.map(s=>sectionHtml(current,s)).join('');
+    const H = window.KoguHerramientas;
+    const nav = H ? H.filtrarNav(NAV, _herramientaActiva) : NAV;
+    const sections=nav.map(s=>sectionHtml(current,s)).join('');
+    const hAct = H && _herramientaActiva ? H.HERRAMIENTAS.find(h=>h.id===_herramientaActiva) : null;
+    const variasH = H ? H.disponibles(NAV, permsDe(bootstrap)).length > 1 : false;
     return `<aside class="sidebar">
       <div class="sidebar-head">
         <div>
           <div class="brand-kicker">KOGU</div>
+          ${hAct ? `<div class="sidebar-herramienta">${hAct.icono} ${hAct.nombre}</div>` : ''}
+          ${variasH ? `<a class="sidebar-herramientas-link" href="/inicio.html">Cambiar herramienta</a>` : ''}
         </div>
       </div>
       <div class="nav-group">${sections}</div>
@@ -661,6 +697,11 @@
       return null;
     }
     _currentPagePath = currentPage || '';
+    const H = await ensureHerramientas();
+    if (H) {
+      _herramientaActiva = H.resolverActiva(NAV, permsDe(bootstrap), currentPage, leerHerramienta());
+      guardarHerramienta(_herramientaActiva);
+    }
     document.getElementById('app').innerHTML=`<div class="layout ${getSidebarHidden() ? 'sidebar-hidden' : ''}">${renderSidebar(currentPage,bootstrap)}<main class="main">${renderTopbar(title,description,bootstrap)}<section class="content" id="pageContent"></section></main></div>`;
     const btn=document.getElementById('logoutBtn'); if(btn) btn.onclick=()=>KoguAuth.logout();
     const homeBtn=document.getElementById('homeBtnTopbar');
@@ -684,5 +725,10 @@
     return () => window.removeEventListener('kogu:empresa-activa-cambiada', wrapped);
   }
 
-  window.KoguShell={initShell,loadBootstrap,loadCoreBootstrap,hasPerm,subscribeEmpresaActivaChange,refreshChrome,openEmpresaModal,closeEmpresaModal};
+  // Para /inicio.html (selector de herramienta): NAV de solo lectura y contexto del modal de empresa.
+  function getNav(){ return JSON.parse(JSON.stringify(NAV)); }
+  function setContextBootstrap(b){ _bootstrap = b; }
+
+  window.KoguShell={initShell,loadBootstrap,loadCoreBootstrap,hasPerm,subscribeEmpresaActivaChange,refreshChrome,openEmpresaModal,closeEmpresaModal,
+    ensureHerramientas,getNav,setContextBootstrap,guardarHerramienta,leerHerramienta};
 })();
