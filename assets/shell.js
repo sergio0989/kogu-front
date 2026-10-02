@@ -68,6 +68,9 @@
       {href:'/modules/crm/notif-plantillas.html',label:'Plantillas de notificación',perm:'notif.read'},
       {href:'/modules/crm/notif-envios.html',label:'Bitácora de notificaciones',perm:'notif.read'},
     ]},
+    {section:'I+D',items:[
+      {href:'/modules/idp/proyectos.html',label:'Proyectos de desarrollo',perm:'idp.proyectos.read'},
+    ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
       {href:'/modules/com/kpi.html',label:'KPI de Comisiones',perm:'screen.comisiones'},

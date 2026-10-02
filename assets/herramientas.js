@@ -13,7 +13,7 @@
     { id: 'comercial', nombre: 'Comercial',      icono: '🎯', descripcion: 'Radar comercial y seguimiento de clientes.',
       secciones: ['Radar Comercial', 'CRM'] },
     { id: 'idp',       nombre: 'I+D',            icono: '🧪', descripcion: 'Proyectos de desarrollo, muestras y lista de precios.',
-      secciones: [] },
+      secciones: ['I+D'] },
     { id: 'calidad',   nombre: 'Calidad',        icono: '🔬', descripcion: 'Laboratorio y control documental.',
       secciones: ['Lab QA', 'Documental'] },
     { id: 'activos',   nombre: 'Activos',        icono: '🛠️', descripcion: 'Activos, mantenimiento e inventario.',

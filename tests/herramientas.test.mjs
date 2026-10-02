@@ -29,7 +29,7 @@ test('usuario con varias áreas: ve sus herramientas en orden fijo y no entra di
   assert.equal(H.entradaDirecta(NAV, perms), null);
 });
 
-test('una herramienta sin secciones con permiso no aparece (I+D vacía hoy)', () => {
+test('una herramienta sin secciones con permiso no aparece (I+D sin permisos idp)', () => {
   const ids = H.disponibles(NAV, ['screen.root.index', 'screen.costo']).map(h => h.id);
   assert.ok(!ids.includes('idp'));
 });
