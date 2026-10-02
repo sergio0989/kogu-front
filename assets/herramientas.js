@@ -22,6 +22,15 @@
       secciones: ['Administrador', 'Catálogos', 'Catálogos Maestros', 'ERP'] },
   ];
 
+  // Vista especial: menú completo. Solo para administrador (screen.root.index).
+  const TODAS = 'todas';
+  const TODAS_INFO = { id: TODAS, nombre: 'Todas las herramientas', icono: '🧭',
+    descripcion: 'Menú completo (administrador).' };
+
+  function puedeVerTodo(perms) {
+    return Array.isArray(perms) && perms.includes('screen.root.index');
+  }
+
   function tienePerm(perms, perm) {
     if (!perm) return true;
     const p = Array.isArray(perms) ? perms : [];
@@ -62,6 +71,7 @@
   // 2) si no, la guardada mientras siga permitida;
   // 3) si no, la única disponible (entrada directa) o null.
   function resolverActiva(nav, perms, href, guardada) {
+    if (guardada === TODAS && puedeVerTodo(perms)) return TODAS;
     const ids = disponibles(nav, perms).map((h) => h.id);
     const dePagina = herramientaDePagina(nav, href);
     if (dePagina && ids.includes(dePagina)) return dePagina;
@@ -71,13 +81,14 @@
 
   // Menú filtrado. Sin herramienta activa, el menú queda igual que hoy.
   function filtrarNav(nav, id) {
-    if (!id) return nav;
+    if (!id || id === TODAS) return nav;
     const s = secciones(id);
     return (nav || []).filter((x) => s.includes(x.section));
   }
 
   // Primera página permitida de una herramienta (destino al elegirla).
   function primeraPagina(nav, perms, id) {
+    if (id === TODAS) return null; // el llamador decide (pantalla de siempre)
     for (const sec of filtrarNav(nav, id)) {
       for (const it of sec.items || []) if (tienePerm(perms, it.perm)) return it.href;
     }
@@ -85,7 +96,7 @@
   }
 
   const api = { HERRAMIENTAS, disponibles, entradaDirecta, secciones, herramientaDePagina,
-                resolverActiva, filtrarNav, primeraPagina };
+                resolverActiva, filtrarNav, primeraPagina, TODAS, TODAS_INFO, puedeVerTodo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguHerramientas = api;
 })(typeof window !== 'undefined' ? window : globalThis);

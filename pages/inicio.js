@@ -36,6 +36,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $cambiar.hidden = empresas.length < 2;
 
     const disp = H ? H.disponibles(nav, permsDe(boot)) : [];
+    // El administrador además puede elegir el menú completo.
+    if (H && H.puedeVerTodo(permsDe(boot))) disp.unshift(H.TODAS_INFO);
     if (disp.length <= 1) {
       // Una sola herramienta (o ninguna): no hay nada que elegir.
       if (disp.length === 1) { entrar(boot, disp[0].id); return; }

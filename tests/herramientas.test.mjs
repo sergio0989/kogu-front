@@ -76,3 +76,25 @@ test('filtro: sin herramienta activa el menú queda igual que hoy', () => {
 test('filtro: con herramienta activa solo quedan sus secciones', () => {
   assert.deepEqual(H.filtrarNav(NAV, 'comercial').map(s => s.section), ['Radar Comercial', 'CRM']);
 });
+
+// ── Paso 3: el administrador entra a todo ("Todas las herramientas") ──
+// Caso real (2-oct-2026, dev): perfil Administrador entró a Inicio administración
+// y el menú se redujo a Administración; el administrador debe poder ver todo.
+const PERMS_ADMIN = ['screen.root.index', 'screen.cfdi.sat_dm', 'screen.costo', 'screen.lab.lotes'];
+
+test('todas: solo el administrador puede ver el menú completo', () => {
+  assert.equal(H.puedeVerTodo(PERMS_ADMIN), true);
+  assert.equal(H.puedeVerTodo(['screen.ventas.vendedor', 'screen.costo']), false);
+});
+
+test('todas: elegida por el administrador, un enlace directo no la cambia', () => {
+  assert.equal(H.resolverActiva(NAV, PERMS_ADMIN, '/modules/lab/lab-lotes.html', H.TODAS), H.TODAS);
+});
+
+test('todas: guardada en un navegador de alguien que no es administrador se descarta', () => {
+  assert.notEqual(H.resolverActiva(NAV, ['screen.costo', 'screen.lab.lotes'], '/inicio.html', H.TODAS), H.TODAS);
+});
+
+test('todas: el menú queda completo', () => {
+  assert.deepEqual(H.filtrarNav(NAV, H.TODAS), NAV);
+});

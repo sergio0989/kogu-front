@@ -417,8 +417,10 @@
     const H = window.KoguHerramientas;
     const nav = H ? H.filtrarNav(NAV, _herramientaActiva) : NAV;
     const sections=nav.map(s=>sectionHtml(current,s)).join('');
-    const hAct = H && _herramientaActiva ? H.HERRAMIENTAS.find(h=>h.id===_herramientaActiva) : null;
-    const variasH = H ? H.disponibles(NAV, permsDe(bootstrap)).length > 1 : false;
+    const hAct = H && _herramientaActiva
+      ? (_herramientaActiva === H.TODAS ? H.TODAS_INFO : H.HERRAMIENTAS.find(h=>h.id===_herramientaActiva))
+      : null;
+    const variasH = H ? (H.disponibles(NAV, permsDe(bootstrap)).length > 1 || H.puedeVerTodo(permsDe(bootstrap))) : false;
     return `<aside class="sidebar">
       <div class="sidebar-head">
         <div>
