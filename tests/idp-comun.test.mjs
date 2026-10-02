@@ -68,3 +68,59 @@ test('montos: USD con separador de miles; sin dato, guion', () => {
   assert.equal(I.fmtUsd(73500), 'USD 73,500');
   assert.equal(I.fmtUsd(null), '—');
 });
+
+// ── Fichas, listas y claves (pantallas de la segunda entrega) ──
+// Casos: catálogo de alérgenos del backend (10, mapeo del legado),
+// reglas de publicación (descripción, organolépticos, vida útil) y
+// partidas de lista (producto ERP o clave experimental, exactamente uno).
+
+test('ficha: el formulario se convierte al contenido que espera el backend', () => {
+  const c = I.contenidoFicha({
+    descripcion: ' Polvo sabor queso ', ingredientes: '',
+    aspecto: 'Polvo fino', color: 'Amarillo', olor: 'Queso', sabor: 'Cheddar',
+    alergenos: ['leche', 'soya'],
+    parametros: [{ nombre: 'Humedad', unidad: '%', min: '0', max: '5' }, { nombre: '', unidad: '', min: '', max: '' },
+      { nombre: 'Cenizas', unidad: '%', min: '', max: '' }],
+    empaque_mercado: 'nacional', empaque_descripcion: 'Bolsa 20 kg', transporte: '',
+    vida_valor: '12', vida_unidad: 'meses',
+  });
+  assert.equal(c.descripcion, 'Polvo sabor queso');
+  assert.equal(c.ingredientes, null);
+  assert.deepEqual(c.organolepticos, { aspecto: 'Polvo fino', color: 'Amarillo', olor: 'Queso', sabor: 'Cheddar' });
+  assert.deepEqual(c.alergenos, ['leche', 'soya']);
+  assert.deepEqual(c.parametros, [{ nombre: 'Humedad', unidad: '%', min: 0, max: 5 }]);   // sin nombre o sin valores: no aplica
+  assert.deepEqual(c.empaque, { mercado: 'nacional', descripcion: 'Bolsa 20 kg' });
+  assert.deepEqual(c.vida_util, { valor: 12, unidad: 'meses' });
+  assert.equal(I.contenidoFicha({ vida_valor: '' }).vida_util, null);
+});
+
+test('ficha: qué le falta para publicar (mismas reglas que el backend)', () => {
+  assert.deepEqual(I.faltantesFicha({}), ['Descripción', 'Aspecto', 'Color', 'Olor', 'Sabor', 'Vida útil']);
+  assert.deepEqual(I.faltantesFicha({ descripcion: 'x', organolepticos: { aspecto: 'a', color: 'c', olor: 'o', sabor: 's' },
+    vida_util: { valor: 12, unidad: 'meses' } }), []);
+});
+
+test('partida de lista: exactamente un producto y precio válido; el cuerpo lleva solo el que aplica', () => {
+  assert.match(I.validarPartida({ precio: '10' }), /producto/i);
+  assert.match(I.validarPartida({ producto_id: 'a', precio: '' }), /precio/i);
+  assert.match(I.validarPartida({ producto_id: 'a', precio: '-1' }), /precio/i);
+  assert.match(I.validarPartida({ producto_id: 'a', precio: '1', cantidad_min: '500', cantidad_max: '100' }), /cantidad/i);
+  assert.equal(I.validarPartida({ producto_desarrollo_id: 'pd1', precio: '85.5' }), null);
+  assert.deepEqual(I.cuerpoPartida({ tipo: 'experimental', producto_id: 'erp-1', producto_desarrollo_id: 'pd1', precio: '85.5', impuesto_pct: '', cantidad_min: '500' }),
+    { producto_desarrollo_id: 'pd1', precio: 85.5, cantidad_min: 500 });
+  assert.deepEqual(I.cuerpoPartida({ tipo: 'erp', producto_id: 'erp-1', producto_desarrollo_id: 'pd1', precio: '12.5', impuesto_pct: '16', descripcion: ' ' }),
+    { producto_id: 'erp-1', precio: 12.5, impuesto_pct: 16 });
+});
+
+test('lista: etiqueta y color por estado efectivo (vencida se calcula por fecha)', () => {
+  assert.equal(I.estadoLista({ estado: 'vigente', vigencia_fin: '2026-10-01' }, '2026-10-02'), 'vencida');
+  assert.equal(I.estadoLista({ estado: 'vigente', vigencia_fin: '2026-10-02' }, '2026-10-02'), 'vigente');
+  assert.equal(I.estadoLista({ estado: 'por_aprobar', estado_efectivo: 'por_aprobar' }, '2026-10-02'), 'por_aprobar');
+  assert.equal(I.ETIQUETA_LISTA.por_aprobar, 'Por aprobar');
+});
+
+test('precio: 2 decimales, o 4 si trae fracción más fina', () => {
+  assert.equal(I.fmtPrecio('12.5000'), '12.50');
+  assert.equal(I.fmtPrecio(62.4744), '62.4744');
+  assert.equal(I.fmtPrecio(null), '—');
+});

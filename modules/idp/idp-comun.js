@@ -87,8 +87,85 @@
     return Number(n).toLocaleString('es-MX', { maximumFractionDigits: dec == null ? 2 : dec });
   }
 
-  const api = { BASE, FASES, faseDe, colorEstado, COLOR_POTENCIAL, camposTransicion, validarTransicion, cuerpoTransicion,
-    diasSinMovimiento, estancado, fmtUsd, fmtNum };
+
+  // ── Fichas técnicas ──
+  const tx = (v) => { const t = String(v ?? '').trim(); return t || null; };
+  const nm = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(v));
+  const ALERGENOS = [
+    ['gluten', 'Cereales con gluten'], ['huevo', 'Huevo'], ['crustaceos', 'Crustáceos'], ['pescado', 'Pescado'],
+    ['moluscos', 'Moluscos'], ['cacahuate', 'Cacahuate'], ['soya', 'Soya'], ['leche', 'Leche'],
+    ['nueces', 'Nueces de árbol'], ['sulfitos', 'Sulfitos (≥10 mg/kg)'],
+  ];
+  const PARAMETROS_BASE = [
+    { nombre: 'Humedad', unidad: '%' }, { nombre: 'pH (solución al 10%)', unidad: '' },
+    { nombre: 'Cloruros como NaCl', unidad: '%' }, { nombre: 'Cenizas', unidad: '%' },
+  ];
+  function contenidoFicha(v) {
+    v = v || {};
+    const valor = nm(v.vida_valor);
+    return {
+      descripcion: tx(v.descripcion), ingredientes: tx(v.ingredientes), transporte_almacenamiento: tx(v.transporte),
+      organolepticos: { aspecto: tx(v.aspecto), color: tx(v.color), olor: tx(v.olor), sabor: tx(v.sabor) },
+      alergenos: Array.isArray(v.alergenos) ? v.alergenos.slice() : [],
+      // Sin nombre o sin mínimo ni máximo = no aplica (como el 0/0 del legado); el backend los rechazaría.
+      parametros: (v.parametros || []).filter((p) => tx(p.nombre) && (nm(p.min) !== null || nm(p.max) !== null)).map((p) => ({
+        nombre: tx(p.nombre), unidad: String(p.unidad ?? '').trim(), min: nm(p.min), max: nm(p.max) })),
+      empaque: { mercado: v.empaque_mercado || null, descripcion: tx(v.empaque_descripcion) },
+      vida_util: valor && valor > 0 ? { valor, unidad: v.vida_unidad || 'meses' } : null,
+    };
+  }
+  function faltantesFicha(c) {
+    c = c || {}; const o = c.organolepticos || {};
+    return [
+      !c.descripcion && 'Descripción', !o.aspecto && 'Aspecto', !o.color && 'Color', !o.olor && 'Olor', !o.sabor && 'Sabor',
+      !(c.vida_util && c.vida_util.valor > 0) && 'Vida útil',
+    ].filter(Boolean);
+  }
+
+  // ── Listas de precios ──
+  function idProductoPartida(v) {
+    if (v.tipo === 'experimental') return { producto_desarrollo_id: v.producto_desarrollo_id || null };
+    if (v.tipo === 'erp') return { producto_id: v.producto_id || null };
+    return { producto_id: v.producto_id || null, producto_desarrollo_id: v.producto_desarrollo_id || null };
+  }
+  function validarPartida(v) {
+    v = v || {};
+    const ids = Object.values(idProductoPartida(v)).filter(Boolean);
+    if (ids.length !== 1) return 'Elige un producto: clave ERP o clave experimental.';
+    const precio = nm(v.precio);
+    if (precio === null || !Number.isFinite(precio) || precio < 0) return 'Captura un precio válido.';
+    const imp = nm(v.impuesto_pct);
+    if (imp !== null && (!Number.isFinite(imp) || imp < 0 || imp > 100)) return 'El impuesto va de 0 a 100 %.';
+    const min = nm(v.cantidad_min); const max = nm(v.cantidad_max);
+    if (min !== null && max !== null && max < min) return 'La cantidad máxima es menor que la mínima.';
+    return null;
+  }
+  function cuerpoPartida(v) {
+    const b = {};
+    for (const [k, val] of Object.entries(idProductoPartida(v))) if (val) b[k] = val;
+    b.precio = nm(v.precio);
+    for (const k of ['impuesto_pct', 'cantidad_min', 'cantidad_max']) { const n = nm(v[k]); if (n !== null) b[k] = n; }
+    for (const k of ['descripcion', 'tiempo_entrega']) { const t = tx(v[k]); if (t) b[k] = t; }
+    return b;
+  }
+  const ETIQUETA_LISTA = { borrador: 'Borrador', por_aprobar: 'Por aprobar', vigente: 'Vigente', vencida: 'Vencida', cancelada: 'Cancelada' };
+  const COLOR_LISTA = { borrador: '#64748b', por_aprobar: '#ca8a04', vigente: '#16a34a', vencida: '#b45309', cancelada: '#991b1b' };
+  function estadoLista(l, hoy) {
+    const h = hoy || new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10);
+    const fin = l.vigencia_fin ? String(l.vigencia_fin).slice(0, 10) : null;
+    if (l.estado === 'vigente' && fin && fin < h) return 'vencida';
+    return l.estado_efectivo || l.estado;
+  }
+
+  // Precio: 2 decimales; 4 si el precio trae fracción más fina (numeric 18,4).
+  function fmtPrecio(n) {
+    if (n === null || n === undefined || n === '') return '—';
+    const v = Number(n); const d = Math.abs(Math.round(v * 100) - v * 100) > 1e-6 ? 4 : 2;
+    return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+  const api = { fmtPrecio, BASE, FASES, faseDe, colorEstado, COLOR_POTENCIAL, camposTransicion, validarTransicion, cuerpoTransicion,
+    diasSinMovimiento, estancado, fmtUsd, fmtNum, ALERGENOS, PARAMETROS_BASE, contenidoFicha, faltantesFicha,
+    validarPartida, cuerpoPartida, ETIQUETA_LISTA, COLOR_LISTA, estadoLista };
 
   // ── Solo navegador ──
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -104,6 +181,29 @@
       const c = COLOR_POTENCIAL[p] || '#64748b';
       return `<span class="chip" style="background:${c}1a;color:${c};border:1px solid ${c}55;font-weight:700">${esc(p)}</span>`;
     };
+    api.chip = (texto, color) => `<span class="chip" style="white-space:nowrap;background:${color}1a;color:${color};border:1px solid ${color}55">${esc(texto)}</span>`;
+    api.chipLista = (l) => { const e = estadoLista(l); return api.chip(ETIQUETA_LISTA[e] || e, COLOR_LISTA[e] || '#64748b'); };
+    api.chipFicha = (e) => api.chip(e, { vigente: '#16a34a', borrador: '#64748b', obsoleta: '#991b1b' }[e] || '#64748b');
+    // Buscador con lista desplegable: input + caja; fetcher(q) → items; pinta(item) → html; elegir(item).
+    api.buscador = (input, caja, { fetcher, pinta, elegir, extra }) => {
+      let t;
+      input.setAttribute('autocomplete', 'off');
+      input.addEventListener('input', () => {
+        clearTimeout(t);
+        const q = input.value.trim();
+        t = setTimeout(async () => {
+          if (q.length < 2) { caja.style.display = 'none'; return; }
+          let arr = [];
+          try { arr = (await fetcher(q)) || []; } catch (_) {}
+          caja.innerHTML = arr.map((x, i) => `<div data-i="${i}" style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)">${pinta(x)}</div>`).join('')
+            + (extra ? extra(q) : '') || '<div class="muted" style="padding:8px 10px;font-size:13px">Sin resultados.</div>';
+          caja.style.display = 'block';
+          caja.querySelectorAll('[data-i]').forEach((d) => (d.onmousedown = (e) => { e.preventDefault(); caja.style.display = 'none'; elegir(arr[Number(d.dataset.i)]); }));
+        }, 250);
+      });
+      input.addEventListener('blur', () => setTimeout(() => { caja.style.display = 'none'; }, 150));
+    };
+    api.cajaBusqueda = (attr) => `<div ${attr} style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:240px;overflow:auto;margin-top:2px"></div>`;
     api.chipProspecto = (estatus) => (estatus === 'prospecto'
       ? '<span class="chip" style="background:#7c3aed1a;color:#7c3aed;border:1px solid #7c3aed55">prospecto</span>' : '');
 

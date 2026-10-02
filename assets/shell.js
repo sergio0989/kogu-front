@@ -70,6 +70,9 @@
     ]},
     {section:'I+D',items:[
       {href:'/modules/idp/proyectos.html',label:'Proyectos de desarrollo',perm:'idp.proyectos.read'},
+      {href:'/modules/idp/productos.html',label:'Claves experimentales',perm:'idp.proyectos.read'},
+      {href:'/modules/idp/fichas.html',label:'Fichas técnicas',perm:'idp.proyectos.read'},
+      {href:'/modules/idp/listas-precio.html',label:'Listas de precios',perm:'idp.precios.read'},
     ]},
     {section:'Comisiones',items:[
       {href:'/modules/com/comisiones.html',label:'Comisiones',perm:'screen.comisiones'},
