@@ -273,8 +273,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const toggle = () => {
       const ev = form.querySelector('input[name="disparador"]:checked').value === 'evento';
-      form.querySelector('#boxHorario').hidden = ev;
-      form.querySelector('#boxEvento').hidden = !ev;
+      // .grid-2 fija display:grid y le gana al atributo hidden: se usa style.display.
+      form.querySelector('#boxHorario').style.display = ev ? 'none' : '';
+      form.querySelector('#boxEvento').style.display = ev ? '' : 'none';
     };
     form.querySelectorAll('input[name="disparador"]').forEach((r) => r.addEventListener('change', toggle));
     toggle();
