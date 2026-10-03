@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
     });
     I.buscador(el.querySelector('[data-c]'), el.querySelector('[data-cc]'), {
-      fetcher: async (q) => KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/clientes?q=${encodeURIComponent(q)}`)),
+      titulo: 'Seleccionar cliente o prospecto', fetcher: async (q) => KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/clientes?q=${encodeURIComponent(q)}`)),
       pinta: (c) => `${esc(c.nombre)} ${I.chipProspecto(c.estatus_comercial)} <span class="muted" style="font-size:11px">${esc(c.rfc || c.cve_cte || '')}</span>`,
       elegir: (c) => {
         cliente = c; el.querySelector('[data-c]').value = c.nombre;

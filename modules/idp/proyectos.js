@@ -100,10 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       cuerpo: `
         <div>
           <div class="label-text">Cliente o prospecto</div>
-          <div style="position:relative;margin-top:4px">
-            <input class="input" data-f="cli" placeholder="Busca por nombre, RFC o clave…" autocomplete="off" style="width:100%"/>
-            <div data-f="cliBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:240px;overflow:auto;margin-top:2px"></div>
-          </div>
+          <div style="margin-top:4px"><input class="input" data-f="cli" placeholder="Haz clic para buscar el cliente o prospecto…" style="width:100%"/></div>
           <div data-f="cliSel" class="hint" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
           <div data-f="prosp" style="display:none;margin-top:8px;padding:12px;border:1px dashed var(--line);border-radius:10px">
             <div class="eyebrow" style="margin-bottom:6px">Alta de prospecto</div>
@@ -145,27 +142,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     const q = (k) => el.querySelector(`[data-f="${k}"]`);
     const elegir = (c) => {
-      cliente = c; q('cli').value = c.nombre; q('cliBox').style.display = 'none'; q('prosp').style.display = 'none';
+      cliente = c; q('cli').value = c.nombre; q('prosp').style.display = 'none';
       q('cliSel').innerHTML = `${c.estatus_comercial === 'prospecto' ? '🟣 Prospecto' : '✓ Cliente'}${c.rfc ? ' · ' + esc(c.rfc) : ''}${c.agente_nombre ? ' · agente ' + esc(c.agente_nombre) : ''}`;
     };
-    let tt;
-    q('cli').oninput = () => {
-      cliente = null; q('cliSel').textContent = ''; clearTimeout(tt);
-      const texto = q('cli').value.trim();
-      tt = setTimeout(async () => {
-        if (texto.length < 2) { q('cliBox').style.display = 'none'; return; }
-        let arr = [];
-        try { arr = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/clientes?q=${encodeURIComponent(texto)}`)) || []; } catch (_) {}
-        q('cliBox').innerHTML = arr.map((c, i) => `<div data-i="${i}" style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)">
-            ${esc(c.nombre)} ${I.chipProspecto(c.estatus_comercial)} <span class="muted" style="font-size:11px">${esc(c.rfc || c.cve_cte || '')}${c.agente_nombre ? ' · ' + esc(c.agente_nombre) : ''}</span></div>`).join('')
-          + (canCreate ? `<div data-nuevo style="padding:8px 10px;cursor:pointer;font-size:13px;color:var(--brand,#2563eb);font-weight:600">+ Dar de alta "${esc(texto)}" como prospecto</div>` : '');
-        q('cliBox').style.display = 'block';
-        q('cliBox').querySelectorAll('[data-i]').forEach((d) => (d.onmousedown = (e) => { e.preventDefault(); elegir(arr[Number(d.dataset.i)]); }));
-        const n = q('cliBox').querySelector('[data-nuevo]');
-        if (n) n.onmousedown = (e) => { e.preventDefault(); q('cliBox').style.display = 'none'; q('prosp').style.display = 'block'; q('pNom').value = texto; q('pRfc').focus(); };
-      }, 250);
-    };
-    q('cli').onblur = () => setTimeout(() => { q('cliBox').style.display = 'none'; }, 150);
+    I.campoBusqueda(q('cli'), {
+      titulo: 'Seleccionar cliente o prospecto', placeholder: 'Nombre, RFC o clave del cliente…',
+      fetcher: async (texto) => KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/clientes?q=${encodeURIComponent(texto)}`)),
+      pinta: (c) => `<div style="font-weight:600">${esc(c.nombre)} ${I.chipProspecto(c.estatus_comercial)}</div>
+        <div class="muted" style="font-size:12px">${esc(c.rfc || 'Sin RFC')}${c.cve_cte ? ' · clave ' + esc(c.cve_cte) : ''}${c.agente_nombre ? ' · agente ' + esc(c.agente_nombre) : ''}</div>`,
+      onSelect: elegir,
+      accion: canCreate ? { texto: (texto) => `+ No está: dar de alta "${texto}" como prospecto`,
+        onClick: (texto) => { q('prosp').style.display = 'block'; q('pNom').value = texto; q('pRfc').focus(); } } : null,
+    });
     q('pNo').onclick = () => { q('prosp').style.display = 'none'; };
     q('pOk').onclick = () => KoguUi.withLoading(q('pOk'), async () => {
       const body = { nombre: q('pNom').value.trim(), rfc: q('pRfc').value.trim() || undefined, agente_id: q('pAg').value || undefined };

@@ -69,6 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tipo = () => el.querySelector('[data-tp]:checked').value;
     el.querySelectorAll('[data-tp]').forEach((r) => (r.onchange = () => { el.querySelector('[data-b]').value = ''; delete sel.producto_id; delete sel.producto_desarrollo_id; }));
     I.buscador(el.querySelector('[data-b]'), el.querySelector('[data-bc]'), {
+      get titulo() { return tipo() === 'erp' ? 'Seleccionar producto del ERP' : 'Seleccionar clave experimental'; },
       fetcher: async (q) => KoguApi.unwrapData(await KoguApi.apiFetch(tipo() === 'erp'
         ? `${BASE}/productos-erp?q=${encodeURIComponent(q)}` : `${BASE}/productos-desarrollo?q=${encodeURIComponent(q)}`)),
       pinta: (x) => (tipo() === 'erp' ? `<span class="chip-compact">${esc(x.cve_prod)}</span> ${esc(x.desc_prod)}` : `<span class="chip-compact">${esc(x.codigo)}</span> ${esc(x.nombre)}`),

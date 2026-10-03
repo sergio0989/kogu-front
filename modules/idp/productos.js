@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '<span class="muted" style="font-size:13px">Sin coincidencias por nombre; búscala abajo.</span>';
     el.querySelectorAll('[data-sug]').forEach((r) => (r.onchange = () => elegir(sug.find((p) => p.producto_id === r.value))));
     I.buscador(el.querySelector('[data-b]'), el.querySelector('[data-bc]'), {
+      titulo: 'Buscar producto del ERP',
       fetcher: async (q) => KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/productos-erp?q=${encodeURIComponent(q)}`)),
       pinta: (p) => `<span class="chip-compact">${esc(p.cve_prod)}</span> ${esc(p.desc_prod)}`,
       elegir: (p) => { el.querySelector('[data-b]').value = p.cve_prod; elegir(p); },

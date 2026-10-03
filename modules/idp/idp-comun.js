@@ -184,25 +184,79 @@
     api.chip = (texto, color) => `<span class="chip" style="white-space:nowrap;background:${color}1a;color:${color};border:1px solid ${color}55">${esc(texto)}</span>`;
     api.chipLista = (l) => { const e = estadoLista(l); return api.chip(ETIQUETA_LISTA[e] || e, COLOR_LISTA[e] || '#64748b'); };
     api.chipFicha = (e) => api.chip(e, { vigente: '#16a34a', borrador: '#64748b', obsoleta: '#991b1b' }[e] || '#64748b');
-    // Buscador con lista desplegable: input + caja; fetcher(q) → items; pinta(item) → html; elegir(item).
-    api.buscador = (input, caja, { fetcher, pinta, elegir, extra }) => {
-      let t;
-      input.setAttribute('autocomplete', 'off');
-      input.addEventListener('input', () => {
-        clearTimeout(t);
-        const q = input.value.trim();
-        t = setTimeout(async () => {
-          if (q.length < 2) { caja.style.display = 'none'; return; }
-          let arr = [];
-          try { arr = (await fetcher(q)) || []; } catch (_) {}
-          caja.innerHTML = arr.map((x, i) => `<div data-i="${i}" style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)">${pinta(x)}</div>`).join('')
-            + (extra ? extra(q) : '') || '<div class="muted" style="padding:8px 10px;font-size:13px">Sin resultados.</div>';
-          caja.style.display = 'block';
-          caja.querySelectorAll('[data-i]').forEach((d) => (d.onmousedown = (e) => { e.preventDefault(); caja.style.display = 'none'; elegir(arr[Number(d.dataset.i)]); }));
-        }, 250);
+    // Ventana de búsqueda contra el servidor (mismo aspecto que KoguUi.openSearchPicker,
+    // pero consulta mientras escribes: clientes y productos son miles).
+    // fetcher(q) → items · pinta(item) → html · onSelect(item) · accion = { texto(q), onClick(q) }
+    api.picker = ({ titulo = 'Buscar', placeholder = 'Escribe para buscar…', fetcher, pinta, onSelect, accion, minimo = 2 }) => {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:60px 20px;backdrop-filter:blur(2px)';
+      ov.innerHTML = `
+        <div style="width:100%;max-width:720px;max-height:80vh;background:var(--panel,#fff);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div style="font-weight:600;font-size:16px">${esc(titulo)}</div><button class="btn ghost" data-pk-x>Cerrar</button></div>
+          <div style="padding:12px 18px;border-bottom:1px solid var(--line,#e2e8f0)">
+            <input class="input" data-pk-q placeholder="${esc(placeholder)}" autocomplete="off" style="width:100%"/>
+            <div data-pk-info style="margin-top:6px;font-size:12px;color:var(--muted,#64748b)">Escribe al menos ${minimo} letras.</div></div>
+          <div data-pk-list style="flex:1;overflow-y:auto"></div>
+          <div data-pk-acc style="display:none;padding:10px 18px;border-top:1px solid var(--line,#e2e8f0)"></div>
+        </div>`;
+      document.body.appendChild(ov);
+      const $q = ov.querySelector('[data-pk-q]'); const $l = ov.querySelector('[data-pk-list]');
+      const $i = ov.querySelector('[data-pk-info]'); const $a = ov.querySelector('[data-pk-acc]');
+      let items = []; let hi = 0; let t; let turno = 0;
+      const cerrar = () => { ov.remove(); document.removeEventListener('keydown', teclas, true); };
+      const pintarHi = () => $l.querySelectorAll('[data-pk-i]').forEach((r, k) => {
+        r.style.background = k === hi ? 'rgba(59,130,246,.10)' : '';
+        if (k === hi) r.scrollIntoView({ block: 'nearest' });
       });
-      input.addEventListener('blur', () => setTimeout(() => { caja.style.display = 'none'; }, 150));
+      const elegir = (k) => { const it = items[k]; if (!it) return; cerrar(); onSelect(it); };
+      const pintarAccion = (q) => {
+        if (!accion || q.length < minimo) { $a.style.display = 'none'; return; }
+        $a.style.display = 'block';
+        $a.innerHTML = `<a href="#" class="link" data-pk-a>${esc(accion.texto(q))}</a>`;
+        $a.querySelector('[data-pk-a]').onclick = (e) => { e.preventDefault(); cerrar(); accion.onClick(q); };
+      };
+      const buscar = async () => {
+        const q = $q.value.trim(); pintarAccion(q);
+        if (q.length < minimo) { items = []; $l.innerHTML = ''; $i.textContent = `Escribe al menos ${minimo} letras.`; return; }
+        const mio = ++turno; $i.textContent = 'Buscando…';
+        let r = [];
+        try { r = (await fetcher(q)) || []; } catch (_) { r = []; }
+        if (mio !== turno) return;           // llegó una respuesta vieja: se descarta
+        items = r; hi = 0;
+        $i.textContent = r.length ? `${r.length} resultado${r.length === 1 ? '' : 's'}${r.length >= 20 ? ' · afina la búsqueda para ver más' : ''}` : 'Sin coincidencias.';
+        $l.innerHTML = r.map((it, k) => `<div data-pk-i="${k}" style="padding:10px 18px;border-bottom:1px solid var(--line,#e2e8f0);cursor:pointer;font-size:14px">${pinta(it)}</div>`).join('');
+        pintarHi();
+      };
+      function teclas(e) {
+        if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cerrar(); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); hi = Math.min(hi + 1, items.length - 1); pintarHi(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); hi = Math.max(hi - 1, 0); pintarHi(); }
+        else if (e.key === 'Enter' && document.activeElement === $q) { e.preventDefault(); elegir(hi); }
+      }
+      document.addEventListener('keydown', teclas, true);
+      $q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(buscar, 250); });
+      $l.addEventListener('click', (e) => { const r = e.target.closest('[data-pk-i]'); if (r) elegir(Number(r.dataset.pkI)); });
+      $l.addEventListener('mousemove', (e) => { const r = e.target.closest('[data-pk-i]'); if (r && Number(r.dataset.pkI) !== hi) { hi = Number(r.dataset.pkI); pintarHi(); } });
+      ov.addEventListener('click', (e) => { if (e.target === ov) cerrar(); });
+      ov.querySelector('[data-pk-x]').onclick = cerrar;
+      setTimeout(() => $q.focus(), 30);
+      return { cerrar };
     };
+
+    // Convierte un input en "campo de selección": no se escribe en él; al hacer clic
+    // (o Enter/flecha abajo) abre la ventana de búsqueda.
+    api.campoBusqueda = (input, opts) => {
+      input.readOnly = true; input.style.cursor = 'pointer'; input.setAttribute('autocomplete', 'off');
+      if (!input.placeholder || /…$/.test(input.placeholder)) input.placeholder = opts.vacio || 'Haz clic para buscar…';
+      const abrir = () => api.picker({ ...opts });
+      input.addEventListener('click', abrir);
+      input.addEventListener('keydown', (e) => { if (['Enter', ' ', 'ArrowDown'].includes(e.key)) { e.preventDefault(); abrir(); } });
+    };
+    // Compatibilidad con las pantallas: mismo contrato que el buscador anterior.
+    // (el título se lee al abrir: puede depender del tipo elegido en el formulario)
+    api.buscador = (input, _caja, o) => api.campoBusqueda(input, {
+      get titulo() { return o.titulo; }, fetcher: o.fetcher, pinta: o.pinta, onSelect: o.elegir, accion: o.accion });
     api.cajaBusqueda = (attr) => `<div ${attr} style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:240px;overflow:auto;margin-top:2px"></div>`;
     api.chipProspecto = (estatus) => (estatus === 'prospecto'
       ? '<span class="chip" style="background:#7c3aed1a;color:#7c3aed;border:1px solid #7c3aed55">prospecto</span>' : '');
