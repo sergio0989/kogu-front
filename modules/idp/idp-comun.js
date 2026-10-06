@@ -257,7 +257,56 @@
     return Number.isInteger(n) && n >= 1 ? null : 'Las piezas deben ser un número entero de 1 en adelante.';
   }
 
-  const api = { CAMPOS_REQUISITO_GENERALES, bloquesRequisitos, camposDeBloques, cuerpoRequisitos, porcionMuestra, validarPiezas,
+  // ── Alta de proyecto en 4 pasos (copia de generar_proyecto.php del CRM) ──
+  const PASOS_ALTA = ['Información del proyecto', 'Información de negocio', 'Detalles del desarrollo', 'Información adicional'];
+  const BLOQUES_PASO_ALTA = {
+    3: ['etiquetado', 'estado_fisico', 'envase', 'almacenamiento', 'certificacion', 'documento', 'envio'],
+    4: ['clasificacion', 'solubilidad', 'demostracion'],
+  };
+  function fechaSugeridaAlta(hoy) {
+    const [a, m, d] = String(hoy).slice(0, 10).split('-').map(Number);
+    return new Date(Date.UTC(a, m - 1, d + 10)).toISOString().slice(0, 10);
+  }
+  function bloquesPasoAlta(paso, lineaValor) {
+    const pide = bloquesRequisitos(lineaValor);
+    return (BLOQUES_PASO_ALTA[paso] || []).filter((b) => pide.includes(b));
+  }
+  const blanco = (v) => v === undefined || v === null || String(v).trim() === '';
+  // Filas de "muestras de línea": las vacías no cuentan; con datos exigen producto.
+  function filasMuestraAlta(filas) {
+    const muestras = [];
+    for (let i = 0; i < (filas || []).length; i++) {
+      const f = filas[i] || {}; const n = i + 1;
+      if (['codigo', 'nombre', 'piezas', 'cantidad'].every((k) => blanco(f[k]))) continue;
+      if (blanco(f.nombre)) return { muestras: [], error: `Fila ${n} de muestras: escribe el producto.` };
+      const ep = validarPiezas(f.piezas);
+      if (ep) return { muestras: [], error: `Fila ${n} de muestras: ${ep.charAt(0).toLowerCase()}${ep.slice(1)}` };
+      if (!blanco(f.cantidad) && !(Number(f.cantidad) >= 0)) return { muestras: [], error: `Fila ${n} de muestras: contenido inválido.` };
+      muestras.push({ codigo: String(f.codigo || '').trim(), nombre: String(f.nombre).trim(),
+        piezas: blanco(f.piezas) ? null : Number(f.piezas), cantidad: blanco(f.cantidad) ? null : Number(f.cantidad), unidad: f.unidad || null });
+    }
+    return { muestras, error: null };
+  }
+  // Un solo envío: datos del proyecto + requisitos (sin vacíos) + muestras de línea.
+  function cuerpoAlta(f) {
+    const b = {};
+    for (const k of ['cliente_id', 'nombre', 'tipo', 'linea', 'tipo_solicitud', 'segmento', 'fecha_requerida', 'descripcion', 'moneda', 'agente_id', 'prioridad']) {
+      if (!blanco(f[k])) b[k] = String(f[k]).trim();
+    }
+    for (const k of ['kg_mes', 'precio_objetivo']) if (!blanco(f[k])) b[k] = Number(f[k]);
+    const req = {};
+    for (const [k, v] of Object.entries(f.requisitos || {})) {
+      if (sinDato(v)) continue;
+      req[k] = typeof v === 'string' ? v.trim() : v;
+    }
+    if (sinDato(req.costo_aplicacion)) delete req.costo_aplicacion_moneda;
+    if (req.alergenos !== true) delete req.alergenos_lista;
+    if (Object.keys(req).length) b.requisitos = req;
+    if (Array.isArray(f.muestras) && f.muestras.length) b.muestras = f.muestras;
+    return b;
+  }
+
+  const api = { PASOS_ALTA, fechaSugeridaAlta, bloquesPasoAlta, filasMuestraAlta, cuerpoAlta, CAMPOS_REQUISITO_GENERALES, bloquesRequisitos, camposDeBloques, cuerpoRequisitos, porcionMuestra, validarPiezas,
     CLAVE_CATALOGO_RE, CATALOGOS_REQUISITO, claveDesdeNombre, arbolCatalogo, validarValorCatalogo, cuerpoValorCatalogo,
     opcionesCatalogo, requisitosDeLinea, fmtPrecio, BASE, FASES, faseDe, colorEstado, COLOR_POTENCIAL, camposTransicion, validarTransicion, cuerpoTransicion,
     diasSinMovimiento, estancado, fmtUsd, fmtNum, ALERGENOS, PARAMETROS_BASE, contenidoFicha, faltantesFicha,
