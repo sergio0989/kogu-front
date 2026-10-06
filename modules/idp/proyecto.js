@@ -83,15 +83,43 @@ document.addEventListener('DOMContentLoaded', async () => {
       const suave = ['cancelado', 'rechazado', 'no_aprobado', 'hold'].includes(a.a);
       return `<button class="btn ${suave ? '' : 'primary'}" data-accion="${esc(a.a)}">${esc(a.nombre)}</button>`;
     }).join('');
-    const metricas = [
-      ['Potencial', p.potencial ? `Clase ${p.potencial}` : '—'],
-      ['Venta anual', I.fmtUsd(p.venta_anual_usd)],
-      ['Volumen', p.kg_mes ? `${I.fmtNum(p.kg_mes, 0)} kg/mes` : '—'],
-      ['Precio objetivo', p.precio_objetivo ? `${p.moneda} ${I.fmtNum(p.precio_objetivo, 4)}/kg` : '—'],
-      ['Fecha requerida', fecha(p.fecha_requerida)],
-      ['Muestras entregadas', String(p.muestras_entregadas ?? 0)],
-      ['Ciclos', totalCiclos ? `${totalCiclos} (${Object.entries(ciclos).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(', ')})` : '0'],
-    ];
+    // Tira de indicadores: Negocio (define el potencial) | Seguimiento
+    const cPot = I.COLOR_POTENCIAL[p.potencial] || '#64748b';
+    const kpi = (k, v, sub = '') => `<div class="idp-kpi"><div class="idp-kpi-k">${esc(k)}</div>
+      <div class="idp-kpi-v">${v}</div>${sub ? `<div class="idp-kpi-s">${sub}</div>` : ''}</div>`;
+    const vacio = '<span class="muted">—</span>';
+    const detCiclos = Object.entries(ciclos).filter(([, v]) => v).map(([k, v]) => `${esc(k)} ${v}`).join(' · ');
+    const indicadores = `
+      <style>
+        .idp-kpis{margin-top:14px;background:var(--panel,#fff);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+        .idp-kgrp{display:grid;grid-template-columns:150px 1fr;align-items:center;padding:14px 18px}
+        .idp-kgrp + .idp-kgrp{border-top:1px solid var(--line)}
+        .idp-kgrp-t{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);line-height:1.5}
+        .idp-kgrp-t span{display:block;font-weight:500;letter-spacing:0;text-transform:none;font-size:12px}
+        .idp-krow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+        .idp-kpi{padding:2px 16px;min-width:0}
+        .idp-kpi + .idp-kpi{border-left:1px solid var(--line)}
+        .idp-kpi-k{font-size:12px;color:var(--muted);margin-bottom:4px;white-space:nowrap}
+        .idp-kpi-v{font-size:21px;font-weight:800;line-height:1.2;overflow-wrap:anywhere}
+        .idp-kpi-v small{font-size:13px;font-weight:600;color:var(--muted);margin-left:4px}
+        .idp-kpi-s{font-size:12px;color:var(--muted);margin-top:3px}
+        .idp-pot{display:inline-flex;align-items:center;gap:8px}
+        .idp-pot b{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:10px;font-size:17px}
+        @media (max-width:900px){.idp-kgrp{grid-template-columns:1fr;gap:10px}.idp-krow{grid-template-columns:1fr 1fr;row-gap:12px}.idp-kpi{padding-left:0}.idp-kpi + .idp-kpi{border-left:none}}
+      </style>
+      <div class="idp-kpis">
+        <div class="idp-kgrp"><div class="idp-kgrp-t">Negocio<span>define el potencial</span></div><div class="idp-krow">
+          ${kpi('Potencial', p.potencial ? `<span class="idp-pot"><b style="background:${cPot}1a;color:${cPot};border:1px solid ${cPot}55">${esc(p.potencial)}</b><span style="font-size:15px">Clase ${esc(p.potencial)}</span></span>` : vacio)}
+          ${kpi('Venta anual', p.venta_anual_usd != null ? esc(I.fmtUsd(p.venta_anual_usd)) : vacio, p.venta_anual_usd != null ? 'kg/mes × precio × 12' : '')}
+          ${kpi('Volumen', p.kg_mes ? `${esc(I.fmtNum(p.kg_mes, 0))}<small>kg/mes</small>` : vacio)}
+          ${kpi('Precio objetivo', p.precio_objetivo ? `${esc(I.fmtPrecio(p.precio_objetivo))}<small>${esc(p.moneda || '')}/kg</small>` : vacio)}
+        </div></div>
+        <div class="idp-kgrp"><div class="idp-kgrp-t">Seguimiento<span>avance con el cliente</span></div><div class="idp-krow">
+          ${kpi('Fecha requerida', p.fecha_requerida ? esc(fecha(p.fecha_requerida)) : vacio)}
+          ${kpi('Muestras entregadas', String(p.muestras_entregadas ?? 0))}
+          ${kpi('Ciclos', String(totalCiclos), detCiclos)}
+        </div></div>
+      </div>`;
     const n = { muestras: datos.muestras.filter((m) => m.activo).length, claves: datos.claves.length, fichas: datos.fichas.length };
     const tabBtn = (k, t) => `<button class="tab${tab === k ? ' active' : ''}" data-tab="${k}">${t}</button>`;
 
@@ -117,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${stepper()}
       </div>
 
-      <div class="ot-metrics">${metricas.map(([k, v]) => `<div class="ot-metric"><div class="m-k">${esc(k)}</div><div class="m-v">${esc(v)}</div></div>`).join('')}</div>
+      ${indicadores}
 
       <div class="split" style="margin-top:14px">
         <div class="card">
@@ -265,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div style="margin-top:8px">${txt('documento_entregado_otro', 'Otro documento entregado', 'Ej. Brief, audios')}</div>`) : ''}
         ${secc('Proceso y condiciones', `<div class="grid-2" style="gap:12px">
             ${sino('termoresistente', 'Termoresistente')}
-            ${sino('alergenos', 'Puede contener alérgenos')}
+            ${sino('alergenos', '¿Permite el uso de alérgenos?')}
             <div>${lab('Dosis de uso (%)')}<input class="input" type="number" min="0" step="any" data-r="dosis" value="${esc(r.dosis ?? '')}" style="width:100%"${dis}/></div>
             <div>${lab('Vida de anaquel (meses)')}<input class="input" type="number" min="0" step="1" data-r="vida_anaquel_meses" value="${esc(r.vida_anaquel_meses ?? '')}" style="width:100%"${dis}/></div>
           </div>
