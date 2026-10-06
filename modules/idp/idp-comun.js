@@ -210,7 +210,55 @@
     return r.filter((k) => CATALOGOS_REQUISITO.includes(k));
   }
 
-  const api = { CLAVE_CATALOGO_RE, CATALOGOS_REQUISITO, claveDesdeNombre, arbolCatalogo, validarValorCatalogo, cuerpoValorCatalogo,
+  // ── Requisitos del proyecto (contrato: backend qa/idp-requisitos.test.mjs) ──
+  const CAMPOS_REQUISITO_GENERALES = ['termoresistente', 'alergenos', 'alergenos_lista', 'proceso', 'dosis', 'vida_anaquel_meses', 'direccion_envio'];
+  const CAMPOS_POR_BLOQUE = {
+    certificacion: ['certificaciones', 'certificacion_otro'],
+    documento: ['documentos_requeridos', 'documento_requerido_otro', 'documentos_entregados', 'documento_entregado_otro'],
+  };
+  const NUMERICOS_REQUISITO = ['dosis', 'vida_anaquel_meses'];
+  function bloquesRequisitos(lineaValor) {
+    const r = requisitosDeLinea(lineaValor);
+    return r.length ? r : CATALOGOS_REQUISITO.slice();
+  }
+  function camposDeBloques(bloques) {
+    return [...(bloques || []).flatMap((b) => CAMPOS_POR_BLOQUE[b] || [b]), ...CAMPOS_REQUISITO_GENERALES];
+  }
+  const sinDato = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
+  function normReq(k, v) {
+    if (sinDato(v)) return null;
+    if (NUMERICOS_REQUISITO.includes(k)) { const n = Number(v); return Number.isFinite(n) ? n : v; }
+    if (typeof v === 'string') return v.trim() || null;
+    return v;
+  }
+  const igualReq = (a, b) => (Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && [...a].sort().join('\u0001') === [...b].sort().join('\u0001')
+    : a === b);
+  // Solo lo que cambió respecto a lo guardado; lo vaciado va como null. Sin cambios → null.
+  function cuerpoRequisitos(nuevo, guardado) {
+    const g = guardado || {}; const out = {};
+    for (const [k, v] of Object.entries(nuevo || {})) {
+      const n = normReq(k, v); const o = normReq(k, g[k]);
+      if (!igualReq(n, o)) out[k] = n;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+  // Muestras: piezas + contenido de cada pieza (CRM: cantidad + unidadn/unidad).
+  function porcionMuestra(m) {
+    const x = m || {};
+    const contenido = x.cantidad !== null && x.cantidad !== undefined && x.cantidad !== '' ? `${Number(x.cantidad)}${x.unidad ? ' ' + x.unidad : ''}` : '';
+    if (x.piezas === null || x.piezas === undefined || x.piezas === '') return contenido;
+    const n = Number(x.piezas);
+    return `${n} pieza${n === 1 ? '' : 's'}${contenido ? ' de ' + contenido : ''}`;
+  }
+  function validarPiezas(v) {
+    if (v === null || v === undefined || String(v).trim() === '') return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 1 ? null : 'Las piezas deben ser un número entero de 1 en adelante.';
+  }
+
+  const api = { CAMPOS_REQUISITO_GENERALES, bloquesRequisitos, camposDeBloques, cuerpoRequisitos, porcionMuestra, validarPiezas,
+    CLAVE_CATALOGO_RE, CATALOGOS_REQUISITO, claveDesdeNombre, arbolCatalogo, validarValorCatalogo, cuerpoValorCatalogo,
     opcionesCatalogo, requisitosDeLinea, fmtPrecio, BASE, FASES, faseDe, colorEstado, COLOR_POTENCIAL, camposTransicion, validarTransicion, cuerpoTransicion,
     diasSinMovimiento, estancado, fmtUsd, fmtNum, ALERGENOS, PARAMETROS_BASE, contenidoFicha, faltantesFicha,
     validarPartida, cuerpoPartida, ETIQUETA_LISTA, COLOR_LISTA, estadoLista };
@@ -355,6 +403,15 @@
     };
 
     api.mensajeError = (err) => err?.message || 'Ocurrió un error.';
+
+    // Catálogos de I+D en selects: activos + el valor actual aunque esté inactivo.
+    api.opcionesHtml = (valores, actual, vacio = '—') => `<option value="">${esc(vacio)}</option>` +
+      opcionesCatalogo(valores, actual).map((o) => `<option value="${esc(o.clave)}"${o.clave === actual ? ' selected' : ''}>${esc(o.etiqueta)}</option>`).join('');
+    api.nombreCatalogo = (valores, clave) => {
+      if (!clave) return '';
+      const o = opcionesCatalogo(valores, clave).find((x) => x.clave === clave);
+      return o ? o.etiqueta : clave;
+    };
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

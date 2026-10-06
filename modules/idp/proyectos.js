@@ -20,6 +20,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let catalogo = { estados: [], agentes: [], motivos: [], desarrolladores: [] };
   try { catalogo = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/catalogo`)); } catch (_) { /* toast ya mostrado */ }
+  // Catálogos de I+D (línea, tipo de solicitud, segmento, prioridad)
+  let cats = {};
+  try { cats = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/catalogos`)) || {}; } catch (_) { cats = {}; }
+  const val = (k) => cats[k] || [];
   const nombreEstado = (k) => catalogo.estados.find((e) => e.clave === k)?.nombre || k;
 
   const f = { q: '', estado: '', potencial: '', agente_id: '', estancados: '', pagina: 1 };
@@ -116,9 +120,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><div class="label-text">Nombre del proyecto</div><input class="input" data-f="nom" placeholder="Ej. Sazonador queso cheddar para papa" style="width:100%"/></div>
         <div class="grid-2" style="gap:12px">
           <div><div class="label-text">Tipo</div><select class="select" data-f="tipo" style="width:100%"><option value="reactivo">Reactivo (lo pide el cliente)</option><option value="proactivo">Proactivo (lo propone I+D)</option></select></div>
-          <div><div class="label-text">Prioridad</div><select class="select" data-f="prio" style="width:100%"><option value="media">Media</option><option value="alta">Alta</option><option value="baja">Baja</option></select></div>
-          <div><div class="label-text">Categoría</div><input class="input" data-f="cat" placeholder="Ej. Sazonadores" style="width:100%"/></div>
-          <div><div class="label-text">Segmento</div><input class="input" data-f="seg" placeholder="Ej. Botanas" style="width:100%"/></div>
+          <div><div class="label-text">Prioridad</div><select class="select" data-f="prio" style="width:100%">${I.opcionesHtml(val('prioridad'), val('prioridad').some((x) => x.clave === 'media') ? 'media' : null)}</select></div>
+          <div><div class="label-text">Línea</div><select class="select" data-f="linea" style="width:100%">${I.opcionesHtml(val('linea'), null, '— Selecciona la línea —')}</select></div>
+          <div><div class="label-text">Tipo de solicitud</div><select class="select" data-f="tsol" style="width:100%">${I.opcionesHtml(val('tipo_solicitud'), null, '— Selecciona —')}</select></div>
+          <div><div class="label-text">Segmento</div><select class="select" data-f="seg" style="width:100%">${I.opcionesHtml(val('segmento'), null, '— Selecciona el segmento —')}</select></div>
           <div><div class="label-text">Volumen estimado (kg/mes)</div><input class="input" data-f="kg" type="number" min="0" step="any" style="width:100%"/></div>
           <div><div class="label-text">Precio objetivo por kg</div>
             <div style="display:flex;gap:6px"><input class="input" data-f="precio" type="number" min="0" step="any" style="flex:1;min-width:0;width:auto"/>
@@ -131,8 +136,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const v = (k) => m.querySelector(`[data-f="${k}"]`).value.trim();
         if (!cliente) { KoguApi.toast('Selecciona el cliente o da de alta el prospecto.', 'error'); throw new Error('sin cliente'); }
         if (!v('nom')) { KoguApi.toast('Escribe el nombre del proyecto.', 'error'); throw new Error('sin nombre'); }
-        const body = { cliente_id: cliente.cliente_id, nombre: v('nom'), tipo: v('tipo'), prioridad: v('prio'),
-          categoria: v('cat') || undefined, segmento: v('seg') || undefined, descripcion: v('desc') || undefined,
+        const body = { cliente_id: cliente.cliente_id, nombre: v('nom'), tipo: v('tipo'), prioridad: v('prio') || undefined,
+          linea: v('linea') || undefined, tipo_solicitud: v('tsol') || undefined, segmento: v('seg') || undefined, descripcion: v('desc') || undefined,
           kg_mes: v('kg') ? Number(v('kg')) : undefined, precio_objetivo: v('precio') ? Number(v('precio')) : undefined,
           moneda: v('mon'), fecha_requerida: v('fecha') || undefined, agente_id: v('ag') || undefined };
         const p = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/proyectos`, { method: 'POST', body: JSON.stringify(body) }));
