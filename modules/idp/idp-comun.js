@@ -163,7 +163,55 @@
     const v = Number(n); const d = Math.abs(Math.round(v * 100) - v * 100) > 1e-6 ? 4 : 2;
     return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
-  const api = { fmtPrecio, BASE, FASES, faseDe, colorEstado, COLOR_POTENCIAL, camposTransicion, validarTransicion, cuerpoTransicion,
+  // ── Catálogos de I+D (GET /protected/idp/catalogos) ──
+  // Mismas reglas que el backend: clave ^[a-z0-9_]{2,60}$, fija después del alta.
+  const CLAVE_CATALOGO_RE = /^[a-z0-9_]{2,60}$/;
+  const CATALOGOS_REQUISITO = ['etiquetado', 'estado_fisico', 'envase', 'almacenamiento', 'clasificacion',
+    'solubilidad', 'demostracion', 'envio', 'certificacion', 'documento'];
+  function claveDesdeNombre(nombre) {
+    return String(nombre ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60).replace(/_+$/, '');
+  }
+  const porOrden = (a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0) || String(a.nombre).localeCompare(String(b.nombre), 'es');
+  // Principales con sus hijos; si el padre no existe, el valor se muestra como principal.
+  function arbolCatalogo(valores) {
+    const lista = valores || [];
+    const ids = new Set(lista.map((v) => v.valor_id));
+    const raiz = lista.filter((v) => !v.padre_id || !ids.has(v.padre_id)).sort(porOrden);
+    return raiz.map((v) => ({ ...v, hijos: lista.filter((h) => h.padre_id === v.valor_id).sort(porOrden).map((h) => ({ ...h, hijos: [] })) }));
+  }
+  function validarValorCatalogo(v, existentes) {
+    if (!String(v.nombre || '').trim()) return 'Escribe el nombre.';
+    const clave = String(v.clave || '').trim();
+    if (!CLAVE_CATALOGO_RE.test(clave)) return 'La clave va en minúsculas, sin espacios ni acentos (letras, números y _), de 2 a 60.';
+    if ((existentes || []).some((x) => x.catalogo === v.catalogo && x.clave === clave)) return `La clave ${clave} ya existe en este catálogo.`;
+    return null;
+  }
+  function cuerpoValorCatalogo(f) {
+    const b = { catalogo: f.catalogo, clave: String(f.clave || '').trim(), nombre: String(f.nombre || '').trim() };
+    if (f.orden !== '' && f.orden != null && Number.isFinite(Number(f.orden))) b.orden = Number(f.orden);
+    if (f.padre_id) b.padre_id = f.padre_id;
+    return b;
+  }
+  // Opciones para un select: activas (subsegmento como "Padre › Hijo") + el valor actual aunque esté inactivo.
+  function opcionesCatalogo(valores, actual) {
+    const out = [];
+    for (const p of arbolCatalogo(valores)) {
+      for (const v of [p, ...p.hijos]) {
+        if (v.activo === false && v.clave !== actual) continue;
+        const etiqueta = (v === p ? v.nombre : `${p.nombre} › ${v.nombre}`) + (v.activo === false ? ' (inactivo)' : '');
+        out.push({ clave: v.clave, etiqueta, activo: v.activo !== false });
+      }
+    }
+    return out;
+  }
+  function requisitosDeLinea(linea) {
+    const r = (linea && linea.config && Array.isArray(linea.config.requisitos)) ? linea.config.requisitos : [];
+    return r.filter((k) => CATALOGOS_REQUISITO.includes(k));
+  }
+
+  const api = { CLAVE_CATALOGO_RE, CATALOGOS_REQUISITO, claveDesdeNombre, arbolCatalogo, validarValorCatalogo, cuerpoValorCatalogo,
+    opcionesCatalogo, requisitosDeLinea, fmtPrecio, BASE, FASES, faseDe, colorEstado, COLOR_POTENCIAL, camposTransicion, validarTransicion, cuerpoTransicion,
     diasSinMovimiento, estancado, fmtUsd, fmtNum, ALERGENOS, PARAMETROS_BASE, contenidoFicha, faltantesFicha,
     validarPartida, cuerpoPartida, ETIQUETA_LISTA, COLOR_LISTA, estadoLista };
 
