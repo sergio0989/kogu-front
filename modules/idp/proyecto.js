@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${field('Cliente', `${esc(p.cliente_nombre || '')} ${I.chipProspecto(p.cliente_estatus)}`)}
             ${field('RFC', esc(p.cliente_rfc || ''))}
             ${field('Agente', esc(p.agente_nombre || ''))}
-            ${field('Desarrollador', esc(nombreDev(p.desarrollador_id) || ''))}
+            ${field('Desarrollador', esc(I.nombreDesarrollador(p, catalogo.desarrolladores)))}
             ${field('Línea', esc(nomCat('linea', p.linea)))}
             ${field('Tipo de solicitud', esc(nomCat('tipo_solicitud', p.tipo_solicitud)))}
             ${field('Segmento', esc(nomCat('segmento', p.segmento)))}

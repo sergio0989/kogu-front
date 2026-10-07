@@ -463,6 +463,14 @@
     };
   }
 
+  // Nombre del desarrollador: de la lista de activos; si ya no está (p. ej. usuario del CRM sin acceso),
+  // el que manda el backend (desarrollador_nombre); si no hay nombre, "Asignado".
+  api.nombreDesarrollador = (p, devs) => {
+    const uid = p?.desarrollador_id;
+    if (!uid) return '';
+    return (devs || []).find((d) => d.user_id === uid)?.nombre || p.desarrollador_nombre || 'Asignado';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguIdp = api;
 })(typeof window !== 'undefined' ? window : globalThis);
