@@ -312,6 +312,59 @@
     diasSinMovimiento, estancado, fmtUsd, fmtNum, ALERGENOS, PARAMETROS_BASE, contenidoFicha, faltantesFicha,
     validarPartida, cuerpoPartida, ETIQUETA_LISTA, COLOR_LISTA, estadoLista };
 
+  // ── Costos de materia prima (Fase 1) ──
+  const escMp = (x) => String(x ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const chipMp = (texto, bg, fg) => `<span class="chip" style="white-space:nowrap;background:${bg};color:${fg};border:1px solid ${fg}33;font-weight:600">${escMp(texto)}</span>`;
+  const VIGENCIA_MP = { vigente: ['Vigente', '#dcfce7', '#166534'], por_vencer: ['Por vencer', '#fef3c7', '#92400e'], vencida: ['Vencida', '#fee2e2', '#991b1b'],
+    futura: ['Futura', '#e0f2fe', '#075985'], sin_precio: ['Sin precio', '#f1f5f9', '#475569'] };
+  const ORIGEN_MP = { nacional: ['Nacional', '#f1f5f9', '#334155'], importacion: ['Importación', '#e0f2fe', '#075985'], por_revisar: ['Por revisar', '#fff7ed', '#9a3412'] };
+  const kgTxt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 3 });
+  api.precioMp = (moneda, precio) => {
+    if (precio == null || precio === '' || !Number.isFinite(Number(precio))) return '—';
+    const n = Number(precio);
+    return moneda === 'USD'
+      ? `USD ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+      : `MXN ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+  api.rangoEscala = (escalas, i, { sinEscala = false } = {}) => {
+    const e = escalas[i]; if (!e) return '';
+    if (sinEscala && Number(e.desde_kg) === 0) return 'Sin escala';
+    const sig = escalas[i + 1];
+    return sig ? `${kgTxt(e.desde_kg)} – ${kgTxt(Number(sig.desde_kg) - 1)} kg` : `${kgTxt(e.desde_kg)} kg en adelante`;
+  };
+  api.vigenciaSugerida = (desde, meses = 6) => {
+    const d = new Date(`${desde}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + meses); d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  };
+  api.chipVigencia = (e) => { const [t, bg, fg] = VIGENCIA_MP[e] || [e || '—', '#f1f5f9', '#475569']; return chipMp(t, bg, fg); };
+  api.chipOrigen = (o) => { const [t, bg, fg] = ORIGEN_MP[o] || [o || '—', '#f1f5f9', '#475569']; return chipMp(t, bg, fg); };
+  api.cuerpoCotizacion = (f) => {
+    if (!f.producto_id) return { ok: false, error: 'Elige la clave (producto del catálogo).' };
+    if (!f.vigente_desde) return { ok: false, error: 'Indica desde cuándo es vigente.' };
+    if (f.vigente_hasta && f.vigente_hasta < f.vigente_desde) return { ok: false, error: 'La vigencia termina antes de empezar.' };
+    const num = (v) => Number(String(v ?? '').replace(/,/g, '').trim());
+    const filas = (f.escalas || []).filter((e) => String(e.desde_kg ?? '').trim() !== '' || String(e.precio ?? '').trim() !== '');
+    if (!filas.length) return { ok: false, error: 'Captura al menos una escala con kg y precio.' };
+    const escalas = filas.map((e) => ({ desde_kg: num(e.desde_kg), precio: num(e.precio) }));
+    if (escalas.some((e) => !Number.isFinite(e.desde_kg) || e.desde_kg < 0 || !(e.precio > 0))) return { ok: false, error: 'Cada escala necesita kg y un precio mayor a 0.' };
+    const t = (v) => { const x = String(v ?? '').trim(); return x || null; };
+    const body = { producto_id: f.producto_id, proveedor_id: t(f.proveedor_id), incoterm: f.incoterm, moneda: f.moneda, transporte: t(f.transporte),
+      lugar_entrega: t(f.lugar_entrega), vigente_desde: f.vigente_desde, vigente_hasta: t(f.vigente_hasta), comentario: t(f.comentario), escalas };
+    // Solo para una clave nueva (la primera cotización la da de alta).
+    for (const k of ['origen', 'pais', 'unidad_compra']) if (t(f[k])) body[k] = t(f[k]);
+    if (t(f.densidad_kg_l)) body.densidad_kg_l = num(f.densidad_kg_l);
+    return { ok: true, body };
+  };
+  api.resumenMp = (filas) => {
+    const r = { total: filas.length, vigente: 0, por_vencer: 0, vencida: 0, sin_escala: 0, por_revisar: 0 };
+    for (const x of filas) {
+      if (r[x.estado_vigencia] !== undefined) r[x.estado_vigencia]++;
+      if (x.sin_escala) r.sin_escala++;
+      if (x.origen === 'por_revisar') r.por_revisar++;
+    }
+    return r;
+  };
+
   // ── Solo navegador ──
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));

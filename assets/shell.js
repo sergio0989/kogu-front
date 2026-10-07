@@ -71,6 +71,7 @@
     {section:'I+D',items:[
       {href:'/modules/idp/proyectos.html',label:'Proyectos de desarrollo',perm:'idp.proyectos.read'},
       {href:'/modules/idp/tablero.html',label:'Estadísticas',perm:'screen.idp.tablero'},
+      {href:'/modules/idp/mp.html',label:'Materias primas',perm:'idp.mp.read'},
       {href:'/modules/idp/productos.html',label:'Claves experimentales',perm:'idp.proyectos.read'},
       {href:'/modules/idp/fichas.html',label:'Fichas técnicas',perm:'idp.proyectos.read'},
       {href:'/modules/idp/listas-precio.html',label:'Listas de precios',perm:'idp.precios.read'},
