@@ -332,6 +332,18 @@
     const sig = escalas[i + 1];
     return sig ? `${kgTxt(e.desde_kg)} – ${kgTxt(Number(sig.desde_kg) - 1)} kg` : `${kgTxt(e.desde_kg)} kg en adelante`;
   };
+  // "Hasta" de cada fila del formulario, en el orden en que se capturaron.
+  api.hastaCaptura = (filas) => {
+    const n = (v) => { const t = String(v ?? '').replace(/,/g, '').trim(); return t === '' ? null : Number(t); };
+    const desdes = filas.map((f) => n(f.desde_kg));
+    const validos = desdes.filter((d) => d != null && Number.isFinite(d)).sort((a, b) => a - b);
+    return desdes.map((d) => {
+      if (d == null || !Number.isFinite(d)) return '';
+      if (desdes.filter((x) => x === d).length > 1) return 'desde repetido';
+      const sig = validos.find((x) => x > d);
+      return sig == null ? 'en adelante' : `${kgTxt(sig - 1)} kg`;
+    });
+  };
   api.vigenciaSugerida = (desde, meses = 6) => {
     const d = new Date(`${desde}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + meses); d.setUTCDate(d.getUTCDate() - 1);
     return d.toISOString().slice(0, 10);

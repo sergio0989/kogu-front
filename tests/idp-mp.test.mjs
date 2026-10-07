@@ -61,3 +61,11 @@ test('resumen de la lista: cuántas por vencer, vencidas, sin escala y por revis
   ];
   assert.deepEqual(I.resumenMp(filas), { total: 4, vigente: 1, por_vencer: 1, vencida: 2, sin_escala: 2, por_revisar: 1 });
 });
+
+// Captura (14:47, 7-oct): en el formulario faltaba ver hasta dónde llega cada escala.
+test('captura: "hasta" calculado en vivo por fila, aunque se capturen en desorden o con comas', () => {
+  assert.deepEqual(I.hastaCaptura([{ desde_kg: '1,000', precio: '3.95' }, { desde_kg: '25', precio: '4.78' }, { desde_kg: '18000', precio: '3.5' }]),
+    ['17,999 kg', '999 kg', 'en adelante']);
+  assert.deepEqual(I.hastaCaptura([{ desde_kg: '20,000', precio: '1.058' }, { desde_kg: '', precio: '' }]), ['en adelante', '']);
+  assert.deepEqual(I.hastaCaptura([{ desde_kg: '100', precio: '1' }, { desde_kg: '100', precio: '2' }]), ['desde repetido', 'desde repetido']);
+});
