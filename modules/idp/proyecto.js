@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canUpdate = can('idp.proyectos.update');
   const canDev = can('idp.proyectos.desarrollar');
   const canCreate = can('idp.proyectos.create');
+  const canAsignar = can('idp.proyectos.asignar');
   const pc = document.getElementById('pageContent');
   const id = new URLSearchParams(location.search).get('id');
   const volver = '<a class="link" href="/modules/idp/proyectos.html">Volver a proyectos</a>';
@@ -139,7 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-            ${acciones}${canUpdate && !cerrado() ? '<button class="btn" id="btnEditar">Editar datos</button>' : ''}
+            ${acciones}${canAsignar && !cerrado() ? '<button class="btn" id="btnResp">Responsables</button>' : ''}${canUpdate && !cerrado() ? '<button class="btn" id="btnEditar">Editar datos</button>' : ''}
           </div>
         </div>
         ${stepper()}
@@ -154,6 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${field('RFC', esc(p.cliente_rfc || ''))}
             ${field('Agente', esc(p.agente_nombre || ''))}
             ${field('Desarrollador', esc(I.nombreDesarrollador(p, catalogo.desarrolladores)))}
+            ${p.apoyo_id || p.asesor_id ? `${field('Apoyo', esc(I.nombreResponsable(p, 'apoyo', catalogo.desarrolladores)))}${field('Asesor', esc(I.nombreResponsable(p, 'asesor', catalogo.desarrolladores)))}` : ''}
             ${field('Línea', esc(nomCat('linea', p.linea)))}
             ${field('Tipo de solicitud', esc(nomCat('tipo_solicitud', p.tipo_solicitud)))}
             ${field('Segmento', esc(nomCat('segmento', p.segmento)))}
@@ -182,6 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     pc.querySelectorAll('[data-accion]').forEach((btn) => (btn.onclick = () => abrirTransicion((p.acciones || []).find((a) => a.a === btn.dataset.accion))));
     pc.querySelectorAll('[data-tab]').forEach((btn) => (btn.onclick = () => { tab = btn.dataset.tab; render(); }));
     if (document.getElementById('btnEditar')) document.getElementById('btnEditar').onclick = abrirEditar;
+    if (document.getElementById('btnResp')) document.getElementById('btnResp').onclick = abrirResponsables;
     ligarTab();
   }
 
@@ -376,6 +379,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (err) { KoguApi.toast(err, 'error'); throw new Error(err); }
         await KoguApi.apiFetch(`${BASE}/proyectos/${pid}/transicion`, { method: 'POST', body: JSON.stringify(I.cuerpoTransicion(accion, v)) });
         KoguApi.toast(`Proyecto en ${accion.nombre}`, 'success');
+        await recargar();
+      },
+    });
+  }
+
+  // ── Responsables (CRM: asignar, asignar_apoyo, asesor) ──
+  function abrirResponsables() {
+    const devs = catalogo.desarrolladores || [];
+    // Si el actual ya no está en la lista (p. ej. usuario del CRM sin acceso), se muestra igual para no perderlo.
+    const opciones = (rol, vacio) => {
+      const uid = p[`${rol}_id`];
+      const lista = uid && !devs.some((d) => d.user_id === uid) ? [{ user_id: uid, nombre: `${I.nombreResponsable(p, rol, devs)} (sin acceso)` }, ...devs] : devs;
+      return `${vacio ? `<option value="">${vacio}</option>` : ''}${lista.map((d) => `<option value="${esc(d.user_id)}"${d.user_id === uid ? ' selected' : ''}>${esc(d.nombre)}</option>`).join('')}`;
+    };
+    I.modal({
+      eyebrow: p.folio, titulo: 'Responsables del proyecto', ancho: 520,
+      cuerpo: `
+        <div><div class="label-text">Desarrollador</div>
+          ${p.desarrollador_id ? `<select class="select" data-r="desarrollador_id" style="width:100%">${opciones('desarrollador')}</select>`
+            : '<div class="hint" style="font-size:13px;color:var(--muted)">Aún sin desarrollador: se asigna con el paso <b>Asignado</b>.</div>'}</div>
+        <div><div class="label-text">Apoyo</div><select class="select" data-r="apoyo_id" style="width:100%">${opciones('apoyo', '— sin apoyo —')}</select></div>
+        <div><div class="label-text">Asesor</div><select class="select" data-r="asesor_id" style="width:100%">${opciones('asesor', '— sin asesor —')}</select></div>
+        <div><div class="label-text">Comentario <span class="muted">(opcional)</span></div><textarea class="input" data-r="comentario" rows="2" style="width:100%"></textarea></div>
+        ${devs.length ? '' : '<div class="hint" style="color:#b45309;font-size:12px">Nadie en esta empresa tiene permiso de desarrollo de I+D.</div>'}
+        <div class="hint" style="font-size:12px;color:var(--muted)">El cambio queda en la bitácora y se avisa a quien recibe el proyecto.</div>`,
+      onSubmit: async (m) => {
+        const form = { desarrollador_id: p.desarrollador_id || '' };
+        m.querySelectorAll('[data-r]').forEach((x) => (form[x.dataset.r] = x.value));
+        let body;
+        try { body = I.cuerpoResponsables(p, form); } catch (e) { KoguApi.toast(e.message, 'error'); throw e; }
+        if (!body) { KoguApi.toast('No hay cambios.', 'info'); throw new Error('sin cambios'); }
+        await KoguApi.apiFetch(`${BASE}/proyectos/${pid}/responsables`, { method: 'POST', body: JSON.stringify(body) });
+        KoguApi.toast('Responsables actualizados', 'success');
         await recargar();
       },
     });

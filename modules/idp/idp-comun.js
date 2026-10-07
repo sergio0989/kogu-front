@@ -471,6 +471,26 @@
     return (devs || []).find((d) => d.user_id === uid)?.nombre || p.desarrollador_nombre || 'Asignado';
   };
 
+  // Responsables (CRM: asignar, asignar_apoyo, asesor). Manda solo lo que cambió; vacío = null
+  // (quitar apoyo/asesor). El desarrollador ya asignado no se puede dejar vacío. null = sin cambios.
+  api.cuerpoResponsables = (p, form) => {
+    const body = {};
+    for (const k of ['desarrollador_id', 'apoyo_id', 'asesor_id']) {
+      const v = String(form?.[k] ?? '').trim() || null;
+      if (v !== (p?.[k] || null)) body[k] = v;
+    }
+    if ('desarrollador_id' in body && !body.desarrollador_id && p?.desarrollador_id) throw new Error('El proyecto no puede quedarse sin desarrollador.');
+    if (!Object.keys(body).length) return null;
+    const c = String(form?.comentario ?? '').trim();
+    if (c) body.comentario = c;
+    return body;
+  };
+  api.nombreResponsable = (p, rol, devs) => {
+    const uid = p?.[`${rol}_id`];
+    if (!uid) return '';
+    return (devs || []).find((d) => d.user_id === uid)?.nombre || p[`${rol}_nombre`] || 'Asignado';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguIdp = api;
 })(typeof window !== 'undefined' ? window : globalThis);
