@@ -13,7 +13,7 @@
     const sel = { producto_id: clave?.producto_id || null, proveedor_id: clave?.proveedor_id || null, nueva: !clave };
     const filaEscala = (d = '', p = '') => `<tr data-esc>
         <td><input class="input" data-d inputmode="decimal" value="${esc(d)}" placeholder="kg" style="width:120px"/></td>
-        <td data-h class="muted" style="white-space:nowrap;font-size:13px"></td>
+        <td><input class="input" data-h disabled tabindex="-1" placeholder="se calcula" aria-label="Hasta (se calcula con la siguiente escala)" style="width:140px;background:#f1f5f9;color:#475569;border-style:dashed;cursor:default"/></td>
         <td><input class="input" data-p inputmode="decimal" value="${esc(p)}" placeholder="0.00" style="width:110px;text-align:right"/></td>
         <td><button class="btn" data-q aria-label="Quitar escala" style="min-width:40px">✕</button></td></tr>`;
     const { el } = I.modal({
@@ -41,7 +41,7 @@
           <div data-dens-w style="display:none"><div class="label-text">Densidad (kg/L)</div><input class="input" data-dens inputmode="decimal" style="width:100%"/></div>
         </div>
         <div><div class="label-text">Escalas de precio</div>
-          <div class="table-wrap" style="margin-top:4px"><table><thead><tr><th>Desde (kg)</th><th>Hasta</th><th>Precio por kg</th><th></th></tr></thead><tbody data-escs>${filaEscala()}</tbody></table></div>
+          <div class="table-wrap" style="margin-top:4px"><table><thead><tr><th>Desde (kg)</th><th>Hasta (automático)</th><th>Precio por kg</th><th></th></tr></thead><tbody data-escs>${filaEscala()}</tbody></table></div>
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
             <button class="btn" data-add>+ Agregar escala</button>
             <span class="muted" style="font-size:12px">Cada escala vale hasta la siguiente; la última queda abierta. La primera es el mínimo de compra.</span></div></div>
@@ -66,7 +66,7 @@
     const pintarHasta = () => {
       const trs = [...el.querySelectorAll('[data-esc]')];
       const h = I.hastaCaptura(trs.map((tr) => ({ desde_kg: tr.querySelector('[data-d]').value, precio: tr.querySelector('[data-p]').value })));
-      trs.forEach((tr, i) => { const c = tr.querySelector('[data-h]'); c.textContent = h[i]; c.style.color = h[i] === 'desde repetido' ? '#991b1b' : ''; });
+      trs.forEach((tr, i) => { const c = tr.querySelector('[data-h]'); c.value = h[i]; c.style.color = h[i] === 'desde repetido' ? '#991b1b' : '#475569'; });
     };
     const ligarQuitar = () => {
       el.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => {
