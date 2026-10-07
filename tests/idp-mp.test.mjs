@@ -86,3 +86,30 @@ test('etiquetas de escala según la unidad', () => {
   assert.deepEqual(I.etiquetasUnidad('L'), { desde: 'Desde (L)', precio: 'Precio por litro', corto: 'L' });
   assert.deepEqual(I.etiquetasUnidad('pieza'), { desde: 'Desde (piezas)', precio: 'Precio por pieza', corto: 'pza' });
 });
+
+// ── Fase 2: incrementables (copia de Comercio Exterior, manual o CRM) ──
+test('cómo se calcula cada concepto copiado', () => {
+  assert.equal(I.comoSeCalcula({ modo_captura: 'usd_fijo', valor_captura: 3233.16 }), 'USD 3,233.16 por embarque');
+  assert.equal(I.comoSeCalcula({ modo_captura: 'mxn_fijo', valor_captura: 3500 }), 'MXN 3,500.00 por embarque');
+  assert.equal(I.comoSeCalcula({ modo_captura: 'usd_kg', valor_captura: 0.65 }), 'USD 0.65 por kg');
+  assert.equal(I.comoSeCalcula({ modo_captura: 'mxn_kg', valor_captura: 2 }), 'MXN 2.00 por kg');
+  assert.equal(I.comoSeCalcula({ modo_captura: 'pct_base', es_arancel: true }, { arancel_pct: 15, escenario_nombre: 'General 15%' }), '15% del valor en aduana · General 15%');
+});
+
+test('fuente de los incrementables, en palabras', () => {
+  assert.equal(I.fuenteIncrementables({ fuente: 'costeo', costeo_folio: '14/26', costeo_version: 2, fecha_copia: '2026-10-07', kg_base: 17962, modo_transporte: 'maritimo' }),
+    'Copia del costeo 14/26 de Comercio Exterior · versión 2 · copiada el 07/10/2026 · embarque de 17,962 kg · marítimo');
+  assert.equal(I.fuenteIncrementables({ fuente: 'crm', legacy_id: 1043, fecha_copia: '2026-08-12' }), 'Capturado en el CRM · costo 1043 del 12/08/2026');
+  assert.equal(I.fuenteIncrementables({ fuente: 'manual', motivo: 'Flete cotizado por compras', kg_base: 1000 }), 'Captura manual · Flete cotizado por compras · embarque de 1,000 kg');
+});
+
+test('captura manual de incrementables: motivo, conceptos completos y kg del embarque si hay gastos fijos', () => {
+  const fila = { nombre: 'Flete a planta', capa_incoterm: 'ddp', modo_captura: 'mxn_fijo', valor_captura: '3,500' };
+  assert.deepEqual(I.cuerpoIncrementablesManual({ motivo: ' Flete de compras ', kg_base: '1,000', arancel_pct: '', conceptos: [fila, { nombre: '', valor_captura: '' }] }),
+    { ok: true, body: { fuente: 'manual', motivo: 'Flete de compras', kg_base: 1000, arancel_pct: 0,
+      conceptos: [{ nombre: 'Flete a planta', capa_incoterm: 'ddp', modo_captura: 'mxn_fijo', valor_captura: 3500 }] } });
+  assert.equal(I.cuerpoIncrementablesManual({ motivo: '', conceptos: [fila], kg_base: 1000 }).error, 'Indica de dónde salen los incrementables.');
+  assert.equal(I.cuerpoIncrementablesManual({ motivo: 'x', conceptos: [] }).error, 'Captura al menos un concepto.');
+  assert.equal(I.cuerpoIncrementablesManual({ motivo: 'x', conceptos: [fila] }).error, 'Los gastos por embarque necesitan los kg del embarque.');
+  assert.equal(I.cuerpoIncrementablesManual({ motivo: 'x', conceptos: [{ ...fila, valor_captura: 'abc' }], kg_base: 1 }).error, 'Cada concepto necesita nombre y un valor mayor o igual a 0.');
+});

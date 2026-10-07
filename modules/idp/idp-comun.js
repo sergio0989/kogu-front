@@ -381,6 +381,47 @@
     return r;
   };
 
+  // ── Costos de materia prima (Fase 2): incrementables ──
+  const montoMp = (moneda, v) => `${moneda} ${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: moneda === 'USD' ? 4 : 2 })}`;
+  const fechaMp = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  const TRANSPORTE_MP = { maritimo: 'marítimo', terrestre: 'terrestre', aereo: 'aéreo', general: '' };
+  api.comoSeCalcula = (c, inc = {}) => {
+    const v = Number(c.valor_captura);
+    switch (c.modo_captura) {
+      case 'usd_fijo': return `${montoMp('USD', v)} por embarque`;
+      case 'mxn_fijo': return `${montoMp('MXN', v)} por embarque`;
+      case 'usd_kg': return `${montoMp('USD', v)} por kg`;
+      case 'mxn_kg': return `${montoMp('MXN', v)} por kg`;
+      case 'pct_base': return c.es_arancel
+        ? `${Number(inc.arancel_pct || 0)}% del valor en aduana${inc.escenario_nombre ? ` · ${inc.escenario_nombre}` : ''}` : `${v}% de la base`;
+      default: return '—';
+    }
+  };
+  api.fuenteIncrementables = (inc) => {
+    if (!inc) return '';
+    const emb = Number(inc.kg_base) > 0 ? ` · embarque de ${kgTxt(inc.kg_base)} kg` : '';
+    if (inc.fuente === 'costeo') {
+      const tr = TRANSPORTE_MP[inc.modo_transporte] ? ` · ${TRANSPORTE_MP[inc.modo_transporte]}` : '';
+      return `Copia del costeo ${inc.costeo_folio} de Comercio Exterior · versión ${inc.costeo_version} · copiada el ${fechaMp(inc.fecha_copia)}${emb}${tr}`;
+    }
+    if (inc.fuente === 'crm') return `Capturado en el CRM · costo ${inc.legacy_id}${inc.fecha_copia ? ` del ${fechaMp(inc.fecha_copia)}` : ''}`;
+    return `Captura manual · ${inc.motivo || ''}${emb}`;
+  };
+  api.cuerpoIncrementablesManual = (f) => {
+    const num = (v) => { const t = String(v ?? '').replace(/,/g, '').trim(); return t === '' ? null : Number(t); };
+    const motivo = String(f.motivo || '').trim();
+    if (!motivo) return { ok: false, error: 'Indica de dónde salen los incrementables.' };
+    const filas = (f.conceptos || []).filter((c) => String(c.nombre ?? '').trim() !== '' || String(c.valor_captura ?? '').trim() !== '');
+    if (!filas.length) return { ok: false, error: 'Captura al menos un concepto.' };
+    const conceptos = filas.map((c) => ({ nombre: String(c.nombre || '').trim(), capa_incoterm: c.capa_incoterm || 'ddp', modo_captura: c.modo_captura || 'usd_kg', valor_captura: num(c.valor_captura) }));
+    if (conceptos.some((c) => !c.nombre || !Number.isFinite(c.valor_captura) || c.valor_captura < 0)) return { ok: false, error: 'Cada concepto necesita nombre y un valor mayor o igual a 0.' };
+    const kg = num(f.kg_base);
+    if (conceptos.some((c) => /_fijo$/.test(c.modo_captura)) && !(kg > 0)) return { ok: false, error: 'Los gastos por embarque necesitan los kg del embarque.' };
+    const ar = num(f.arancel_pct) ?? 0;
+    if (!(ar >= 0 && ar <= 100)) return { ok: false, error: 'El arancel va de 0 a 100 %.' };
+    return { ok: true, body: { fuente: 'manual', motivo, kg_base: kg > 0 ? kg : null, arancel_pct: ar, conceptos } };
+  };
+
   // ── Solo navegador ──
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
