@@ -82,9 +82,13 @@
     $('[data-uni]').onchange = () => { $('[data-dens-w]').style.display = $('[data-uni]').value === 'L' ? '' : 'none'; };
     if (!clave) {
       I.buscador($('[data-prod]'), $('[data-prodc]'), {
-        titulo: 'Seleccionar clave del catálogo',
+        titulo: 'Seleccionar materia prima del catálogo',
         fetcher: async (q) => KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/mp/productos?q=${encodeURIComponent(q)}`)) || [],
         pinta: (x) => `<span class="chip-compact">${esc(x.cve_prod)}</span> ${esc(x.desc_prod)}${x.clave_id ? ' <span class="muted" style="font-size:12px">· ya tiene precios</span>' : ''}`,
+        accion: {
+          texto: () => '¿No aparece? Solo se listan productos con uso "Materia prima": márcalo en el Catálogo de productos',
+          onClick: () => window.open('/modules/cat/productos/productos.html', '_blank'),
+        },
         elegir: (x) => {
           sel.producto_id = x.producto_id; sel.nueva = !x.clave_id; $('[data-prod]').value = `${x.cve_prod} · ${x.desc_prod}`;
           $('[data-nueva]').style.display = sel.nueva ? 'grid' : 'none';
