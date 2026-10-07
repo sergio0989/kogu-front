@@ -333,7 +333,10 @@
     return sig ? `${kgTxt(e.desde_kg)} – ${kgTxt(Number(sig.desde_kg) - 1)} kg` : `${kgTxt(e.desde_kg)} kg en adelante`;
   };
   // "Hasta" de cada fila del formulario, en el orden en que se capturaron.
-  api.hastaCaptura = (filas) => {
+  api.etiquetasUnidad = (u) => ({ kg: { desde: 'Desde (kg)', precio: 'Precio por kg', corto: 'kg' },
+    L: { desde: 'Desde (L)', precio: 'Precio por litro', corto: 'L' }, pieza: { desde: 'Desde (piezas)', precio: 'Precio por pieza', corto: 'pza' } }[u]
+    || { desde: 'Desde (kg)', precio: 'Precio por kg', corto: 'kg' });
+  api.hastaCaptura = (filas, unidad = 'kg') => {
     const n = (v) => { const t = String(v ?? '').replace(/,/g, '').trim(); return t === '' ? null : Number(t); };
     const desdes = filas.map((f) => n(f.desde_kg));
     const validos = desdes.filter((d) => d != null && Number.isFinite(d)).sort((a, b) => a - b);
@@ -341,7 +344,7 @@
       if (d == null || !Number.isFinite(d)) return '';
       if (desdes.filter((x) => x === d).length > 1) return 'desde repetido';
       const sig = validos.find((x) => x > d);
-      return sig == null ? 'en adelante' : `${kgTxt(sig - 1)} kg`;
+      return sig == null ? 'en adelante' : `${kgTxt(sig - 1)} ${api.etiquetasUnidad(unidad).corto}`;
     });
   };
   api.vigenciaSugerida = (desde, meses = 6) => {
@@ -363,7 +366,8 @@
     const body = { producto_id: f.producto_id, proveedor_id: t(f.proveedor_id), incoterm: f.incoterm, moneda: f.moneda, transporte: t(f.transporte),
       lugar_entrega: t(f.lugar_entrega), vigente_desde: f.vigente_desde, vigente_hasta: t(f.vigente_hasta), comentario: t(f.comentario), escalas };
     // Solo para una clave nueva (la primera cotización la da de alta).
-    for (const k of ['origen', 'pais', 'unidad_compra']) if (t(f[k])) body[k] = t(f[k]);
+    if (f.unidad === 'L' && !(num(f.densidad_kg_l) > 0) && !(Number(f.densidadClave) > 0)) return { ok: false, error: 'En litros se necesita la densidad (kg/L) para costear en kg.' };
+    for (const k of ['unidad', 'origen', 'pais', 'unidad_compra']) if (t(f[k])) body[k] = t(f[k]);
     if (t(f.densidad_kg_l)) body.densidad_kg_l = num(f.densidad_kg_l);
     return { ok: true, body };
   };

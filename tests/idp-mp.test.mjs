@@ -69,3 +69,20 @@ test('captura: "hasta" calculado en vivo por fila, aunque se capturen en desorde
   assert.deepEqual(I.hastaCaptura([{ desde_kg: '20,000', precio: '1.058' }, { desde_kg: '', precio: '' }]), ['en adelante', '']);
   assert.deepEqual(I.hastaCaptura([{ desde_kg: '100', precio: '1' }, { desde_kg: '100', precio: '2' }]), ['desde repetido', 'desde repetido']);
 });
+
+// 7-oct 15:15–15:16: lugar de entrega del catálogo de I+D; unidad en CADA cotización.
+test('cuerpo de cotización: unidad siempre (de la cotización), densidad si es litro, lugar como clave', () => {
+  const base = { producto_id: 'p1', incoterm: 'EXW', moneda: 'MXN', vigente_desde: '2026-10-08', escalas: [{ desde_kg: '200', precio: '24' }] };
+  assert.equal(I.cuerpoCotizacion({ ...base, unidad: 'pieza' }).body.unidad, 'pieza');
+  const l = I.cuerpoCotizacion({ ...base, unidad: 'L', densidad_kg_l: '0.81', lugar_entrega: 'manzanillo' });
+  assert.equal(l.body.unidad, 'L'); assert.equal(l.body.densidad_kg_l, 0.81); assert.equal(l.body.lugar_entrega, 'manzanillo');
+  assert.deepEqual(I.cuerpoCotizacion({ ...base, unidad: 'L', densidad_kg_l: '', densidadClave: null }),
+    { ok: false, error: 'En litros se necesita la densidad (kg/L) para costear en kg.' });
+  assert.equal(I.cuerpoCotizacion({ ...base, unidad: 'L', densidad_kg_l: '', densidadClave: 0.9 }).ok, true);
+});
+
+test('etiquetas de escala según la unidad', () => {
+  assert.deepEqual(I.etiquetasUnidad('kg'), { desde: 'Desde (kg)', precio: 'Precio por kg', corto: 'kg' });
+  assert.deepEqual(I.etiquetasUnidad('L'), { desde: 'Desde (L)', precio: 'Precio por litro', corto: 'L' });
+  assert.deepEqual(I.etiquetasUnidad('pieza'), { desde: 'Desde (piezas)', precio: 'Precio por pieza', corto: 'pza' });
+});

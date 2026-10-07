@@ -71,8 +71,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="min-width:180px;font-size:13px">${esc(x.proveedor_nombre || '—')}</td>
       <td>${I.chipOrigen(x.origen)}</td>
       <td style="white-space:nowrap">${x.incoterm === 'por_definir' ? '<span style="color:#b45309">Por definir</span>' : esc(x.incoterm || '—')}</td>
-      <td style="text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(I.precioMp(x.moneda, x.escalas?.[0]?.precio))}${x.unidad_compra && x.unidad_compra !== 'kg' ? ` <span class="muted" style="font-size:12px">/${esc(x.unidad_compra)}</span>` : ''}</td>
-      <td style="text-align:right;white-space:nowrap">${x.sin_escala ? '<span style="color:#b45309">Sin escala</span>' : x.minimo_kg != null ? `${Number(x.minimo_kg).toLocaleString('en-US')} kg` : '—'}</td>
+      <td style="text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(I.precioMp(x.moneda, x.escalas?.[0]?.precio))}${(x.unidad || x.unidad_compra) && (x.unidad || x.unidad_compra) !== 'kg' ? ` <span class="muted" style="font-size:12px">/${esc(I.etiquetasUnidad(x.unidad || x.unidad_compra).corto)}</span>` : ''}</td>
+      <td style="text-align:right;white-space:nowrap">${x.sin_escala ? '<span style="color:#b45309">Sin escala</span>' : x.minimo_kg != null ? `${Number(x.minimo_kg).toLocaleString('en-US')} ${esc(I.etiquetasUnidad(x.unidad || x.unidad_compra).corto)}` : '—'}</td>
       <td style="white-space:nowrap">${esc(x.vigente_hasta ? KoguUi.fmtDateOnly(x.vigente_hasta) : '—')}</td>
       <td>${I.chipVigencia(x.estado_vigencia)}</td></tr>`).join('') : '<tr><td colspan="9" class="empty">Sin claves con estos filtros.</td></tr>';
     $('tb').querySelectorAll('tr[data-id]').forEach((tr) => (tr.onclick = () => { location.href = `/modules/idp/mp-clave.html?id=${encodeURIComponent(tr.dataset.id)}`; }));

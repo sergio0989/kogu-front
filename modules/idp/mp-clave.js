@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { k = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/mp/claves/${encodeURIComponent(id)}`)); }
     catch (err) { pc.innerHTML = `<div class="card"><div class="empty">${esc(I.mensajeError(err))}</div></div>`; return; }
     const actual = k.precios.find((p) => p.estado_vigencia === 'vigente' || p.estado_vigencia === 'por_vencer') || k.precios[0] || null;
-    const escalasHtml = (p) => p.escalas.map((e, i) => `<tr><td>${esc(I.rangoEscala(p.escalas, i, { sinEscala: p.sin_escala }))}</td>
-        <td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">${esc(I.precioMp(p.moneda, e.precio))} /${esc(k.unidad_compra || 'kg')}</td></tr>`).join('');
+    const escalasHtml = (p) => p.escalas.map((e, i) => `<tr><td>${esc(I.rangoEscala(p.escalas, i, { sinEscala: p.sin_escala }).replace(/ kg/g, ' ' + I.etiquetasUnidad(p.unidad || k.unidad_compra).corto))}</td>
+        <td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">${esc(I.precioMp(p.moneda, e.precio))} /${esc(I.etiquetasUnidad(p.unidad || k.unidad_compra).corto)}</td></tr>`).join('');
     pc.innerHTML = `
       <div class="card" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start">
         <div>
@@ -51,14 +51,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div class="eyebrow">Cotización actual</div>${actual ? I.chipVigencia(actual.estado_vigencia) : ''}</div>
           ${actual ? `
             <table style="margin-top:8px;table-layout:auto"><tbody>
-              <tr><td class="muted">Incoterm</td><td>${actual.incoterm === 'por_definir' ? '<span style="color:#b45309">Por definir</span>' : esc(actual.incoterm)}${actual.lugar_entrega ? ` · ${esc(actual.lugar_entrega)}` : ''}${actual.transporte ? ` · ${esc(TR[actual.transporte] || actual.transporte)}` : ''}</td></tr>
+              <tr><td class="muted">Incoterm</td><td>${actual.incoterm === 'por_definir' ? '<span style="color:#b45309">Por definir</span>' : esc(actual.incoterm)}${actual.lugar_entrega_nombre || actual.lugar_entrega ? ` · ${esc(actual.lugar_entrega_nombre || actual.lugar_entrega)}` : ''}${actual.transporte ? ` · ${esc(TR[actual.transporte] || actual.transporte)}` : ''}</td></tr>
               <tr><td class="muted">Vigencia</td><td>${fecha(actual.vigente_desde)} → ${fecha(actual.vigente_hasta)}</td></tr>
               <tr><td class="muted">Moneda</td><td>${esc(actual.moneda)}${actual.tc_captura ? ` · TC de ese día ${Number(actual.tc_captura).toFixed(4)}` : ''}</td></tr>
               ${actual.comentario ? `<tr><td class="muted">Comentario</td><td>${esc(actual.comentario)}</td></tr>` : ''}
               ${actual.legacy_id ? `<tr><td class="muted">Origen del dato</td><td>CRM · costo ${esc(actual.legacy_id)}</td></tr>` : ''}
             </tbody></table>
             <div class="label-text" style="margin-top:12px">Escalas</div>
-            <table style="table-layout:auto"><thead><tr><th>Kg</th><th style="text-align:right">Precio ${esc(actual.incoterm === 'por_definir' ? '' : actual.incoterm)}</th></tr></thead><tbody>${escalasHtml(actual)}</tbody></table>`
+            <table style="table-layout:auto"><thead><tr><th>Cantidad</th><th style="text-align:right">Precio ${esc(actual.incoterm === 'por_definir' ? '' : actual.incoterm)}</th></tr></thead><tbody>${escalasHtml(actual)}</tbody></table>`
             : '<div class="empty">Sin precios capturados.</div>'}
         </div>
         <div class="card">

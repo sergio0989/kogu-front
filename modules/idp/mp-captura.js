@@ -10,7 +10,7 @@
   function abrir({ clave = null, onGuardada } = {}) {
     const I = root.KoguIdp; const esc = I.esc; const BASE = I.BASE;
     const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
-    const sel = { producto_id: clave?.producto_id || null, proveedor_id: clave?.proveedor_id || null, nueva: !clave };
+    const sel = { producto_id: clave?.producto_id || null, proveedor_id: clave?.proveedor_id || null, nueva: !clave, densidad: clave?.densidad_kg_l || null };
     const filaEscala = (d = '', p = '') => `<tr data-esc>
         <td><input class="input" data-d inputmode="decimal" value="${esc(d)}" placeholder="kg" style="width:120px"/></td>
         <td><input class="input" data-h disabled tabindex="-1" placeholder="se calcula" aria-label="Hasta (se calcula con la siguiente escala)" style="width:140px;background:#f1f5f9;color:#475569;border-style:dashed;cursor:default"/></td>
@@ -28,20 +28,19 @@
           <div><div class="label-text">Incoterm</div><select class="select" data-inc style="width:100%">${INCOTERMS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}</select></div>
           <div><div class="label-text">Moneda</div><select class="select" data-mon style="width:100%"><option value="USD">USD</option><option value="MXN">MXN</option></select></div>
           <div><div class="label-text">Transporte</div><select class="select" data-tr style="width:100%"><option value="">—</option><option value="terrestre">Terrestre</option><option value="maritimo">Marítimo</option><option value="aereo">Aéreo</option></select></div>
-          <div><div class="label-text">Lugar de entrega</div><input class="input" data-lug placeholder="Ciudad o puerto" style="width:100%"/></div>
+          <div><div class="label-text">Lugar de entrega</div><select class="select" data-lug style="width:100%"><option value="">—</option></select></div>
+          <div><div class="label-text">Unidad de la cotización</div><select class="select" data-uni style="width:100%"><option value="kg">kg</option><option value="L">Litro</option><option value="pieza">Pieza</option></select></div>
+          <div data-dens-w style="display:none"><div class="label-text">Densidad (kg/L)</div><input class="input" data-dens inputmode="decimal" placeholder="p. ej. 0.92" style="width:100%"/></div>
           <div><div class="label-text">Vigente desde</div><input class="input" type="date" data-vd value="${hoy}" style="width:100%"/></div>
           <div><div class="label-text">Vigente hasta</div><input class="input" type="date" data-vh value="${I.vigenciaSugerida(hoy)}" style="width:100%"/></div>
         </div>
-        <div data-dens-aviso style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;font-size:13px"></div>
         <div data-nueva style="display:${clave ? 'none' : 'grid'};grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px">
           <div style="grid-column:1/-1;font-size:12px;color:var(--muted)">Clave nueva en Materias primas: se da de alta con esta primera cotización.</div>
           <div><div class="label-text">Origen</div><select class="select" data-ori style="width:100%"><option value="">Por el país</option><option value="nacional">Nacional</option><option value="importacion">Importación</option></select></div>
           <div><div class="label-text">País</div><input class="input" data-pais placeholder="México, Chile…" style="width:100%"/></div>
-          <div><div class="label-text">Unidad de compra</div><select class="select" data-uni style="width:100%"><option value="kg">kg</option><option value="L">Litro (pide densidad)</option><option value="pieza">Pieza</option></select></div>
-          <div data-dens-w style="display:none"><div class="label-text">Densidad (kg/L)</div><input class="input" data-dens inputmode="decimal" style="width:100%"/></div>
         </div>
         <div><div class="label-text">Escalas de precio</div>
-          <div class="table-wrap" style="margin-top:4px"><table><thead><tr><th>Desde (kg)</th><th>Hasta (automático)</th><th>Precio por kg</th><th></th></tr></thead><tbody data-escs>${filaEscala()}</tbody></table></div>
+          <div class="table-wrap" style="margin-top:4px"><table><thead><tr><th data-th-d>Desde (kg)</th><th>Hasta (automático)</th><th data-th-p>Precio por kg</th><th></th></tr></thead><tbody data-escs>${filaEscala()}</tbody></table></div>
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
             <button class="btn" data-add>+ Agregar escala</button>
             <span class="muted" style="font-size:12px">Cada escala vale hasta la siguiente; la última queda abierta. La primera es el mínimo de compra.</span></div></div>
@@ -51,7 +50,8 @@
         const r = I.cuerpoCotizacion({
           producto_id: sel.producto_id, proveedor_id: sel.proveedor_id, incoterm: v('[data-inc]'), moneda: v('[data-mon]'), transporte: v('[data-tr]'),
           lugar_entrega: v('[data-lug]'), vigente_desde: v('[data-vd]'), vigente_hasta: v('[data-vh]'), comentario: v('[data-com]'),
-          ...(sel.nueva ? { origen: v('[data-ori]'), pais: v('[data-pais]'), unidad_compra: v('[data-uni]'), densidad_kg_l: v('[data-dens]') } : {}),
+          unidad: v('[data-uni]'), densidad_kg_l: v('[data-dens]'), densidadClave: sel.densidad,
+          ...(sel.nueva ? { origen: v('[data-ori]'), pais: v('[data-pais]') } : {}),
           escalas: [...m.querySelectorAll('[data-esc]')].map((tr) => ({ desde_kg: tr.querySelector('[data-d]').value, precio: tr.querySelector('[data-p]').value })),
         });
         if (!r.ok) { KoguApi.toast(r.error, 'error'); throw new Error(r.error); }
@@ -65,7 +65,7 @@
     const $ = (s) => el.querySelector(s);
     const pintarHasta = () => {
       const trs = [...el.querySelectorAll('[data-esc]')];
-      const h = I.hastaCaptura(trs.map((tr) => ({ desde_kg: tr.querySelector('[data-d]').value, precio: tr.querySelector('[data-p]').value })));
+      const h = I.hastaCaptura(trs.map((tr) => ({ desde_kg: tr.querySelector('[data-d]').value, precio: tr.querySelector('[data-p]').value })), $('[data-uni]').value);
       trs.forEach((tr, i) => { const c = tr.querySelector('[data-h]'); c.value = h[i]; c.style.color = h[i] === 'desde repetido' ? '#991b1b' : '#475569'; });
     };
     const ligarQuitar = () => {
@@ -79,7 +79,23 @@
     ligarQuitar();
     $('[data-add]').onclick = () => { $('[data-escs]').insertAdjacentHTML('beforeend', filaEscala()); ligarQuitar(); };
     $('[data-vd]').onchange = () => { if ($('[data-vd]').value) $('[data-vh]').value = I.vigenciaSugerida($('[data-vd]').value); };
-    $('[data-uni]').onchange = () => { $('[data-dens-w]').style.display = $('[data-uni]').value === 'L' ? '' : 'none'; };
+    const pintarUnidad = () => {
+      const u = $('[data-uni]').value; const et = I.etiquetasUnidad(u);
+      $('[data-th-d]').textContent = et.desde; $('[data-th-p]').textContent = et.precio;
+      el.querySelectorAll('[data-d]').forEach((i) => (i.placeholder = et.corto));
+      $('[data-dens-w]').style.display = u === 'L' && !(Number(sel.densidad) > 0) ? '' : 'none';
+      pintarHasta();
+    };
+    $('[data-uni]').onchange = pintarUnidad;
+    if (clave?.unidad_compra) $('[data-uni]').value = clave.unidad_compra;
+    pintarUnidad();
+    (async () => {
+      try {
+        const cats = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/catalogos`)) || {};
+        const lugares = (cats.lugar_entrega || []).filter((x) => x.activo);
+        $('[data-lug]').innerHTML = '<option value="">—</option>' + lugares.map((x) => `<option value="${esc(x.clave)}">${esc(x.nombre)}</option>`).join('');
+      } catch (_) { /* sin catálogo: el campo queda vacío */ }
+    })();
     if (!clave) {
       I.buscador($('[data-prod]'), $('[data-prodc]'), {
         titulo: 'Seleccionar clave del catálogo',
@@ -90,11 +106,10 @@
           onClick: () => window.open('/modules/cat/productos/productos.html', '_blank'),
         },
         elegir: (x) => {
-          sel.producto_id = x.producto_id; sel.nueva = !x.clave_id; $('[data-prod]').value = `${x.cve_prod} · ${x.desc_prod}`;
+          sel.producto_id = x.producto_id; sel.nueva = !x.clave_id; sel.densidad = x.densidad_kg_l || null;
+          if (x.unidad_compra) $('[data-uni]').value = x.unidad_compra; $('[data-prod]').value = `${x.cve_prod} · ${x.desc_prod}`;
           $('[data-nueva]').style.display = sel.nueva ? 'grid' : 'none';
-          const sinDens = !sel.nueva && x.unidad_compra === 'L' && !x.densidad_kg_l;
-          $('[data-dens-aviso]').style.display = sinDens ? '' : 'none';
-          $('[data-dens-aviso]').innerHTML = sinDens ? `<b style="color:#92400e">${esc(x.cve_prod)} se compra en litros y no tiene densidad.</b> Captúrala primero en la <a href="/modules/idp/mp-clave.html?id=${encodeURIComponent(x.clave_id)}">ficha (Editar clave)</a>; sin ella no se puede costear por kg.` : '';
+          pintarUnidad();   // en litros sin densidad, el campo aparece aquí mismo
           if (x.proveedor_id) { sel.proveedor_id = x.proveedor_id; $('[data-prov]').value = x.proveedor_nombre || ''; }
         },
       });
