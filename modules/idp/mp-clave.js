@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       ${aviso(`<span><b>Fuente:</b> ${esc(I.fuenteIncrementables(inc))}. Se recalcula sobre el precio de Materias primas.</span>${al}`, 'info')}
       ${rev}
+      ${c?.nota ? aviso(`<span><b style="color:#92400e">Por confirmar.</b> ${esc(c.nota)} Corrige el incoterm de la cotización si no es así.</span>`) : ''}
       ${c?.aviso ? aviso(`<span><b style="color:#92400e">No se pudo costear.</b> ${esc(c.aviso)}</span>`) : ''}
       ${tabla}
       ${conceptos}
