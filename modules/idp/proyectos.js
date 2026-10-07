@@ -44,7 +44,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
     </div>
     <div class="card" style="margin-top:14px">
-      <div class="row" style="margin-bottom:8px"><div class="eyebrow" id="lblTotal">Proyectos</div><div id="pager" style="display:flex;gap:6px;align-items:center"></div></div>
+      <div class="row" style="margin-bottom:8px;gap:10px;flex-wrap:wrap"><div class="eyebrow" id="lblTotal">Proyectos</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-left:auto">
+          <label style="display:flex;gap:6px;align-items:center;font-size:13px" title="Agrega una hoja con los eventos de los proyectos exportados"><input type="checkbox" id="xBit"/> con bitácora</label>
+          <button class="btn" id="btnExport" title="Exporta los proyectos con los filtros actuales">Exportar a Excel</button>
+          <div id="pager" style="display:flex;gap:6px;align-items:center"></div></div></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Folio</th><th>Proyecto</th><th>Cliente</th><th>Agente</th><th>Estado</th><th style="text-align:center">Pot.</th>
           <th style="text-align:right">Venta anual</th><th>Último movimiento</th></tr></thead>
@@ -92,6 +96,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('fAgente').onchange = () => { f.agente_id = $('fAgente').value; f.pagina = 1; cargar(); };
   $('fEst').onchange = () => { f.estancados = $('fEst').checked ? '1' : ''; f.pagina = 1; cargar(); };
   if ($('btnNuevo')) $('btnNuevo').onclick = abrirNuevo;
+  $('btnExport').onclick = () => KoguUi.withLoading($('btnExport'),
+    () => I.descargar(I.urlExportProyectos(BASE, f, { bitacora: $('xBit').checked }), { nombre: `idp_proyectos${$('xBit').checked ? '_bitacora' : ''}_${new Date().toLocaleDateString('en-CA')}.xlsx` }), 'Exportando…').catch(() => {});
   cargar();
 
   // ── Nuevo proyecto: 4 pasos, como el alta del CRM (generar_proyecto.php) ──

@@ -491,6 +491,18 @@
     return (devs || []).find((d) => d.user_id === uid)?.nombre || p[`${rol}_nombre`] || 'Asignado';
   };
 
+  // Exportar a Excel: los filtros activos de la lista (no página ni límite) y la bitácora si se pide.
+  api.urlExportProyectos = (base, filtros = {}, { bitacora = false } = {}) => {
+    const qs = new URLSearchParams();
+    for (const k of ['q', 'estado', 'potencial', 'agente_id', 'desarrollador_id', 'estancados']) {
+      const v = filtros[k];
+      if (v !== undefined && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
+    }
+    if (bitacora) qs.set('bitacora', '1');
+    const s = qs.toString();
+    return `${base}/proyectos/export${s ? `?${s}` : ''}`;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguIdp = api;
 })(typeof window !== 'undefined' ? window : globalThis);
