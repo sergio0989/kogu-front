@@ -26,7 +26,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const val = (k) => cats[k] || [];
   const nombreEstado = (k) => catalogo.estados.find((e) => e.clave === k)?.nombre || k;
 
-  const f = { q: '', estado: '', potencial: '', agente_id: '', estancados: '', pagina: 1 };
+  // Filtros iniciales de la URL (el "Ver listado" del tablero manda corte + periodo).
+  const f = { q: '', estado: '', potencial: '', agente_id: '', desarrollador_id: '', desde: '', hasta: '', estancados: '', pagina: 1, ...I.filtrosDesdeUrl(location.search) };
+  const fechaCorta = (d) => (d ? d.split('-').reverse().join('/') : '…');
 
   pc.innerHTML = `
     <div class="card">
@@ -43,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${canCreate ? '<button class="btn primary" id="btnNuevo" style="margin-left:auto">+ Nuevo proyecto</button>' : ''}
       </div>
     </div>
+    <div id="fExtra"></div>
     <div class="card" style="margin-top:14px">
       <div class="row" style="margin-bottom:8px;gap:10px;flex-wrap:wrap"><div class="eyebrow" id="lblTotal">Proyectos</div>
         <div style="display:flex;gap:10px;align-items:center;margin-left:auto">
@@ -88,6 +91,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('pgAnt')) $('pgAnt').onclick = () => { f.pagina--; cargar(); };
     if ($('pgSig')) $('pgSig').onclick = () => { f.pagina++; cargar(); };
   }
+
+  // Controles con los filtros de la URL + aviso de filtros que no tienen control (periodo, desarrollador).
+  $('fQ').value = f.q; $('fEstado').value = f.estado; $('fPot').value = f.potencial; $('fAgente').value = f.agente_id; $('fEst').checked = f.estancados === '1';
+  function pintarExtra() {
+    const partes = [];
+    if (f.desde || f.hasta) partes.push(`Alta del ${fechaCorta(f.desde)} al ${fechaCorta(f.hasta)}`);
+    if (f.desarrollador_id) partes.push(`Desarrollador: ${esc((catalogo.desarrolladores || []).find((d) => d.user_id === f.desarrollador_id)?.nombre || 'seleccionado')}`);
+    $('fExtra').innerHTML = partes.length ? `<div class="card" style="margin-top:10px;padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <span class="muted" style="font-size:13px">Desde Estadísticas:</span>${partes.map((x) => `<span class="chip">${x}</span>`).join('')}
+      <button class="btn" id="fExtraX" style="margin-left:auto">Quitar</button></div>` : '';
+    if ($('fExtraX')) $('fExtraX').onclick = () => { f.desde = ''; f.hasta = ''; f.desarrollador_id = ''; f.pagina = 1; history.replaceState(null, '', location.pathname); pintarExtra(); cargar(); };
+  }
+  pintarExtra();
 
   let t;
   $('fQ').oninput = () => { clearTimeout(t); t = setTimeout(() => { f.q = $('fQ').value.trim(); f.pagina = 1; cargar(); }, 300); };

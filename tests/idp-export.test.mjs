@@ -16,3 +16,7 @@ test('con bitácora agrega bitacora=1; sin filtros queda limpia', () => {
 test('codifica el texto de búsqueda', () => {
   assert.equal(I.urlExportProyectos('/x', { q: 'ajo & cebolla' }), '/x/proyectos/export?q=ajo+%26+cebolla');
 });
+test('si la lista viene filtrada por periodo (desde el tablero), la exportación lo respeta', () => {
+  assert.equal(I.urlExportProyectos('/x', { potencial: 'A', desde: '2026-09-01', hasta: '2026-09-30' }),
+    '/x/proyectos/export?potencial=A&desde=2026-09-01&hasta=2026-09-30');
+});

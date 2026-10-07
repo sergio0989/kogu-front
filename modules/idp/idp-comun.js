@@ -494,7 +494,7 @@
   // Exportar a Excel: los filtros activos de la lista (no página ni límite) y la bitácora si se pide.
   api.urlExportProyectos = (base, filtros = {}, { bitacora = false } = {}) => {
     const qs = new URLSearchParams();
-    for (const k of ['q', 'estado', 'potencial', 'agente_id', 'desarrollador_id', 'estancados']) {
+    for (const k of ['q', 'estado', 'potencial', 'agente_id', 'desarrollador_id', 'estancados', 'desde', 'hasta']) {
       const v = filtros[k];
       if (v !== undefined && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
     }
@@ -502,6 +502,45 @@
     const s = qs.toString();
     return `${base}/proyectos/export${s ? `?${s}` : ''}`;
   };
+
+  // ── Estadísticas (tablero) ──
+  const fechaMxStr = (d) => new Date(d.getTime() - 6 * 3600 * 1000).toISOString().slice(0, 10);
+  api.rangoTablero = (clave, ahora = new Date()) => {
+    const hoy = fechaMxStr(ahora); const [y, m] = hoy.split('-').map(Number);
+    const finMes = (yy, mm) => new Date(Date.UTC(yy, mm, 0)).toISOString().slice(0, 10);
+    if (clave === 'mes_anterior') { const yy = m === 1 ? y - 1 : y; const mm = m === 1 ? 12 : m - 1; return { desde: `${yy}-${String(mm).padStart(2, '0')}-01`, hasta: finMes(yy, mm) }; }
+    if (clave === 'anio') return { desde: `${y}-01-01`, hasta: hoy };
+    // 'mes': el mes en curso hasta hoy (si ya terminó el día 31, el mes completo)
+    return { desde: `${hoy.slice(0, 7)}-01`, hasta: hoy };
+  };
+  api.usdCorto = (n) => {
+    if (n == null || Number.isNaN(Number(n))) return '—';
+    const v = Number(n); const a = Math.abs(v);
+    if (a >= 1e6) return `USD ${(v / 1e6).toFixed(1).replace(/\.0$/, '')} M`;
+    if (a >= 1e3) return `USD ${Math.round(v / 1e3)} mil`;
+    return `USD ${Math.round(v)}`;
+  };
+  api.variacion = (c) => {
+    const pts = c && c.var_pts !== undefined; const v = pts ? c.var_pts : c?.var_pct;
+    if (v == null) return { texto: 'sin base', dir: null };
+    const n = Math.abs(v).toLocaleString('es-MX', { maximumFractionDigits: 1 });
+    return { texto: `${v > 0 ? '+' : v < 0 ? '−' : ''}${n}${pts ? ' pts' : '%'}`, dir: v > 0 ? 'sube' : v < 0 ? 'baja' : 'igual' };
+  };
+  const PARAM_CORTE = { estado: 'estado', agente: 'agente_id', desarrollador: 'desarrollador_id', potencial: 'potencial' };
+  api.urlListado = (corte, clave, periodo) => {
+    const p = PARAM_CORTE[corte];
+    if (!p || clave == null || clave === '') return null;
+    const qs = new URLSearchParams({ [p]: clave });
+    if (periodo?.desde) qs.set('desde', periodo.desde);
+    if (periodo?.hasta) qs.set('hasta', periodo.hasta);
+    return `/modules/idp/proyectos.html?${qs}`;
+  };
+  api.filtrosDesdeUrl = (search) => {
+    const u = new URLSearchParams(search || ''); const out = {};
+    for (const k of ['q', 'estado', 'potencial', 'agente_id', 'desarrollador_id', 'estancados', 'desde', 'hasta']) if (u.get(k)) out[k] = u.get(k);
+    return out;
+  };
+  api.anchoBarra = (n, max) => (!max || !n ? 0 : Math.max(1.5, Math.round((n / max) * 1000) / 10));
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguIdp = api;
