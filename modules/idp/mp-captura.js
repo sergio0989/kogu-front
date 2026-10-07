@@ -24,7 +24,7 @@
             ${clave ? `<div style="margin-top:4px"><span class="chip-compact">${esc(clave.cve_prod)}</span> ${esc(clave.desc_prod || '')}</div>`
               : `<div style="position:relative;margin-top:4px"><input class="input" data-prod placeholder="Clave o nombre (WWP0622, sal…)" style="width:100%"/>${I.cajaBusqueda('data-prodc')}</div>`}</div>
           <div style="grid-column:1/-1"><div class="label-text">Proveedor</div>
-            <div style="position:relative;margin-top:4px"><input class="input" data-prov placeholder="Nombre o RFC" value="${esc(clave?.proveedor_nombre || '')}" style="width:100%"/>${I.cajaBusqueda('data-provc')}</div></div>
+            <div style="position:relative;margin-top:4px"><input class="input" data-prov placeholder="Nombre, RFC o clave del ERP" value="${esc(clave?.proveedor_nombre || '')}" style="width:100%"/>${I.cajaBusqueda('data-provc')}</div></div>
           <div><div class="label-text">Incoterm</div><select class="select" data-inc style="width:100%">${INCOTERMS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}</select></div>
           <div><div class="label-text">Moneda</div><select class="select" data-mon style="width:100%"><option value="USD">USD</option><option value="MXN">MXN</option></select></div>
           <div><div class="label-text">Transporte</div><select class="select" data-tr style="width:100%"><option value="">—</option><option value="terrestre">Terrestre</option><option value="maritimo">Marítimo</option><option value="aereo">Aéreo</option></select></div>
@@ -110,7 +110,7 @@
     I.buscador($('[data-prov]'), $('[data-provc]'), {
       titulo: 'Seleccionar proveedor',
       fetcher: async (q) => KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/mp/proveedores?q=${encodeURIComponent(q)}`)) || [],
-      pinta: (x) => `${esc(x.nombre)} ${x.rfc ? `<span class="muted" style="font-size:12px">${esc(x.rfc)}</span>` : ''}`,
+      pinta: (x) => `${x.cve_prov ? `<span class="chip-compact">${esc(x.cve_prov)}</span> ` : ''}${esc(x.nombre)} ${x.rfc ? `<span class="muted" style="font-size:12px">${esc(x.rfc)}</span>` : ''}`,
       elegir: (x) => { sel.proveedor_id = x.proveedor_id; $('[data-prov]').value = x.nombre; },
     });
     return el;
