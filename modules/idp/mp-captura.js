@@ -34,11 +34,6 @@
           <div><div class="label-text">Vigente desde</div><input class="input" type="date" data-vd value="${hoy}" style="width:100%"/></div>
           <div><div class="label-text">Vigente hasta</div><input class="input" type="date" data-vh value="${I.vigenciaSugerida(hoy)}" style="width:100%"/></div>
         </div>
-        <div data-nueva style="display:${clave ? 'none' : 'grid'};grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px">
-          <div style="grid-column:1/-1;font-size:12px;color:var(--muted)">Clave nueva en Materias primas: se da de alta con esta primera cotización.</div>
-          <div><div class="label-text">Origen</div><select class="select" data-ori style="width:100%"><option value="">Por el país</option><option value="nacional">Nacional</option><option value="importacion">Importación</option></select></div>
-          <div><div class="label-text">País</div><input class="input" data-pais placeholder="México, Chile…" style="width:100%"/></div>
-        </div>
         <div><div class="label-text">Escalas de precio</div>
           <div class="table-wrap" style="margin-top:4px"><table><thead><tr><th data-th-d>Desde (kg)</th><th>Hasta (automático)</th><th data-th-p>Precio por kg</th><th></th></tr></thead><tbody data-escs>${filaEscala()}</tbody></table></div>
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
@@ -51,7 +46,6 @@
           producto_id: sel.producto_id, proveedor_id: sel.proveedor_id, incoterm: v('[data-inc]'), moneda: v('[data-mon]'), transporte: v('[data-tr]'),
           lugar_entrega: v('[data-lug]'), vigente_desde: v('[data-vd]'), vigente_hasta: v('[data-vh]'), comentario: v('[data-com]'),
           unidad: v('[data-uni]'), densidad_kg_l: v('[data-dens]'), densidadClave: sel.densidad,
-          ...(sel.nueva ? { origen: v('[data-ori]'), pais: v('[data-pais]') } : {}),
           escalas: [...m.querySelectorAll('[data-esc]')].map((tr) => ({ desde_kg: tr.querySelector('[data-d]').value, precio: tr.querySelector('[data-p]').value })),
         });
         if (!r.ok) { KoguApi.toast(r.error, 'error'); throw new Error(r.error); }
@@ -108,7 +102,6 @@
         elegir: (x) => {
           sel.producto_id = x.producto_id; sel.nueva = !x.clave_id; sel.densidad = x.densidad_kg_l || null;
           if (x.unidad_compra) $('[data-uni]').value = x.unidad_compra; $('[data-prod]').value = `${x.cve_prod} · ${x.desc_prod}`;
-          $('[data-nueva]').style.display = sel.nueva ? 'grid' : 'none';
           pintarUnidad();   // en litros sin densidad, el campo aparece aquí mismo
           if (x.proveedor_id) { sel.proveedor_id = x.proveedor_id; $('[data-prov]').value = x.proveedor_nombre || ''; }
         },
