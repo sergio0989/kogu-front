@@ -49,3 +49,18 @@ test('estado del sincronizador, en palabras', () => {
     last: { at: '2026-10-07T18:00:00.000Z', ok: false, code: 'TC_BANXICO_ERROR' } }),
     { tono: 'error', texto: 'Automática cada 3 h · la última corrida (07/10/2026 12:00) falló: TC_BANXICO_ERROR.' });
 });
+
+// Observado en dev.kogu.ink (07/10/2026 16:18): "0 días guardados" cuando la corrida no encontró días nuevos.
+test('estado: una corrida sin días nuevos lo dice así, no "0 días guardados"', () => {
+  assert.deepEqual(T.estadoSincronizador({ token_configurado: true, enabled: true, activo: true, tickMs: 10800000,
+    last: { at: '2026-10-07T22:18:00.000Z', ok: true, guardados: 0 } }),
+    { tono: 'ok', texto: 'Automática cada 3 h · última corrida 07/10/2026 16:18 · sin días nuevos.' });
+});
+
+// Observado en dev.kogu.ink: el historial solo llega al 28/09/2026 (la automática trae 10 días).
+test('cargar histórico: rango desde la fecha elegida hasta hoy; no futura, no antes de 2015', () => {
+  assert.deepEqual(T.rangoHistorico('2023-01-01', '2026-10-07'), { ok: true, body: { desde: '2023-01-01', hasta: '2026-10-07' } });
+  assert.equal(T.rangoHistorico('', '2026-10-07').error, 'Indica desde qué fecha cargar.');
+  assert.equal(T.rangoHistorico('2026-12-01', '2026-10-07').error, 'La fecha no puede ser futura.');
+  assert.equal(T.rangoHistorico('2014-12-31', '2026-10-07').error, 'Carga desde 2015 en adelante.');
+});

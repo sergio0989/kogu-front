@@ -75,8 +75,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="margin-top:8px;font-size:14px;background:${bg};border:1px solid ${bd};color:${fg};border-radius:10px;padding:8px 12px">${esc(s.texto)}</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
         <button class="btn" data-sincronizar ${e?.token_configurado ? '' : 'disabled'}>Sincronizar ahora</button>
-        <span class="muted" style="font-size:12px">Trae de Banxico los últimos 10 días; no duplica.</span></div>`;
+        <span class="muted" style="font-size:12px">Trae de Banxico los últimos 10 días; no duplica.</span></div>
+      <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+        <div class="label-text">Cargar histórico desde</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px">
+          <input class="input" type="date" data-hist-desde value="2023-01-01" min="2015-01-01" max="${hoy}" style="width:auto"/>
+          <button class="btn" data-cargar-hist ${e?.token_configurado ? '' : 'disabled'}>Cargar histórico</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:4px">Una sola vez por ambiente: las cotizaciones viejas toman el tipo de cambio de su fecha. No duplica ni pisa lo que ya está.</div>
+      </div>`;
     $('[data-sincronizar]').onclick = sincronizar;
+    $('[data-cargar-hist]').onclick = cargarHistorico;
   }
 
   async function cargarHistorial() {
@@ -102,9 +111,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btn = ev.currentTarget; btn.disabled = true; btn.textContent = 'Sincronizando…';
     try {
       const r = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/sincronizar`, { method: 'POST', body: JSON.stringify({ desde: menosDias(hoy, 9), hasta: hoy }) }));
-      KoguApi.toast(`Banxico: ${r?.guardados ?? 0} días guardados.`, 'success');
+      const g = Number(r?.guardados || 0);
+      KoguApi.toast(g ? `Banxico: ${g} ${g === 1 ? 'día guardado' : 'días guardados'}.` : 'Banxico: sin días nuevos.', 'success');
       await Promise.all([cargarDia(), cargarEstado(), cargarHistorial()]);
     } catch (err) { KoguApi.toast(msg(err), 'error'); btn.disabled = false; btn.textContent = 'Sincronizar ahora'; }
+  }
+
+  async function cargarHistorico(ev) {
+    const r = T.rangoHistorico($('[data-hist-desde]').value, hoy);
+    if (!r.ok) { KoguApi.toast(r.error, 'error'); return; }
+    const btn = ev.currentTarget; btn.disabled = true; btn.textContent = 'Cargando… (puede tardar unos segundos)';
+    try {
+      const x = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/sincronizar`, { method: 'POST', body: JSON.stringify(r.body) }));
+      const g = Number(x?.guardados || 0);
+      KoguApi.toast(g ? `Histórico cargado: ${g} días nuevos desde el ${T.fecha(r.body.desde)}.` : 'El histórico ya estaba completo; sin días nuevos.', 'success');
+      dias = 90; $('[data-dias]').value = '90';
+      await Promise.all([cargarDia(), cargarEstado(), cargarHistorial()]);
+    } catch (err) { KoguApi.toast(msg(err), 'error'); btn.disabled = false; btn.textContent = 'Cargar histórico'; }
   }
 
   let confirmado = false;

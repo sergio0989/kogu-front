@@ -52,9 +52,19 @@
     if (!e.last) return { tono: 'aviso', texto: `${cada} · todavía no corre.` };
     if (e.last.ok === false) return { tono: 'error', texto: `${cada} · la última corrida (${fechaHoraMx(e.last.at)}) falló: ${e.last.code || 'error'}.` };
     const g = Number(e.last.guardados || 0);
-    return { tono: 'ok', texto: `${cada} · última corrida ${fechaHoraMx(e.last.at)} · ${g} ${g === 1 ? 'día guardado' : 'días guardados'}.` };
+    const nuevos = g === 0 ? 'sin días nuevos' : `${g} ${g === 1 ? 'día guardado' : 'días guardados'}`;
+    return { tono: 'ok', texto: `${cada} · última corrida ${fechaHoraMx(e.last.at)} · ${nuevos}.` };
   }
 
-  const api = { TC_MIN, TC_MAX, BANDA_PCT, fecha, fechaHoraMx, filasHistorico, tarjetaDia, revisarCaptura, estadoSincronizador };
+  /** Carga del histórico de Banxico: desde la fecha elegida hasta hoy (no duplica: el backend hace upsert). */
+  function rangoHistorico(desde, hoy) {
+    const d = String(desde || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { ok: false, error: 'Indica desde qué fecha cargar.' };
+    if (d > hoy) return { ok: false, error: 'La fecha no puede ser futura.' };
+    if (d < '2015-01-01') return { ok: false, error: 'Carga desde 2015 en adelante.' };
+    return { ok: true, body: { desde: d, hasta: hoy } };
+  }
+
+  const api = { TC_MIN, TC_MAX, BANDA_PCT, fecha, fechaHoraMx, filasHistorico, tarjetaDia, revisarCaptura, estadoSincronizador, rangoHistorico };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KoguTc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
