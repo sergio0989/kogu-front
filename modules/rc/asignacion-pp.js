@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/rc/asignacion-pp.html';
   const BASE = '/protected/rc';
-  const PERM = 'screen.ventas.direccion';
+  const PERM = 'screen.ventas.asignacion_pp';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,

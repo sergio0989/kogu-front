@@ -12,7 +12,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/rc/presupuesto.html';
   const BASE = '/protected/rc';
-  const PERM = 'screen.ventas.direccion';
+  const PERM = 'screen.ventas.presupuesto';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,

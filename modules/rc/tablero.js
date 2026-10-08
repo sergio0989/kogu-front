@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/rc/tablero.html';
   const BASE = '/protected/rc';
-  const PERM = 'screen.ventas.direccion';
+  const PERM = 'screen.ventas.tablero';
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
