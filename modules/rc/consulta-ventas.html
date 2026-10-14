@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consulta de ventas · KOGU Multiempresa</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <style>
+    /* Estilos propios de la pantalla. Van aquí y no en styles.css para no
+       tocar la hoja compartida (§16.7). Si alguna clase ya existe en
+       styles.css, esta definición solo la complementa. */
+    .filtros .row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+    .filtros label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; }
+    .chips:empty { display: none; }
+    .aviso { font-size: .88rem; margin: 0 0 8px; }
+    .aviso-warn { font-size: .88rem; margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid #b26a00; background: rgba(178,106,0,.08); }
+    .procedencia { border-top: 1px solid var(--rule, #dde2e9); margin-top: 12px; padding-top: 12px; }
+    .procedencia h3 { font-size: .92rem; margin: 0 0 6px; }
+    .procedencia ul { margin: 0; padding-left: 1.1em; font-size: .84rem; line-height: 1.7; }
+    .procedencia code { font-size: .92em; }
+    .tabla-scroll { overflow-x: auto; }
+    .tabla { border-collapse: collapse; width: 100%; font-size: .86rem; }
+    .tabla th, .tabla td { padding: 7px 10px; border-bottom: 1px solid var(--rule, #dde2e9); white-space: nowrap; }
+    .tabla thead th { position: sticky; top: 0; background: var(--surface-2, #eceff3); font-weight: 600; font-size: .74rem; letter-spacing: .04em; text-transform: uppercase; }
+    .tabla .n { text-align: right; font-variant-numeric: tabular-nums; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 50; }
+    .modal-caja { background: var(--surface, #fff); width: min(720px, 92vw); max-height: 86vh; display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 4px; }
+    .modal-caja h2 { font-size: 1.02rem; margin: 0; }
+    .modal-caja #modalBuscar { padding: 8px 10px; font-size: .92rem; }
+    .modal-body { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .opcion { display: flex; gap: 8px; align-items: baseline; padding: 6px 8px; cursor: pointer; }
+    .opcion:hover { background: var(--surface-2, #eceff3); }
+    .op-nom { font-weight: 500; }
+    .op-meta { font-size: .76rem; color: var(--muted, #5c6878); }
+    .modal-pie { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="/assets/api.js"></script>
+  <script src="/assets/shell.js"></script>
+  <script src="/modules/rc/consulta-ventas.js"></script>
+</body>
+</html>
