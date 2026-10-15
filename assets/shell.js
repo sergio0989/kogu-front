@@ -63,6 +63,7 @@
       {href:'/modules/rc/pp-carga.html',label:'Carga de PP',perm:'rc.pp.manage'},
       {href:'/modules/rc/actividad-crm.html',label:'Actividad CRM (I+D)',perm:'rc.crm_actividades.read'},
       {href:'/modules/rc/ventas-export.html',label:'Ventas de Exportación',perm:'rc.ventas_export.read'},
+      {href:'/modules/rc/consulta-ventas.html',label:'Consulta de ventas',perm:'rc.consulta_ventas.read'},
     ]},
     {section:'CRM',items:[
       {href:'/modules/crm/actividades.html',label:'Actividades de seguimiento',perm:'crm.actividades.read'},
