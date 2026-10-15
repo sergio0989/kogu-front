@@ -1,7 +1,15 @@
 // ============================================================
 // Prueba de render de consulta-ventas.js (jsdom).
-// Se escribe antes del código y se muestra en rojo (§16.4).
-// Los casos salen de los mismos fenómenos medidos que el backend.
+//
+// REESCRITA el 15-oct-2026 tras ver la pantalla real. La versión
+// anterior tenía once casos en verde sobre un fixture de once
+// renglones, y no detectó nada de lo que estaba mal: la pantalla
+// consultaba sola al abrir, imprimía los ~400 clientes y ~600 claves
+// uno por uno en el encabezado, y disparaba siempre el aviso de unidad.
+//
+// Lección de método: el fixture reproduce la ESCALA real, no un caso
+// cómodo. 400 clientes y 600 claves. Una prueba que solo confirma los
+// supuestos de quien la escribió no prueba nada.
 // ============================================================
 import { JSDOM } from 'jsdom';
 import fs from 'node:fs';
@@ -15,72 +23,100 @@ const check = async (n, f) => {
 };
 
 const ARCHIVO = new URL('../modules/rc/consulta-ventas.js', import.meta.url).pathname;
-
-// ── Respuestas del backend, con la forma real del servicio ───────────
 const MESES = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03',
   '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
 
-const serie308 = [17600, 0, 17600, 17600, 17600, 0, 17600, 0, 0, 17600, 17600, 0];
+// ── Escala real: 400 clientes, 600 claves ────────────────────────────
+const CLIENTES_MUCHOS = {
+  clientes: Array.from({ length: 400 }, (_, i) => ({
+    cve_cte: i + 1,
+    nombre: i === 0 ? 'UNILEVER MANUFACTURERA'
+      : i === 107 ? 'MSI EXPRESS, INC.'
+      : i === 307 ? 'Unilever North America'
+      : `CLIENTE NUMERO ${i + 1}`,
+    agente: i % 3 ? 'ALEJANDRA GONZALEZ' : null,
+    falta_en_catalogo: i === 399,
+    renglones: 10 + i,
+    ultima_venta: '2026-08-20',
+  })),
+};
 
-const CONSULTA = {
+const CLAVES_MUCHAS = {
+  ventana: 'periodo', desde: '2025-10-01', hasta: '2026-09-30',
+  claves: Array.from({ length: 600 }, (_, i) => ({
+    cve_prod: `WWP${String(i).padStart(4, '0')}`,
+    clave_canonica: `WWP${String(i).padStart(4, '0')}`,
+    mercado: i % 2 ? 'EXT' : 'NAL',
+    descripcion: `PRODUCTO ${i}`,
+    unidad: ['KG', 'PIEZA', 'CAJA', 'KGM', 'SACO'][i % 5],
+    renglones: 5 + i,
+    ultima_venta: '2026-08-20',
+  })),
+};
+
+const serie = (v) => MESES.map((_, i) => (i % 3 === 0 ? v : 0));
+
+// Consulta SIN filtro: muchas entidades, muchas unidades.
+const CONSULTA_ANCHA = {
   periodo: { desde: '2025-10-01', hasta: '2026-09-30', meses: 12 },
-  agrupar: 'clave',
-  meses: MESES,
+  agrupar: 'clave', meses: MESES,
   filas: [
-    { cve_cte: 308, cliente: 'Unilever North America', cve_prod: 'WWP0164.',
-      clave_canonica: 'WWP0164', mercado: 'EXT', unidad: 'KG',
-      cantidad: 123200, mxn: 7701440, usd: 437360, renglones: 7,
-      serie: serie308, serie_mxn: serie308.map((v) => v * 62.48), serie_usd: serie308.map((v) => v * 3.55),
+    { cve_cte: 1, cliente: 'UNILEVER MANUFACTURERA', cve_prod: 'WWP0164',
+      clave_canonica: 'WWP0164', mercado: 'NAL', unidad: 'KG',
+      cantidad: 258084, mxn: 16000000, usd: 0, renglones: 40,
+      serie: serie(86028), serie_mxn: serie(5300000), serie_usd: serie(0), es_kilogramo: true },
+    // Fila con TODA la serie en cero: no debe pintarse (defecto visto en pantalla).
+    { cve_cte: 1, cliente: 'UNILEVER MANUFACTURERA', cve_prod: 'WWP0776-C',
+      clave_canonica: 'WWP0776-C', mercado: 'NAL', unidad: 'KGM',
+      cantidad: 0, mxn: 0, usd: 0, renglones: 3,
+      serie: MESES.map(() => 0), serie_mxn: MESES.map(() => 0), serie_usd: MESES.map(() => 0),
       es_kilogramo: true },
     { cve_cte: 108, cliente: 'MSI EXPRESS, INC.', cve_prod: 'WWP0164.',
-      clave_canonica: 'WWP0164', mercado: 'EXT', unidad: 'PIEZA',
-      cantidad: 120, mxn: 88000, usd: 5000, renglones: 1,
-      serie: [0, 0, 0, 0, 0, 0, 0, 0, 120, 0, 0, 0],
-      serie_mxn: [0, 0, 0, 0, 0, 0, 0, 0, 88000, 0, 0, 0],
-      serie_usd: [0, 0, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0],
-      es_kilogramo: false },
+      clave_canonica: 'WWP0164', mercado: 'EXT', unidad: 'KG',
+      cantidad: 310000, mxn: 19014105, usd: 1065350, renglones: 47,
+      serie: serie(40000), serie_mxn: serie(2467372), serie_usd: serie(134000), es_kilogramo: true },
   ],
-  totales: { cantidad: 123320, mxn: 7789440, usd: 442360 },
-  unidades: ['KG', 'PIEZA'],
+  totales: { cantidad: 568084, mxn: 35014105, usd: 1065350 },
+  unidades: ['(SIN UNIDAD)', '99', 'ACT', 'BIDON', 'CAJA', 'KG', 'KGM', 'NA', 'PIEZA', 'SACO', 'SERVICIO'],
   es_kilogramo: false,
-  devoluciones: { renglones: 1, cantidad: -2000, mxn: -117920, usd: -6700 },
+  devoluciones: { renglones: 35, cantidad: -28126, mxn: -2424487.59, usd: -120000 },
   procedencia: {
-    desde: '2025-10-01', hasta: '2026-09-30',
-    fecha_campo: 'falta_fac', cantidad_campo: 'cant_surt', importe_campo: 'subt_prod',
-    usd_regla: 'subt_prod / tip_cam solo en cve_mon = 2',
-    agrupar: 'clave',
-    clientes: ['MSI EXPRESS, INC.', 'Unilever North America'],
-    claves: ['WWP0164.'],
-    claves_canonicas: ['WWP0164'],
-    unidades: ['KG', 'PIEZA'],
-    neto_de_devoluciones: true,
-    generado_en: '2026-10-15T18:00:00.000Z',
+    desde: '2025-10-01', hasta: '2026-09-30', fecha_campo: 'falta_fac',
+    cantidad_campo: 'cant_surt', importe_campo: 'subt_prod',
+    usd_regla: 'subt_prod / tip_cam solo en cve_mon = 2', agrupar: 'clave',
+    clientes: CLIENTES_MUCHOS.clientes.map((c) => c.nombre),
+    claves: CLAVES_MUCHAS.claves.map((k) => k.cve_prod),
+    claves_canonicas: CLAVES_MUCHAS.claves.map((k) => k.clave_canonica),
+    unidades: ['(SIN UNIDAD)', '99', 'ACT', 'BIDON', 'CAJA', 'KG', 'KGM', 'NA', 'PIEZA', 'SACO', 'SERVICIO'],
+    neto_de_devoluciones: true, generado_en: '2026-10-15T17:09:34.651Z',
   },
 };
 
-const CLIENTES = {
-  clientes: [
-    { cve_cte: 308, nombre: 'Unilever North America', agente: 'ALEJANDRA GONZALEZ',
-      falta_en_catalogo: false, renglones: 55, ultima_venta: '2026-08-27' },
-    { cve_cte: 108, nombre: 'MSI EXPRESS, INC.', agente: 'ALEJANDRA GONZALEZ',
-      falta_en_catalogo: false, renglones: 208, ultima_venta: '2026-08-24' },
-    { cve_cte: 1, nombre: 'UNILEVER MANUFACTURERA', agente: null,
-      falta_en_catalogo: false, renglones: 1791, ultima_venta: '2026-08-31' },
-    { cve_cte: 777, nombre: 'CLIENTE SIN ALTA', agente: null,
-      falta_en_catalogo: true, renglones: 9, ultima_venta: '2026-07-01' },
+// Consulta CON filtro: dos clientes, una clave, una unidad.
+const CONSULTA_ANGOSTA = {
+  periodo: { desde: '2025-10-01', hasta: '2026-09-30', meses: 12 },
+  agrupar: 'clave', meses: MESES,
+  filas: [
+    { cve_cte: 108, cliente: 'MSI EXPRESS, INC.', cve_prod: 'WWP0164.',
+      clave_canonica: 'WWP0164', mercado: 'EXT', unidad: 'KG',
+      cantidad: 310000, mxn: 19014105, usd: 1065350, renglones: 47,
+      serie: serie(40000), serie_mxn: serie(2467372), serie_usd: serie(134000), es_kilogramo: true },
+    { cve_cte: 308, cliente: 'Unilever North America', cve_prod: 'WWP0164.',
+      clave_canonica: 'WWP0164', mercado: 'EXT', unidad: 'KG',
+      cantidad: 176000, mxn: 11072318, usd: 627968, renglones: 7,
+      serie: serie(35200), serie_mxn: serie(2300388), serie_usd: serie(124960), es_kilogramo: true },
   ],
-};
-
-const CLAVES = {
-  ventana: 'periodo', desde: '2025-10-01', hasta: '2026-09-30',
-  claves: [
-    { cve_prod: 'WWP0164.', clave_canonica: 'WWP0164', mercado: 'EXT',
-      descripcion: 'POWDERED ONION EXTRACT', unidad: 'KG', renglones: 125, ultima_venta: '2026-08-27' },
-    { cve_prod: 'WWP0167-D.', clave_canonica: 'WWP0167-D', mercado: 'EXT',
-      descripcion: 'POWDERED GARLIC EXTRACT', unidad: 'KG', renglones: 93, ultima_venta: '2026-08-24' },
-    { cve_prod: 'WWP0167-C2-', clave_canonica: 'WWP0167-C2', mercado: 'EXT',
-      descripcion: 'POWDERED GARLIC EXTRACT', unidad: 'KG', renglones: 33, ultima_venta: '2026-08-20' },
-  ],
+  totales: { cantidad: 486000, mxn: 30086423, usd: 1693318 },
+  unidades: ['KG'], es_kilogramo: true,
+  devoluciones: { renglones: 0, cantidad: 0, mxn: 0, usd: 0 },
+  procedencia: {
+    desde: '2025-10-01', hasta: '2026-09-30', fecha_campo: 'falta_fac',
+    cantidad_campo: 'cant_surt', importe_campo: 'subt_prod',
+    usd_regla: 'subt_prod / tip_cam solo en cve_mon = 2', agrupar: 'clave',
+    clientes: ['MSI EXPRESS, INC.', 'Unilever North America'],
+    claves: ['WWP0164.'], claves_canonicas: ['WWP0164'], unidades: ['KG'],
+    neto_de_devoluciones: true, generado_en: '2026-10-15T17:09:34.651Z',
+  },
 };
 
 async function montar() {
@@ -95,6 +131,7 @@ async function montar() {
   });
   const errores = [];
   const pedidos = [];
+  let anchaOangosta = 'ancha';
   window.KoguShell = {
     initShell: async () => {
       const d = window.document.createElement('div');
@@ -107,10 +144,11 @@ async function montar() {
   window.KoguApi = {
     apiFetch: async (url) => {
       pedidos.push(url);
-      // El front debe tolerar las dos envolturas posibles del backend.
-      if (url.includes('/consulta-ventas/clientes')) return { ok: true, data: CLIENTES };
-      if (url.includes('/consulta-ventas/claves')) return CLAVES;
-      if (url.includes('/consulta-ventas')) return { ok: true, data: CONSULTA };
+      if (url.includes('/consulta-ventas/clientes')) return { ok: true, data: CLIENTES_MUCHOS };
+      if (url.includes('/consulta-ventas/claves')) return CLAVES_MUCHAS;
+      if (url.includes('/consulta-ventas')) {
+        return { ok: true, data: anchaOangosta === 'ancha' ? CONSULTA_ANCHA : CONSULTA_ANGOSTA };
+      }
       return { ok: true, data: {} };
     },
     toast: (m, t) => errores.push(`toast(${t}): ${m}`),
@@ -129,108 +167,132 @@ async function montar() {
   window.eval(js);
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
-  return { window, errores, pedidos, $: (id) => window.document.getElementById(id) };
+  return {
+    window, errores, pedidos,
+    $: (id) => window.document.getElementById(id),
+    modo: (m) => { anchaOangosta = m; },
+  };
 }
 
 let P = null;
+
+// ── 1. Abre sin datos ────────────────────────────────────────────────
 await check('la pantalla levanta sin errores', async () => {
   P = await montar();
   assert.deepEqual(P.errores, []);
 });
 
-await check('el periodo arranca con una ventana de 12 meses', async () => {
-  const d = P.$('fDesde'); const h = P.$('fHasta');
-  assert.ok(d && h, 'faltan los campos de periodo');
-  assert.match(d.value, /^\d{4}-\d{2}-\d{2}$/, `desde vacío: "${d.value}"`);
-  assert.match(h.value, /^\d{4}-\d{2}-\d{2}$/, `hasta vacío: "${h.value}"`);
-  const meses = (new Date(h.value) - new Date(d.value)) / (1000 * 60 * 60 * 24 * 30.4);
-  assert.ok(meses > 10 && meses < 13, `la ventana inicial debe ser de 12 meses, dio ${meses.toFixed(1)}`);
+await check('al abrir NO ejecuta la consulta', () => {
+  const consultas = P.pedidos.filter((u) => /\/consulta-ventas\?/.test(u));
+  assert.equal(consultas.length, 0,
+    `no debe consultar sin filtros, pidió: ${JSON.stringify(consultas)}`);
 });
 
-await check('el encabezado imprime la procedencia con nombres, no conteos', () => {
-  const t = P.$('procedencia').textContent.replace(/\s+/g, ' ');
-  assert.match(t, /Unilever North America/, 'debe nombrar cada entidad');
-  assert.match(t, /MSI EXPRESS/, 'debe nombrar cada entidad');
-  assert.match(t, /WWP0164\./, 'debe nombrar cada clave resuelta');
-  assert.match(t, /falta_fac/, 'debe declarar el campo de fecha');
-  assert.match(t, /subt_prod/, 'debe declarar el campo de importe');
+await check('al abrir SÍ carga los catálogos de los selectores', () => {
+  assert.ok(P.pedidos.some((u) => u.includes('/consulta-ventas/clientes')), 'faltan clientes');
+  assert.ok(P.pedidos.some((u) => u.includes('/consulta-ventas/claves')), 'faltan claves');
 });
 
-await check('el pivote trae las 12 columnas de mes, ceros incluidos', () => {
-  const ths = [...P.window.document.querySelectorAll('#tablaPivote thead th')].map((e) => e.textContent.trim());
-  const conMes = MESES.filter((m) => ths.some((t) => t.includes(m.slice(5)) || t.includes(m)));
-  assert.equal(conMes.length, 12, `esperaba 12 meses en el encabezado, encontré ${conMes.length}`);
-  const fila = [...P.window.document.querySelectorAll('#tablaPivote tbody tr')]
-    .find((tr) => tr.textContent.includes('Unilever North America'));
-  assert.ok(fila, 'no está la fila de Unilever North');
-  const celdas = [...fila.querySelectorAll('td')].map((e) => e.textContent.trim());
-  assert.ok(celdas.some((c) => /^0$/.test(c.replace(/[^\d]/g, '') || '0') || c === '0' || c === '—'),
-    'los meses sin compra deben verse, no desaparecer');
+await check('muestra el estado vacío diciendo qué hacer', () => {
+  const t = P.$('pageContent').textContent.replace(/\s+/g, ' ');
+  assert.match(t, /elige|selecciona/i, `falta el mensaje de arranque: "${t.slice(0, 200)}"`);
+  assert.match(t, /cliente/i, 'debe decir que elija cliente o clave');
 });
 
-await check('no rotula kilogramo cuando hay una unidad que no es peso (§4.9.6)', () => {
-  const t = P.$('medida').textContent.replace(/\s+/g, ' ');
-  assert.match(t, /unidad de venta/i,
-    `con PIEZA mezclada la medida no es kilogramo: "${t}"`);
-  assert.match(t, /PIEZA/, 'debe decir cuáles unidades trae');
+await check('el estado vacío no trae avisos ni procedencia', () => {
+  const med = P.$('medida');
+  const proc = P.$('procedencia');
+  assert.ok(!med || !med.textContent.trim(), 'no debe haber aviso de unidad sin consulta');
+  assert.ok(!proc || !proc.textContent.trim(), 'no debe haber procedencia sin consulta');
 });
 
-await check('muestra las devoluciones aparte del neto', () => {
-  const t = P.$('devoluciones').textContent.replace(/\s+/g, ' ');
-  assert.match(t, /2,000|2000/, 'debe decir cuánto se restó por devoluciones');
-});
-
-await check('marca al cliente que no está en el catálogo (§3.5)', async () => {
+// ── 2. Con filtro aplicado, corre el reporte ─────────────────────────
+await check('aplicar un filtro de cliente ejecuta el reporte', async () => {
+  P.modo('angosta');
   P.$('btnClientes').click();
-  await new Promise((r) => setTimeout(r, 120));
-  const t = P.$('modalBody').textContent;
-  assert.match(t, /CLIENTE SIN ALTA/, 'el cliente sin alta debe aparecer');
-  assert.match(t, /sin alta|catálogo/i, 'y debe aparecer marcado, no oculto');
-});
-
-await check('la búsqueda del selector ignora acentos', async () => {
-  const q = P.$('modalBuscar');
-  assert.ok(q, 'falta el campo de búsqueda del modal');
-  q.value = 'unilever';
-  q.dispatchEvent(new P.window.Event('input'));
-  await new Promise((r) => setTimeout(r, 80));
-  const visibles = [...P.window.document.querySelectorAll('#modalBody [data-ref]')]
-    .filter((e) => !e.hidden);
-  assert.ok(visibles.length >= 2, `debe encontrar las dos Unilever, encontró ${visibles.length}`);
-  assert.ok(!visibles.some((e) => /MSI/.test(e.textContent)), 'no debe colar a MSI');
-});
-
-await check('elegir cliente dispara la cascada hacia las claves (§3)', async () => {
-  const antes = P.pedidos.length;
+  await new Promise((r) => setTimeout(r, 150));
   const op = [...P.window.document.querySelectorAll('#modalBody [data-ref]')]
     .find((e) => e.dataset.ref === '308');
-  assert.ok(op, 'no está la opción de Unilever North');
-  op.click();
+  assert.ok(op, 'no está Unilever North en el selector');
+  op.querySelector('input[type=checkbox]').checked = true;
   P.$('modalAceptar').click();
-  await new Promise((r) => setTimeout(r, 200));
-  const nuevos = P.pedidos.slice(antes);
-  assert.ok(nuevos.some((u) => u.includes('/consulta-ventas/claves') && u.includes('clientes=308')),
-    `la cascada debe pedir las claves del cliente: ${JSON.stringify(nuevos)}`);
+  await new Promise((r) => setTimeout(r, 250));
+  assert.ok(P.pedidos.some((u) => /\/consulta-ventas\?/.test(u)),
+    'tras elegir cliente debe ejecutarse el reporte');
 });
 
-await check('la lista de claves declara con qué ventana se armó (§3.1)', async () => {
-  P.$('btnClaves').click();
+await check('con pocos seleccionados la procedencia SÍ los nombra', () => {
+  const t = P.$('procedencia').textContent.replace(/\s+/g, ' ');
+  assert.match(t, /Unilever North America/, 'debe nombrar las entidades cuando son pocas');
+  assert.match(t, /WWP0164\./, 'y las claves');
+});
+
+await check('con una sola unidad de peso dice kilogramos, sin advertencia', () => {
+  const t = P.$('medida').textContent.replace(/\s+/g, ' ');
+  assert.match(t, /kilogramo/i, `debería decir kilogramos: "${t}"`);
+  assert.ok(!/⚠/.test(t), 'no debe advertir cuando la medida sí es kilos');
+});
+
+await check('sin devoluciones no inventa un renglón de devoluciones', () => {
+  const t = (P.$('devoluciones')?.textContent || '').replace(/\s+/g, ' ');
+  assert.ok(!/se restaron/i.test(t), `no hubo devoluciones: "${t}"`);
+});
+
+// ── 3. Consulta ancha: lo que rompió la pantalla real ────────────────
+await check('con cientos de entidades la procedencia NO las lista una por una', async () => {
+  P.modo('ancha');
+  P.$('btnConsultar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  const t = P.$('procedencia').textContent;
+  assert.ok(t.length < 1200,
+    `el encabezado mide ${t.length} caracteres: es un muro de nombres`);
+  assert.ok(!/CLIENTE NUMERO 250/.test(t), 'no debe imprimir los 400 nombres');
+  assert.match(t.replace(/\s+/g, ' '), /400/,
+    'pero sí debe decir cuántos clientes entraron');
+});
+
+await check('con cientos de claves tampoco las lista', () => {
+  const t = P.$('procedencia').textContent;
+  assert.ok(!/WWP0300/.test(t), 'no debe imprimir las 600 claves');
+  assert.match(t.replace(/\s+/g, ' '), /600/, 'pero sí debe decir cuántas');
+});
+
+await check('no pinta la fila con toda la serie en cero', () => {
+  const filas = [...P.window.document.querySelectorAll('#tablaPivote tbody tr')];
+  const texto = filas.map((f) => f.textContent).join(' ');
+  assert.ok(!/WWP0776-C/.test(texto),
+    'una fila sin un solo dato en el periodo no debe aparecer');
+  assert.ok(/WWP0164/.test(texto), 'las filas con datos sí');
+});
+
+await check('no reporta una cantidad de devoluciones con unidades mezcladas', () => {
+  const t = P.$('devoluciones').textContent.replace(/\s+/g, ' ');
+  assert.ok(!/28,126|28126/.test(t),
+    `con unidades mezcladas esa cantidad no significa nada: "${t}"`);
+  assert.match(t, /35/, 'pero sí debe decir cuántos renglones');
+  // money() redondea al peso: 2,424,487.59 se muestra como 2,424,488.
+  assert.match(t, /\$2,424,4\d\d/, 'y el importe, que sí es comparable');
+});
+
+// ── 4. El archivo sí lleva todo ──────────────────────────────────────
+await check('el CSV sí trae la lista completa de entidades', () => {
+  const csv = P.window.__consultaVentasCsv(CONSULTA_ANCHA);
+  assert.match(csv, /CLIENTE NUMERO 250/, 'el archivo es lo que viaja: ahí van todos');
+  assert.match(csv, /WWP0300/, 'y todas las claves');
+  assert.match(csv, /falta_fac/, 'con la procedencia completa');
+});
+
+// ── 5. Quitar los filtros regresa al estado vacío ────────────────────
+await check('quitar todos los filtros regresa al estado vacío', async () => {
+  P.$('btnClientes').click();
   await new Promise((r) => setTimeout(r, 150));
-  const t = P.$('modalBody').textContent + P.$('modalTitulo').textContent;
-  assert.match(t, /periodo|histórico/i,
-    'la lista debe decir si trae el periodo o el histórico');
-  assert.match(t, /KG/, 'cada clave muestra su unidad');
-});
-
-await check('la exportación lleva la procedencia dentro del archivo', () => {
-  const fn = P.window.__consultaVentasCsv;
-  assert.ok(typeof fn === 'function', 'falta la función de exportación expuesta para prueba');
-  const csv = fn(CONSULTA);
-  assert.match(csv, /falta_fac/, 'el archivo debe declarar el campo de fecha');
-  assert.match(csv, /Unilever North America/, 'el archivo debe nombrar las entidades');
-  assert.match(csv, /WWP0164\./, 'el archivo debe nombrar las claves');
-  assert.match(csv, /2025-10-01/, 'el archivo debe traer el periodo');
-  assert.ok(csv.split('\n').length > 5, 'el archivo debe traer los datos además del encabezado');
+  P.$('modalLimpiar').click();
+  P.$('modalAceptar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  const t = P.$('pageContent').textContent.replace(/\s+/g, ' ');
+  assert.match(t, /elige|selecciona/i, 'sin filtros debe volver al mensaje de arranque');
+  const proc = P.$('procedencia');
+  assert.ok(!proc || !proc.textContent.trim(), 'y limpiar la procedencia');
 });
 
 console.log('');

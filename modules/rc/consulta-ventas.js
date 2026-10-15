@@ -16,6 +16,13 @@
   // Unidades que son kilogramo escrito de tres formas. El resto no tiene
   // kilogramo en el dato (medido: 6 % de los renglones).
   var UNIDADES_KG = ['KG', 'KGM', 'KILO'];
+  // Cuántos nombres se imprimen en pantalla antes de pasar a contarlos.
+  // Con el filtro abierto son ~400 clientes y ~600 claves: nombrarlos
+  // uno por uno convierte el encabezado en catorce mil caracteres de
+  // muro. La lista completa viaja en el CSV, que es lo que llega al
+  // cliente; la pantalla solo necesita que el recorte sea verificable.
+  var MAX_NOMBRES = 12;
+  var MAX_UNIDADES = 6;
 
   var S = {
     desde: '', hasta: '',
@@ -47,6 +54,18 @@
 
   var hoy = function () { return new Date(); };
   var iso = function (d) { return d.toISOString().slice(0, 10); };
+
+  // Esta pantalla es una herramienta de RECORTE: el recorte lo pone el
+  // usuario. Sin cliente ni clave no hay reporte que correr.
+  var hayFiltro = function () { return S.clientes.length > 0 || S.claves.length > 0; };
+
+  // Nombra mientras sean pocos; en cuanto son muchos, cuenta.
+  var nombrarOcontar = function (lista, singular, plural, vacio) {
+    var n = (lista || []).length;
+    if (!n) return vacio;
+    if (n <= MAX_NOMBRES) return esc(lista.join(' · '));
+    return '<b>' + n + '</b> ' + plural + ' (la lista completa va dentro del CSV)';
+  };
 
   // Ventana inicial: los últimos 12 meses cerrados.
   function periodoInicial() {
@@ -135,28 +154,42 @@
     document.getElementById('seleccion').innerHTML = html;
   }
 
+  function limpiarAvisos() {
+    document.getElementById('medida').innerHTML = '';
+    document.getElementById('devoluciones').innerHTML = '';
+    document.getElementById('procedencia').innerHTML = '';
+  }
+
   function pintarAvisos(d) {
     var medida = document.getElementById('medida');
     var unidades = (d.unidades || []);
+    var lista = unidades.length > MAX_UNIDADES
+      ? unidades.slice(0, MAX_UNIDADES).join(', ') + ' y ' + (unidades.length - MAX_UNIDADES) + ' más'
+      : unidades.join(', ');
     if (!unidades.length) {
-      medida.textContent = '';
+      medida.innerHTML = '';
     } else if (d.es_kilogramo) {
-      medida.innerHTML = 'Cantidad en <b>kilogramos</b>. Unidades presentes: ' + esc(unidades.join(', ')) + '.';
+      medida.innerHTML = 'Cantidad en <b>kilogramos</b>.';
     } else {
       // Medido: en el 6 % de los renglones no existe kilogramo en el dato.
       medida.innerHTML = '⚠ Cantidad en <b>unidad de venta</b>, no en kilogramos: la selección mezcla '
-        + esc(unidades.join(', ')) + '. Para un número en kilos, filtra a claves de unidad de peso.';
+        + esc(lista) + '. Para un número en kilos, filtra a claves de unidad de peso.';
     }
 
     var dev = document.getElementById('devoluciones');
     var n = d.devoluciones || {};
     if (Number(n.renglones) > 0) {
-      dev.innerHTML = 'Neto de devoluciones: se restaron <b>'
-        + Math.abs(Number(n.cantidad) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })
-        + '</b> en ' + n.renglones + ' renglón(es) de nota de crédito, y '
-        + KoguUi.money(Math.abs(Number(n.mxn) || 0)) + ' MXN.';
+      // La cantidad solo se reporta si es comparable. Con unidades
+      // mezcladas, un total de "28,126" no significa nada.
+      var cant = d.es_kilogramo
+        ? '<b>' + Math.abs(Number(n.cantidad) || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })
+          + '</b> kg y '
+        : '';
+      dev.innerHTML = 'Neto de devoluciones: se restaron ' + cant
+        + '<b>' + KoguUi.money(Math.abs(Number(n.mxn) || 0)) + ' MXN</b> en '
+        + n.renglones + ' renglón(es) de nota de crédito.';
     } else {
-      dev.textContent = 'Sin devoluciones en el periodo.';
+      dev.innerHTML = '';
     }
 
     var p = d.procedencia || {};
@@ -165,8 +198,10 @@
       + '<ul>'
       + '<li><b>Periodo:</b> ' + esc(p.desde) + ' a ' + esc(p.hasta)
       + ' (' + (d.meses || []).length + ' meses, por <code>' + esc(p.fecha_campo) + '</code>)</li>'
-      + '<li><b>Clientes incluidos:</b> ' + esc((p.clientes || []).join(' · ') || 'todos') + '</li>'
-      + '<li><b>Claves incluidas:</b> ' + esc((p.claves || p.claves_canonicas || []).join(' · ') || 'todas') + '</li>'
+      + '<li><b>Clientes:</b> '
+      + nombrarOcontar(p.clientes, 'cliente', 'clientes', 'todos') + '</li>'
+      + '<li><b>Claves:</b> '
+      + nombrarOcontar(p.claves || p.claves_canonicas, 'clave', 'claves', 'todas') + '</li>'
       + '<li><b>Cantidad:</b> <code>' + esc(p.cantidad_campo) + '</code>'
       + ' · <b>Importe:</b> <code>' + esc(p.importe_campo) + '</code>'
       + ' · <b>USD:</b> ' + esc(p.usd_regla) + '</li>'
@@ -199,14 +234,21 @@
       + '<th class="n">Total</th></tr>';
     tabla.tHead.innerHTML = th;
 
-    if (!d.filas || !d.filas.length) {
+    // Una fila sin un solo dato en el periodo no es información: es ruido.
+    // El backend la devuelve porque la clave existe en el recorte, pero en
+    // pantalla son doce guiones seguidos.
+    var filas = (d.filas || []).filter(function (f) {
+      return Number(f.cantidad) !== 0 || Number(f.mxn) !== 0 || Number(f.usd) !== 0;
+    });
+
+    if (!filas.length) {
       tabla.tBodies[0].innerHTML = '<tr><td colspan="' + (meses.length + 4) + '">'
         + 'Sin ventas con ese recorte. Revisa el periodo y las claves: la clave tal como la escribe '
         + 'quien pide el dato suele ser la nacional, y la de exportación lleva punto final.</td></tr>';
       return;
     }
 
-    tabla.tBodies[0].innerHTML = d.filas.map(function (f) {
+    tabla.tBodies[0].innerHTML = filas.map(function (f) {
       var serie = serieDe(f);
       return '<tr>'
         + (porCanonica
@@ -219,9 +261,24 @@
     }).join('');
   }
 
+  // Estado de arranque: la pantalla abre sin datos y dice qué hacer.
+  // Correr la consulta completa sin que nadie la pida devuelve cada
+  // cliente por cada clave por doce meses, que no le sirve a nadie.
+  function pintarVacio() {
+    limpiarAvisos();
+    var tabla = document.getElementById('tablaPivote');
+    tabla.tHead.innerHTML = '';
+    tabla.tBodies[0].innerHTML = '<tr><td class="vacio">'
+      + '<b>Elige al menos un cliente o una clave para ejecutar el reporte.</b><br>'
+      + 'Ajusta también el periodo si lo necesitas. El resultado se arma sobre lo que '
+      + 'selecciones, y el archivo que exportes lleva impreso ese recorte.'
+      + '</td></tr>';
+    pintarSeleccion();
+  }
+
   function pintar() {
     var d = S.data;
-    if (!d) return;
+    if (!d) return pintarVacio();
     pintarAvisos(d);
     pintarTabla(d);
     pintarSeleccion();
@@ -295,6 +352,11 @@
   }
 
   async function consultar() {
+    if (!hayFiltro()) {
+      S.data = null;
+      pintarVacio();
+      return;
+    }
     var r = cuerpo(await KoguApi.apiFetch(API + qs(['agrupar=' + S.agrupar])));
     S.data = r;
     pintar();
@@ -447,7 +509,9 @@
 
       await cargarClientes();
       await cargarClaves();
-      await consultar();
+      // NO se consulta al abrir: la pantalla arranca vacía (§ decisión
+      // del 15-oct-2026, tras ver el resultado real sin filtro).
+      pintarVacio();
 
       if (KoguShell.subscribeEmpresaActivaChange) {
         KoguShell.subscribeEmpresaActivaChange(async function () {
@@ -455,7 +519,7 @@
           S.clientes = []; S.claves = []; S.data = null;
           await cargarClientes();
           await cargarClaves();
-          await consultar();
+          pintarVacio();
         });
       }
     } catch (err) {
