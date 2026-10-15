@@ -1,0 +1,219 @@
+// ============================================================
+// tests/crm-kpis-render.test.mjs
+// CRM · pantalla de KPIs de actividades (minuta 14-oct, punto 2).
+//
+// Regla §16.4: escrita antes de la pantalla y mostrada fallando.
+//
+// Lo que esta prueba defiende no es el pixel, es la honestidad de los
+// numeros: que el volumen nunca aparezca como un total unico (la deriva
+// mide 12 meses y la caida un bimestre), que la cubeta "sin motivo" se
+// explique en vez de esconderse, y que la palabra "mediana" no se
+// convierta en "promedio" sin que nadie se entere.
+// ============================================================
+import { JSDOM } from 'jsdom';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const verde = [];
+const rojo = [];
+const check = async (n, f) => {
+  try { await f(); verde.push(n); }
+  catch (e) { rojo.push([n, String(e.message).split('\n')[0]]); }
+};
+
+const ARCHIVO = new URL('../modules/crm/kpis.js', import.meta.url).pathname;
+
+// Payload con la forma real que devuelve el servicio (14 casos en verde
+// en qa/crm-actividades-kpis.test.mjs).
+const CON_DATOS = {
+  periodo: { desde: '2026-08-01', hasta: '2026-10-15', hoy: '2026-10-15' },
+  creadas: { total: 9, por_origen: { 'mi-panel': 8, manual: 1 } },
+  pendiente: { abiertas: 3, en_proceso: 1, vencidas: 1 },
+  cierre: { cerradas: 4, canceladas: 1, tasa_cierre: 0.4444 },
+  desenlace: { recuperado: 1, parcial: 1, perdido: 1, no_aplica: 0, completada: 1 },
+  vigencia: { cerradas_a_tiempo: 3, pct_a_tiempo: 0.75, dias_mediana_cierre: 7, dias_mediana_tomar: 1 },
+  volumen: {
+    caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 3 },
+    deriva:          { kg: 2500, mxn: 250000, actividades: 2 },
+    sin_motivo:      { kg: 0, mxn: 0, actividades: 2 },
+  },
+};
+
+const SIN_MOTIVO_VACIO = {
+  ...CON_DATOS,
+  volumen: { ...CON_DATOS.volumen, sin_motivo: { kg: 0, mxn: 0, actividades: 0 } },
+};
+
+const VACIO = {
+  periodo: { desde: '2026-01-01', hasta: '2026-01-31', hoy: '2026-10-15' },
+  creadas: { total: 0, por_origen: {} },
+  pendiente: { abiertas: 0, en_proceso: 0, vencidas: 0 },
+  cierre: { cerradas: 0, canceladas: 0, tasa_cierre: 0 },
+  desenlace: { recuperado: 0, parcial: 0, perdido: 0, no_aplica: 0, completada: 0 },
+  vigencia: { cerradas_a_tiempo: 0, pct_a_tiempo: null, dias_mediana_cierre: null, dias_mediana_tomar: null },
+  volumen: {
+    caida_dormancia: { kg: 0, mxn: 0, actividades: 0 },
+    deriva: { kg: 0, mxn: 0, actividades: 0 },
+    sin_motivo: { kg: 0, mxn: 0, actividades: 0 },
+  },
+};
+
+async function arranca(cuerpo = CON_DATOS) {
+  const js = fs.readFileSync(ARCHIVO, 'utf8');
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
+    { url: 'https://kogu.test/modules/crm/kpis.html', runScripts: 'outside-only' });
+  const { window } = dom;
+  await new Promise((r) => {
+    if (window.document.readyState === 'complete') return r();
+    window.addEventListener('load', r);
+    setTimeout(r, 500);
+  });
+  const pedidos = [];
+  let actual = cuerpo;
+  window.KoguShell = {
+    initShell: async () => {
+      const d = window.document.createElement('div');
+      d.id = 'pageContent';
+      window.document.getElementById('app').appendChild(d);
+      return { ok: true, permisos: ['crm.actividades.read', 'crm.actividades.admin'] };
+    },
+    hasPerm: () => true,
+    subscribeEmpresaActivaChange: () => {},
+  };
+  window.KoguApi = {
+    apiFetch: async (url) => { pedidos.push(url); return { ok: true, data: actual }; },
+    toast: () => {},
+    withLoading: async (el, fn) => fn(),
+  };
+  window.KoguUi = {
+    escapeHtml: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+    money: (v) => '$' + Number(v || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 }),
+    fmtDate: (v) => String(v),
+    fmtDateOnly: (v) => String(v),
+    withLoading: async (el, fn) => fn(),
+  };
+  window.eval(js);
+  window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  await new Promise((r) => setTimeout(r, 400));
+  const texto = () => window.document.getElementById('app').textContent.replace(/\s+/g, ' ');
+  return { window, pedidos, texto, setCuerpo: (c) => { actual = c; } };
+}
+
+console.log('\n── La honestidad de los numeros ────────────────────────────────');
+
+await check('el volumen se pinta en TRES cubetas separadas', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(/ca[ií]da|dormancia/i.test(t), 'falta la cubeta de caida/dormancia');
+  assert.ok(/deriva|encogi/i.test(t), 'falta la cubeta de deriva');
+  assert.ok(/sin motivo/i.test(t), 'falta la cubeta sin motivo');
+});
+
+await check('NUNCA aparece el total que mezcla las bases de tiempo', async () => {
+  const { texto } = await arranca();
+  const t = texto().replace(/[,\s]/g, '');
+  assert.ok(!t.includes('4567'), 'aparece 4567: alguien sumo deriva con caida');
+});
+
+await check('la cubeta sin motivo viene EXPLICADA, no suelta', async () => {
+  const { texto } = await arranca();
+  assert.ok(/anteriores|previas|antes de|no registr/i.test(texto()),
+    'sin motivo aparece sin decir que son actividades viejas');
+});
+
+await check('si no hay actividades sin motivo, la cubeta no estorba', async () => {
+  const { texto } = await arranca(SIN_MOTIVO_VACIO);
+  assert.ok(!/sin motivo/i.test(texto()), 'pinta una cubeta vacia');
+});
+
+await check('dice MEDIANA, no promedio', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(/mediana/i.test(t), 'no dice mediana');
+  assert.ok(!/promedio/i.test(t), 'dice promedio: el dato es mediana');
+});
+
+await check('el desenlace es conteo: en ningun lado hay kg recuperados', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(!/recuperad\w*\s*[:·-]?\s*[\d,.]+\s*kg/i.test(t),
+    'hay una cifra de kg pegada a recuperado: monto_riesgo no mide recuperacion');
+});
+
+console.log('\n── Los seis indicadores ────────────────────────────────────────');
+
+await check('pide los KPIs al abrir, con un periodo por omision', async () => {
+  const { pedidos } = await arranca();
+  const p = pedidos.find((u) => u.includes('/actividades/kpis'));
+  assert.ok(p, 'no pidio los KPIs');
+  assert.ok(/desde=\d{4}-\d{2}-\d{2}/.test(p), 'no mando desde');
+  assert.ok(/hasta=\d{4}-\d{2}-\d{2}/.test(p), 'no mando hasta');
+});
+
+await check('pinta creadas con su desglose por origen', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(/\b9\b/.test(t), 'no pinta el total de creadas');
+  assert.ok(/mi-panel|Radar/i.test(t), 'no desglosa el origen');
+});
+
+await check('pinta el pendiente y destaca las vencidas', async () => {
+  const { window, texto } = await arranca();
+  assert.ok(/vencid/i.test(texto()), 'no menciona vencidas');
+  const html = window.document.getElementById('app').innerHTML;
+  assert.ok(/danger|#dc2626/.test(html), 'la vencida no se destaca con color de alarma');
+});
+
+await check('la tasa de cierre se pinta como porcentaje legible', async () => {
+  const { texto } = await arranca();
+  assert.ok(/44\s*%|44\.4\s*%/.test(texto()), 'no convirtio 0.4444 a porcentaje');
+});
+
+await check('pinta el desenlace con sus cuatro resultados', async () => {
+  const { texto } = await arranca();
+  const t = texto().toLowerCase();
+  for (const r of ['recuperad', 'parcial', 'perdid', 'completad']) {
+    assert.ok(t.includes(r), `falta ${r} en el desenlace`);
+  }
+});
+
+await check('pinta la disciplina de vigencia en porcentaje y dias', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(/75\s*%/.test(t), 'no pinta el cumplimiento de vigencia');
+  assert.ok(/\b7\b/.test(t), 'no pinta la mediana de dias a cerrar');
+});
+
+console.log('\n── Filtros y estado vacio ──────────────────────────────────────');
+
+await check('cambiar el origen vuelve a pedir con ese filtro', async () => {
+  const { window, pedidos } = await arranca();
+  const sel = window.document.getElementById('kpiOrigen');
+  assert.ok(sel, 'no hay selector de origen');
+  sel.value = 'mi-panel';
+  sel.onchange ? sel.onchange({ target: sel }) : sel.dispatchEvent(new window.Event('change'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.ok(pedidos.some((u) => u.includes('origen=mi-panel')), 'no mando el filtro de origen');
+});
+
+await check('el selector de origen NO ofrece bandeja-riesgo, que nadie produce', async () => {
+  const { window } = await arranca();
+  const sel = window.document.getElementById('kpiOrigen');
+  const vals = Array.from(sel.options).map((o) => o.value);
+  assert.ok(!vals.includes('bandeja-riesgo'),
+    'ofrece bandeja-riesgo: ninguna pantalla crea actividades con ese origen');
+});
+
+await check('sin actividades en el periodo lo dice, no deja tarjetas en blanco', async () => {
+  const { texto } = await arranca(VACIO);
+  assert.ok(/sin actividades|no hay actividades/i.test(texto()),
+    'no explica que el periodo esta vacio');
+});
+
+console.log(`\n${'='.repeat(70)}`);
+verde.forEach(n => console.log(`  VERDE  ${n}`));
+rojo.forEach(([n, m]) => console.log(`  ROJO   ${n}\n           ${m}`));
+console.log(`${'='.repeat(70)}`);
+console.log(`  ${verde.length} en verde, ${rojo.length} en rojo\n`);
+process.exit(rojo.length ? 1 : 0);

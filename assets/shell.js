@@ -67,6 +67,7 @@
     ]},
     {section:'CRM',items:[
       {href:'/modules/crm/actividades.html',label:'Actividades de seguimiento',perm:'crm.actividades.read'},
+      {href:'/modules/crm/kpis.html',label:'KPIs de seguimiento',perm:'crm.actividades.read'},
       {href:'/modules/crm/notif-plantillas.html',label:'Plantillas de notificación',perm:'notif.read'},
       {href:'/modules/crm/notif-envios.html',label:'Bitácora de notificaciones',perm:'notif.read'},
     ]},
