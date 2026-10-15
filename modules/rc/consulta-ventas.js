@@ -31,6 +31,9 @@
     catClientes: [], catClaves: [], clavesVentana: 'periodo', clavesHistorico: false,
     data: null,
     modal: null,
+    // Pestaña activa y estado propio de la comparativa. La vista mensual
+    // no sabe que existe: su código queda igual, sólo se oculta.
+    tab: 'mensual', preset: 'anio_anterior', comp: null,
   };
 
   // ── utilidades ─────────────────────────────────────────────────────
@@ -108,6 +111,13 @@
       + '  <div id="seleccion" class="chips"></div>'
       + '</section>'
 
+      + '<nav class="tabs">'
+      + '  <button type="button" class="tab activa" id="tabMensual">Consulta mensual</button>'
+      + '  <button type="button" class="tab" id="tabComparativo">Periodos comparativos</button>'
+      + '</nav>'
+
+      + '<div id="vistaMensual">'
+
       + '<section class="card" id="avisos">'
       + '  <div id="medida" class="aviso"></div>'
       + '  <div id="devoluciones" class="aviso"></div>'
@@ -117,6 +127,35 @@
       + '<section class="card">'
       + '  <div class="tabla-scroll"><table id="tablaPivote" class="tabla"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>'
       + '</section>'
+
+      + '</div>'
+
+      + '<div id="vistaComparativo" hidden>'
+      + '  <section class="card filtros">'
+      + '    <div class="row">'
+      + '      <label>Comparar contra'
+      + '        <select id="fPreset">'
+      + '          <option value="anio_anterior">Mismo periodo del a\u00f1o pasado</option>'
+      + '          <option value="periodo_anterior">Periodo inmediato anterior</option>'
+      + '          <option value="personalizado">Personalizado</option>'
+      + '        </select>'
+      + '      </label>'
+      + '      <span id="cajaPersonalizado" hidden>'
+      + '        <label>Comparar desde <input type="date" id="fDesde2"></label>'
+      + '        <label>Comparar hasta <input type="date" id="fHasta2"></label>'
+      + '      </span>'
+      + '      <button type="button" class="btn btn-primary" id="btnComparar">Comparar</button>'
+      + '    </div>'
+      + '  </section>'
+      + '  <section class="card" id="avisosComp">'
+      + '    <div id="avisoLongitud" class="aviso"></div>'
+      + '    <div id="devolucionesComp" class="aviso"></div>'
+      + '    <div id="procedenciaComp" class="procedencia"></div>'
+      + '  </section>'
+      + '  <section class="card">'
+      + '    <div class="tabla-scroll"><table id="tablaComp" class="tabla"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>'
+      + '  </section>'
+      + '</div>'
 
       + '<div id="modal" class="modal" hidden>'
       + '  <div class="modal-caja">'
@@ -449,17 +488,191 @@
     }
   }
 
+  // ── pestaña comparativa ────────────────────────────────────────────
+  // Consulta pura: no escribe, no alerta, no toca el triaje. La vista
+  // mensual de arriba no se modificó; aquí todo es código nuevo al lado.
+  var ETIQUETA = {
+    nueva: 'nueva',
+    dejo_de_comprar: 'dejó de comprar',
+    comparable: '',
+  };
+
+  function medida() { return S.metrica === 'cantidad' ? 'cantidad' : S.metrica; }
+
+  function valorDe(bloque) { return Number(bloque[medida()] || 0); }
+
+  // El porcentaje contra cero no existe. Cuando viene null se imprime la
+  // etiqueta del estado, nunca un Infinity disfrazado de dato.
+  function pctTxt(f) {
+    var v = f.delta_pct ? f.delta_pct[medida()] : null;
+    if (v === null || v === undefined) return '<span class="etq">' + esc(ETIQUETA[f.estado] || '—') + '</span>';
+    var signo = v > 0 ? '+' : '';
+    var txt = (Math.round(v * 10) % 10 === 0) ? String(Math.round(v)) : v.toFixed(1);
+    return '<b class="' + (v < 0 ? 'baja' : (v > 0 ? 'sube' : '')) + '">' + signo + txt + '%</b>';
+  }
+
+  function deltaTxt(f) {
+    var v = Number(f.delta[medida()] || 0);
+    return '<span class="' + (v < 0 ? 'baja' : (v > 0 ? 'sube' : '')) + '">'
+      + (v > 0 ? '+' : '') + num(v) + '</span>';
+  }
+
+  function cambiarTab(t) {
+    S.tab = t;
+    document.getElementById('vistaMensual').hidden = (t !== 'mensual');
+    document.getElementById('vistaComparativo').hidden = (t !== 'comparativo');
+    document.getElementById('tabMensual').className = 'tab' + (t === 'mensual' ? ' activa' : '');
+    document.getElementById('tabComparativo').className = 'tab' + (t === 'comparativo' ? ' activa' : '');
+    // Exportar pertenece a la vista mensual: el libro comparativo todavía
+    // no existe y ofrecer el botón sería prometer lo que no hay.
+    document.getElementById('btnExportar').hidden = (t !== 'mensual');
+  }
+
+  function pintarVacioComp() {
+    document.getElementById('avisoLongitud').innerHTML =
+      '<b>Elige al menos un cliente o una clave para comparar.</b>';
+    document.getElementById('devolucionesComp').innerHTML = '';
+    document.getElementById('procedenciaComp').innerHTML = '';
+    var t = document.getElementById('tablaComp');
+    t.querySelector('thead').innerHTML = '';
+    t.querySelector('tbody').innerHTML = '';
+    t.querySelector('tfoot').innerHTML = '';
+  }
+
+  function pintarAvisosComp(d) {
+    var pr = d.procedencia || {};
+    var pe = d.periodos || {};
+    var a = pe.actual || {};
+    var c = pe.comparacion || {};
+
+    // La lección que el Radar ya pagó: comparar 43 días contra 61 hacía
+    // "caer" ~30% a todos por pura aritmética. Si las longitudes difieren
+    // hay que decirlo antes de que alguien lea el porcentaje.
+    var aviso = 'Periodo <b>' + esc(a.desde) + ' a ' + esc(a.hasta) + '</b> (' + a.dias + ' días)'
+      + ' contra <b>' + esc(c.desde) + ' a ' + esc(c.hasta) + '</b> (' + c.dias + ' días).';
+    if (pe.longitudes_iguales === false) {
+      aviso += ' <b class="baja">Cuidado: las longitudes son distintas</b>'
+        + ' — las variaciones incluyen la diferencia de días, no sólo la de ventas.';
+    }
+    document.getElementById('avisoLongitud').innerHTML = aviso;
+
+    var dv = d.devoluciones || {};
+    var dA = dv.actual || {}; var dC = dv.comparacion || {};
+    document.getElementById('devolucionesComp').innerHTML =
+      'Devoluciones ya descontadas — periodo actual: ' + (dA.renglones || 0) + ' renglón(es), '
+      + num(dA.cantidad || 0) + ' · comparación: ' + (dC.renglones || 0) + ' renglón(es), '
+      + num(dC.cantidad || 0) + '.';
+
+    document.getElementById('procedenciaComp').innerHTML =
+      'Fecha: <b>' + esc(pr.fecha_campo) + '</b> · cantidad: <b>' + esc(pr.cantidad_campo) + '</b>'
+      + ' · importe: <b>' + esc(pr.importe_campo) + '</b> · USD: ' + esc(pr.usd_regla)
+      + ' · agrupado por <b>' + esc(pr.agrupar) + '</b> · comparación <b>' + esc(pr.preset) + '</b>.';
+  }
+
+  function pintarComparativo(d) {
+    pintarAvisosComp(d);
+    var porCanonica = d.agrupar === 'canonica';
+    var tabla = document.getElementById('tablaComp');
+
+    var cabecera = porCanonica
+      ? '<th>Clave canónica</th><th>Mercado</th>'
+      : '<th>Cliente</th><th>Clave</th>';
+    tabla.querySelector('thead').innerHTML =
+      '<tr>' + cabecera + '<th>Unidad</th>'
+      + '<th class="n">Periodo actual</th><th class="n">Comparación</th>'
+      + '<th class="n">Variación</th><th class="n">%</th></tr>';
+
+    tabla.querySelector('tbody').innerHTML = (d.filas || []).map(function (f) {
+      var ident = porCanonica
+        ? '<td>' + esc(f.clave_canonica) + '</td><td>' + esc(f.mercado) + '</td>'
+        : '<td>' + esc(f.cliente || '') + '</td><td>' + esc(f.cve_prod) + '</td>';
+      var etq = f.estado !== 'comparable'
+        ? ' <span class="etq">' + esc(ETIQUETA[f.estado]) + '</span>' : '';
+      return '<tr>' + ident + '<td>' + esc(f.unidad) + etq + '</td>'
+        + '<td class="n">' + num(valorDe(f.actual)) + '</td>'
+        + '<td class="n">' + num(valorDe(f.comparacion)) + '</td>'
+        + '<td class="n">' + deltaTxt(f) + '</td>'
+        + '<td class="n">' + pctTxt(f) + '</td></tr>';
+    }).join('');
+
+    // Totales: cantidad POR UNIDAD, nunca uno solo. El dinero sí se
+    // totaliza entre unidades, porque un peso es un peso.
+    var pie = '';
+    if (medida() === 'cantidad') {
+      pie = (d.totales_unidad || []).map(function (t) {
+        var v = Number(t.delta.cantidad || 0);
+        return '<tr class="total"><td colspan="' + (porCanonica ? 2 : 2) + '">Total ' + esc(t.unidad) + '</td><td></td>'
+          + '<td class="n">' + num(t.actual.cantidad) + '</td>'
+          + '<td class="n">' + num(t.comparacion.cantidad) + '</td>'
+          + '<td class="n"><span class="' + (v < 0 ? 'baja' : (v > 0 ? 'sube' : '')) + '">'
+          + (v > 0 ? '+' : '') + num(v) + '</span></td><td></td></tr>';
+      }).join('');
+    } else {
+      var tt = d.totales || { actual: {}, comparacion: {}, delta: {} };
+      var k = medida();
+      var vv = Number(tt.delta[k] || 0);
+      pie = '<tr class="total"><td colspan="3">Total general</td>'
+        + '<td class="n">' + num(tt.actual[k] || 0) + '</td>'
+        + '<td class="n">' + num(tt.comparacion[k] || 0) + '</td>'
+        + '<td class="n"><span class="' + (vv < 0 ? 'baja' : (vv > 0 ? 'sube' : '')) + '">'
+        + (vv > 0 ? '+' : '') + num(vv) + '</span></td><td></td></tr>';
+    }
+    tabla.querySelector('tfoot').innerHTML = pie;
+  }
+
+  async function consultarComparativo() {
+    if (!hayFiltro()) { pintarVacioComp(); return; }
+    var q = new URLSearchParams();
+    q.set('desde', document.getElementById('fDesde').value);
+    q.set('hasta', document.getElementById('fHasta').value);
+    if (S.clientes.length) q.set('clientes', S.clientes.join(','));
+    if (S.claves.length) q.set('claves', S.claves.join(','));
+    q.set('agrupar', document.getElementById('fAgrupar').value);
+    q.set('preset', S.preset);
+    if (S.preset === 'personalizado') {
+      q.set('desde2', document.getElementById('fDesde2').value || '');
+      q.set('hasta2', document.getElementById('fHasta2').value || '');
+    }
+    try {
+      var res = await KoguApi.apiFetch(API + '/comparativo?' + q.toString());
+      S.comp = cuerpo(res);
+      pintarComparativo(S.comp);
+    } catch (e) {
+      KoguApi.toast(e.message || 'No se pudo calcular la comparación.', 'error');
+    }
+  }
+
+  // Despachador: cada pestaña consulta lo suyo.
+  function refrescar() {
+    return S.tab === 'comparativo' ? consultarComparativo() : consultar();
+  }
+
   // ── eventos ────────────────────────────────────────────────────────
   function conectar() {
     document.getElementById('fDesde').addEventListener('change', function (e) { S.desde = e.target.value; });
     document.getElementById('fHasta').addEventListener('change', function (e) { S.hasta = e.target.value; });
     document.getElementById('fAgrupar').addEventListener('change', function (e) {
-      S.agrupar = e.target.value; consultar();
+      S.agrupar = e.target.value; refrescar();
     });
     document.getElementById('fMetrica').addEventListener('change', function (e) {
-      S.metrica = e.target.value; pintar();
+      S.metrica = e.target.value;
+      if (S.tab === 'comparativo') { if (S.comp) pintarComparativo(S.comp); } else { pintar(); }
     });
-    document.getElementById('btnConsultar').addEventListener('click', function () { consultar(); });
+    document.getElementById('btnConsultar').addEventListener('click', function () { refrescar(); });
+    document.getElementById('tabMensual').addEventListener('click', function () { cambiarTab('mensual'); });
+    document.getElementById('tabComparativo').addEventListener('click', function () {
+      cambiarTab('comparativo');
+      // No consulta sola: misma regla que la pestaña mensual. Sin filtro
+      // no hay reporte.
+      if (hayFiltro() && S.comp === null) consultarComparativo(); else if (!hayFiltro()) pintarVacioComp();
+    });
+    document.getElementById('fPreset').addEventListener('change', function (e) {
+      S.preset = e.target.value;
+      document.getElementById('cajaPersonalizado').hidden = (S.preset !== 'personalizado');
+      if (S.preset !== 'personalizado' && hayFiltro()) consultarComparativo();
+    });
+    document.getElementById('btnComparar').addEventListener('click', function () { consultarComparativo(); });
+
     document.getElementById('btnExportar').addEventListener('click', function (e) {
       return KoguUi.withLoading(e.target, function () { return descargarExcel(e.target); }, 'Generando…');
     });
@@ -479,7 +692,7 @@
         S.clientes = sel;
         // Cascada cliente → clave.
         await cargarClaves();
-        await consultar();
+        await refrescar();
       });
     });
 
@@ -499,7 +712,7 @@
         S.claves = sel;
         // Cascada inversa clave → cliente.
         await cargarClientes();
-        await consultar();
+        await refrescar();
       }, nota);
       var h = document.getElementById('modalHistorico');
       if (h) {

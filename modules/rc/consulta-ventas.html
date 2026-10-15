@@ -55,6 +55,27 @@
     .op-nom { font-weight: 500; }
     .op-meta { font-size: .76rem; opacity: .72; }
     .modal-pie { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* Pestañas. La activa se marca con el primary de KOGU y con peso de
+       texto: el color no es lo único que la distingue. */
+    .tabs { display:flex; gap:6px; margin:14px 0 0; }
+    .tab { appearance:none; border:1px solid var(--line); background:var(--panel);
+           border-bottom:3px solid transparent; border-radius:10px 10px 0 0;
+           padding:9px 16px; font-size:14px; color:var(--muted); cursor:pointer; }
+    .tab:hover { color:var(--text); }
+    .tab.activa { color:var(--text); font-weight:700; border-bottom-color:var(--primary,#0891b2); }
+
+    /* Variación. Verde sube, rojo baja — y siempre con su signo delante,
+       para quien no distingue los tonos o imprime en blanco y negro. */
+    .sube { color:var(--success,#16a34a); }
+    .baja { color:var(--danger,#dc2626); }
+
+    /* Etiqueta de estado: va donde iría un porcentaje imposible. */
+    .etq { display:inline-block; padding:1px 7px; border-radius:999px;
+           background:var(--line); color:var(--muted); font-size:11px;
+           text-transform:uppercase; letter-spacing:.03em; }
+
+    tr.total td { border-top:2px solid var(--line); font-weight:700; background:var(--bg); }
   </style>
 </head><body>
   <div id="app"></div>
