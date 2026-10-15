@@ -1,0 +1,12 @@
+{
+  "name": "kogu-front-tests",
+  "private": true,
+  "type": "module",
+  "description": "Arnes de pruebas del front (jsdom). Vive en tests/ a proposito: cPanel deploya la raiz del repo y aqui no estorba.",
+  "scripts": {
+    "test": "for f in *.test.mjs; do echo \"\\n=== $f ===\"; node \"$f\" || exit 1; done"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}

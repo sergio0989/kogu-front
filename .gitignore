@@ -15,3 +15,6 @@
 # Temporales
 *.tmp
 *.bak
+
+# Dependencias del arnes de pruebas (tests/package.json)
+node_modules/
