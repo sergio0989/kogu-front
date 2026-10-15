@@ -43,10 +43,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   const hoyISO = () => new Date().toISOString().slice(0, 10);
   const haceDias = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
-  const card = (lbl, val, hint = '', color = '') => `
-    <div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0">
+  // ── Color ──────────────────────────────────────────────────────────
+  // Dos familias que NO se mezclan.
+  //
+  // ESTADO (reservados): bueno / atención / mal. Nunca se reusan como
+  // "categoría 3", y nunca viajan solos: cada tarjeta en color lleva su
+  // cifra y su frase, para quien no distingue los tonos y para quien
+  // imprime en blanco y negro.
+  const EST = { ok: '#16a34a', warn: '#d97706', mal: '#dc2626', neutro: '#64748b' };
+
+  // IDENTIDAD: las cubetas de volumen son identidades, no estados. Cian
+  // (el primary de KOGU) e índigo, validados contra fondo blanco: ΔE 13.0
+  // en deuteranopía y 17.0 en visión normal, ambos sobre el piso. El gris
+  // de "sin motivo" es deliberado: es ausencia de información, no una
+  // categoría más.
+  const IDENT = { caida: '#0891b2', deriva: '#6366f1', sinMotivo: '#94a3b8' };
+
+  // Banda de desempeño de una proporción.
+  const banda = (v) => (v == null ? EST.neutro : v >= 0.7 ? EST.ok : v >= 0.4 ? EST.warn : EST.mal);
+
+  const card = (lbl, val, hint = '', acento = EST.neutro, opts = {}) => `
+    <div style="border:1px solid var(--line);border-left:3px solid ${acento};border-radius:12px;padding:12px 14px;min-width:0;${opts.tinte ? `background:${opts.tinte}` : ''}">
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(lbl)}</div>
-      <div style="font-size:22px;font-weight:800;line-height:1.15;margin-top:2px;${color ? `color:${color}` : ''}">${esc(val)}</div>
+      <div style="font-size:22px;font-weight:800;line-height:1.15;margin-top:2px;color:${opts.valor ? acento : 'var(--text)'}">${esc(val)}</div>
       ${hint ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${hint}</div>` : ''}
     </div>`;
 
@@ -91,6 +110,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintar(d) {
     const v = d.volumen || {};
     const sinMotivo = (v.sin_motivo && v.sin_motivo.actividades) || 0;
+    const enCeroTotal = ['caida_dormancia', 'deriva', 'sin_motivo']
+      .reduce((t, k) => t + ((v[k] && v[k].en_cero) || 0), 0);
 
     const origenes = Object.entries(d.creadas.por_origen || {})
       .map(([k, n]) => `${esc(ORIGEN_TXT[k] || k)}: ${n}`).join(' · ') || '—';
@@ -100,14 +121,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Cubetas de volumen. Cada una con su base de tiempo dicha, para que
     // a nadie se le ocurra sumarlas mentalmente.
-    const cubeta = (titulo, nota, dato) => `
-      <div style="border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(titulo)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(nota)}</div>
+    const cubeta = (titulo, nota, dato, acento) => {
+      const n = dato.actividades || 0;
+      const cero = dato.en_cero || 0;
+      return `
+      <div style="border:1px solid var(--line);border-left:4px solid ${acento};border-radius:12px;padding:14px;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="width:9px;height:9px;border-radius:2px;background:${acento};flex:none"></span>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(titulo)}</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${esc(nota)}</div>
         <div style="font-size:20px;font-weight:800;margin-top:8px">${nf0.format(dato.kg || 0)} kg</div>
         <div style="font-size:13px;color:var(--muted)">${money(dato.mxn || 0)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">${dato.actividades || 0} actividad${(dato.actividades || 0) === 1 ? '' : 'es'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${n} actividad${n === 1 ? '' : 'es'}</div>
+        ${cero ? `<div style="font-size:11px;color:${EST.warn};margin-top:4px;font-weight:600">${cero} de ${n} registradas en cero</div>` : ''}
       </div>`;
+    };
 
     const vacio = (d.creadas.total || 0) === 0;
 
@@ -116,17 +145,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="eyebrow" style="margin-bottom:10px">Del ${esc(d.periodo.desde)} al ${esc(d.periodo.hasta)}</div>
         ${vacio ? `<div class="empty">Sin actividades creadas en este periodo. Ajusta las fechas o el origen.</div>` : `
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
-          ${card('Creadas', String(d.creadas.total), origenes)}
+          ${card('Creadas', String(d.creadas.total), origenes, IDENT.caida)}
           ${card('Pendiente', `${d.pendiente.abiertas + d.pendiente.en_proceso}`,
-                 `${d.pendiente.abiertas} abiertas · ${d.pendiente.en_proceso} en proceso`)}
-          ${card('Vencidas', String(vencidas), 'fuera de vigencia, exigen acción hoy',
-                 vencidas > 0 ? 'var(--danger,#dc2626)' : '')}
+                 `${d.pendiente.abiertas} abiertas · ${d.pendiente.en_proceso} en proceso`, EST.neutro)}
+          ${vencidas > 0
+            ? card('Vencidas', String(vencidas), 'fuera de vigencia, exigen acción hoy', EST.mal,
+                   { valor: true, tinte: 'var(--danger-bg,#fee2e2)' })
+            : card('Vencidas', '0', 'al corriente: nada fuera de vigencia', EST.ok, { valor: true })}
           ${card('Tasa de cierre', pct(d.cierre.tasa_cierre),
-                 `${d.cierre.cerradas} cerradas de ${d.creadas.total} · ${d.cierre.canceladas} canceladas`)}
+                 `${d.cierre.cerradas} cerradas de ${d.creadas.total} · ${d.cierre.canceladas} canceladas`,
+                 banda(d.cierre.tasa_cierre), { valor: true })}
           ${card('Desenlace', `${des.recuperado || 0} recuperadas`,
-                 `${des.parcial || 0} parcial · ${des.perdido || 0} perdido · ${des.no_aplica || 0} no aplica · ${des.completada || 0} completada`)}
+                 `${des.parcial || 0} parcial · ${des.perdido || 0} perdido · ${des.no_aplica || 0} no aplica · ${des.completada || 0} completada`,
+                 (des.recuperado || 0) > 0 ? EST.ok : EST.neutro, { valor: (des.recuperado || 0) > 0 })}
           ${card('Vigencia cumplida', pct(d.vigencia.pct_a_tiempo),
-                 `mediana: ${dias(d.vigencia.dias_mediana_cierre)} en cerrar · ${dias(d.vigencia.dias_mediana_tomar)} en tomar`)}
+                 `mediana: ${dias(d.vigencia.dias_mediana_cierre)} en cerrar · ${dias(d.vigencia.dias_mediana_tomar)} en tomar`,
+                 banda(d.vigencia.pct_a_tiempo), { valor: d.vigencia.pct_a_tiempo != null })}
         </div>
 
         <div class="eyebrow" style="margin:18px 0 8px">Volumen atendido</div>
@@ -135,13 +169,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           Sumarlas daría una cifra sin significado.
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
-          ${cubeta('Caída / dormancia', 'bimestre o ventana sin compra', v.caida_dormancia || {})}
-          ${cubeta('Deriva', 'últimos 12 meses vs los 12 previos', v.deriva || {})}
-          ${sinMotivo ? cubeta('Sin motivo', 'actividades anteriores al 15-oct: nacieron con riesgo cero', v.sin_motivo) : ''}
+          ${cubeta('Caída / dormancia', 'bimestre o ventana sin compra', v.caida_dormancia || {}, IDENT.caida)}
+          ${cubeta('Deriva', 'últimos 12 meses vs los 12 previos', v.deriva || {}, IDENT.deriva)}
+          ${sinMotivo ? cubeta('Sin motivo', 'no quedó registrado por qué entraron', v.sin_motivo, IDENT.sinMotivo) : ''}
         </div>
-        ${sinMotivo ? `<div class="hint" style="color:var(--muted);font-size:12px;margin-top:10px">
-          Las <b>${sinMotivo}</b> actividades sin motivo se crearon antes de la corrección del 15-oct y quedaron
-          registradas en cero. Se muestran aparte para que el subconteo sea visible; esa columna se vacía sola.
+        ${enCeroTotal ? `<div class="hint" style="color:var(--muted);font-size:12px;margin-top:10px">
+          Las <b>${enCeroTotal}</b> actividades <b>registradas en cero</b> se crearon antes de la corrección del
+          15-oct, cuando "+ Actividad" no copiaba el riesgo que la tarjeta mostraba. Cuentan como trabajo
+          atendido pero no suman volumen. Se señalan para que el subconteo sea visible; desaparecen solas
+          conforme entran las nuevas.
         </div>` : ''}
         `}
       </div>`;

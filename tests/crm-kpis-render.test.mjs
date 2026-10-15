@@ -33,9 +33,22 @@ const CON_DATOS = {
   desenlace: { recuperado: 1, parcial: 1, perdido: 1, no_aplica: 0, completada: 1 },
   vigencia: { cerradas_a_tiempo: 3, pct_a_tiempo: 0.75, dias_mediana_cierre: 7, dias_mediana_tomar: 1 },
   volumen: {
-    caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 3 },
-    deriva:          { kg: 2500, mxn: 250000, actividades: 2 },
-    sin_motivo:      { kg: 0, mxn: 0, actividades: 2 },
+    caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 5, en_cero: 2 },
+    deriva:          { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0 },
+    sin_motivo:      { kg: 0, mxn: 0, actividades: 1, en_cero: 1 },
+  },
+};
+
+// Todo limpio: ninguna actividad en cero, ninguna sin motivo.
+const LIMPIO = {
+  ...CON_DATOS,
+  pendiente: { abiertas: 3, en_proceso: 1, vencidas: 0 },
+  cierre: { cerradas: 8, canceladas: 0, tasa_cierre: 0.8889 },
+  vigencia: { cerradas_a_tiempo: 8, pct_a_tiempo: 0.95, dias_mediana_cierre: 3, dias_mediana_tomar: 1 },
+  volumen: {
+    caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 3, en_cero: 0 },
+    deriva:          { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0 },
+    sin_motivo:      { kg: 0, mxn: 0, actividades: 0, en_cero: 0 },
   },
 };
 
@@ -183,6 +196,61 @@ await check('pinta la disciplina de vigencia en porcentaje y dias', async () => 
   const t = texto();
   assert.ok(/75\s*%/.test(t), 'no pinta el cumplimiento de vigencia');
   assert.ok(/\b7\b/.test(t), 'no pinta la mediana de dias a cerrar');
+});
+
+console.log('\n── El color dice algo, y nunca dice solo ───────────────────────');
+
+// Lo que la pantalla del 15-oct escondia: la cubeta decia "3 actividades ·
+// 1,667 kg" y callaba que dos de esas tres valian cero.
+await check('cada cubeta delata las actividades que quedaron en cero', async () => {
+  const { texto } = await arranca();
+  assert.ok(/en cero/i.test(texto()), 'no dice cuantas quedaron en cero');
+  assert.ok(/2 de 5|2 en cero/i.test(texto()), 'no dice cuantas de cuantas');
+});
+
+await check('si ninguna quedo en cero, no lo menciona', async () => {
+  const { texto } = await arranca(LIMPIO);
+  assert.ok(!/en cero/i.test(texto()), 'habla de ceros cuando no hay ninguno');
+});
+
+await check('las dos cubetas de volumen llevan colores distintos', async () => {
+  const { window } = await arranca();
+  const html = window.document.getElementById('app').innerHTML;
+  assert.ok(html.includes('#0891b2'), 'falta el tono de caida/dormancia');
+  assert.ok(html.includes('#6366f1'), 'falta el tono de deriva');
+});
+
+await check('vencidas en cero NO se pinta de alarma, y lo dice con palabras', async () => {
+  const { window, texto } = await arranca(LIMPIO);
+  assert.ok(/al corriente|sin vencidas/i.test(texto()),
+    'con cero vencidas no dice que todo esta al corriente');
+  // OJO: el DOM trae el rotulo tal cual se escribio; las mayusculas de la
+  // pantalla son text-transform. Partir por el texto en mayusculas devolvia
+  // vacio y la asercion pasaba sin comprobar nada.
+  const html = window.document.getElementById('app').innerHTML;
+  const partes = html.split('Vencidas');
+  assert.ok(partes.length > 1, 'no se encontro la tarjeta de Vencidas en el DOM');
+  const tarjeta = partes[1].slice(0, 400);
+  assert.ok(tarjeta.length > 50, 'la tarjeta quedo vacia: la asercion no estaria comprobando nada');
+  assert.ok(!/#dc2626/.test(tarjeta), 'pinta de rojo una tarjeta sin vencidas');
+});
+
+await check('una tasa de cierre baja se pinta con color de estado', async () => {
+  const { window } = await arranca();
+  const html = window.document.getElementById('app').innerHTML;
+  const partes = html.split('Tasa de cierre');
+  assert.ok(partes.length > 1, 'no se encontro la tarjeta de Tasa de cierre en el DOM');
+  const tarjeta = partes[1].slice(0, 500);
+  assert.ok(tarjeta.length > 50, 'la tarjeta quedo vacia: la asercion no comprobaria nada');
+  assert.ok(/#dc2626|#d97706/.test(tarjeta),
+    '44% de cierre se pinta igual que 95%: el color no dice nada');
+});
+
+await check('el estado nunca viaja solo en color: siempre trae su etiqueta', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(/exigen acci[oó]n|fuera de vigencia/i.test(t), 'las vencidas no se explican');
+  assert.ok(/cerradas de/i.test(t), 'la tasa no dice de cuantas');
 });
 
 console.log('\n── Filtros y estado vacio ──────────────────────────────────────');
