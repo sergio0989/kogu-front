@@ -33,8 +33,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pfA = (d) => { if (d == null) return '—'; const p = d * 100; if (Math.abs(p) < 0.05) return '0.0%'; return (p > 0 ? '+' : '') + p.toFixed(1) + '%'; };
   const estChipA = (d) => { const e = ESTA(d); return `<span style="background:${e.bg};color:${e.co};border:1px solid ${e.bd};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${e.t}</span>`; };
   const perLbl = (r) => { const n = Number(r.n_periodos) || 0; if (n <= 1) return r.periodo_min || '—'; return `${r.periodo_min}–${r.periodo_max}`; };
-  const realDdpKg = (r) => { const k = Number(r.kg_cmp) || 0; return k > 0 ? (Number(r.mp_real_cmp) + Number(r.gastos_real_cmp)) / k : null; };
-  const teoDdpKg = (r) => { const k = Number(r.kg_cmp) || 0; return k > 0 ? (Number(r.teo_mp) + Number(r.teo_flete) + Number(r.teo_otros)) / k : null; };
+  // DDP/kg = MP/kg (solo líneas del producto del costeo, base kg_mp_cmp)
+  //        + gastos/kg (flete + nacionales, toda op con teórico, base kg_cmp).
+  // Sin líneas propias → null ("MP sin teórico"): no se compara contra otro producto.
+  const realDdpKg = (r) => { const k = Number(r.kg_cmp) || 0, km = Number(r.kg_mp_cmp) || 0; return (k > 0 && km > 0) ? Number(r.mp_real_mp_cmp) / km + Number(r.gastos_real_cmp) / k : null; };
+  const teoDdpKg = (r) => { const k = Number(r.kg_cmp) || 0, km = Number(r.kg_mp_cmp) || 0; return (k > 0 && km > 0) ? Number(r.teo_mp) / km + (Number(r.teo_flete) + Number(r.teo_otros)) / k : null; };
+  const cobMp = (r) => { const k = Number(r.kg_cmp) || 0; return k > 0 ? Math.round((Number(r.kg_mp_cmp) || 0) / k * 100) : 0; };
 
   c.innerHTML = `
 <div class="card">
@@ -326,7 +330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         : ' · expande un proveedor → sus operaciones';
     const esCtrl = vista === 'control';
     const leyendaVista = esCtrl
-      ? ' · Control vs teórico: DDP real/kg vs teórico/kg. Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
+      ? ' · Control vs teórico: DDP real/kg vs teórico/kg. La mercancía se compara solo en líneas del producto de su costeo (misma raíz de clave). Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
       : ' · costo USD = DDP total';
     $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s)${leyendaVista}${hint}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
@@ -352,9 +356,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const desv = (rd != null && td != null && td !== 0) ? (rd - td) / td : null;
         if (kgc <= 0) {
           metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${estChipA(null)}</td>`;
+        } else if (!(Number(r.kg_mp_cmp) > 0)) {
+          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3" title="Ninguna línea real es del producto de su costeo: la mercancía no se compara contra otro producto.">— MP sin teórico —</td><td style="padding:6px;text-align:center">${estChipA(null)}</td>`;
         } else {
           const e = ESTA(desv);
-          metricCells = `<td style="padding:6px">$${usd4(rd)}</td>
+          const cob = cobMp(r);
+          metricCells = `<td style="padding:6px" title="Mercancía comparable sobre ${kg(r.kg_mp_cmp)} de ${kg(kgc)} kg (${cob}%)">$${usd4(rd)}${cob < 100 ? `<div class="muted" style="font-size:10px">MP sobre ${cob}% kg</div>` : ''}</td>
         <td style="padding:6px;color:#64748b">$${usd4(td)}</td>
         <td style="padding:6px;font-weight:700;color:${e.co}">${pfA(desv)}</td>
         <td style="padding:6px;text-align:center">${estChipA(desv)}</td>`;

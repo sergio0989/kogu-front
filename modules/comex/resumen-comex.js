@@ -123,21 +123,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const kg = Number(b.kg) || 0;
     if (!b.ops || kg <= 0) { $('dinero').innerHTML = '<div class="muted" style="font-size:12.5px;padding:8px 0">Sin operaciones comparables (con teórico) en el alcance. La verificación aparece cuando hay ops reconciliadas contra un costeo.</div>'; return; }
     const K = (n) => Number(n) / kg;
-    const mpT = K(b.mp_teo), mpR = K(b.mp_real), fleT = K(b.flete_teo), fleR = K(b.flete_real), gasT = K(b.gastos_teo), gasR = K(b.gastos_real);
-    const ddpT = mpT + fleT + gasT, ddpR = mpR + fleR + gasR;
-    const dv = (r, t) => t > 0 ? (r - t) / t : null;
+    // MP se mide SOLO sobre las líneas del producto del costeo (base kg_mp);
+    // flete y gastos sobre toda la operación (base kg). Sin kg_mp → MP sin teórico.
+    const kgMp = Number(b.kg_mp) || 0, mpOk = kgMp > 0;
+    const mpT = mpOk ? Number(b.mp_teo) / kgMp : null, mpR = mpOk ? Number(b.mp_real) / kgMp : null;
+    const fleT = K(b.flete_teo), fleR = K(b.flete_real), gasT = K(b.gastos_teo), gasR = K(b.gastos_real);
+    const ddpT = mpOk ? mpT + fleT + gasT : null, ddpR = mpOk ? mpR + fleR + gasR : null;
+    const dv = (r, t) => (r != null && t != null && t > 0) ? (r - t) / t : null;
     const ddpD = dv(ddpR, ddpT), eDdp = EST(ddpD);
+    const cobMp = kg > 0 ? Math.round(kgMp / kg * 100) : 0;
+    const baseDdp = mpOk
+      ? `real $${ddpR.toFixed(4)}/kg vs teórico $${ddpT.toFixed(4)}/kg · base: mercancía sobre ${n0(kgMp)} de ${n0(kg)} kg (${cobMp}%, líneas del producto de su costeo); flete y gastos sobre ${n0(kg)} kg`
+      : `Ninguna línea real es del producto de su costeo: la mercancía no tiene teórico comparable y el DDP no se calcula. Flete y gastos sí se comparan (abajo).`;
     const head = `<div style="background:${eDdp.bg};border:1px solid ${eDdp.bd};border-radius:12px;padding:14px 18px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
       <div style="min-width:280px">
         <div style="font-size:11px;color:${eDdp.co};text-transform:uppercase;letter-spacing:.04em;font-weight:700">¿La operación estuvo dentro del teórico?</div>
-        <div style="font-size:28px;font-weight:800;color:${eDdp.co};line-height:1.15">${pfd(ddpD)} <span style="font-size:14px">DDP total</span></div>
-        <div style="font-size:12px;color:${eDdp.co};opacity:.9">real $${ddpR.toFixed(4)}/kg vs teórico $${ddpT.toFixed(4)}/kg · base: DDP = mercancía + flete + gastos</div>
+        <div style="font-size:28px;font-weight:800;color:${eDdp.co};line-height:1.15">${mpOk ? pfd(ddpD) : 'MP sin teórico'} <span style="font-size:14px">DDP total</span></div>
+        <div style="font-size:12px;color:${eDdp.co};opacity:.9">${baseDdp}</div>
       </div>
       <div style="align-self:center">${estChip(ddpD)}</div></div>`;
-    const brow = (lab, teo, real, base) => { const d = dv(real, teo), e = EST(d); return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right"><td style="text-align:left;padding:7px 6px">${lab}</td><td style="padding:7px 6px">$${teo.toFixed(4)}</td><td style="padding:7px 6px">$${real.toFixed(4)}</td><td style="padding:7px 6px;font-weight:700;color:${e.co}">${pfd(d)}<div class="muted" style="font-size:10px;font-weight:400">${base}</div></td><td style="padding:7px 6px;text-align:right">${estChip(d)}</td></tr>`; };
+    const u4 = (v) => v == null ? '—' : '$' + v.toFixed(4);
+    const brow = (lab, teo, real, base) => { const d = dv(real, teo), e = EST(d); return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right"><td style="text-align:left;padding:7px 6px">${lab}</td><td style="padding:7px 6px">${u4(teo)}</td><td style="padding:7px 6px">${u4(real)}</td><td style="padding:7px 6px;font-weight:700;color:${e.co}">${pfd(d)}<div class="muted" style="font-size:10px;font-weight:400">${base}</div></td><td style="padding:7px 6px;text-align:right">${estChip(d)}</td></tr>`; };
     const tabla = `<table class="table" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;margin-top:12px"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
       <th style="text-align:left;padding:6px">Bloque (USD/kg)</th><th>Teórico</th><th>Real</th><th>Desviación</th><th style="text-align:right;padding:6px">Estado</th></tr></thead><tbody>
-      ${brow('Materia prima', mpT, mpR, 'vs teórico MP')}${brow('Flete internacional', fleT, fleR, 'vs teórico flete')}${brow('Gastos nacionales', gasT, gasR, 'vs teórico gastos')}</tbody></table>`;
+      ${brow('Materia prima', mpT, mpR, mpOk ? `sobre ${cobMp}% de los kg` : 'sin teórico de su producto')}${brow('Flete internacional', fleT, fleR, 'vs teórico flete')}${brow('Gastos nacionales', gasT, gasR, 'vs teórico gastos')}</tbody></table>`;
     const rev = [['Materia prima', dv(mpR, mpT)], ['Flete internacional', dv(fleR, fleT)], ['Gastos nacionales', dv(gasR, gasT)]].filter(x => x[1] != null && Math.abs(x[1]) > 0.30).map(x => x[0]);
     const alerta = rev.length ? `<div style="margin-top:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 12px;font-size:12px;color:#991b1b"><b>⚠ Revisar:</b> desviación &gt;±30% en ${rev.join(', ')}. Posible teórico desactualizado o costo no capturado. Una desviación grande —favorable o no— es señal a revisar, no un logro.</div>` : '';
     $('dinero').innerHTML = head + tabla + alerta;

@@ -527,15 +527,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const teoGas = gastos.reduce((a, x) => a + importeUSD(x, r.tc, r.kg), 0) / kgC;
     const teoDdp = teoMp + teoFle + teoGas;
     const kgR = Number(rs.kg) || 1;
-    const realMp = Number(rs.mp_usd) / kgR, realFle = Number(rs.flete_usd) / kgR, realGas = Number(rs.otros_usd) / kgR;
-    const realDdp = realMp + realFle + realGas;
-    const dv = (real, teo) => teo > 0 ? (real - teo) / teo : null;
+    // Mercancía real SOLO de las líneas del producto de este costeo (base kg_mp).
+    // Si ninguna op trae este producto, el MP (y el DDP) no se comparan.
+    const kgMp = Number(rs.kg_mp) || 0;
+    const realMp = kgMp > 0 ? Number(rs.mp_usd) / kgMp : null, realFle = Number(rs.flete_usd) / kgR, realGas = Number(rs.otros_usd) / kgR;
+    const realDdp = realMp == null ? null : realMp + realFle + realGas;
+    const dv = (real, teo) => (real != null && teo != null && teo > 0) ? (real - teo) / teo : null;
     const chip = (x) => { if (x == null) return '—'; const a = Math.abs(x); const m = a <= 0.05 ? ['#dcfce7', '#166534', 'dentro'] : a <= 0.15 ? ['#fef9c3', '#854d0e', 'revisar'] : ['#fee2e2', '#991b1b', 'fuera']; return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`; };
     const pf = (x) => x == null ? '—' : (x > 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
     const dcolor = (x) => x == null ? '#64748b' : Math.abs(x) <= 0.05 ? '#166534' : Math.abs(x) <= 0.15 ? '#854d0e' : '#991b1b';
-    const brow = (lab, teo, real, bold) => { const d2 = dv(real, teo); return `<tr style="${bold ? 'background:#ecfeff;font-weight:800' : 'border-bottom:1px solid #f1f5f9'};text-align:right"><td style="text-align:left;padding:${bold ? 7 : 6}px 6px">${lab}</td><td style="padding:${bold ? 7 : 6}px 6px">$${teo.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px">$${real.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px;font-weight:700;color:${dcolor(d2)}">${pf(d2)}</td><td style="padding:${bold ? 7 : 6}px 6px;text-align:right">${chip(d2)}</td></tr>`; };
+    const brow = (lab, teo, real, bold) => { const d2 = dv(real, teo); return `<tr style="${bold ? 'background:#ecfeff;font-weight:800' : 'border-bottom:1px solid #f1f5f9'};text-align:right"><td style="text-align:left;padding:${bold ? 7 : 6}px 6px">${lab}</td><td style="padding:${bold ? 7 : 6}px 6px">$${teo.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px">${real == null ? '<span class="muted" title="Ninguna línea real es del producto de este costeo">sin línea propia</span>' : '$' + real.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px;font-weight:700;color:${dcolor(d2)}">${pf(d2)}</td><td style="padding:${bold ? 7 : 6}px 6px;text-align:right">${chip(d2)}</td></tr>`; };
     const resumen = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:12px">
       <span style="background:#f1f5f9;padding:2px 8px;border-radius:6px">${n0(rs.ops)} op · ${n0(rs.kg)} kg</span>
+      <span style="background:#faf5ff;color:#7e22ce;padding:2px 8px;border-radius:6px" title="Mercancía comparable: solo líneas del producto de este costeo (misma raíz de clave)">MP sobre ${n0(kgMp)} kg${Number(rs.kg) > 0 ? ` (${Math.round(kgMp / Number(rs.kg) * 100)}%)` : ''}</span>
       ${rs.bajo ? `<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px">↓ ${rs.bajo} bajo</span>` : ''}
       ${rs.sobre ? `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:6px">↑ ${rs.sobre} sobre</span>` : ''}
       ${rs.dentro ? `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:6px">✓ ${rs.dentro} dentro</span>` : ''}</div>`;
@@ -578,15 +582,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:left;padding:5px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
         <td style="padding:5px 6px">${n0(kg)}</td>
         <td style="padding:5px 6px;font-weight:700;color:#0891b2">${(kg / totKg * 100).toFixed(1)}%</td>
-        <td style="padding:5px 6px">$${(Number(o.mp_kg) || 0).toFixed(4)}</td>
+        <td style="padding:5px 6px">${o.mp_kg == null ? '<span class="muted">—</span>' : '$' + Number(o.mp_kg).toFixed(4)}</td>
         <td style="padding:5px 6px">$${(Number(o.flete_kg) || 0).toFixed(4)}</td>
         <td style="padding:5px 6px">$${(Number(o.otros_kg) || 0).toFixed(4)}</td></tr>`;
     }).join('');
     const wtd = (v) => ops.reduce((a, o) => a + (Number(o[v]) || 0) * (Number(o.kg_total) || 0), 0) / totKg;
     const foot = `<tr style="background:#ecfeff;font-weight:800;text-align:right">
       <td style="text-align:left;padding:6px">Ponderado</td><td style="padding:6px">${n0(totKg)}</td><td style="padding:6px">100%</td>
-      <td style="padding:6px">$${wtd('mp_kg').toFixed(4)}</td><td style="padding:6px">$${wtd('flete_kg').toFixed(4)}</td><td style="padding:6px">$${wtd('otros_kg').toFixed(4)}</td></tr>`;
-    const html = `<div class="muted" style="font-size:12px;margin-bottom:8px">Real/kg de cada bloque = <b>Σ(valor/kg × kg) ÷ Σ kg</b>. Cada operación pesa según sus kilos, por eso es <b>ponderado</b>, no promedio simple: la op grande manda más.</div>
+      <td style="padding:6px">${Number(rs.kg_mp) > 0 ? '$' + (Number(rs.mp_usd) / Number(rs.kg_mp)).toFixed(4) : '—'}</td><td style="padding:6px">$${wtd('flete_kg').toFixed(4)}</td><td style="padding:6px">$${wtd('otros_kg').toFixed(4)}</td></tr>`;
+    const html = `<div class="muted" style="font-size:12px;margin-bottom:8px">Real/kg de cada bloque = <b>Σ(valor/kg × kg) ÷ Σ kg</b>. Cada operación pesa según sus kilos, por eso es <b>ponderado</b>, no promedio simple: la op grande manda más. La <b>MP/kg</b> solo incluye líneas del producto de este costeo (misma raíz de clave); "—" = la op no trae ese producto.</div>
       <div style="overflow-x:auto"><table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
         <th style="text-align:left;padding:5px 6px">Pedimento</th><th>Kg</th><th>Peso</th><th>MP/kg</th><th>Flete/kg</th><th>Gastos nac/kg</th></tr></thead>
         <tbody>${rows}${foot}</tbody></table></div>`;
