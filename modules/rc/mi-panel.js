@@ -286,19 +286,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   // El respaldo de abajo es el criterio viejo y sólo actúa contra un backend
   // anterior. Su defecto conocido: en kg —la métrica por defecto— le ponía CERO
   // a todo cliente dormido, porque el dato de kilos de la ventana no existía.
-  const riesgoCli = c => {
-    const resuelto = esDinero() ? c.riesgo_mxn : c.riesgo_kg;
+  // Riesgo del cliente en una base explícita ('dinero' | 'kg').
+  //
+  // UNA sola escalera para toda la pantalla. Antes había dos: `riesgoCli`
+  // para la tarjeta y `riesgoEn` para "+ Actividad". La segunda se quedó sin
+  // los escalones que entraron con los cambios de Radar —riesgo resuelto,
+  // deriva, dormancia— así que la tarjeta mostraba 2,471 kg y la actividad
+  // se guardaba en 0 (capturado en mi-panel el 15-oct-2026, cliente CHILES Y
+  // CONDIMENTOS INDUSTRIALES, marcado sólo por deriva).
+  //
+  // Unificarlas ES la corrección: mientras existan dos escaleras, la próxima
+  // señal que agregue el motor volverá a entrar en una sola.
+  const riesgoBase = (cl, base) => {
+    const esD = base === 'dinero';
+    const resuelto = esD ? cl.riesgo_mxn : cl.riesgo_kg;
     if (resuelto != null) return Math.max(0, Number(resuelto));
-    if (!c.caida && c.dormancia) return esDinero() ? Number(c.dormancia.venta_ventana || 0) : 0;
-    const listo = esDinero() ? c.caida_mxn : c.caida_kg;
+    if (!cl.caida && cl.dormancia) return esD ? Number(cl.dormancia.venta_ventana || 0) : 0;
+    const listo = esD ? cl.caida_mxn : cl.caida_kg;
     if (listo != null) return Math.max(0, Number(listo));
-    if (esDinero()) {
-      if (c.caida) return Math.max(0, Number(c.caida.venta_p1) - Number(c.caida.venta_p2));
-      return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.importe_p1) - Number(p.importe_p2)), 0);
+    if (cl.caida) {
+      return esD
+        ? Math.max(0, Number(cl.caida.venta_p1) - Number(cl.caida.venta_p2))
+        : Math.max(0, Number(cl.caida.cant_p1) - Number(cl.caida.cant_p2));
     }
-    if (c.caida) return Math.max(0, Number(c.caida.cant_p1) - Number(c.caida.cant_p2));
-    return (c.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
+    return (cl.productos || []).reduce((s, p) => s + Math.max(0, esD
+      ? Number(p.importe_p1) - Number(p.importe_p2)
+      : Number(p.cant_p1) - Number(p.cant_p2)), 0);
   };
+
+  // La tarjeta pinta en la métrica que el usuario eligió arriba.
+  const riesgoCli = c => riesgoBase(c, esDinero() ? 'dinero' : 'kg');
   // Deriva de 12 meses rodantes, pegada a la tarjeta.
   //
   // Distingue dos cosas que se ven igual en una caída bimestral: el cliente que
@@ -499,17 +516,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   function closeActModal() { document.getElementById('rcCrearActModal')?.remove(); }
   // Riesgo en una base explícita (no depende del toggle de métrica activo).
-  const riesgoEn = (cl, base) => {
-    if (base === 'dinero') {
-      if (cl.caida) return Math.max(0, Number(cl.caida.venta_p1) - Number(cl.caida.venta_p2));
-      return (cl.productos || []).reduce((s, p) => s + Math.max(0, Number(p.importe_p1) - Number(p.importe_p2)), 0);
-    }
-    if (cl.caida) return Math.max(0, Number(cl.caida.cant_p1) - Number(cl.caida.cant_p2));
-    return (cl.productos || []).reduce((s, p) => s + Math.max(0, Number(p.cant_p1) - Number(p.cant_p2)), 0);
-  };
   function openCrearActividad(c) {
-    const montoMXN = riesgoEn(c, 'dinero');   // monto en MXN
-    const kg = riesgoEn(c, 'kg');             // volumen en kg
+    // La MISMA escalera que pintó la tarjeta: lo que el vendedor vio es lo
+    // que queda congelado en la actividad.
+    const montoMXN = riesgoBase(c, 'dinero');   // monto en MXN
+    const kg = riesgoBase(c, 'kg');             // volumen en kg
     const riesgoTxt = `${nf0.format(kg)} kg · ${money(montoMXN)}`;
     const nombre = c.nombre || c.cliente_ref;
     const prods = (c.productos || []).slice(0, 8).map(pr =>
@@ -557,8 +568,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         snapshot: {
           capturado_at: new Date().toISOString(),
           metrica, severidad: c.severidad || null, monto_riesgo: montoMXN, kg_riesgo: kg,
+          // Contra qué se comparó: un -40% "vs año pasado" y uno "rolling 12"
+          // no se leen igual tres semanas después, cuando se revisa la actividad.
+          base_comparacion: c.base_comparacion || null,
           periodos: comp.periodos || null,
-          caida: c.caida || null, dormancia: c.dormancia || null,
+          // Los tres motivos, no sólo dos: sin `deriva` la actividad de un
+          // cliente "Encogiendo" quedaba sin la razón por la que se creó.
+          caida: c.caida || null, dormancia: c.dormancia || null, deriva: c.deriva || null,
           productos: c.productos || [],
         },
       };
