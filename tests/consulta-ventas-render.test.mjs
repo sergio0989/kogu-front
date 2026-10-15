@@ -119,6 +119,56 @@ const CONSULTA_ANGOSTA = {
   },
 };
 
+// Reproduce la captura real del 15-oct: la selección mezcla KG, CAJA y
+// SERVICIO, así que un total único de cantidad no significa nada.
+const CONSULTA_MIXTA = {
+  periodo: { desde: '2025-10-01', hasta: '2026-09-30', meses: 12 },
+  agrupar: 'clave', meses: MESES,
+  filas: [
+    { cve_cte: 108, cliente: 'MSI EXPRESS, INC.', cve_prod: 'WWP0164.',
+      clave_canonica: 'WWP0164', mercado: 'EXT', unidad: 'KG',
+      cantidad: 327000, mxn: 19014105, usd: 1065350, renglones: 47,
+      serie: MESES.map((_, i) => (i === 0 ? 40000 : i === 1 ? 49000 : 0)),
+      serie_mxn: MESES.map((_, i) => (i === 0 ? 2467372 : i === 1 ? 3029687 : 0)),
+      serie_usd: MESES.map((_, i) => (i === 0 ? 134000 : i === 1 ? 164150 : 0)),
+      es_kilogramo: true },
+    { cve_cte: 108, cliente: 'MSI EXPRESS, INC.', cve_prod: 'WWP0167-D.',
+      clave_canonica: 'WWP0167-D', mercado: 'EXT', unidad: 'KG',
+      cantidad: 215000, mxn: 11219274, usd: 632600, renglones: 33,
+      serie: MESES.map((_, i) => (i === 0 ? 12000 : i === 1 ? 27000 : 0)),
+      serie_mxn: MESES.map((_, i) => (i === 0 ? 689018 : i === 1 ? 1538422 : 0)),
+      serie_usd: MESES.map((_, i) => (i === 0 ? 37200 : i === 1 ? 83700 : 0)),
+      es_kilogramo: true },
+    { cve_cte: 108, cliente: 'MSI EXPRESS, INC.', cve_prod: 'EMP0076',
+      clave_canonica: 'EMP0076', mercado: 'EXT', unidad: 'CAJA',
+      cantidad: 25, mxn: 5000, usd: 280, renglones: 1,
+      serie: MESES.map((_, i) => (i === 3 ? 25 : 0)),
+      serie_mxn: MESES.map((_, i) => (i === 3 ? 5000 : 0)),
+      serie_usd: MESES.map((_, i) => (i === 3 ? 280 : 0)),
+      es_kilogramo: false },
+    { cve_cte: 108, cliente: 'MSI EXPRESS, INC.', cve_prod: 'CARGO1',
+      clave_canonica: 'CARGO1', mercado: 'EXT', unidad: 'SERVICIO',
+      cantidad: 1, mxn: 1800, usd: 100, renglones: 1,
+      serie: MESES.map((_, i) => (i === 3 ? 1 : 0)),
+      serie_mxn: MESES.map((_, i) => (i === 3 ? 1800 : 0)),
+      serie_usd: MESES.map((_, i) => (i === 3 ? 100 : 0)),
+      es_kilogramo: false },
+  ],
+  totales: { cantidad: 542026, mxn: 30240179, usd: 1698330 },
+  unidades: ['CAJA', 'KG', 'SERVICIO'], es_kilogramo: false,
+  devoluciones: { renglones: 4, cantidad: -200, mxn: -8725.22, usd: -490 },
+  procedencia: {
+    desde: '2025-10-01', hasta: '2026-09-30', fecha_campo: 'falta_fac',
+    cantidad_campo: 'cant_surt', importe_campo: 'subt_prod',
+    usd_regla: 'subt_prod / tip_cam solo en cve_mon = 2', agrupar: 'clave',
+    clientes: ['MSI EXPRESS, INC.'],
+    claves: ['CARGO1', 'EMP0076', 'WWP0164.', 'WWP0167-D.'],
+    claves_canonicas: ['CARGO1', 'EMP0076', 'WWP0164', 'WWP0167-D'],
+    unidades: ['CAJA', 'KG', 'SERVICIO'],
+    neto_de_devoluciones: true, generado_en: '2026-10-15T17:26:00.565Z',
+  },
+};
+
 async function montar() {
   const js = fs.readFileSync(ARCHIVO, 'utf8');
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
@@ -147,7 +197,8 @@ async function montar() {
       if (url.includes('/consulta-ventas/clientes')) return { ok: true, data: CLIENTES_MUCHOS };
       if (url.includes('/consulta-ventas/claves')) return CLAVES_MUCHAS;
       if (url.includes('/consulta-ventas')) {
-        return { ok: true, data: anchaOangosta === 'ancha' ? CONSULTA_ANCHA : CONSULTA_ANGOSTA };
+        var cuerpos = { ancha: CONSULTA_ANCHA, angosta: CONSULTA_ANGOSTA, mixta: CONSULTA_MIXTA };
+        return { ok: true, data: cuerpos[anchaOangosta] };
       }
       return { ok: true, data: {} };
     },
@@ -272,6 +323,76 @@ await check('no reporta una cantidad de devoluciones con unidades mezcladas', ()
   assert.match(t, /35/, 'pero sí debe decir cuántos renglones');
   // money() redondea al peso: 2,424,487.59 se muestra como 2,424,488.
   assert.match(t, /\$2,424,4\d\d/, 'y el importe, que sí es comparable');
+});
+
+// ── 3bis. Totales al pie ─────────────────────────────────────────────
+await check('la tabla trae una fila de totales al pie', async () => {
+  P.modo('mixta');
+  P.$('btnConsultar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  const pie = P.window.document.querySelectorAll('#tablaPivote tfoot tr');
+  assert.ok(pie.length > 0, 'falta el pie de totales');
+});
+
+await check('con unidades mezcladas los totales van por unidad, no uno solo', () => {
+  const pie = [...P.window.document.querySelectorAll('#tablaPivote tfoot tr')]
+    .map((t) => t.textContent.replace(/\s+/g, ' '));
+  const texto = pie.join(' | ');
+  assert.match(texto, /KG/, 'debe haber un total de KG');
+  assert.match(texto, /CAJA/, 'y uno de CAJA');
+  assert.match(texto, /SERVICIO/, 'y uno de SERVICIO');
+  // 542,026 sería KG + cajas + servicios: ese número no existe.
+  assert.ok(!/542,026|542026/.test(texto),
+    `no debe sumar unidades distintas en un solo total: "${texto}"`);
+});
+
+await check('el total de KG suma solo los renglones en KG', () => {
+  const kg = [...P.window.document.querySelectorAll('#tablaPivote tfoot tr')]
+    .find((t) => /KG/.test(t.textContent));
+  const celdas = [...kg.querySelectorAll('td, th')].map((e) => e.textContent.trim());
+  // 327,000 + 215,000 = 542,000
+  assert.match(celdas[celdas.length - 1], /542,000/,
+    `el total de KG debe ser 542,000: "${celdas[celdas.length - 1]}"`);
+  // Octubre: 40,000 + 12,000 = 52,000
+  assert.ok(celdas.some((c) => /52,000/.test(c)),
+    `debe sumar la columna de octubre: ${JSON.stringify(celdas)}`);
+});
+
+await check('en métrica de dinero sí hay un total general', async () => {
+  P.$('fMetrica').value = 'mxn';
+  P.$('fMetrica').dispatchEvent(new P.window.Event('change'));
+  await new Promise((r) => setTimeout(r, 150));
+  const texto = [...P.window.document.querySelectorAll('#tablaPivote tfoot tr')]
+    .map((t) => t.textContent.replace(/\s+/g, ' ')).join(' | ');
+  assert.match(texto, /general/i,
+    'el dinero siempre suma, aunque las unidades no');
+});
+
+await check('el estado vacío no deja tarjetas en blanco', async () => {
+  P.$('btnClientes').click();
+  await new Promise((r) => setTimeout(r, 150));
+  P.$('modalLimpiar').click();
+  P.$('modalAceptar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  const caja = P.$('avisos');
+  assert.ok(caja, 'el bloque de avisos debe poder ocultarse');
+  assert.ok(caja.hidden, 'sin consulta no debe quedar una tarjeta vacía');
+  assert.equal(P.window.document.querySelectorAll('#tablaPivote tfoot tr').length, 0,
+    'ni un pie de totales');
+});
+
+await check('el botón de clientes dice cuántos, sin "cliente(s)"', async () => {
+  P.modo('mixta');
+  P.$('btnClientes').click();
+  await new Promise((r) => setTimeout(r, 150));
+  const op = [...P.window.document.querySelectorAll('#modalBody [data-ref]')]
+    .find((e) => e.dataset.ref === '108');
+  op.querySelector('input[type=checkbox]').checked = true;
+  P.$('modalAceptar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  const t = P.$('btnClientes').textContent;
+  assert.ok(!/\(s\)/.test(t), `nada de "cliente(s)": "${t}"`);
+  assert.match(t, /1/, 'pero sí cuántos');
 });
 
 // ── 4. El archivo sí lleva todo ──────────────────────────────────────

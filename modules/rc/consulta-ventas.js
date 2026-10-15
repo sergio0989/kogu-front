@@ -108,14 +108,14 @@
       + '  <div id="seleccion" class="chips"></div>'
       + '</section>'
 
-      + '<section class="card">'
+      + '<section class="card" id="avisos">'
       + '  <div id="medida" class="aviso"></div>'
       + '  <div id="devoluciones" class="aviso"></div>'
       + '  <div id="procedencia" class="procedencia"></div>'
       + '</section>'
 
       + '<section class="card">'
-      + '  <div class="tabla-scroll"><table id="tablaPivote" class="tabla"><thead></thead><tbody></tbody></table></div>'
+      + '  <div class="tabla-scroll"><table id="tablaPivote" class="tabla"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>'
       + '</section>'
 
       + '<div id="modal" class="modal" hidden>'
@@ -134,8 +134,8 @@
 
   // ── render ─────────────────────────────────────────────────────────
   function pintarSeleccion() {
-    var cl = S.clientes.length ? S.clientes.length + ' cliente(s)' : 'todos';
-    var cv = S.claves.length ? S.claves.length + ' clave(s)' : 'todas';
+    var cl = S.clientes.length ? String(S.clientes.length) : 'todos';
+    var cv = S.claves.length ? String(S.claves.length) : 'todas';
     document.getElementById('btnClientes').textContent = 'Clientes: ' + cl;
     document.getElementById('btnClaves').textContent = 'Claves: ' + cv;
 
@@ -158,9 +158,12 @@
     document.getElementById('medida').innerHTML = '';
     document.getElementById('devoluciones').innerHTML = '';
     document.getElementById('procedencia').innerHTML = '';
+    // Sin consulta no debe quedar una tarjeta blanca flotando.
+    document.getElementById('avisos').hidden = true;
   }
 
   function pintarAvisos(d) {
+    document.getElementById('avisos').hidden = false;
     var medida = document.getElementById('medida');
     var unidades = (d.unidades || []);
     var lista = unidades.length > MAX_UNIDADES
@@ -245,6 +248,7 @@
       tabla.tBodies[0].innerHTML = '<tr><td colspan="' + (meses.length + 4) + '">'
         + 'Sin ventas con ese recorte. Revisa el periodo y las claves: la clave tal como la escribe '
         + 'quien pide el dato suele ser la nacional, y la de exportación lleva punto final.</td></tr>';
+      tabla.tFoot.innerHTML = '';
       return;
     }
 
@@ -259,6 +263,61 @@
         + '<td class="n"><b>' + num(totalDe(f)) + '</b></td>'
         + '</tr>';
     }).join('');
+
+    pintarPie(tabla, filas, meses, porCanonica);
+  }
+
+  // Totales POR UNIDAD, no uno solo.
+  //
+  // Con la selección mezclando KG, CAJA y SERVICIO —caso real del
+  // 15-oct— un total único de cantidad sumaría kilos con cajas y con
+  // servicios. Es el mismo defecto que el rótulo de kilogramos: un
+  // número que se ve normal y no significa nada.
+  //
+  // El dinero sí es comparable siempre, así que cuando la métrica es
+  // MXN o USD se agrega además un total general.
+  function pintarPie(tabla, filas, meses, porCanonica) {
+    var etiquetaCols = porCanonica ? 2 : 2;
+    var porUnidad = {};
+    var orden = [];
+    filas.forEach(function (f) {
+      if (!porUnidad[f.unidad]) {
+        porUnidad[f.unidad] = { total: 0, serie: meses.map(function () { return 0; }) };
+        orden.push(f.unidad);
+      }
+      var acc = porUnidad[f.unidad];
+      var serie = serieDe(f);
+      acc.total += Number(totalDe(f)) || 0;
+      meses.forEach(function (_, i) { acc.serie[i] += Number(serie[i]) || 0; });
+    });
+    orden.sort(function (a, b) { return Math.abs(porUnidad[b].total) - Math.abs(porUnidad[a].total); });
+
+    var renglon = function (titulo, acc, clase) {
+      return '<tr class="' + clase + '">'
+        + '<th colspan="' + etiquetaCols + '">' + esc(titulo) + '</th>'
+        + '<th></th>'
+        + acc.serie.map(function (v) { return '<td class="n">' + num(v) + '</td>'; }).join('')
+        + '<td class="n">' + num(acc.total) + '</td>'
+        + '</tr>';
+    };
+
+    var html = orden.map(function (u) {
+      return renglon('Total ' + u, porUnidad[u], 'pie-unidad');
+    }).join('');
+
+    // El dinero suma aunque las unidades no. La cantidad solo si hay
+    // una sola unidad, y entonces el renglón de arriba ya es el total.
+    var dinero = S.metrica === 'mxn' || S.metrica === 'usd';
+    if (dinero && orden.length > 1) {
+      var gen = { total: 0, serie: meses.map(function () { return 0; }) };
+      orden.forEach(function (u) {
+        gen.total += porUnidad[u].total;
+        porUnidad[u].serie.forEach(function (v, i) { gen.serie[i] += v; });
+      });
+      html += renglon('Total general', gen, 'pie-general');
+    }
+
+    tabla.tFoot.innerHTML = html;
   }
 
   // Estado de arranque: la pantalla abre sin datos y dice qué hacer.
@@ -268,6 +327,7 @@
     limpiarAvisos();
     var tabla = document.getElementById('tablaPivote');
     tabla.tHead.innerHTML = '';
+    tabla.tFoot.innerHTML = '';
     tabla.tBodies[0].innerHTML = '<tr><td class="vacio">'
       + '<b>Elige al menos un cliente o una clave para ejecutar el reporte.</b><br>'
       + 'Ajusta también el periodo si lo necesitas. El resultado se arma sobre lo que '

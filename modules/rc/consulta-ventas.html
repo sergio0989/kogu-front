@@ -8,8 +8,25 @@
     /* Estilos propios de la pantalla. Van aquí y no en styles.css para no
        tocar la hoja compartida (§16.7). Si alguna clase ya existe allá,
        esta definición solo la complementa. */
-    .filtros .row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
-    .filtros label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; }
+    /* Los campos nativos de fecha y los select venían sin formato: esquinas
+       cuadradas y borde del navegador junto a botones redondeados. Se
+       alinean con el resto del shell sin tocar styles.css. */
+    .filtros .row { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: flex-end; }
+    .filtros label { display: flex; flex-direction: column; gap: 5px; font-size: .78rem; font-weight: 600; letter-spacing: .02em; opacity: .78; }
+    .filtros input[type="date"],
+    .filtros select {
+      font: inherit; font-size: .9rem; font-weight: 400;
+      padding: 8px 11px; min-height: 38px;
+      border: 1px solid rgba(128,128,128,.38); border-radius: 8px;
+      background: var(--surface, #fff); color: inherit;
+      appearance: none; -webkit-appearance: none;
+    }
+    .filtros select { padding-right: 32px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4.5 6 8.5 10 4.5' fill='none' stroke='%23808a99' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; background-size: 12px; }
+    .filtros input[type="date"]:focus,
+    .filtros select:focus { outline: 2px solid rgba(29,79,108,.45); outline-offset: 1px; border-color: transparent; }
+    .filtros .row > button { min-height: 38px; }
     .chips:empty { display: none; }
     .aviso { font-size: .88rem; margin: 0 0 8px; }
     .aviso-warn { font-size: .88rem; margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid #b26a00; background: rgba(178,106,0,.08); }
@@ -23,6 +40,9 @@
     .tabla thead th { position: sticky; top: 0; background: rgba(128,128,128,.12); font-weight: 600; font-size: .74rem; letter-spacing: .04em; text-transform: uppercase; }
     .tabla .n { text-align: right; font-variant-numeric: tabular-nums; }
     .tabla td.vacio { white-space: normal; padding: 28px 14px; text-align: center; line-height: 1.7; opacity: .82; }
+    .tabla tfoot th, .tabla tfoot td { border-top: 2px solid rgba(128,128,128,.45); border-bottom: 0; font-weight: 600; background: rgba(128,128,128,.07); }
+    .tabla tfoot th { text-align: left; font-size: .78rem; letter-spacing: .03em; text-transform: uppercase; }
+    .tabla tfoot tr.pie-general th, .tabla tfoot tr.pie-general td { border-top: 1px solid rgba(128,128,128,.3); background: rgba(128,128,128,.14); }
     .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 50; }
     .modal[hidden] { display: none; }
     .modal-caja { background: var(--surface, #fff); color: inherit; width: min(720px, 92vw); max-height: 86vh; display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 4px; }
