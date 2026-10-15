@@ -62,6 +62,11 @@
   // usuario. Sin cliente ni clave no hay reporte que correr.
   var hayFiltro = function () { return S.clientes.length > 0 || S.claves.length > 0; };
 
+  var nombreCliente = function (ref) {
+    var c = S.catClientes.filter(function (x) { return String(x.cve_cte) === String(ref); })[0];
+    return c ? c.nombre : String(ref);
+  };
+
   // Nombra mientras sean pocos; en cuanto son muchos, cuenta.
   var nombrarOcontar = function (lista, singular, plural, vacio) {
     var n = (lista || []).length;
@@ -184,7 +189,25 @@
     S.catClaves.forEach(function (k) { vivas[k.cve_prod] = true; });
     var huerfanas = S.claves.filter(function (k) { return !vivas[k]; });
 
+    // El conteo del botón dice CUÁNTOS; los chips dicen QUIÉNES. Sin esto
+    // la pantalla mostraba "Clientes: 1" y en ninguna parte cuál era —y
+    // agrupando por clave canónica la columna de cliente ni siquiera
+    // existe, así que el nombre se perdía del todo.
     var html = '';
+    if (S.clientes.length || S.claves.length) {
+      html += '<div class="chips-fila">';
+      S.clientes.forEach(function (ref) {
+        html += '<span class="chip">' + esc(nombreCliente(ref))
+          + '<button type="button" class="chip-x" data-quita-cliente="' + esc(ref) + '"'
+          + ' title="Quitar del filtro" aria-label="Quitar">×</button></span>';
+      });
+      S.claves.forEach(function (ref) {
+        html += '<span class="chip chip-clave">' + esc(ref)
+          + '<button type="button" class="chip-x" data-quita-clave="' + esc(ref) + '"'
+          + ' title="Quitar del filtro" aria-label="Quitar">×</button></span>';
+      });
+      html += '</div>';
+    }
     if (huerfanas.length) {
       html += '<p class="aviso-warn">⚠ ' + huerfanas.length + ' clave(s) seleccionada(s) sin venta a los '
         + 'clientes elegidos: <b>' + esc(huerfanas.join(', ')) + '</b>. Se conservan en el filtro; '
@@ -529,6 +552,7 @@
   }
 
   function pintarVacioComp() {
+    pintarSeleccion();
     document.getElementById('avisoLongitud').innerHTML =
       '<b>Elige al menos un cliente o una clave para comparar.</b>';
     document.getElementById('devolucionesComp').innerHTML = '';
@@ -566,11 +590,14 @@
     document.getElementById('procedenciaComp').innerHTML =
       'Fecha: <b>' + esc(pr.fecha_campo) + '</b> · cantidad: <b>' + esc(pr.cantidad_campo) + '</b>'
       + ' · importe: <b>' + esc(pr.importe_campo) + '</b> · USD: ' + esc(pr.usd_regla)
-      + ' · agrupado por <b>' + esc(pr.agrupar) + '</b> · comparación <b>' + esc(pr.preset) + '</b>.';
+      + ' · agrupado por <b>' + esc(pr.agrupar) + '</b> · comparación <b>' + esc(pr.preset) + '</b>.'
+      + '<br>Clientes: <b>' + nombrarOcontar(pr.clientes, 'cliente', 'clientes', 'todos') + '</b>'
+      + ' · Claves: <b>' + nombrarOcontar(pr.claves || pr.claves_canonicas, 'clave', 'claves', 'todas') + '</b>.';
   }
 
   function pintarComparativo(d) {
     pintarAvisosComp(d);
+    pintarSeleccion();
     var porCanonica = d.agrupar === 'canonica';
     var tabla = document.getElementById('tablaComp');
 
@@ -659,6 +686,25 @@
       if (S.tab === 'comparativo') { if (S.comp) pintarComparativo(S.comp); } else { pintar(); }
     });
     document.getElementById('btnConsultar').addEventListener('click', function () { refrescar(); });
+    // Quitar del filtro desde el propio chip. Delegado, porque los chips
+    // se vuelven a pintar en cada consulta.
+    document.getElementById('seleccion').addEventListener('click', function (e) {
+      var b = e.target && e.target.closest
+        ? e.target.closest('[data-quita-cliente],[data-quita-clave]') : null;
+      if (!b) return;
+      if (b.hasAttribute('data-quita-cliente')) {
+        var rc = b.getAttribute('data-quita-cliente');
+        S.clientes = S.clientes.filter(function (x) { return String(x) !== rc; });
+      } else {
+        var rk = b.getAttribute('data-quita-clave');
+        S.claves = S.claves.filter(function (x) { return String(x) !== rk; });
+      }
+      pintarSeleccion();
+      if (hayFiltro()) { refrescar(); }
+      else if (S.tab === 'comparativo') { S.comp = null; pintarVacioComp(); }
+      else { S.data = null; pintarVacio(); }
+    });
+
     document.getElementById('tabMensual').addEventListener('click', function () { cambiarTab('mensual'); });
     document.getElementById('tabComparativo').addEventListener('click', function () {
       cambiarTab('comparativo');

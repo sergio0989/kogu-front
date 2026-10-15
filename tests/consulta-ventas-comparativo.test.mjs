@@ -251,6 +251,41 @@ await check('avisa cuando los periodos tienen longitudes distintas', async () =>
     'no advierte que las longitudes difieren');
 });
 
+console.log('\n── Saber a quien estoy viendo ──────────────────────────────────');
+
+// Observado el 15-oct: con un cliente elegido el boton decia "Clientes: 1"
+// y en ninguna parte de la pantalla aparecia su nombre.
+await check('el NOMBRE del cliente elegido queda visible JUNTO AL FILTRO', async () => {
+  // Que aparezca en la columna Cliente de la tabla no cuenta: agrupando
+  // por clave canonica esa columna no existe, y el nombre se perderia.
+  const sel = P.$('seleccion').textContent;
+  assert.ok(/Unilever North America/.test(sel),
+    `el filtro no dice a quien estoy viendo: "${sel.trim()}"`);
+});
+
+await check('tambien se nombra la clave cuando se elige una', async () => {
+  P.$('btnClaves').click();
+  await new Promise((r) => setTimeout(r, 150));
+  const op = [...P.window.document.querySelectorAll('#modalBody [data-ref]')]
+    .find((e) => e.dataset.ref === 'WWP0164.');
+  assert.ok(op, 'no esta la clave en el selector');
+  op.querySelector('input[type=checkbox]').checked = true;
+  P.$('modalAceptar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  assert.ok(/WWP0164\./.test(P.$('seleccion').textContent),
+    'la clave elegida no se nombra junto al filtro');
+});
+
+await check('el chip permite quitar el cliente y vuelve a consultar', async () => {
+  const chip = P.window.document.querySelector('#seleccion [data-quita-cliente="308"]');
+  assert.ok(chip, 'el chip del cliente no trae forma de quitarlo');
+  const antes = P.pedidos.length;
+  chip.click();
+  await new Promise((r) => setTimeout(r, 250));
+  assert.ok(!/Unilever North America/.test(P.txt()) || P.pedidos.length > antes,
+    'quitar el chip no hizo nada');
+});
+
 console.log('\n── Alcance ─────────────────────────────────────────────────────');
 
 await check('la exportacion no se ofrece todavia en la comparativa', async () => {
