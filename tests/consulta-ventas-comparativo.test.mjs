@@ -106,6 +106,7 @@ async function montar() {
   });
   const errores = [];
   const pedidos = [];
+  const descargas = [];
   let cuerpoComp = COMPARATIVO;
   window.KoguShell = {
     initShell: async () => {
@@ -125,7 +126,10 @@ async function montar() {
       if (url.includes('/consulta-ventas')) return { ok: true, data: { periodo: {}, agrupar: 'clave', meses: [], filas: [], totales: {}, unidades: [], devoluciones: {}, procedencia: {} } };
       return { ok: true, data: {} };
     },
-    authFetchRaw: async () => ({ ok: true, blob: async () => ({}), headers: { get: () => '' } }),
+    authFetchRaw: async (url) => {
+      descargas.push(url);
+      return { ok: true, blob: async () => ({}), headers: { get: () => 'attachment; filename="x.xlsx"' } };
+    },
     toast: (m, t) => errores.push(`toast(${t}): ${m}`),
     withLoading: async (el, fn) => fn(),
   };
@@ -140,7 +144,7 @@ async function montar() {
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
   return {
-    window, errores, pedidos,
+    window, errores, pedidos, descargas,
     $: (id) => window.document.getElementById(id),
     txt: () => window.document.getElementById('app').textContent.replace(/\s+/g, ' '),
     comp: (c) => { cuerpoComp = c; },
@@ -288,10 +292,16 @@ await check('el chip permite quitar el cliente y vuelve a consultar', async () =
 
 console.log('\n── Alcance ─────────────────────────────────────────────────────');
 
-await check('la exportacion no se ofrece todavia en la comparativa', async () => {
+await check('la comparativa SI exporta, y pide la hoja extra', async () => {
   const btn = P.$('btnExportar');
-  assert.ok(btn.hidden || btn.disabled,
-    'ofrece exportar en una pestaña cuyo libro aun no existe');
+  assert.ok(!btn.hidden && !btn.disabled, 'el boton de exportar no esta disponible');
+  const antes = P.descargas.length;
+  btn.click();
+  await new Promise((r) => setTimeout(r, 250));
+  assert.ok(P.descargas.length > antes, 'no pidio el libro');
+  const u = P.descargas[P.descargas.length - 1];
+  assert.ok(/comparar=1/.test(u), 'no pidio la hoja comparativa');
+  assert.ok(/preset=/.test(u), 'no mando el preset');
 });
 
 await check('volver a la mensual restaura la vista sin reconsultar', async () => {

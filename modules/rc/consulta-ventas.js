@@ -496,7 +496,19 @@
       return;
     }
     try {
-      var res = await KoguApi.authFetchRaw(API + '/export' + qs(['agrupar=' + S.agrupar]));
+      // Desde la pestaña comparativa el libro lleva su quinta hoja. El
+      // parámetro va sólo cuando corresponde: si no, el backend haría un
+      // barrido de más de erp_ventas para una hoja que nadie pidió.
+      var extra = ['agrupar=' + S.agrupar];
+      if (S.tab === 'comparativo') {
+        extra.push('comparar=1');
+        extra.push('preset=' + encodeURIComponent(S.preset));
+        if (S.preset === 'personalizado') {
+          extra.push('desde2=' + encodeURIComponent(document.getElementById('fDesde2').value || ''));
+          extra.push('hasta2=' + encodeURIComponent(document.getElementById('fHasta2').value || ''));
+        }
+      }
+      var res = await KoguApi.authFetchRaw(API + '/export' + qs(extra));
       if (!res.ok) { KoguApi.toast('No se pudo generar el archivo.', 'error'); return; }
       var blob = await res.blob();
       var cd = res.headers.get('Content-Disposition') || '';
@@ -546,9 +558,10 @@
     document.getElementById('vistaComparativo').hidden = (t !== 'comparativo');
     document.getElementById('tabMensual').className = 'tab' + (t === 'mensual' ? ' activa' : '');
     document.getElementById('tabComparativo').className = 'tab' + (t === 'comparativo' ? ' activa' : '');
-    // Exportar pertenece a la vista mensual: el libro comparativo todavía
-    // no existe y ofrecer el botón sería prometer lo que no hay.
-    document.getElementById('btnExportar').hidden = (t !== 'mensual');
+    // El libro es uno solo: cuatro hojas siempre, más la comparativa
+    // cuando se exporta desde esa pestaña.
+    document.getElementById('btnExportar').textContent =
+      (t === 'comparativo') ? 'Exportar Excel (con comparativo)' : 'Exportar Excel';
   }
 
   function pintarVacioComp() {
