@@ -202,6 +202,14 @@ async function montar() {
       }
       return { ok: true, data: {} };
     },
+    authFetchRaw: async (url) => {
+      pedidos.push(url);
+      return {
+        ok: true,
+        blob: async () => ({}),
+        headers: { get: () => 'attachment; filename="ventas.xlsx"' },
+      };
+    },
     toast: (m, t) => errores.push(`toast(${t}): ${m}`),
     withLoading: async (el, fn) => fn(),
   };
@@ -395,12 +403,29 @@ await check('el botón de clientes dice cuántos, sin "cliente(s)"', async () =>
   assert.match(t, /1/, 'pero sí cuántos');
 });
 
-// ── 4. El archivo sí lleva todo ──────────────────────────────────────
-await check('el CSV sí trae la lista completa de entidades', () => {
-  const csv = P.window.__consultaVentasCsv(CONSULTA_ANCHA);
-  assert.match(csv, /CLIENTE NUMERO 250/, 'el archivo es lo que viaja: ahí van todos');
-  assert.match(csv, /WWP0300/, 'y todas las claves');
-  assert.match(csv, /falta_fac/, 'con la procedencia completa');
+// ── 4. La exportación la arma el backend ─────────────────────────────
+await check('exportar pide el libro al backend con el mismo recorte', async () => {
+  const antes = P.pedidos.length;
+  P.$('btnExportar').click();
+  await new Promise((r) => setTimeout(r, 250));
+  const nuevos = P.pedidos.slice(antes);
+  const exp = nuevos.find((u) => u.includes('/consulta-ventas/export'));
+  assert.ok(exp, `debe pedir el libro: ${JSON.stringify(nuevos)}`);
+  assert.match(exp, /clientes=/, 'con los clientes del recorte');
+  assert.match(exp, /desde=2025-10-01/, 'y el periodo');
+});
+
+await check('sin filtro no intenta exportar', async () => {
+  P.$('btnClientes').click();
+  await new Promise((r) => setTimeout(r, 150));
+  P.$('modalLimpiar').click();
+  P.$('modalAceptar').click();
+  await new Promise((r) => setTimeout(r, 200));
+  const antes = P.pedidos.length;
+  P.$('btnExportar').click();
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(P.pedidos.slice(antes).filter((u) => u.includes('/export')).length, 0,
+    'sin recorte no hay archivo que generar');
 });
 
 // ── 5. Quitar los filtros regresa al estado vacío ────────────────────

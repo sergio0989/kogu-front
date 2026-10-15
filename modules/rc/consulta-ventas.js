@@ -103,7 +103,7 @@
       + '      </select>'
       + '    </label>'
       + '    <button type="button" class="btn btn-primary" id="btnConsultar">Consultar</button>'
-      + '    <button type="button" class="btn" id="btnExportar">Exportar CSV</button>'
+      + '    <button type="button" class="btn" id="btnExportar">Exportar Excel</button>'
       + '  </div>'
       + '  <div id="seleccion" class="chips"></div>'
       + '</section>'
@@ -422,45 +422,31 @@
     pintar();
   }
 
-  // ── exportación: la procedencia viaja DENTRO del archivo ───────────
-  function aCsv(d) {
-    var p = d.procedencia || {};
-    var meses = d.meses || [];
-    var porCanonica = d.agrupar === 'canonica';
-    var L = [];
-    L.push('KOGU Multiempresa - Radar Comercial - Consulta de ventas');
-    L.push('Periodo;' + p.desde + ' a ' + p.hasta + ';' + meses.length + ' meses');
-    L.push('Campo de fecha;' + p.fecha_campo);
-    L.push('Campo de cantidad;' + p.cantidad_campo);
-    L.push('Campo de importe;' + p.importe_campo);
-    L.push('Regla USD;' + p.usd_regla);
-    L.push('Agrupado;' + p.agrupar);
-    L.push('Clientes incluidos;' + (p.clientes || []).join(' | '));
-    L.push('Claves incluidas;' + (p.claves || p.claves_canonicas || []).join(' | '));
-    L.push('Unidades;' + (p.unidades || []).join(' | '));
-    L.push('Medida;' + (d.es_kilogramo ? 'kilogramos' : 'cantidad en unidad de venta'));
-    L.push('Neto de devoluciones;' + (p.neto_de_devoluciones ? 'si' : 'no'));
-    L.push('Generado;' + p.generado_en);
-    L.push('');
-    L.push((porCanonica ? 'Clave canonica;Mercado' : 'Cliente;Clave') + ';Unidad;'
-      + meses.join(';') + ';Total cantidad;Total MXN;Total USD');
-    (d.filas || []).forEach(function (f) {
-      L.push((porCanonica ? f.clave_canonica + ';' + f.mercado : (f.cliente || f.cve_cte) + ';' + f.cve_prod)
-        + ';' + f.unidad + ';'
-        + (f.serie || []).join(';') + ';' + f.cantidad + ';' + f.mxn + ';' + f.usd);
-    });
-    return L.join('\n');
-  }
-
-  function descargarCsv() {
-    if (!S.data) return;
-    var blob = new Blob(['﻿' + aCsv(S.data)], { type: 'text/csv;charset=utf-8;' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'consulta-ventas_' + S.desde + '_' + S.hasta + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // ── exportación ─────────────────────────────────────────────────────
+  // El libro lo arma el backend con exceljs sobre la MISMA respuesta que
+  // pintó la pantalla, así que el archivo y lo que ves no pueden diferir.
+  // Trae cuatro hojas —Resumen, Por cliente, Por cliente y clave, Datos—
+  // que son los tres pivotes que hoy se arman a mano en Excel más el
+  // renglón plano, con la procedencia impresa y los totales por unidad.
+  async function descargarExcel(boton) {
+    if (!hayFiltro()) {
+      KoguApi.toast('Elige al menos un cliente o una clave antes de exportar.', 'info');
+      return;
+    }
+    try {
+      var res = await KoguApi.authFetchRaw(API + '/export' + qs(['agrupar=' + S.agrupar]));
+      if (!res.ok) { KoguApi.toast('No se pudo generar el archivo.', 'error'); return; }
+      var blob = await res.blob();
+      var cd = res.headers.get('Content-Disposition') || '';
+      var m = cd.match(/filename="?([^"]+)"?/);
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = m ? m[1] : 'ventas_' + S.desde + '_' + S.hasta + '.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    } catch (err) {
+      KoguApi.toast(err && err.message ? err.message : String(err), 'error');
+    }
   }
 
   // ── eventos ────────────────────────────────────────────────────────
@@ -474,7 +460,9 @@
       S.metrica = e.target.value; pintar();
     });
     document.getElementById('btnConsultar').addEventListener('click', function () { consultar(); });
-    document.getElementById('btnExportar').addEventListener('click', descargarCsv);
+    document.getElementById('btnExportar').addEventListener('click', function (e) {
+      return KoguUi.withLoading(e.target, function () { return descargarExcel(e.target); }, 'Generando…');
+    });
 
     document.getElementById('btnClientes').addEventListener('click', function () {
       abrirModal('Clientes (vacío = todos)', S.catClientes.map(function (c) {
@@ -588,7 +576,4 @@
   }
 
   document.addEventListener('DOMContentLoaded', init);
-
-  // Expuesto solo para la prueba de render.
-  window.__consultaVentasCsv = aCsv;
 }());
