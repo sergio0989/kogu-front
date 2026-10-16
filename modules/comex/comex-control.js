@@ -43,7 +43,23 @@
     };
   };
 
-  // Chip de estado (mismos colores en Resumen y Análisis).
+  // Cuenta operaciones por estado sobre una desviación (por omisión
+  // desv_total_pct = gastos vs teórico de la reconciliación). Conserva cuántas
+  // van sobre y cuántas bajo: el estado no sigue al signo, pero el dato no se pierde.
+  api.contarEstados = (rows, campo = 'desv_total_pct') => {
+    const out = { dentro: { n: 0, sobre: 0, bajo: 0 }, fuera: { n: 0, sobre: 0, bajo: 0 }, revisar: { n: 0, sobre: 0, bajo: 0 } };
+    for (const r of rows || []) {
+      const v = r[campo];
+      if (v == null || v === '') continue;
+      const d = Number(v), e = api.estado(d);
+      if (!e) continue;
+      out[e].n++;
+      if (d > 0) out[e].sobre++; else if (d < 0) out[e].bajo++;
+    }
+    return out;
+  };
+
+  // Chip de estado (mismos colores en Resumen, Análisis y Costeo).
   const COLORES = {
     dentro: ['#f0fdf4', '#bbf7d0', '#166534', 'dentro'],
     fuera: ['#fef9c3', '#fde68a', '#854d0e', 'fuera'],

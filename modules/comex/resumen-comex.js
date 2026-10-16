@@ -188,23 +188,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     return head + '<tbody>' + body + totalRow + '</tbody>';
   }
 
-  function pintaPresupuesto(R) {
+  // Tarjetas de alineación: operaciones con teórico contadas por ESTADO con la
+  // regla única (comex-control.js) sobre su desviación de GASTOS (flete int'l +
+  // nacionales) — lo que la reconciliación mide para todas. Antes: banda ±5 %.
+  let comparables = [];
+  const filtrosQs = () => {
+    const qs = [];
+    const anio = $('anio').value, mes = $('mes').value, prov = $('prov').value;
+    if (anio) qs.push('anio=' + encodeURIComponent(anio));
+    if (mes) qs.push('mes=' + encodeURIComponent(mes));
+    if (prov && prov !== 'TODOS') qs.push('proveedor=' + encodeURIComponent(prov));
+    return qs;
+  };
+  async function pintaPresupuesto(R) {
     R = R || {};
-    const bajo = +R.BajoTabulador || 0, sobre = +R.SobreTabulador || 0, dentro = +R.DentroBanda || 0;
-    const sinTeo = +R.SinTeorico || 0, sinProv = +R.SinProveedor || 0, sinDat = +R.SinDatos || 0;
-    const comparables = bajo + sobre + dentro; // operaciones que SÍ se midieron vs teórico
-    const pc = (n) => comparables ? ` · ${(n / comparables * 100).toFixed(0)}% de comparables` : '';
-    const noComp = sinTeo + sinProv + sinDat;
-    $('presupuesto').innerHTML =
-      resKpi('↓ Bajo teórico', n0(bajo), 'real < teórico · revisar si es grande' + pc(bajo), '#f8fafc', '#475569', '#e2e8f0', 'bajo', bajo) +
-      resKpi('↑ Sobre teórico', n0(sobre), 'real > teórico · revisar' + pc(sobre), '#fef2f2', '#991b1b', '#fecaca', 'sobre', sobre) +
-      resKpi('✓ En banda', n0(dentro), '±5% del teórico (gastos)' + pc(dentro), '#f0fdf4', '#166534', '#bbf7d0', 'dentro', dentro) +
-      resKpi('◦ Sin comparar', n0(noComp), 'sin teórico / proveedor / datos', '#f8fafc', '#64748b', '#e2e8f0', 'sincomparar', noComp);
-    $('presupuesto').querySelectorAll('.resk[data-grupo]').forEach(el => el.addEventListener('click', () => abrirOps(el.dataset.grupo)));
+    const noComp = (+R.SinTeorico || 0) + (+R.SinProveedor || 0) + (+R.SinDatos || 0);
+    const nComp = (+R.BajoTabulador || 0) + (+R.SobreTabulador || 0) + (+R.DentroBanda || 0);
+    const CC = window.KoguComexControl;
+    const pinta = (c) => {
+      const tot = c ? c.dentro.n + c.fuera.n + c.revisar.n : 0;
+      const pc = (n) => tot ? ` · ${(n / tot * 100).toFixed(0)}% de comparables` : '';
+      const dir = (x) => x ? `${x.bajo} bajo · ${x.sobre} sobre` : '';
+      const tarjeta = (est, lab, rango) => {
+        const x = c ? c[est] : null, col = CC.color(est);
+        return resKpi(lab, c ? n0(x.n) : '…', `${rango} (gastos)${c ? pc(x.n) : ''}${x && x.n ? '<br/>' + dir(x) : ''}`, col.bg, col.co, col.bd, est, x ? x.n : 0);
+      };
+      $('presupuesto').innerHTML =
+        tarjeta('dentro', '✓ Dentro', '≤10% del teórico') +
+        tarjeta('fuera', '◐ Fuera', '10–30% del teórico') +
+        tarjeta('revisar', '⚠ Revisar', '>30% · posible teórico desactualizado o costo no capturado') +
+        resKpi('◦ Sin comparar', n0(noComp), 'sin teórico / proveedor / datos', '#f8fafc', '#64748b', '#e2e8f0', 'sincomparar', noComp);
+      $('presupuesto').querySelectorAll('.resk[data-grupo]').forEach(el => el.addEventListener('click', () => abrirOps(el.dataset.grupo)));
+    };
+    comparables = [];
+    pinta(null);
+    if (!nComp) { pinta(CC.contarEstados([])); return; }
+    try {
+      const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/operaciones?' + [...filtrosQs(), 'grupo=comparables'].join('&'))) || { rows: [] };
+      comparables = d.rows || [];
+      pinta(CC.contarEstados(comparables));
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
   // ── Drill-down: modal con los folios de un grupo de resultado ──
-  const GRUPO_LBL = { bajo: '↓ Bajo teórico', sobre: '↑ Sobre teórico', dentro: '✓ En banda', sincomparar: '◦ Sin comparar' };
+  const GRUPO_LBL = { dentro: '✓ Dentro del teórico (≤10%, gastos)', fuera: '◐ Fuera del teórico (10–30%, gastos)', revisar: '⚠ Revisar (>30%, gastos)', sincomparar: '◦ Sin comparar' };
   function cerrarModal() { const m = $('opsModal'); if (m) m.remove(); }
   function modalOps(titulo, bodyHtml) {
     cerrarModal();
@@ -223,36 +250,41 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function tablaOps(rows, grupo) {
     if (!rows.length) return '<div class="muted" style="font-size:12.5px;padding:8px">Sin operaciones en este grupo para el filtro actual.</div>';
-    const comp = grupo === 'bajo' || grupo === 'sobre' || grupo === 'dentro';
+    const comp = grupo !== 'sincomparar';
+    const CC = window.KoguComexControl;
     const resChip = (r) => { const m = { BajoTabulador: ['#dbeafe', '#1e40af', '↓ Bajo'], SobreTabulador: ['#fee2e2', '#991b1b', '↑ Sobre'], DentroBanda: ['#dcfce7', '#166534', 'Dentro'], SinTeorico: ['#f1f5f9', '#475569', 'Sin teórico'], SinProveedor: ['#f3e8ff', '#6b21a8', 'Sin prov'], SinDatos: ['#fef9c3', '#854d0e', 'Sin datos'] }[r] || ['#f1f5f9', '#475569', r]; return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`; };
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
       <th style="text-align:left;padding:6px">Pedimento</th><th style="text-align:left;padding:6px">Proveedor</th><th>Kg</th>
-      ${comp ? '<th>Real/kg</th><th>Teórico/kg</th><th>Desv.%</th><th style="text-align:left;padding:6px">vs costeo</th>' : '<th style="text-align:left;padding:6px">Motivo</th>'}
+      ${comp ? '<th>Gastos real/kg</th><th>Gastos teó/kg</th><th>Desv.%</th><th>Estado</th><th style="text-align:left;padding:6px">vs costeo</th>' : '<th style="text-align:left;padding:6px">Motivo</th>'}
       <th>Periodo</th></tr></thead>`;
     const body = rows.map(r => {
       const pv = r.desv_total_pct == null ? null : Number(r.desv_total_pct);
-      const dcol = pv == null ? '#64748b' : pv > 0 ? '#991b1b' : '#166534';
+      const dcol = CC.color(CC.estado(pv)).co;
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right;font-size:12px">
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.pedimento || r.no_costeo)}</td>
         <td style="text-align:left;padding:6px">${esc(r.proveedor || '—')}</td>
         <td style="padding:6px">${kg(r.kg_total)}</td>
         ${comp ? `<td style="padding:6px">$${(Number(r.real_total_kg_usd) || 0).toFixed(2)}</td>
           <td style="padding:6px;color:#b45309">$${(Number(r.teo_total_kg_usd) || 0).toFixed(2)}</td>
-          <td style="padding:6px;font-weight:700;color:${dcol}">${pv == null ? '—' : (pv * 100).toFixed(1) + '%'}</td>
+          <td style="padding:6px;font-weight:700;color:${dcol}">${CC.pct(pv)}</td>
+          <td style="padding:6px">${CC.chip(CC.estado(pv))}</td>
           <td style="text-align:left;padding:6px;color:#64748b">${r.costeo_folio ? esc(r.costeo_folio) + ' · v' + esc(r.costeo_version) : '—'}</td>`
         : `<td style="text-align:left;padding:6px">${resChip(r.resultado)}</td>`}
         <td style="padding:6px;color:#64748b">${esc(r.periodo)}</td></tr>`;
     }).join('');
-    return `<div class="muted" style="font-size:12px;margin-bottom:6px">${n0(rows.length)} operación(es) · ordenadas por desviación</div>
+    return `<div class="muted" style="font-size:12px;margin-bottom:6px">${n0(rows.length)} operación(es) · ordenadas por desviación${comp ? ' · gastos = flete internacional + nacionales (sin mercancía)' : ''}</div>
       <table class="table" style="width:100%;font-variant-numeric:tabular-nums">${head}<tbody>${body}</tbody></table>`;
   }
   async function abrirOps(grupo) {
     modalOps(GRUPO_LBL[grupo] || 'Operaciones', '<div class="muted" style="padding:10px">Cargando folios…</div>');
-    const qs = [];
-    const anio = $('anio').value, mes = $('mes').value, prov = $('prov').value;
-    if (anio) qs.push('anio=' + encodeURIComponent(anio));
-    if (mes) qs.push('mes=' + encodeURIComponent(mes));
-    if (prov && prov !== 'TODOS') qs.push('proveedor=' + encodeURIComponent(prov));
+    if (grupo !== 'sincomparar') {
+      const CC = window.KoguComexControl;
+      const rows = comparables.filter(r => CC.estado(r.desv_total_pct == null ? null : Number(r.desv_total_pct)) === grupo)
+        .sort((a, b) => Math.abs(Number(b.desv_total_pct)) - Math.abs(Number(a.desv_total_pct)));
+      const bodyEl = $('opsBody'); if (bodyEl) bodyEl.innerHTML = tablaOps(rows, grupo);
+      return;
+    }
+    const qs = filtrosQs();
     qs.push('grupo=' + encodeURIComponent(grupo));
     try {
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/operaciones?' + qs.join('&'))) || { rows: [] };

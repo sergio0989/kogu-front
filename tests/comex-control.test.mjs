@@ -94,3 +94,29 @@ test('sin teórico comparable (kg = 0) → nada que comparar', () => {
   assert.equal(c.ddp.motivo, 'sin_teorico');
   assert.equal(c.mp, null);
 });
+
+// ── Tarjetas del Resumen: contar operaciones por ESTADO, no por resultado ±5 % ──
+// Casos MEDIDOS: los folios que el Resumen 2026 mostraba como "↑ Sobre" (4) y los
+// primeros 12 de "↓ Bajo" (captura 2026-10-15). desv = desv_total_pct (gastos).
+// Con la regla vieja (±5 %) "En banda" daba 0; con la acordada, OLAM −9.0 % es dentro.
+const SOBRE_2026 = [0.530, 0.521, 0.182, 0.135];
+const BAJO_2026 = [-0.090, -0.124, -0.124, -0.131, -0.153, -0.177, -0.179, -0.181, -0.207, -0.231, -0.232, -0.253];
+
+test('tarjetas: los 16 folios medidos se cuentan por estado — 1 dentro, 13 fuera, 2 revisar', () => {
+  const rows = [...SOBRE_2026, ...BAJO_2026].map((d) => ({ desv_total_pct: d }));
+  const c = C.contarEstados(rows);
+  assert.deepEqual({ dentro: c.dentro.n, fuera: c.fuera.n, revisar: c.revisar.n }, { dentro: 1, fuera: 13, revisar: 2 });
+});
+
+test('tarjetas: cada estado conserva cuántas van sobre y cuántas bajo el teórico', () => {
+  const rows = [...SOBRE_2026, ...BAJO_2026].map((d) => ({ desv_total_pct: d }));
+  const c = C.contarEstados(rows);
+  assert.deepEqual(c.revisar, { n: 2, sobre: 2, bajo: 0 });
+  assert.deepEqual(c.fuera, { n: 13, sobre: 2, bajo: 11 });
+  assert.deepEqual(c.dentro, { n: 1, sobre: 0, bajo: 1 });
+});
+
+test('tarjetas: una operación sin desviación (sin teórico) no se cuenta en ningún estado', () => {
+  const c = C.contarEstados([{ desv_total_pct: null }, { desv_total_pct: 0.02 }]);
+  assert.equal(c.dentro.n + c.fuera.n + c.revisar.n, 1);
+});
