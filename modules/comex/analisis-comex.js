@@ -455,6 +455,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
     <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead>`;
 
+  // Detalle por operación en la vista CONTROL: cada pedimento contra su teórico,
+  // con la misma regla que la fila agregada (comex-control.js). Gastos =
+  // flete int'l + nacionales; MP solo en líneas del producto de su costeo.
+  const ctlOp = (o) => CC.control({ kg: o.kg_cmp, kgMp: o.kg_mp_cmp, mpReal: o.mp_real_mp_cmp, mpTeo: o.teo_mp,
+    gastosReal: o.gastos_real_cmp, gastosTeo: Number(o.teo_flete) + Number(o.teo_otros) });
+  const celEst = (d, est, extra = '') => `<td style="padding:4px 6px;white-space:nowrap"><span style="font-weight:700;color:${CC.color(est).co}">${CC.pct(d)}</span> ${CC.chip(est)}${extra}</td>`;
+  const opFilaCtl = (o) => {
+    const kgc = Number(o.kg_cmp) || 0;
+    const ini = `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
+      <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
+      <td style="text-align:left;padding:4px 6px;color:#475569">${esc(o.periodo || '—')}</td>
+      <td style="padding:4px 6px">${o.escala_kg != null ? kg(o.escala_kg) + ' kg' : '—'}</td>
+      <td style="padding:4px 6px">${kg(o.kg)}</td>
+      <td style="padding:4px 6px;font-weight:700">$${n0(o.costo_usd)}</td>`;
+    if (!(kgc > 0)) return ini + `<td colspan="5" style="padding:4px 6px;color:#94a3b8;text-align:center">— sin teórico comparable (${esc(o.resultado || 's/d')}) —</td></tr>`;
+    const gR = Number(o.gastos_real_cmp) / kgc, gT = (Number(o.teo_flete) + Number(o.teo_otros)) / kgc;
+    const gD = gT > 0 ? gR / gT - 1 : null;
+    const c = ctlOp(o), cob = Math.round(c.cobMp * 100);
+    const mpCel = c.mp
+      ? celEst(c.mp.desv, c.mp.estado, `<div class="muted" style="font-size:10px" title="MP real $${usd4(c.mp.real)}/kg vs EXW $${usd4(c.mp.teo)}/kg">$${usd4(c.mp.real)} vs $${usd4(c.mp.teo)}${cob < 100 ? ` · sobre ${cob}% kg` : ''}</div>`)
+      : `<td style="padding:4px 6px;color:#94a3b8" title="Ninguna línea de esta operación es del producto de su costeo">sin línea propia</td>`;
+    const ddpCel = c.ddp.real == null ? `<td style="padding:4px 6px;color:#94a3b8">—</td>` : celEst(c.ddp.desv, c.ddp.estado);
+    return ini + `<td style="padding:4px 6px">$${usd4(gR)}</td><td style="padding:4px 6px;color:#64748b">$${usd4(gT)}</td>${celEst(gD, CC.estado(gD))}${mpCel}${ddpCel}</tr>`;
+  };
+  const opHeadCtl = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
+    <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th>Costo USD</th>
+    <th>Gastos real/kg</th><th>Gastos teó/kg</th><th>Gastos vs teó</th><th style="${M};padding:4px 6px">MP vs teó</th><th>DDP vs teó</th></tr></thead>`;
+
   // Desglose por modo de transporte (aéreo / marítimo) del proveedor. Solo se
   // muestra si hay más de un modo — separa promedios que mezclan aéreo y marítimo.
   const MODO_INFO = { maritimo: ['🚢', 'Marítimo'], aereo: ['✈️', 'Aéreo'], terrestre: ['🚚', 'Terrestre'], general: ['📦', 'Sin modo'] };
@@ -501,7 +529,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (det.style.display !== 'none') { det.style.display = 'none'; bn.textContent = '▸'; return; }
     det.style.display = ''; bn.textContent = '▾';
     const cell = det.firstElementChild;
-    const key = corte + '|' + periodo + '|' + row.grupo;
+    const esCtrlOp = vista === 'control';
+    const key = vista + '|' + corte + '|' + periodo + '|' + row.grupo;
+    const OH = esCtrlOp ? opHeadCtl : opHead, OF = esCtrlOp ? opFilaCtl : opFila;
     if (opsCache[key]) { cell.innerHTML = opsCache[key]; return; }
     cell.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Cargando operaciones…</div>';
     try {
@@ -529,11 +559,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           return `<div style="margin-top:8px">
             <div style="display:flex;justify-content:space-between;gap:8px;background:#eef6ff;color:#1e3a8a;font-weight:700;font-size:12px;padding:4px 8px;border-radius:6px">
               <span>${esc(etq)} · ${lista.length} op(s)</span><span style="white-space:nowrap">${kg(sk)} kg · $${n0(su)} USD</span></div>
-            <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">${opHead}<tbody>${lista.map(opFila).join('')}</tbody></table>
+            <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">${OH}<tbody>${lista.map(OF).join('')}</tbody></table>
           </div>`;
         }).join('');
       } else {
-        html = modoSummary(ops) + `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">${opHead}<tbody>${ops.map(opFila).join('')}</tbody></table>`;
+        html = (esCtrlOp ? '' : modoSummary(ops)) + `<table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px">${OH}<tbody>${ops.map(OF).join('')}</tbody></table>`;
       }
       opsCache[key] = html; cell.innerHTML = html;
     } catch (e) { cell.innerHTML = `<div style="padding:8px;color:#991b1b;font-size:12px">${esc(e.message)}</div>`; }
