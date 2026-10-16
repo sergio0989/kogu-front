@@ -59,7 +59,18 @@
     return out;
   };
 
-  // Chip de estado (mismos colores en Resumen, Análisis y Costeo).
+  // Estado de una fila de reconciliación: si se midió contra el teórico, su
+  // estado por desviación de gastos; si no, el motivo (SinTeorico/SinProveedor/
+  // SinDatos). El 'resultado' guardado (banda ±5 %) ya no decide el estado.
+  const MOTIVOS = ['SinTeorico', 'SinProveedor', 'SinDatos'];
+  api.estadoRecon = (r) => {
+    if (r && MOTIVOS.includes(r.resultado)) return r.resultado;
+    const v = r ? r.desv_total_pct : null;
+    const e = (v == null || v === '') ? null : api.estado(Number(v));
+    return e || 'SinDatos';
+  };
+
+  // Chip de estado (mismos colores en Resumen, Análisis, Costeo y Reconciliación).
   const COLORES = {
     dentro: ['#f0fdf4', '#bbf7d0', '#166534', 'dentro'],
     fuera: ['#fef9c3', '#fde68a', '#854d0e', 'fuera'],

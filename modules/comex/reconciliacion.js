@@ -211,7 +211,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     SinDatos:       ['#fef9c3', '#854d0e', 'Sin datos'],
   };
   const resChip = (r) => { const m = RES_META[r] || RES_META.SinDatos; return `<span class="chip" style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px">${m[2]}</span>`; };
-  const reconState = { rows: [], filtro: null };
+  // Regla única (comex-control.js): las operaciones medidas se leen por ESTADO
+  // de su desviación de gastos (dentro ≤10 % · fuera ≤30 % · revisar >30 %);
+  // el color sigue al estado, no al signo. Las no medidas conservan su motivo.
+  const CC = window.KoguComexControl;
+  const ESTADOS = ['dentro', 'fuera', 'revisar'];
+  const claveRecon = (r) => CC.estadoRecon(r);
+  const estChipRecon = (r) => { const k = claveRecon(r); return ESTADOS.includes(k) ? CC.chip(k) : resChip(k); };
+  const ETQ_EST = { dentro: '✓ Dentro', fuera: '◐ Fuera', revisar: '⚠ Revisar' };
+  const etiquetaClave = (k) => ETQ_EST[k] || (RES_META[k] || RES_META.SinDatos)[2];
+  const reconState = { rows: [], filtro: null, kpiS: null };
 
   async function cargarPeriodos() {
     try {
@@ -250,15 +259,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderKpis(s) {
+    if (s) reconState.kpiS = s; else s = reconState.kpiS;
+    if (!s) return;
     const box = $('reconKpis'); box.style.display = 'flex';
+    // Conteo por estado con las filas cargadas (misma regla que Resumen/Análisis).
+    const cnt = reconState.rows.reduce((a, r) => { const k = claveRecon(r); a[k] = (a[k] || 0) + 1; return a; }, {});
+    const desdeFilas = reconState.rows.length > 0;
     const kpi = (lab, val, col) => `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;min-width:96px">
       <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.03em">${lab}</div>
       <div style="font-size:20px;font-weight:800;color:${col || '#0f172a'}">${n0(val)}</div></div>`;
-    box.innerHTML = kpi('Operaciones', s.operaciones) + kpi('Dentro', s.dentro_banda, '#166534')
-      + kpi('↑ Sobre', s.sobre, '#991b1b') + kpi('↓ Bajo', s.bajo, '#1e40af')
+    const est = (k) => desdeFilas ? (cnt[k] || 0) : '…';
+    box.innerHTML = kpi('Operaciones', s.operaciones)
+      + kpi('✓ Dentro', est('dentro'), CC.color('dentro').co) + kpi('◐ Fuera', est('fuera'), CC.color('fuera').co)
+      + kpi('⚠ Revisar', est('revisar'), CC.color('revisar').co)
       + kpi('Sin teórico', s.sin_teorico, '#475569') + kpi('Sin proveedor', s.sin_proveedor, '#6b21a8')
       + kpi('Sin datos', s.sin_datos, '#854d0e')
-      + `<div style="align-self:center;font-size:12px;color:#64748b">Banda ±: +${(s.banda?.sup * 100).toFixed(1)}% / -${(s.banda?.inf * 100).toFixed(1)}%${s.multi_proveedor ? ` · ${n0(s.multi_proveedor)} multi-proveedor` : ''}</div>`;
+      + `<div style="align-self:center;font-size:12px;color:#64748b">Gastos vs teórico: dentro ≤10% · fuera ≤30% · revisar >30%${s.multi_proveedor ? ` · ${n0(s.multi_proveedor)} multi-proveedor` : ''}</div>`;
     const t = s.teoricos_por_proveedor || {};
     const detalle = Object.keys(t).length ? Object.entries(t).map(([k, v]) => `${k}: ${v}`).join(' · ') : 'ninguno';
     const warn = !s.teoricos;
@@ -278,8 +294,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderFiltros() {
     const box = $('reconFiltros'); box.style.display = 'flex';
-    const counts = reconState.rows.reduce((a, r) => { a[r.resultado] = (a[r.resultado] || 0) + 1; return a; }, {});
-    const opts = [['', 'Todas', reconState.rows.length], ...Object.keys(RES_META).map(k => [k, RES_META[k][2], counts[k] || 0])];
+    const counts = reconState.rows.reduce((a, r) => { const k = claveRecon(r); a[k] = (a[k] || 0) + 1; return a; }, {});
+    const claves = [...ESTADOS, 'SinTeorico', 'SinProveedor', 'SinDatos'];
+    const opts = [['', 'Todas', reconState.rows.length], ...claves.map(k => [k, etiquetaClave(k), counts[k] || 0])];
     box.innerHTML = opts.map(([v, lab, n]) => {
       const on = (reconState.filtro || '') === v;
       return `<button class="btn ${on ? 'primary' : 'ghost'}" style="padding:3px 11px;font-size:12px${on ? ';background:#0891b2' : ''}" data-f="${v}">${lab} · ${n}</button>`;
@@ -297,13 +314,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <th style="text-align:left;padding:6px">Proveedor</th>
       <th style="text-align:right;padding:6px">Escala</th>
       <th>Kg</th><th style="background:#ecfeff;color:#0e7490;padding:6px">Real total/kg</th><th style="background:#fffbeb;color:#b45309;padding:6px">Teórico total/kg</th>
-      <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px">Resultado</th></tr></thead>`;
+      <th>Desv. USD/kg</th><th>Desv. %</th><th style="text-align:center;padding:6px" title="Gastos (flete int'l + nacionales) vs teórico: dentro ≤10% · fuera ≤30% · revisar >30%">Estado</th></tr></thead>`;
     let rows = reconState.rows;
-    if (reconState.filtro) rows = rows.filter(r => r.resultado === reconState.filtro);
+    if (reconState.filtro) rows = rows.filter(r => claveRecon(r) === reconState.filtro);
     if (!rows.length) { $('tRecon').innerHTML = head + '<tbody><tr><td colspan="11" style="text-align:center;padding:16px;color:var(--muted)">Sin operaciones. Corre "Reconciliar mes".</td></tr></tbody>'; return; }
     $('tRecon').innerHTML = head + '<tbody>' + rows.map(r => {
-      const fuera = r.resultado === 'SobreTabulador' || r.resultado === 'BajoTabulador';
-      const col = fuera ? (r.resultado === 'SobreTabulador' ? '#991b1b' : '#1e40af') : '#0f172a';
+      const kEst = claveRecon(r);
+      const fuera = kEst === 'fuera' || kEst === 'revisar';
+      const col = ESTADOS.includes(kEst) ? CC.color(kEst).co : '#0f172a';
       const prov = r.proveedor_nombre
         ? esc(r.proveedor_nombre)
         : (r.cve_prov != null
@@ -323,7 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px;background:#fffbeb;color:#b45309">${usdkg(r.teo_total_kg_usd)}</td>
         <td style="padding:6px;color:${col}">${usdkg(r.desv_total_usd)}</td>
         <td style="padding:6px;font-weight:700;color:${col}">${pct(r.desv_total_pct)}</td>
-        <td style="text-align:center;padding:6px">${resChip(r.resultado)}</td></tr>
+        <td style="text-align:center;padding:6px">${estChipRecon(r)}</td></tr>
       <tr class="rec-det" data-det="${esc(r.no_costeo)}" style="display:none"><td colspan="11" style="padding:0 6px 10px 34px;background:#fafcff"></td></tr>`;
     }).join('') + '</tbody>';
     $('tRecon').querySelectorAll('button[data-exp]').forEach(bn => bn.addEventListener('click', () => togglePartidas(bn)));
@@ -381,14 +399,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th>Desv. USD/kg</th><th>Desv. %</th>
             <th style="${M};padding:4px 6px" title="Lente de pricing/margen: gasto total de importación (flete + otros) ÷ valor de la mercancía. Alto = el producto barato absorbe mucho flete.">Gastos/MP</th>
             <th style="background:#eef2ff;color:#3730a3;padding:4px 6px" title="Lente de costo controlable: otros gastos (aduanal/nacional) ÷ (mercancía + flete int'l). Mide cuánto suma la operación mexicana sobre el valor puesto en frontera (CFR).">UtiPor</th>
-            <th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead><tbody>` +
+            <th style="text-align:center;padding:4px 6px">Estado</th></tr></thead><tbody>` +
           parts.map(p => {
             const merc = rk(p.directo, p.cant);
             const rF = rk(p.flete, p.cant), rO = rk(p.otros, p.cant);
             const rT = (rF != null && rO != null) ? rF + rO : null;
             const dUsd = (rT != null && teoT != null) ? rT - teoT : null;
             const dpct = (rT != null && teoT) ? (rT - teoT) / teoT : null;
-            const dc = dUsd == null ? '#0f172a' : (dUsd > 0 ? '#991b1b' : dUsd < 0 ? '#1e40af' : '#0f172a');
+            const dc = dpct == null ? '#0f172a' : CC.color(CC.estado(dpct)).co;
             // Lente pricing: gasto total ÷ mercancía (escala 30/60).
             const gmp = (rT != null && merc > 0) ? rT / merc : null;
             const gmpBg = gmp == null ? 'transparent' : (gmp < 0.30 ? '#dcfce7' : gmp <= 0.60 ? '#fef9c3' : '#fee2e2');
@@ -414,7 +432,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <td style="padding:4px 6px;color:${dc}">${pct(dpct)}</td>
               <td style="padding:4px 6px"><span style="font-weight:700;background:${gmpBg};color:${gmpC};padding:1px 8px;border-radius:999px">${pct(gmp)}</span></td>
               <td style="padding:4px 6px"><span style="font-weight:700;background:${utiBg};color:${utiC};padding:1px 8px;border-radius:999px">${pct(uti)}</span></td>
-              <td style="text-align:center;padding:4px 6px">${rw.resultado ? resChip(rw.resultado) : '—'}</td></tr>`;
+              <td style="text-align:center;padding:4px 6px">${dpct != null ? CC.chip(CC.estado(dpct)) : (rw.resultado ? estChipRecon(rw) : '—')}</td></tr>`;
           }).join('') +
           '</tbody></table>';
       };
@@ -427,7 +445,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       reconState.rows = KoguApi.unwrapData(await KoguApi.apiFetch(RECON + '?periodo=' + encodeURIComponent(periodo))) || [];
       reconState.filtro = null;
-      renderFiltros(); renderReconTable();
+      renderFiltros(); renderReconTable(); renderKpis();
       cargarGastosMp(periodo);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }

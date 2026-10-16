@@ -120,3 +120,32 @@ test('tarjetas: una operación sin desviación (sin teórico) no se cuenta en ni
   const c = C.contarEstados([{ desv_total_pct: null }, { desv_total_pct: 0.02 }]);
   assert.equal(c.dentro.n + c.fuera.n + c.revisar.n, 1);
 });
+
+// ── Pantalla de Reconciliación: cada operación en su estado ─────────────────
+// Casos MEDIDOS: las 18 operaciones de 2026-03 re-reconciliadas el 2026-10-16
+// (desv_total_pct = gastos vs teórico). Con la banda ±5 % la pantalla mostraba
+// Dentro 0 · Sobre 1 · Bajo 13 · Sin teórico 4.
+const MAR_2026 = [
+  ...[-0.131, -0.153, -0.181, -0.253, -0.358, -0.460, -0.468, -0.486, -0.500, -0.632, -0.704, -0.707, -0.878]
+    .map((d) => ({ resultado: 'BajoTabulador', desv_total_pct: d })),
+  { resultado: 'SobreTabulador', desv_total_pct: 0.521 },
+  ...Array.from({ length: 4 }, () => ({ resultado: 'SinTeorico', desv_total_pct: null })),
+];
+
+test('reconciliación: marzo 2026 por estado — 0 dentro, 4 fuera, 10 revisar, 4 sin teórico', () => {
+  const n = {};
+  for (const r of MAR_2026) { const k = C.estadoRecon(r); n[k] = (n[k] || 0) + 1; }
+  assert.deepEqual(n, { fuera: 4, revisar: 10, SinTeorico: 4 });
+});
+
+test('reconciliación: Cramer +52.1 % (antes "↑ Sobre") es "revisar"; −13.1 % (antes "↓ Bajo") es "fuera"', () => {
+  assert.equal(C.estadoRecon({ resultado: 'SobreTabulador', desv_total_pct: 0.521 }), 'revisar');
+  assert.equal(C.estadoRecon({ resultado: 'BajoTabulador', desv_total_pct: -0.131 }), 'fuera');
+  assert.equal(C.estadoRecon({ resultado: 'DentroBanda', desv_total_pct: 0.02 }), 'dentro');
+});
+
+test('reconciliación: sin comparación conserva su motivo (sin teórico / proveedor / datos)', () => {
+  assert.equal(C.estadoRecon({ resultado: 'SinProveedor', desv_total_pct: null }), 'SinProveedor');
+  assert.equal(C.estadoRecon({ resultado: 'SinDatos', desv_total_pct: null }), 'SinDatos');
+  assert.equal(C.estadoRecon({ resultado: 'BajoTabulador', desv_total_pct: null }), 'SinDatos');
+});
