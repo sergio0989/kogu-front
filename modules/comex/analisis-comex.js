@@ -335,18 +335,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const esCtrl = vista === 'control';
     const leyendaVista = esCtrl
       ? ' · Control vs teórico: DDP real/kg vs teórico/kg. La mercancía (MP) se compara solo en líneas del producto de su costeo (misma raíz de clave); si cubre menos del 50 % de los kg, el DDP queda "MP parcial" y la señal se lee en la columna MP vs teó. Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
-      : ' · costo USD = DDP total';
+      : ' · costo total = mercancía + gastos + arancel (DDP puesto en almacén)';
     $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s)${leyendaVista}${hint}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const metricHead = esCtrl
       ? `${th('real_ddp', 'DDP real/kg')}${th('teo_ddp', 'DDP teó/kg')}${th('desv', 'Desv vs teó')}<th style="padding:6px">Estado</th>${th('mp_desv', 'MP vs teó', M)}`
-      : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', 'DDP/kg')}${th('gmp', 'Gastos/MP', M)}${th('uti', 'UtiPor')}`;
+      : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</span>')}${th('gmp', 'Gastos/MP', M)}${th('uti', 'UtiPor')}`;
     const nMetric = 5;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
       ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
-      ${th('periodo', 'Periodos', 'text-align:left')}${th('ops', 'Ops')}${th('kg', 'Kg')}${th('costo_usd', 'Costo USD')}
+      ${th('periodo', 'Periodos', 'text-align:left')}${th('ops', 'Ops')}${th('kg', 'Kg')}${th('costo_usd', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</span>')}
       ${metricHead}</tr></thead>`;
     const ncol = 5 + nMetric + (meta.nombre ? 1 : 0) + (meta.prov ? 1 : 0) + (expand ? 1 : 0);
     if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin datos. Reconcilia el periodo primero.'}</td></tr></tbody>`; $('tAn').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk))); return; }
@@ -451,8 +451,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="text-align:center;padding:4px 6px">${o.resultado ? resChip(o.resultado) : '—'}</td></tr>`;
   };
   const opHead = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
-    <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th>Costo USD</th>
-    <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
+    <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
+    <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</th>
     <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead>`;
 
   // Detalle por operación en la vista CONTROL: cada pedimento contra su teórico,
@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return ini + `<td style="padding:4px 6px">$${usd4(gR)}</td><td style="padding:4px 6px;color:#64748b">$${usd4(gT)}</td>${celEst(gD, CC.estado(gD))}${mpCel}${ddpCel}</tr>`;
   };
   const opHeadCtl = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
-    <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th>Costo USD</th>
+    <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
     <th>Gastos real/kg</th><th>Gastos teó/kg</th><th>Gastos vs teó</th><th style="${M};padding:4px 6px">MP vs teó</th><th>DDP vs teó</th></tr></thead>`;
 
   // Desglose por modo de transporte (aéreo / marítimo) del proveedor. Solo se
@@ -514,8 +514,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:5px 6px">${utiPill(uti)}</td></tr>`;
     }).join('');
     const head = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
-      <th style="text-align:left;padding:4px 6px">Modo</th><th>Kg</th><th>Costo USD</th>
-      <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th>DDP/kg</th>
+      <th style="text-align:left;padding:4px 6px">Modo</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
+      <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</th>
       <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th></tr></thead>`;
     return `<div style="margin-bottom:10px">
       <div style="font-weight:700;color:#334155;font-size:11.5px;margin-bottom:3px">Desglose por modo de transporte</div>
