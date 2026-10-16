@@ -130,7 +130,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fleT = K(b.flete_teo), fleR = K(b.flete_real), gasT = K(b.gastos_teo), gasR = K(b.gastos_real);
     const ddpT = mpOk ? mpT + fleT + gasT : null, ddpR = mpOk ? mpR + fleR + gasR : null;
     const dv = (r, t) => (r != null && t != null && t > 0) ? (r - t) / t : null;
-    const ddpD = dv(ddpR, ddpT), eDdp = EST(ddpD);
+    // Regla única (modules/comex/comex-control.js): con MP comparable < 50 % de los kg
+    // el DDP no recibe estado ('MP parcial'); la señal se lee en el bloque Materia prima.
+    const CC = window.KoguComexControl;
+    const ctlD = CC.control({ kg, kgMp, mpReal: b.mp_real, mpTeo: b.mp_teo, gastosReal: Number(b.flete_real) + Number(b.gastos_real), gastosTeo: Number(b.flete_teo) + Number(b.gastos_teo) }).ddp;
+    const ddpD = dv(ddpR, ddpT);
+    const eDdp = ctlD.estado === 'parcial' ? CC.color('parcial') : EST(ddpD);
     const cobMp = kg > 0 ? Math.round(kgMp / kg * 100) : 0;
     const baseDdp = mpOk
       ? `real $${ddpR.toFixed(4)}/kg vs teórico $${ddpT.toFixed(4)}/kg · base: mercancía sobre ${n0(kgMp)} de ${n0(kg)} kg (${cobMp}%, líneas del producto de su costeo); flete y gastos sobre ${n0(kg)} kg`
@@ -141,7 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="font-size:28px;font-weight:800;color:${eDdp.co};line-height:1.15">${mpOk ? pfd(ddpD) : 'MP sin teórico'} <span style="font-size:14px">DDP total</span></div>
         <div style="font-size:12px;color:${eDdp.co};opacity:.9">${baseDdp}</div>
       </div>
-      <div style="align-self:center">${estChip(ddpD)}</div></div>`;
+      <div style="align-self:center">${ctlD.estado === 'parcial' ? CC.chip('parcial', 'La mercancía comparable cubre menos del 50 % de los kg: el DDP no recibe estado. Revisa el bloque Materia prima.') : estChip(ddpD)}</div></div>`;
     const u4 = (v) => v == null ? '—' : '$' + v.toFixed(4);
     const brow = (lab, teo, real, base) => { const d = dv(real, teo), e = EST(d); return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right"><td style="text-align:left;padding:7px 6px">${lab}</td><td style="padding:7px 6px">${u4(teo)}</td><td style="padding:7px 6px">${u4(real)}</td><td style="padding:7px 6px;font-weight:700;color:${e.co}">${pfd(d)}<div class="muted" style="font-size:10px;font-weight:400">${base}</div></td><td style="padding:7px 6px;text-align:right">${estChip(d)}</td></tr>`; };
     const tabla = `<table class="table" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;margin-top:12px"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">

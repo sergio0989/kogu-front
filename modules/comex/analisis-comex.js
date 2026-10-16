@@ -36,9 +36,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // DDP/kg = MP/kg (solo líneas del producto del costeo, base kg_mp_cmp)
   //        + gastos/kg (flete + nacionales, toda op con teórico, base kg_cmp).
   // Sin líneas propias → null ("MP sin teórico"): no se compara contra otro producto.
-  const realDdpKg = (r) => { const k = Number(r.kg_cmp) || 0, km = Number(r.kg_mp_cmp) || 0; return (k > 0 && km > 0) ? Number(r.mp_real_mp_cmp) / km + Number(r.gastos_real_cmp) / k : null; };
-  const teoDdpKg = (r) => { const k = Number(r.kg_cmp) || 0, km = Number(r.kg_mp_cmp) || 0; return (k > 0 && km > 0) ? Number(r.teo_mp) / km + (Number(r.teo_flete) + Number(r.teo_otros)) / k : null; };
-  const cobMp = (r) => { const k = Number(r.kg_cmp) || 0; return k > 0 ? Math.round((Number(r.kg_mp_cmp) || 0) / k * 100) : 0; };
+  // Regla única de control (modules/comex/comex-control.js, probada en tests/):
+  // DDP con estado solo si la MP comparable cubre ≥50 % de los kg; MP se evalúa aparte.
+  const CC = window.KoguComexControl;
+  const ctl = (r) => CC.control({ kg: r.kg_cmp, kgMp: r.kg_mp_cmp, mpReal: r.mp_real_mp_cmp, mpTeo: r.teo_mp,
+    gastosReal: r.gastos_real_cmp, gastosTeo: Number(r.teo_flete) + Number(r.teo_otros) });
+  const realDdpKg = (r) => ctl(r).ddp.real;
+  const teoDdpKg = (r) => ctl(r).ddp.teo;
 
   c.innerHTML = `
 <div class="card">
@@ -330,15 +334,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         : ' · expande un proveedor → sus operaciones';
     const esCtrl = vista === 'control';
     const leyendaVista = esCtrl
-      ? ' · Control vs teórico: DDP real/kg vs teórico/kg. La mercancía se compara solo en líneas del producto de su costeo (misma raíz de clave). Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
+      ? ' · Control vs teórico: DDP real/kg vs teórico/kg. La mercancía (MP) se compara solo en líneas del producto de su costeo (misma raíz de clave); si cubre menos del 50 % de los kg, el DDP queda "MP parcial" y la señal se lee en la columna MP vs teó. Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
       : ' · costo USD = DDP total';
     $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s)${leyendaVista}${hint}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const metricHead = esCtrl
-      ? `${th('real_ddp', 'DDP real/kg')}${th('teo_ddp', 'DDP teó/kg')}${th('desv', 'Desv vs teó')}<th style="padding:6px">Estado</th>`
+      ? `${th('real_ddp', 'DDP real/kg')}${th('teo_ddp', 'DDP teó/kg')}${th('desv', 'Desv vs teó')}<th style="padding:6px">Estado</th>${th('mp_desv', 'MP vs teó', M)}`
       : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', 'DDP/kg')}${th('gmp', 'Gastos/MP', M)}${th('uti', 'UtiPor')}`;
-    const nMetric = esCtrl ? 4 : 5;
+    const nMetric = 5;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
       ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
@@ -352,19 +356,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       let metricCells;
       if (esCtrl) {
         const kgc = Number(r.kg_cmp) || 0;
-        const rd = realDdpKg(r), td = teoDdpKg(r);
-        const desv = (rd != null && td != null && td !== 0) ? (rd - td) / td : null;
-        if (kgc <= 0) {
-          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${estChipA(null)}</td>`;
-        } else if (!(Number(r.kg_mp_cmp) > 0)) {
-          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3" title="Ninguna línea real es del producto de su costeo: la mercancía no se compara contra otro producto.">— MP sin teórico —</td><td style="padding:6px;text-align:center">${estChipA(null)}</td>`;
+        const c = ctl(r), d = c.ddp;
+        const cob = Math.round(c.cobMp * 100);
+        const mpCell = c.mp
+          ? `<td style="padding:6px;${M}" title="MP real $${usd4(c.mp.real)}/kg vs EXW $${usd4(c.mp.teo)}/kg · sobre ${kg(c.mp.kg)} de ${kg(kgc)} kg (${cob}%)"><span style="font-weight:700;color:${CC.color(c.mp.estado).co}">${CC.pct(c.mp.desv)}</span> ${CC.chip(c.mp.estado)}<div class="muted" style="font-size:10px">sobre ${cob}% kg</div></td>`
+          : `<td style="padding:6px;color:#94a3b8;${M}">${kgc > 0 ? 'sin teórico' : '—'}</td>`;
+        if (d.motivo === 'sin_teorico') {
+          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${CC.chip(null)}</td>${mpCell}`;
+        } else if (d.motivo === 'mp_sin_teorico') {
+          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3" title="Ninguna línea real es del producto de su costeo: la mercancía no se compara contra otro producto.">— MP sin teórico —</td><td style="padding:6px;text-align:center">${CC.chip(null)}</td>${mpCell}`;
         } else {
-          const e = ESTA(desv);
-          const cob = cobMp(r);
-          metricCells = `<td style="padding:6px" title="Mercancía comparable sobre ${kg(r.kg_mp_cmp)} de ${kg(kgc)} kg (${cob}%)">$${usd4(rd)}${cob < 100 ? `<div class="muted" style="font-size:10px">MP sobre ${cob}% kg</div>` : ''}</td>
-        <td style="padding:6px;color:#64748b">$${usd4(td)}</td>
-        <td style="padding:6px;font-weight:700;color:${e.co}">${pfA(desv)}</td>
-        <td style="padding:6px;text-align:center">${estChipA(desv)}</td>`;
+          const e = CC.color(d.estado);
+          const tip = d.estado === 'parcial'
+            ? `La mercancía comparable cubre solo ${cob}% de los kg: el DDP no recibe estado. Lee la señal en MP vs teó.`
+            : `Mercancía comparable sobre ${kg(r.kg_mp_cmp)} de ${kg(kgc)} kg (${cob}%)`;
+          metricCells = `<td style="padding:6px" title="${tip}">$${usd4(d.real)}${cob < 100 ? `<div class="muted" style="font-size:10px">MP sobre ${cob}% kg</div>` : ''}</td>
+        <td style="padding:6px;color:#64748b">$${usd4(d.teo)}</td>
+        <td style="padding:6px;font-weight:700;color:${e.co}">${CC.pct(d.desv)}</td>
+        <td style="padding:6px;text-align:center">${CC.chip(d.estado, tip)}</td>${mpCell}`;
         }
       } else {
         const mpKg = kgv > 0 ? Number(r.mp_usd) / kgv : null;
@@ -408,7 +417,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'periodo': return String(r.periodo_min || '');
       case 'real_ddp': { const v = realDdpKg(r); return v == null ? -1 : v; }
       case 'teo_ddp': { const v = teoDdpKg(r); return v == null ? -1 : v; }
-      case 'desv': { const rd = realDdpKg(r), td = teoDdpKg(r); return (rd != null && td) ? (rd - td) / td : -1e9; }
+      case 'desv': { const v = ctl(r).ddp.desv; return v == null ? -1e9 : v; }
+      case 'mp_desv': { const m = ctl(r).mp; return m && m.desv != null ? m.desv : -1e9; }
       default: return 0;
     }
   }
@@ -577,7 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   $('ventanaDias').addEventListener('change', () => { consol = null; if (corte === 'consolidacion') cargarConsolidacion(); });
   document.querySelectorAll('button[data-c]').forEach(bn => bn.addEventListener('click', () => { corte = bn.dataset.c; filtro = ''; if ($('anQ')) $('anQ').value = ''; sortKey = 'costo_usd'; sortDir = 'desc'; render(); }));
-  const setVista = (v) => { vista = v; if (sortKey === 'gastos_kg' || sortKey === 'mp_kg' || sortKey === 'gmp' || sortKey === 'uti' || sortKey === 'desv' || sortKey === 'real_ddp' || sortKey === 'teo_ddp') { sortKey = 'costo_usd'; sortDir = 'desc'; } render(); };
+  const setVista = (v) => { vista = v; if (sortKey === 'gastos_kg' || sortKey === 'mp_kg' || sortKey === 'gmp' || sortKey === 'uti' || sortKey === 'desv' || sortKey === 'mp_desv' || sortKey === 'real_ddp' || sortKey === 'teo_ddp') { sortKey = 'costo_usd'; sortDir = 'desc'; } render(); };
   if ($('vComp')) $('vComp').addEventListener('click', () => setVista('composicion'));
   if ($('vCtrl')) $('vCtrl').addEventListener('click', () => setVista('control'));
   let anQTimer = null;
