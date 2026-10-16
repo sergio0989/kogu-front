@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const boot = await KoguShell.initShell({
     currentPage: '/modules/cfdi/bandeja-nomina/bandeja-nomina.html',
     title: 'Bandeja CFDI Nómina',
-    description: 'Análisis de recibos de nómina emitidos por mes (fecha de pago). Detalle por recibo y datos para tabla dinámica (percepciones, deducciones, otros pagos y neto).',
+    description: 'Análisis de recibos de nómina emitidos por mes o año completo (fecha de pago). Detalle por recibo y datos para tabla dinámica (percepciones, deducciones, otros pagos y neto).',
     // Any-of: la comparten los perfiles cfdinomina y cfdi_solo_nomina.
     requiredPermission: ['cfdi.tipo.nomina.read', 'cfdi.alcance.solo_nomina']
   });
@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Mes por defecto = mes en curso (YYYY-MM).
   const now = new Date();
   const defMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const defAnio = now.getFullYear();
 
   app.innerHTML = `
     <div class="stack">
@@ -28,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="eyebrow">Nómina · Emitida</div>
             <h2>Bandeja CFDI Nómina</h2>
             <p class="muted" style="margin-top:6px;">
-              Recibos de nómina emitidos, agrupados por mes según la <strong>fecha de pago</strong>. El detalle es un renglón por recibo; la hoja "Datos" del Excel está lista para construir tu tabla dinámica (puedes agregar tu centro de costos).
+              Recibos de nómina emitidos, por mes o año completo según la <strong>fecha de pago</strong>. El detalle es un renglón por recibo; la hoja "Datos" del Excel está lista para construir tu tabla dinámica (puedes agregar tu centro de costos).
             </p>
           </div>
           <div class="page-actions">
@@ -39,8 +40,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         <div class="grid-4" style="margin-top:16px;">
           <div>
-            <label class="label-text">Mes (fecha de pago)</label>
-            <input class="input" type="month" id="mes" value="${defMes}" />
+            <label class="label-text">Periodo (fecha de pago)</label>
+            <div class="row" style="gap:8px;flex-wrap:nowrap;">
+              <select class="input" id="tipoPeriodo" style="max-width:150px;">
+                <option value="mes">Mes</option>
+                <option value="anio">Año completo</option>
+              </select>
+              <input class="input" type="month" id="mes" value="${defMes}" />
+              <input class="input" type="number" id="anio" value="${defAnio}" min="2000" max="2100" step="1" style="display:none;" />
+            </div>
           </div>
           <div>
             <label class="label-text">Núm. empleado</label>
@@ -119,12 +127,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function buildQuery(includePaging = true) {
     const qs = new URLSearchParams();
+    const tipoPeriodo = document.getElementById('tipoPeriodo').value;
     const mes = document.getElementById('mes').value;
+    const anio = document.getElementById('anio').value.trim();
     const numEmpleado = document.getElementById('numEmpleado').value.trim();
     const rfc = document.getElementById('rfc').value.trim();
     const uuid = document.getElementById('uuid').value.trim();
 
-    if (mes) qs.set('mes', mes);
+    if (tipoPeriodo === 'anio') {
+      if (anio) qs.set('anio', anio);
+    } else if (mes) {
+      qs.set('mes', mes);
+    }
     if (numEmpleado) qs.set('num_empleado', numEmpleado);
     if (rfc) qs.set('rfc', rfc);
     if (uuid) qs.set('uuid', uuid);
@@ -212,7 +226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderRows(data.items || []);
       renderPager();
       const emp = data?.empresa?.nombre_corto || data?.empresa?.razon_social || 'empresa activa';
-      const mesLbl = data?.mes?.etiqueta || document.getElementById('mes').value;
+      const mesLbl = data?.periodo?.etiqueta || data?.mes?.etiqueta || document.getElementById('mes').value;
       const nCancel = Number(data?.kpis?.cancelados || 0);
       const cancelTxt = nCancel ? ` · ${KoguUi.int(nCancel)} cancelados (no cuentan)` : '';
       document.getElementById('statusMsg').textContent =
@@ -271,6 +285,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('consultarBtn').onclick = () => { state.offset = 0; consultar(); };
   document.getElementById('exportBtn').onclick = () => exportarExcel();
   document.getElementById('mes').onchange = () => { state.offset = 0; consultar(); };
+  document.getElementById('anio').onchange = () => { state.offset = 0; consultar(); };
+  document.getElementById('tipoPeriodo').onchange = () => {
+    const esAnio = document.getElementById('tipoPeriodo').value === 'anio';
+    document.getElementById('mes').style.display = esAnio ? 'none' : '';
+    document.getElementById('anio').style.display = esAnio ? '' : 'none';
+    state.offset = 0;
+    consultar();
+  };
   document.getElementById('prevBtn').onclick = () => { state.offset = Math.max(0, state.offset - state.limit); consultar(); };
   document.getElementById('nextBtn').onclick = () => { state.offset += state.limit; consultar(); };
 
