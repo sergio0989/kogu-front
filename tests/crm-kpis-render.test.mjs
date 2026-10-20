@@ -55,6 +55,23 @@ const LIMPIO = {
   },
 };
 
+// Recorte con agente y mes puestos, como lo devuelve el servicio.
+const CON_RECORTE = {
+  ...CON_DATOS,
+  filtro: { periodo: '2026-09', solo_con_periodo: true, agente_id: 'ag-1',
+            origen: 'mi-panel', severidad: null },
+};
+
+// Nada cerrado todavia: decir "0 en aumento" da a entender que se cerraron
+// y ninguna aumento, que es distinto.
+const SIN_CIERRES = {
+  ...CON_DATOS,
+  cierre: { cerradas: 0, canceladas: 0, tasa_cierre: 0 },
+  desenlace: { aumento: 0, estable: 0, disminucion: 0, baja_temporal: 0,
+               baja_total: 0, nuevo_cliente: 0, spot: 0, seguimiento: 0,
+               no_aplica: 0, completada: 0 },
+};
+
 const CON_PERIODO = {
   ...CON_DATOS,
   filtro: { periodo: '2026-09', solo_con_periodo: true, agente_id: null, origen: null, severidad: null },
@@ -315,6 +332,66 @@ await check('el estado nunca viaja solo en color: siempre trae su etiqueta', asy
   const t = texto();
   assert.ok(/exigen acci[oó]n|fuera de vigencia/i.test(t), 'las vencidas no se explican');
   assert.ok(/cerradas de/i.test(t), 'la tasa no dice de cuantas');
+});
+
+console.log('\n── El recorte viaja con los numeros ────────────────────────────');
+
+// Observado el 20-oct: al filtrar por agente, el nombre solo vivia en el
+// desplegable de arriba. Al hacer scroll —o al tomar una captura— las
+// cifras quedaban sin decir de quien son. Mismo criterio que ya aplicamos
+// en Consulta de ventas y en el libro de Excel: el contexto acompaña al
+// numero, no se queda en el control.
+await check('el encabezado de resultados nombra al agente filtrado', async () => {
+  const { window, texto } = await arranca(CON_RECORTE);
+  // El nombre lo resuelve el front desde su propio catalogo de agentes.
+  const cuerpo = (window.document.getElementById('kpiRecorte') || { textContent: '' }).textContent;
+  assert.ok(/ALEJANDRA GONZALEZ/i.test(cuerpo),
+    `el bloque de resultados no dice de que agente son las cifras: "${cuerpo.slice(0, 120)}"`);
+  assert.ok(/agente/i.test(cuerpo), 'no etiqueta que ese nombre es el agente');
+});
+
+await check('tambien nombra el mes analizado y el origen', async () => {
+  // Contra el renglon del recorte, no contra todo el cuerpo: "2026-09" ya
+  // sale en el aviso ambar y "Radar · Mi panel" en el desglose de origen,
+  // asi que buscarlos sueltos daba un verde falso.
+  const { window } = await arranca(CON_RECORTE);
+  const linea = window.document.getElementById('kpiRecorte');
+  assert.ok(linea, 'no hay renglon que declare el recorte');
+  const t = linea.textContent;
+  assert.ok(/sep 2026|2026-09/.test(t), `el recorte no nombra el mes: "${t}"`);
+  assert.ok(/Radar|Mi panel/i.test(t), `el recorte no nombra el origen: "${t}"`);
+});
+
+await check('sin filtros el encabezado no inventa recortes', async () => {
+  const { window } = await arranca();
+  const cuerpo = (window.document.getElementById('kpiRecorte') || { textContent: '' }).textContent;
+  assert.ok(!/agente:/i.test(cuerpo), 'anuncia un agente cuando no hay ninguno filtrado');
+});
+
+await check('los filtros activos salen como chips con forma de quitarlos', async () => {
+  const { window } = await arranca(CON_RECORTE);
+  const chip = window.document.querySelector('#kpiChips [data-quita]');
+  assert.ok(chip, 'no hay chips con los filtros activos');
+  const texto = window.document.getElementById('kpiChips').textContent;
+  assert.ok(/ALEJANDRA GONZALEZ/i.test(texto), 'el chip no nombra al agente');
+});
+
+await check('quitar un chip limpia ese filtro y vuelve a consultar', async () => {
+  const { window, pedidos } = await arranca(CON_RECORTE);
+  const chip = window.document.querySelector('#kpiChips [data-quita="agente"]');
+  assert.ok(chip, 'no hay chip del agente');
+  const antes = pedidos.length;
+  chip.click();
+  await new Promise((r) => setTimeout(r, 200));
+  assert.ok(pedidos.length > antes, 'quitar el chip no reconsulto');
+  assert.ok(!pedidos[pedidos.length - 1].includes('agente_id='), 'siguio mandando el agente');
+});
+
+await check('sin cierres, el desenlace lo dice en vez de "0 en aumento"', async () => {
+  const { texto } = await arranca(SIN_CIERRES);
+  const t = texto();
+  assert.ok(/sin cierres|ninguna cerrada|a[uú]n no/i.test(t),
+    'dice "0 en aumento", que da a entender que se cerraron y ninguna aumento');
 });
 
 console.log('\n── Filtros y estado vacio ──────────────────────────────────────');

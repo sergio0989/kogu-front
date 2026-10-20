@@ -119,12 +119,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
     </div>
+    <div id="kpiChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px"></div>
   </div>
   <div id="kpiCuerpo"></div>
 </div>`;
 
   $('kpiDesde').value = haceDias(90);
   $('kpiHasta').value = hoyISO();
+
+  // El recorte que produjo las cifras. Vive en UN solo lugar porque lo
+  // consumen dos: el encabezado del bloque de resultados —para que viaje
+  // con los números en una captura— y los chips, que además lo dejan quitar.
+  function recorteActivo(d) {
+    const f = (d && d.filtro) || {};
+    const out = [];
+    if (f.agente_id) out.push({ clave: 'agente', etq: 'Agente', val: AGENTES[f.agente_id] || f.agente_id });
+    if (f.periodo) out.push({ clave: 'periodo', etq: 'Mes analizado', val: fmtMes(f.periodo) });
+    if (f.origen) out.push({ clave: 'origen', etq: 'Origen', val: ORIGEN_TXT[f.origen] || f.origen });
+    if (f.severidad) out.push({ clave: 'severidad', etq: 'Severidad', val: esc(f.severidad) });
+    return out;
+  }
+
+  const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const fmtMes = (v) => {
+    const m = String(v || '').match(/^(\d{4})-(\d{2})/);
+    return m ? `${MESES_CORTOS[Number(m[2]) - 1]} ${m[1]}` : String(v || '');
+  };
+
+  const CAMPO_DE = { agente: 'kpiAgente', periodo: 'kpiPeriodo', origen: 'kpiOrigen', severidad: 'kpiSev' };
+
+  function pintarChips(d) {
+    const act = recorteActivo(d);
+    $('kpiChips').innerHTML = act.map((x) => `
+      <span class="chip" style="display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:13px">
+        <span style="color:var(--muted)">${esc(x.etq)}:</span> <b>${esc(x.val)}</b>
+        <button type="button" data-quita="${esc(x.clave)}" title="Quitar filtro" aria-label="Quitar"
+          style="border:0;background:transparent;cursor:pointer;color:var(--muted);font-size:15px;line-height:1;padding:0 3px">\u00d7</button>
+      </span>`).join('');
+  }
 
   function pintar(d) {
     const v = d.volumen || {};
@@ -161,7 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('kpiCuerpo').innerHTML = `
       <div class="card" style="margin-top:14px">
-        <div class="eyebrow" style="margin-bottom:10px">Del ${esc(d.periodo.desde)} al ${esc(d.periodo.hasta)}</div>
+        <div class="eyebrow" id="kpiRecorte" style="margin-bottom:10px">Del ${esc(d.periodo.desde)} al ${esc(d.periodo.hasta)}${recorteActivo(d).map((x) => ` · ${esc(x.etq)}: ${esc(x.val)}`).join('')}</div>
         ${vacio ? `<div class="empty">Sin actividades creadas en este periodo. Ajusta las fechas o el origen.</div>` : `
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
           ${card('Creadas', String(d.creadas.total), origenes, IDENT.caida)}
@@ -174,7 +207,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${card('Tasa de cierre', pct(d.cierre.tasa_cierre),
                  `${d.cierre.cerradas} cerradas de ${d.creadas.total} · ${d.cierre.canceladas} canceladas`,
                  banda(d.cierre.tasa_cierre), { valor: true })}
-          ${card('Desenlace', `${des.aumento || 0} en aumento`,
+          ${(d.cierre.cerradas || 0) === 0
+            ? card('Desenlace', 'Sin cierres', 'aún no se ha cerrado ninguna actividad', EST.neutro)
+            : card('Desenlace', `${des.aumento || 0} en aumento`,
                  RES_ORDEN.filter((r) => r !== 'aumento' && (des[r] || 0) > 0)
                    .map((r) => `${des[r]} ${RES_TXT[r].toLowerCase()}`).join(' · ') || 'sin otros desenlaces',
                  (des.aumento || 0) > 0 ? EST.ok : EST.neutro, { valor: (des.aumento || 0) > 0 })}
@@ -219,7 +254,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('kpiSev').value) q.set('severidad', $('kpiSev').value);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/actividades/kpis?${q}`);
-      pintar(res?.data || res);
+      const d = res?.data || res;
+      pintar(d);
+      pintarChips(d);
     } catch (err) {
       $('kpiCuerpo').innerHTML =
         `<div class="card" style="margin-top:14px"><div class="empty">${esc(err.message || 'No se pudieron calcular los indicadores.')}</div></div>`;
@@ -231,15 +268,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Catálogo de agentes: lo sirve el propio módulo CRM con el permiso que
   // esta pantalla ya exige, así que no hace falta tocar permisos de Radar.
+  var AGENTES = {};
   async function cargarAgentes() {
     try {
       const res = await KoguApi.apiFetch(`${BASE}/agentes`);
       const filas = (res && res.data && res.data.rows) || (res && res.data) || [];
+      filas.forEach((a) => { AGENTES[a.agente_id] = a.agente_nombre || a.nombre || a.agente_id; });
       $('kpiAgente').innerHTML = '<option value="">Todos los agentes</option>'
         + filas.map((a) => `<option value="${esc(a.agente_id)}">${esc(a.agente_nombre || a.nombre || a.agente_id)}</option>`).join('');
     } catch (_) { /* sin catálogo el selector se queda en "todos" */ }
   }
   await cargarAgentes();
+
+  // Quitar un filtro desde su chip: limpia el control y vuelve a consultar.
+  $('kpiChips').addEventListener('click', function (e) {
+    const b = e.target && e.target.closest ? e.target.closest('[data-quita]') : null;
+    if (!b) return;
+    const campo = CAMPO_DE[b.getAttribute('data-quita')];
+    if (!campo) return;
+    $(campo).value = '';
+    consultar();
+  });
 
   await consultar();
 
