@@ -195,6 +195,41 @@ await check('la actividad guarda el mismo importe que la tarjeta (solo dormancia
     `la actividad guardó ${body.monto_riesgo} y la tarjeta mide 240000 de venta en la ventana`);
 });
 
+console.log('\n── El mes de ventas analizado ──────────────────────────────────');
+
+// Ajuste del 20-oct: la actividad debe decir QUE MES se esta analizando.
+// No es la fecha de captura — una actividad creada el 20 de octubre puede
+// estar mirando septiembre— y sin el campo los KPIs no pueden filtrar.
+await check('el modal ofrece el mes analizado, precargado con el cierre de la ventana', async () => {
+  const { window } = await arranca();
+  const btn = window.document.querySelector('#alertas .btn[data-act-ref="5001"]');
+  btn.onclick();
+  await new Promise((r) => setTimeout(r, 60));
+  const campo = window.document.getElementById('rcActPeriodo');
+  assert.ok(campo, 'el modal no deja indicar el mes analizado');
+  assert.equal(campo.value, '2026-09',
+    'debe precargarse con el cierre de la ventana medida (sep 2026), no con hoy');
+});
+
+await check('al crear, manda el periodo analizado', async () => {
+  const { window, posts } = await arranca();
+  const body = await creaActividad(window, posts, '5001');
+  assert.equal(body.periodo_analizado, '2026-09',
+    'la actividad se crea sin decir que mes analiza');
+});
+
+await check('si cambio el mes, se manda el que elegi', async () => {
+  const { window, posts } = await arranca();
+  const btn = window.document.querySelector('#alertas .btn[data-act-ref="5001"]');
+  btn.onclick();
+  await new Promise((r) => setTimeout(r, 60));
+  window.document.getElementById('rcActPeriodo').value = '2026-07';
+  const guardar = window.document.getElementById('rcActGuardar');
+  await guardar.onclick({ target: guardar });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(posts[posts.length - 1].periodo_analizado, '2026-07');
+});
+
 console.log('\n── La cerca de regresion: lo que NO debe cambiar ────────────────');
 
 await check('el cliente en caída clásica sigue guardando lo mismo que hoy', async () => {

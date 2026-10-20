@@ -516,6 +516,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   function closeActModal() { document.getElementById('rcCrearActModal')?.remove(); }
   // Riesgo en una base explícita (no depende del toggle de métrica activo).
+  // El mes analizado sale del CIERRE de la ventana que se está midiendo.
+  // Tomarlo de hoy seria el error que esta funcion existe para evitar: una
+  // actividad capturada el 20 de octubre puede estar revisando septiembre.
+  function mesAnalizado() {
+    var p = (comp && comp.periodos) || {};
+    var f = p.act_h || p.p1h || p.hasta || '';
+    var m = String(f).match(/^(\d{4})-(\d{2})/);
+    return m ? m[1] + '-' + m[2] : '';
+  }
+
   function openCrearActividad(c) {
     // La MISMA escalera que pintó la tarjeta: lo que el vendedor vio es lo
     // que queda congelado en la actividad.
@@ -539,6 +549,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <input class="input" id="rcActTitulo" value="Recuperar ${KoguUi.escapeHtml(nombre)}"/></div>
           <div style="margin-top:10px"><div class="label-text">Nota / plan de acción</div>
             <textarea class="input" id="rcActNota" rows="3" placeholder="¿Qué vas a hacer para recuperar a este cliente?"></textarea></div>
+          <div style="margin-top:10px"><div class="label-text">Mes de ventas analizado</div>
+            <input class="input" id="rcActPeriodo" type="month" value="${KoguUi.escapeHtml(mesAnalizado())}" style="max-width:200px"/>
+            <div class="hint" style="color:var(--muted);font-size:11px;margin-top:3px">No es la fecha de hoy: es el mes cuyo comportamiento estás revisando.</div>
+          </div>
           <div style="margin-top:10px"><div class="label-text">Vigencia (fecha límite)</div>
             <input class="input" id="rcActFecha" type="date" value="${hoyMas(15)}" style="max-width:200px"/></div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
@@ -558,6 +572,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         cliente_ref: c.cliente_ref,
         cliente_nombre: c.nombre,
         origen: 'mi-panel',
+        periodo_analizado: (document.getElementById('rcActPeriodo') || {}).value || null,
         severidad: c.severidad || null,
         monto_riesgo: montoMXN,
         kg_riesgo: kg,

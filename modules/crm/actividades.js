@@ -70,7 +70,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const SEV_TXT = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
   const EST = { abierta: 'var(--brand,#2563eb)', en_proceso: 'var(--warning,#d97706)', cerrada: 'var(--ok,#16a34a)', cancelada: 'var(--muted,#64748b)' };
   const EST_TXT = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
-  const RES_TXT = { recuperado: 'Recuperado', parcial: 'Parcial', perdido: 'Perdido', no_aplica: 'No aplica', completada: 'Completada' };
+  // Vocabulario de cierre consolidado el 20-oct. Describe QUÉ PASÓ CON EL
+  // CLIENTE, que es la pregunta de la revisión comercial. Los retirados
+  // —recuperado, parcial, perdido— quedaron cubiertos por aumento,
+  // disminución y baja total; tenerlos juntos partía la misma realidad
+  // en dos etiquetas.
+  const RES_TXT = {
+    aumento: 'Aumento', estable: 'Estable', disminucion: 'Disminución',
+    baja_temporal: 'Baja temporal', baja_total: 'Baja total',
+    nuevo_cliente: 'Nuevo cliente', spot: 'Spot',
+    seguimiento: 'Seguimiento (queda en observación)',
+    no_aplica: 'No aplica', completada: 'Completada',
+  };
+
+  // Mes de ventas analizado. No es la fecha de captura: una actividad
+  // creada en octubre puede estar analizando septiembre.
+  const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const fmtPeriodo = (v) => {
+    const m = String(v || '').match(/^(\d{4})-(\d{2})/);
+    return m ? `${MESES_CORTOS[Number(m[2]) - 1]} ${m[1]}` : '—';
+  };
   const ORIGEN_TXT = { 'mi-panel': 'Radar · Mi panel', 'bandeja-riesgo': 'Radar · Bandeja', 'manual': 'Manual' };
 
   const miniCard = (lbl, val, hint = '', color = '') => `
@@ -338,6 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="crm-metrics">
             <div class="ot-metrics">
               ${metric('En riesgo', (d.monto_riesgo != null || d.kg_riesgo != null) ? fmtRiesgo(d.monto_riesgo, d.kg_riesgo) : '—', (d.monto_riesgo != null || d.kg_riesgo != null) ? 'var(--danger,#dc2626)' : '')}
+              ${d.periodo_analizado ? metric('Periodo analizado', fmtPeriodo(d.periodo_analizado)) : ''}
               ${metric('Apertura', fmtDay(d.created_at))}
               ${metric('Vence', fmtDay(d.fecha_limite), d.vencida ? 'var(--danger,#dc2626)' : '')}
               ${d.estado === 'cerrada'
@@ -397,13 +418,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <div><div class="label-text">Resultado al cerrar</div>
                     <select class="select" id="crmResultado" style="margin-top:4px">
                       <option value="">—</option>
-                      <optgroup label="Venta">
-                        <option value="recuperado">Recuperado</option>
-                        <option value="parcial">Parcial</option>
-                        <option value="perdido">Perdido</option>
-                        <option value="no_aplica">No aplica</option>
+                      <optgroup label="Comportamiento del cliente">
+                        <option value="aumento">Aumento</option>
+                        <option value="estable">Estable</option>
+                        <option value="disminucion">Disminución</option>
+                        <option value="baja_temporal">Baja temporal</option>
+                        <option value="baja_total">Baja total</option>
+                        <option value="nuevo_cliente">Nuevo cliente</option>
+                        <option value="spot">Spot</option>
+                        <option value="seguimiento">Seguimiento (queda en observación)</option>
                       </optgroup>
-                      <optgroup label="General">
+                      <optgroup label="Administrativos">
+                        <option value="no_aplica">No aplica</option>
                         <option value="completada">Completada</option>
                       </optgroup>
                     </select>
