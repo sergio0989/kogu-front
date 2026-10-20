@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     sin_motivo: 'Sin motivo',
   };
   const SEV_COLOR = { critica: EST.mal, alerta: EST.warn, info: EST.neutro };
+  const SEV_TXT = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
   const EST_TXT = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
 
   // Tabla de detalle. Una fila por ACTIVIDAD y SIN fila de totales: cada
@@ -192,7 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${td(esc(f.agente || '—'))}
             ${td(f.periodo_analizado ? esc(fmtMes(f.periodo_analizado)) : '—')}
             ${td(esc(MOTIVO_TXT[f.motivo] || f.motivo))}
-            ${td(`<span style="color:${SEV_COLOR[f.severidad] || EST.neutro}">${esc(f.severidad || '—')}</span>`)}
+            ${td(`<span style="color:${SEV_COLOR[f.severidad] || EST.neutro}">${esc(SEV_TXT[f.severidad] || f.severidad || '—')}</span>`)}
             ${td(nf0.format(f.kg || 0), true)}
             ${td(money(f.mxn || 0), true)}
             ${td(esc(EST_TXT[f.estado] || f.estado))}
