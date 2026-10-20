@@ -30,7 +30,10 @@ const CON_DATOS = {
   creadas: { total: 9, por_origen: { 'mi-panel': 8, manual: 1 } },
   pendiente: { abiertas: 3, en_proceso: 1, vencidas: 1 },
   cierre: { cerradas: 4, canceladas: 1, tasa_cierre: 0.4444 },
-  desenlace: { recuperado: 1, parcial: 1, perdido: 1, no_aplica: 0, completada: 1 },
+  desenlace: { aumento: 1, estable: 0, disminucion: 1, baja_temporal: 0,
+               baja_total: 1, nuevo_cliente: 0, spot: 0, seguimiento: 0,
+               no_aplica: 0, completada: 1 },
+  filtro: { periodo: null, solo_con_periodo: false, agente_id: null, origen: null, severidad: null },
   vigencia: { cerradas_a_tiempo: 3, pct_a_tiempo: 0.75, dias_mediana_cierre: 7, dias_mediana_tomar: 1 },
   volumen: {
     caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 5, en_cero: 2 },
@@ -50,6 +53,11 @@ const LIMPIO = {
     deriva:          { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0 },
     sin_motivo:      { kg: 0, mxn: 0, actividades: 0, en_cero: 0 },
   },
+};
+
+const CON_PERIODO = {
+  ...CON_DATOS,
+  filtro: { periodo: '2026-09', solo_con_periodo: true, agente_id: null, origen: null, severidad: null },
 };
 
 const SIN_MOTIVO_VACIO = {
@@ -94,7 +102,13 @@ async function arranca(cuerpo = CON_DATOS) {
     subscribeEmpresaActivaChange: () => {},
   };
   window.KoguApi = {
-    apiFetch: async (url) => { pedidos.push(url); return { ok: true, data: actual }; },
+    apiFetch: async (url) => {
+      pedidos.push(url);
+      if (url.includes('/agentes')) {
+        return { ok: true, data: { rows: [{ agente_id: 'ag-1', agente_nombre: 'ALEJANDRA GONZALEZ' }] } };
+      }
+      return { ok: true, data: actual };
+    },
     toast: () => {},
     withLoading: async (el, fn) => fn(),
   };
@@ -183,12 +197,62 @@ await check('la tasa de cierre se pinta como porcentaje legible', async () => {
   assert.ok(/44\s*%|44\.4\s*%/.test(texto()), 'no convirtio 0.4444 a porcentaje');
 });
 
-await check('pinta el desenlace con sus cuatro resultados', async () => {
+await check('pinta el desenlace con el vocabulario nuevo', async () => {
   const { texto } = await arranca();
   const t = texto().toLowerCase();
-  for (const r of ['recuperad', 'parcial', 'perdid', 'completad']) {
+  for (const r of ['aumento', 'disminuci', 'baja total']) {
     assert.ok(t.includes(r), `falta ${r} en el desenlace`);
   }
+  for (const r of ['recuperad', 'parcial', 'perdid']) {
+    assert.ok(!t.includes(r), `"${r}" sigue apareciendo y quedo retirado`);
+  }
+});
+
+console.log('\n── Filtros nuevos: agente y mes analizado ──────────────────────');
+
+await check('ofrece un selector de agente, poblado del catalogo de CRM', async () => {
+  const { window, pedidos } = await arranca();
+  const sel = window.document.getElementById('kpiAgente');
+  assert.ok(sel, 'no hay selector de agente');
+  assert.ok(pedidos.some((u) => u.includes('/crm/agentes')),
+    'no pidio el catalogo de agentes');
+  const vals = [...sel.options].map((o) => o.value);
+  assert.ok(vals.includes('ag-1'), `no poblo el selector: ${JSON.stringify(vals)}`);
+});
+
+await check('elegir un agente vuelve a consultar con ese filtro', async () => {
+  const { window, pedidos } = await arranca();
+  const sel = window.document.getElementById('kpiAgente');
+  sel.value = 'ag-1';
+  sel.dispatchEvent(new window.Event('change'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.ok(pedidos.some((u) => u.includes('agente_id=ag-1')), 'no mando el agente');
+});
+
+await check('ofrece filtrar por el mes de ventas analizado', async () => {
+  const { window, pedidos } = await arranca();
+  const campo = window.document.getElementById('kpiPeriodo');
+  assert.ok(campo, 'no hay filtro de mes analizado');
+  campo.value = '2026-09';
+  campo.dispatchEvent(new window.Event('change'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.ok(pedidos.some((u) => u.includes('periodo=2026-09')), 'no mando el periodo');
+});
+
+await check('al filtrar por mes ADVIERTE que deja fuera a las que no lo tienen', async () => {
+  const { texto } = await arranca(CON_PERIODO);
+  // OJO: "Comex" ya aparece como opcion del selector de origen, asi que
+  // buscarla sola daba un verde falso. La asercion pide la frase del aviso.
+  const t = texto();
+  assert.ok(/deja fuera/i.test(t),
+    'no avisa que el filtro deja fuera a las actividades sin periodo');
+  assert.ok(/sin periodo|manuales/i.test(t), 'el aviso no dice a cuales deja fuera');
+});
+
+await check('sin filtro de mes no advierte nada', async () => {
+  const { texto } = await arranca();
+  assert.ok(!/deja fuera|quedan fuera/i.test(texto()),
+    'advierte cuando no hay filtro de periodo puesto');
 });
 
 await check('pinta la disciplina de vigencia en porcentaje y dias', async () => {

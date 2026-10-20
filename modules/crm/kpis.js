@@ -71,6 +71,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const ORIGEN_TXT = { 'mi-panel': 'Radar · Mi panel', manual: 'Manual', 'comex-recon': 'Comex' };
 
+  // Vocabulario de cierre consolidado el 20-oct: describe qué pasó con el
+  // cliente, que es la pregunta de la revisión comercial.
+  const RES_TXT = {
+    aumento: 'Aumento', estable: 'Estable', disminucion: 'Disminución',
+    baja_temporal: 'Baja temporal', baja_total: 'Baja total',
+    nuevo_cliente: 'Nuevo cliente', spot: 'Spot', seguimiento: 'Seguimiento',
+    no_aplica: 'No aplica', completada: 'Completada',
+  };
+  const RES_ORDEN = ['aumento', 'estable', 'disminucion', 'baja_temporal',
+    'baja_total', 'nuevo_cliente', 'spot', 'seguimiento', 'no_aplica', 'completada'];
+
   const c = document.getElementById('pageContent');
   c.innerHTML = `
 <div class="stack" style="gap:16px">
@@ -90,6 +101,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="manual">Manual</option>
           <option value="comex-recon">Comex</option>
         </select>
+      </div>
+      <div><div class="label-text">Agente</div>
+        <select class="select" id="kpiAgente" style="max-width:220px">
+          <option value="">Todos los agentes</option>
+        </select>
+      </div>
+      <div><div class="label-text">Mes analizado</div>
+        <input class="input" id="kpiPeriodo" type="month" style="max-width:170px"/>
       </div>
       <div><div class="label-text">Severidad</div>
         <select class="select" id="kpiSev" style="max-width:160px">
@@ -155,13 +174,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${card('Tasa de cierre', pct(d.cierre.tasa_cierre),
                  `${d.cierre.cerradas} cerradas de ${d.creadas.total} · ${d.cierre.canceladas} canceladas`,
                  banda(d.cierre.tasa_cierre), { valor: true })}
-          ${card('Desenlace', `${des.recuperado || 0} recuperadas`,
-                 `${des.parcial || 0} parcial · ${des.perdido || 0} perdido · ${des.no_aplica || 0} no aplica · ${des.completada || 0} completada`,
-                 (des.recuperado || 0) > 0 ? EST.ok : EST.neutro, { valor: (des.recuperado || 0) > 0 })}
+          ${card('Desenlace', `${des.aumento || 0} en aumento`,
+                 RES_ORDEN.filter((r) => r !== 'aumento' && (des[r] || 0) > 0)
+                   .map((r) => `${des[r]} ${RES_TXT[r].toLowerCase()}`).join(' · ') || 'sin otros desenlaces',
+                 (des.aumento || 0) > 0 ? EST.ok : EST.neutro, { valor: (des.aumento || 0) > 0 })}
           ${card('Vigencia cumplida', pct(d.vigencia.pct_a_tiempo),
                  `mediana: ${dias(d.vigencia.dias_mediana_cierre)} en cerrar · ${dias(d.vigencia.dias_mediana_tomar)} en tomar`,
                  banda(d.vigencia.pct_a_tiempo), { valor: d.vigencia.pct_a_tiempo != null })}
         </div>
+
+        ${(d.filtro && d.filtro.solo_con_periodo) ? `<div class="hint" style="color:var(--warn,#d97706);font-size:12px;margin-top:12px">
+          Filtrado por el mes analizado <b>${esc(d.filtro.periodo)}</b>: esto <b>deja fuera</b> las actividades
+          <b>sin periodo</b> —las manuales y las que nacen de comex—, porque ese dato solo lo traen las del Radar.
+        </div>` : ''}
 
         <div class="eyebrow" style="margin:18px 0 8px">Volumen atendido</div>
         <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:10px">
@@ -189,6 +214,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     q.set('desde', $('kpiDesde').value || haceDias(90));
     q.set('hasta', $('kpiHasta').value || hoyISO());
     if ($('kpiOrigen').value) q.set('origen', $('kpiOrigen').value);
+    if ($('kpiAgente').value) q.set('agente_id', $('kpiAgente').value);
+    if ($('kpiPeriodo').value) q.set('periodo', $('kpiPeriodo').value);
     if ($('kpiSev').value) q.set('severidad', $('kpiSev').value);
     try {
       const res = await KoguApi.apiFetch(`${BASE}/actividades/kpis?${q}`);
@@ -199,7 +226,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  ['kpiDesde', 'kpiHasta', 'kpiOrigen', 'kpiSev'].forEach((id) => { $(id).onchange = consultar; });
+  ['kpiDesde', 'kpiHasta', 'kpiOrigen', 'kpiSev', 'kpiAgente', 'kpiPeriodo']
+    .forEach((id) => { $(id).addEventListener('change', consultar); });
+
+  // Catálogo de agentes: lo sirve el propio módulo CRM con el permiso que
+  // esta pantalla ya exige, así que no hace falta tocar permisos de Radar.
+  async function cargarAgentes() {
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/agentes`);
+      const filas = (res && res.data && res.data.rows) || (res && res.data) || [];
+      $('kpiAgente').innerHTML = '<option value="">Todos los agentes</option>'
+        + filas.map((a) => `<option value="${esc(a.agente_id)}">${esc(a.agente_nombre || a.nombre || a.agente_id)}</option>`).join('');
+    } catch (_) { /* sin catálogo el selector se queda en "todos" */ }
+  }
+  await cargarAgentes();
 
   await consultar();
 
