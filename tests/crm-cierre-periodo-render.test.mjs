@@ -42,6 +42,7 @@ const ACTIVIDAD = {
   estado: 'abierta', resultado: null,
   fecha_limite: '2026-10-30', fecha_cierre: null,
   periodo_analizado: '2026-09-01',
+  agente_nombre: 'MARCELA GARZA',
   created_at: '2026-10-15T17:30:00Z', created_by: 'u1',
   creada_por_nombre: 'Sergio Abraham Juarez Nolasco',
   tomada_por: null, tomada_at: null, vencida: false,
@@ -162,6 +163,24 @@ await check('no lo confunde con la fecha de creacion', async () => {
   const t = P.txt();
   assert.ok(/analizad|periodo|mes de ventas/i.test(t),
     'muestra la fecha pero sin decir que es el periodo analizado');
+});
+
+console.log('\n── Quien es el responsable ─────────────────────────────────────');
+
+// Observado el 20-oct: la actividad se asigna sola al agente del cliente,
+// y los KPIs filtran por agente, pero en ninguna pantalla se veia CUAL
+// agente la tiene. Sin eso nadie puede verificar que la asignacion quedo
+// bien, que era el punto de la correccion del 15-oct.
+await check('el detalle dice que agente es responsable', async () => {
+  assert.ok(/MARCELA GARZA/i.test(P.txt()),
+    'el detalle no nombra al agente responsable');
+});
+
+await check('lo distingue de quien la creo', async () => {
+  const t = P.txt();
+  assert.ok(/agente|responsable/i.test(t),
+    'muestra el nombre pero sin decir que es el agente responsable');
+  assert.ok(/creada por/i.test(t), 'se perdio quien la creo');
 });
 
 console.log(`\n${'='.repeat(70)}`);

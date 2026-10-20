@@ -225,6 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${(a.etiquetas && a.etiquetas.length) ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${a.etiquetas.map(e => chipEtq(e, false)).join('')}</div>` : ''}
             ${(a.created_by_nombre || a.tomada_por_nombre || (a.seguidores && a.seguidores.length)) ? `<div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               ${a.created_by_nombre ? `<span>Creada por <b>${esc(a.created_by_nombre)}</b></span>` : ''}
+              ${a.agente_nombre ? `<span>Agente <b>${esc(a.agente_nombre)}</b></span>` : ''}
               ${a.tomada_por_nombre ? `<span>· Tomada por <b>${esc(a.tomada_por_nombre)}</b></span>` : ''}
               ${(a.seguidores && a.seguidores.length) ? `<span>· 👥 ${a.seguidores.map(s => esc(s.nombre)).join(', ')}</span>` : ''}
             </div>` : ''}
@@ -375,6 +376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <div class="kv kv-2" style="margin-top:2px">
                     ${field('Cliente', d.cliente_ref ? `${d.cliente_nombre || d.cliente_ref} · ${d.cliente_ref}` : 'General')}
                     ${field('Creada por', d.created_by_nombre)}
+                    ${field('Agente responsable', d.agente_nombre || null)}
                     ${field('Tomada por', d.tomada_por_nombre ? `${d.tomada_por_nombre}${d.tomada_at ? ' · ' + fmtDay(d.tomada_at) : ''}` : null)}
                     ${field('Resultado', d.resultado ? (RES_TXT[d.resultado] || d.resultado) : null)}
                   </div>
