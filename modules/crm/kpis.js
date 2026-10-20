@@ -159,6 +159,51 @@ document.addEventListener('DOMContentLoaded', async () => {
       </span>`).join('');
   }
 
+  const MOTIVO_TXT = {
+    caida_dormancia: 'Caída / dormancia',
+    deriva: 'Deriva',
+    sin_motivo: 'Sin motivo',
+  };
+  const SEV_COLOR = { critica: EST.mal, alerta: EST.warn, info: EST.neutro };
+  const EST_TXT = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
+
+  // Tabla de detalle. Una fila por ACTIVIDAD y SIN fila de totales: cada
+  // renglón tiene un motivo y una unidad, así que la tabla es honesta por
+  // construcción, pero sumar su columna de kg volvería a mezclar doce
+  // meses con un bimestre. El agregado vive abajo, por motivo.
+  function tablaDetalle(d) {
+    const filas = d.detalle || [];
+    if (!filas.length) {
+      return '<div class="empty">Sin actividades en este recorte.</div>';
+    }
+    const th = (t, n) => `<th style="text-align:${n ? 'right' : 'left'};padding:7px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap">${esc(t)}</th>`;
+    const td = (c, n, extra) => `<td style="padding:7px 10px;border-top:1px solid var(--line);text-align:${n ? 'right' : 'left'};${extra || ''}">${c}</td>`;
+
+    return `<div style="overflow-x:auto">
+      <table id="kpiTabla" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          ${th('Cliente')}${th('Agente')}${th('Mes analizado')}${th('Motivo')}
+          ${th('Severidad')}${th('En riesgo kg', true)}${th('En riesgo MXN', true)}
+          ${th('Estado')}${th('Días', true)}${th('Resultado')}
+        </tr></thead>
+        <tbody>
+          ${filas.map((f) => `<tr${f.vencida ? ' style="background:var(--danger-bg,#fee2e2)"' : ''}>
+            ${td(`<b>${esc(f.cliente)}</b>${f.vencida ? ` <span style="color:${EST.mal};font-size:11px;font-weight:700">VENCIDA</span>` : ''}`)}
+            ${td(esc(f.agente || '—'))}
+            ${td(f.periodo_analizado ? esc(fmtMes(f.periodo_analizado)) : '—')}
+            ${td(esc(MOTIVO_TXT[f.motivo] || f.motivo))}
+            ${td(`<span style="color:${SEV_COLOR[f.severidad] || EST.neutro}">${esc(f.severidad || '—')}</span>`)}
+            ${td(nf0.format(f.kg || 0), true)}
+            ${td(money(f.mxn || 0), true)}
+            ${td(esc(EST_TXT[f.estado] || f.estado))}
+            ${td(f.dias_cierre != null ? `${f.dias_cierre} en cerrar` : (f.dias_abierta != null ? `${f.dias_abierta} abierta` : '—'), true)}
+            ${td(f.resultado ? esc(RES_TXT[f.resultado] || f.resultado) : '—')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
   function pintar(d) {
     const v = d.volumen || {};
     const sinMotivo = (v.sin_motivo && v.sin_motivo.actividades) || 0;
@@ -222,6 +267,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           Filtrado por el mes analizado <b>${esc(d.filtro.periodo)}</b>: esto <b>deja fuera</b> las actividades
           <b>sin periodo</b> —las manuales y las que nacen de comex—, porque ese dato solo lo traen las del Radar.
         </div>` : ''}
+
+        <div class="eyebrow" style="margin:18px 0 8px">Detalle por actividad</div>
+        ${tablaDetalle(d)}
 
         <div class="eyebrow" style="margin:18px 0 8px">Volumen atendido</div>
         <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:10px">

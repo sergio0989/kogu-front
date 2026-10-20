@@ -34,6 +34,23 @@ const CON_DATOS = {
                baja_total: 1, nuevo_cliente: 0, spot: 0, seguimiento: 0,
                no_aplica: 0, completada: 1 },
   filtro: { periodo: null, solo_con_periodo: false, agente_id: null, origen: null, severidad: null },
+  detalle: [
+    { actividad_id: 'd1', cliente: 'CLIENTE VENCIDO', cliente_ref: '205',
+      agente: 'ISELA RODRIGUEZ', titulo: 'Atender vencida', periodo_analizado: '2026-08',
+      motivo: 'deriva', severidad: 'critica', origen: 'mi-panel',
+      kg: 2000, mxn: 200000, estado: 'en_proceso', resultado: null,
+      vencida: true, dias_abierta: 75, dias_cierre: null },
+    { actividad_id: 'd2', cliente: 'TROPHE INGREDIENTES', cliente_ref: '102',
+      agente: 'MARCELA GARZA', titulo: 'Recuperar TROPHE', periodo_analizado: '2026-09',
+      motivo: 'caida_dormancia', severidad: 'alerta', origen: 'mi-panel',
+      kg: 1667, mxn: 290998.9, estado: 'abierta', resultado: null,
+      vencida: false, dias_abierta: 5, dias_cierre: null },
+    { actividad_id: 'd3', cliente: 'BOCASANO', cliente_ref: '362',
+      agente: 'MARCELA GARZA', titulo: 'Recuperar BOCASANO', periodo_analizado: '2026-09',
+      motivo: 'caida_dormancia', severidad: 'critica', origen: 'mi-panel',
+      kg: 0, mxn: 0, estado: 'cerrada', resultado: 'baja_total',
+      vencida: false, dias_abierta: null, dias_cierre: 10 },
+  ],
   vigencia: { cerradas_a_tiempo: 3, pct_a_tiempo: 0.75, dias_mediana_cierre: 7, dias_mediana_tomar: 1 },
   volumen: {
     caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 5, en_cero: 2 },
@@ -332,6 +349,51 @@ await check('el estado nunca viaja solo en color: siempre trae su etiqueta', asy
   const t = texto();
   assert.ok(/exigen acci[oó]n|fuera de vigencia/i.test(t), 'las vencidas no se explican');
   assert.ok(/cerradas de/i.test(t), 'la tasa no dice de cuantas');
+});
+
+console.log('\n── Tabla de detalle (pedido de gerencia) ───────────────────────');
+
+await check('pinta una tabla con una fila por actividad', async () => {
+  const { window } = await arranca();
+  const filas = window.document.querySelectorAll('#kpiTabla tbody tr');
+  assert.equal(filas.length, 3, 'debe haber una fila por actividad');
+});
+
+await check('trae las columnas que pidio gerencia', async () => {
+  const { window } = await arranca();
+  const enc = window.document.querySelector('#kpiTabla thead').textContent.toLowerCase();
+  for (const c of ['cliente', 'agente', 'mes', 'motivo', 'riesgo', 'estado', 'resultado']) {
+    assert.ok(enc.includes(c), `falta la columna ${c}: "${enc}"`);
+  }
+});
+
+await check('nombra el resultado en palabras, no en clave', async () => {
+  const { window } = await arranca();
+  const t = window.document.getElementById('kpiTabla').textContent;
+  assert.ok(/Baja total/i.test(t), 'imprime baja_total en crudo');
+  assert.ok(!/baja_total/.test(t), 'dejo la clave con guion bajo a la vista');
+});
+
+await check('destaca la vencida, que es la que exige accion', async () => {
+  const { window } = await arranca();
+  const fila = [...window.document.querySelectorAll('#kpiTabla tbody tr')]
+    .find((tr) => /CLIENTE VENCIDO/.test(tr.textContent));
+  assert.ok(fila, 'no pinto la fila vencida');
+  assert.ok(/#dc2626|vencid/i.test(fila.innerHTML), 'no la distingue de las demas');
+});
+
+await check('la tabla NO lleva fila de totales', async () => {
+  const { window } = await arranca();
+  const pie = window.document.querySelector('#kpiTabla tfoot');
+  assert.ok(!pie || !pie.textContent.trim(),
+    'sumar la columna de kg mezclaria doce meses con un bimestre');
+});
+
+await check('los totales por motivo quedan debajo, separados', async () => {
+  const { texto } = await arranca();
+  const t = texto();
+  assert.ok(/ca[ií]da|dormancia/i.test(t) && /deriva/i.test(t),
+    'se perdieron los totales por motivo');
 });
 
 console.log('\n── El recorte viaja con los numeros ────────────────────────────');
