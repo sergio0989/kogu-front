@@ -42,6 +42,7 @@
     {section:'ERP',items:[
       {href:'/modules/erp/importaciones/importaciones.html',label:'Importaciones ERP',perm:'screen.erp.importaciones'},
       {href:'/modules/erp/ventas/ventas.html',label:'Ventas',perm:'screen.erp.ventas'},
+      {href:'/modules/erp/iva/iva.html',label:'IVA por clave',perm:'screen.erp.iva'},
       {href:'/modules/erp/compras/compras.html',label:'Compras',perm:'screen.erp.compras'},
       {href:'/modules/erp/producciones/producciones.html',label:'Producciones / Lotes',perm:'screen.erp.producciones'},
       {href:'/modules/erp/cobranza/cobranza.html',label:'Cobranza',perm:'screen.erp.cobranza'},
