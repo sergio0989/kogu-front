@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:6px">${utiPill(uti)}</td></tr>`;
     };
     const body = rows.map(r => fila(r, false)).join('');
-    const totalRow = rows.length > 1 ? fila({ modo: 'general', ops: tot.ops, kg: tot.kg, costo_usd: tot.costo, mercancia_usd: tot.mp, flete_usd: tot.fl, otros_usd: tot.ot }, true).replace('📦 Sin modo', 'Total periodo') : '';
+    const totalRow = rows.length > 1 ? fila({ modo: 'general', ops: tot.ops, kg: tot.kg, costo_usd: tot.costo, mercancia_usd: tot.mp, flete_usd: tot.fl, otros_usd: tot.ot }, true).replace('∑ Sin modo', '∑ Total periodo') : '';
     return head + '<tbody>' + body + totalRow + '</tbody>';
   }
 
@@ -322,14 +322,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;height:auto">${bars}${line}${dots}${labels}</svg>`;
   }
 
-  const difCell = (v) => {
-    const d = Number(v) || 0;
+  // Color de la diferencia por ESTADO (regla 10/30 sobre dif/teórico), no por
+  // signo: un real muy por debajo del teórico también es señal a revisar.
+  const difCo = (dif, teo) => { const CC = window.KoguComexControl; return teo > 0 ? CC.color(CC.estado(dif / teo)).co : '#64748b'; };
+  const difCell = (v, teo) => {
+    const CC = window.KoguComexControl;
+    const d = Number(v) || 0, t = Number(teo) || 0;
     if (!d) return '<td style="padding:6px;color:#94a3b8">—</td>';
-    const co = d < 0 ? '#166534' : '#991b1b';
-    return `<td style="padding:6px;font-weight:700;color:${co}">${d < 0 ? '−' : '+'}$${n0(Math.abs(d))}</td>`;
+    return `<td style="padding:6px;font-weight:700;color:${difCo(d, t)}" title="${t > 0 ? CC.pct(d / t) + ' vs teórico' : ''}">${d < 0 ? '−' : '+'}$${n0(Math.abs(d))}${t > 0 ? ` <span style="font-weight:400;font-size:11px">(${CC.pct(d / t)})</span>` : ''}</td>`;
   };
-  // Gráfica: gasto real (teal) vs presupuesto teórico (ámbar) por mes, con la
-  // diferencia (ahorro/sobrecosto) rotulada abajo. Barra real < ppto = ahorro.
+  // Gráfica: gasto real (teal) vs teórico (ámbar) por mes, con la diferencia
+  // rotulada abajo y coloreada por estado (dentro/fuera/revisar).
   function chartRealVsPpto(rows) {
     rows = (rows || []).filter(r => (Number(r.real_gastos_usd) || 0) + (Number(r.teo_gastos_usd) || 0) > 0);
     if (!rows.length) return '<div class="muted" style="font-size:12px;padding:10px">Sin operaciones comparables (con teórico) en el periodo.</div>';
@@ -353,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       labels += `<text x="${xt + bw / 2}" y="${yt - 4}" text-anchor="middle" font-size="9" fill="#b45309" font-weight="700">${compact(teo)}</text>`;
       const mm = String(r.periodo).slice(5);
       labels += `<text x="${cx}" y="${H - 26}" text-anchor="middle" font-size="11" fill="#334155" font-weight="600">${MES[+mm] || mm}</text>`;
-      const dcol = dif < 0 ? '#166534' : '#991b1b';
+      const dcol = difCo(dif, teo);
       labels += `<text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="9.5" fill="${dcol}" font-weight="700">${dif < 0 ? '−' : '+'}$${compact(Math.abs(dif))}</text>`;
     });
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;height:auto">${bars}${labels}</svg>`;
@@ -371,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="padding:6px;font-weight:700;color:#0e7490">$${n0(r.costo_usd)}</td>
       <td style="padding:6px">$${n0(r.real_gastos_usd)}</td>
       <td style="padding:6px;color:#b45309">$${n0(r.teo_gastos_usd)}</td>
-      ${difCell(r.dif_usd)}
+      ${difCell(r.dif_usd, r.teo_gastos_usd)}
       <td style="padding:6px;color:#b45309">${(Number(r.tc_prom) || 0).toFixed(2)}</td></tr>`).join('') + '</tbody>';
   }
 

@@ -149,3 +149,22 @@ test('reconciliación: sin comparación conserva su motivo (sin teórico / prove
   assert.equal(C.estadoRecon({ resultado: 'SinDatos', desv_total_pct: null }), 'SinDatos');
   assert.equal(C.estadoRecon({ resultado: 'BajoTabulador', desv_total_pct: null }), 'SinDatos');
 });
+
+// ── Estado de gastos en partidas y detalle por operación (Análisis) ─────
+// Las filas de Partidas y del detalle de Composición no traen desv_total_pct:
+// traen gastos real y teórico en USD. Antes pintaban el 'resultado' guardado
+// (banda ±5 %: "↓ Bajo" = favorable). Ahora usan la misma regla 10/30.
+// Casos MEDIDOS (fixture backend qa/fixtures/comex-mp-teorico.seed.sql):
+//   op 975 Cramer: gastos real (52,961.62 + 16,598.35) MXN / 18.3728 = US$3,786.05
+//                  teórico (5 + 1.70635) USD/kg × 800 kg = US$5,365.08 → −29.4 %
+//   op 1025 K+S:   real 0.168346 × 240,000 = US$40,403.0; teórico 0.336523 × 240,000
+//                  = US$80,765.6 → −50.0 %
+test('gastos: op 975 (antes "↓ Bajo", favorable) es "fuera"; op 1025 K+S −50 % es "revisar"', () => {
+  assert.equal(C.estadoGastos({ resultado: 'BajoTabulador', real: (52961.62 + 16598.35) / 18.3728, teo: (5 + 1.7063492063492063) * 800 }), 'fuera');
+  assert.equal(C.estadoGastos({ resultado: 'BajoTabulador', real: 0.16834582980101095 * 240000, teo: 0.33652333333333336 * 240000 }), 'revisar');
+});
+test('gastos: sin teórico conserva el motivo; teórico 0 o ausente no se mide (SinDatos)', () => {
+  assert.equal(C.estadoGastos({ resultado: 'SinTeorico', real: 100, teo: null }), 'SinTeorico');
+  assert.equal(C.estadoGastos({ resultado: 'BajoTabulador', real: 100, teo: 0 }), 'SinDatos');
+  assert.equal(C.estadoGastos({ resultado: null, real: 100, teo: undefined }), 'SinDatos');
+});

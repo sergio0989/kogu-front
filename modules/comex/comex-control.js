@@ -70,6 +70,15 @@
     return e || 'SinDatos';
   };
 
+  // Estado de gastos cuando la fila trae importes (real y teórico en USD) y no
+  // desv_total_pct: partidas y detalle por operación de Análisis.
+  api.estadoGastos = ({ resultado, real, teo } = {}) => {
+    if (MOTIVOS.includes(resultado)) return resultado;
+    const t = Number(teo);
+    if (teo == null || teo === '' || !(t > 0) || real == null || real === '') return 'SinDatos';
+    return api.estado(Number(real) / t - 1);
+  };
+
   // Chip de estado (mismos colores en Resumen, Análisis, Costeo y Reconciliación).
   const COLORES = {
     dentro: ['#f0fdf4', '#bbf7d0', '#166534', 'dentro'],

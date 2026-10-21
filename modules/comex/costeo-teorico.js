@@ -518,7 +518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const box = $('realBox'); if (!box) return;
     const rs = (d && d.resumen) || { ops: 0 }, ops = (d && d.ops) || [];
     if ($('realCount')) $('realCount').textContent = rs.ops ? `· ${n0(rs.ops)} op(s)` : '· sin ops';
-    if (!rs.ops) { box.innerHTML = '<div class="muted" style="font-size:12.5px;padding:8px">Aún no hay operaciones reales reconciliadas contra este costeo. Reconcilia el mes en la Bandeja.</div>'; return; }
+    if (!rs.ops) { box.innerHTML = '<div class="muted" style="font-size:12.5px;padding:8px">Aún no hay operaciones reales reconciliadas contra este costeo. Reconcilia el mes en Comercio Exterior · Reconciliación.</div>'; return; }
     const r = calcular(), kgC = r.kg || 1;
     const flete = D.conceptos.filter(x => !x.es_arancel && esFleteInt(x));
     const gastos = D.conceptos.filter(x => !x.es_arancel && !esFleteInt(x));

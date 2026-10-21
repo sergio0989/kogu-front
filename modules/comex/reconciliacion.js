@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card">
   <div class="row">
     <div><div class="eyebrow">Comercio Exterior · Reconciliación</div><h2>Costeo real (SAI)</h2>
-      <div class="muted" style="font-size:12px">Sube las DBF <strong>COSTEOS / COSTEOC / COSTEOD</strong> (sueltas o en zip). Es un <strong>snapshot acumulado</strong>: cada carga reemplaza la anterior. Se filtran cancelados y borrados.</div></div>
+      <div class="muted" style="font-size:12px">Sube las DBF <strong>COSTEOS / COSTEOC / COSTEOD</strong> (sueltas o en zip). Es un <strong>snapshot acumulado</strong>: cada carga reemplaza la anterior <strong>y borra las reconciliaciones</strong>. Se filtran cancelados y borrados.</div></div>
   </div>
   <div style="display:flex;gap:12px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
     <div><label class="muted" style="font-size:12px;display:block">DBF (o zip)</label>
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <button class="btn primary" id="procBtn" style="background:#0891b2">📥 Procesar DBF</button>
     <span id="proc" class="muted" style="font-size:12px"></span>
   </div>
-  <div class="muted" style="font-size:11px;margin-top:6px">La reconciliación es por mes, pero la guía la matriz SAT (mensual): cruza los pedimentos del mes contra este snapshot real.</div>
+  <div style="font-size:12px;margin-top:8px;padding:8px 10px;border-radius:8px;background:#f0f9ff;border:1px solid #bae6fd;color:#0c4a6e"><strong>Cierre mensual:</strong> 1) carga la matriz SAT del mes en Pedimentos SAT · 2) sube aquí las DBF de SAI · 3) <strong>reconcilia de nuevo todos los meses</strong> (la carga de DBF borró las reconciliaciones) · 4) revisa Cobertura.</div>
   <div id="msg" style="display:none;margin-top:12px;padding:10px;border-radius:6px;font-size:13px"></div>
 </div>
 
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 <div class="card" style="margin-top:14px">
   <div class="row"><div><div class="eyebrow">Comercio Exterior · Reconciliación</div><h3 style="margin:0">Reconciliación del mes</h3>
-    <div class="muted" style="font-size:12px">Cruza la <strong>matriz SAT</strong> del periodo contra el costeo real y compara gastos/kg vs el <strong>costeo teórico</strong> (mismo transporte, kg-piso). Fuera de banda → <strong>CRM automático</strong>.</div></div></div>
+    <div class="muted" style="font-size:12px">Cruza la <strong>matriz SAT</strong> del periodo contra el costeo real y compara gastos/kg vs el <strong>costeo teórico</strong> (mismo transporte, kg-piso). Estado por desviación: <strong>dentro</strong> ≤10 % · <strong>fuera</strong> ≤30 % · <strong>revisar</strong> &gt;30 % (arriba o abajo). Las operaciones con gastos por <strong>encima</strong> del teórico más allá de la banda de parámetros generan una actividad en <strong>CRM</strong>.</div></div></div>
   <div style="display:flex;gap:12px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
     <div><label class="muted" style="font-size:12px;display:block">Periodo (matriz SAT)</label>
       <select id="periodo" class="input" style="min-width:220px"></select></div>
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       for (const f of files) fd.append('archivos', f);
       const d = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/cargar', { method: 'POST', body: fd })) || {};
       const r = d.resumen || {};
-      showMsg(`✅ Procesado: ${n0(r.costeos?.activos)} costeos activos (${n0(r.costeos?.cancelados)} cancelados) · ${n0(d.n_partidas)} partidas · ${n0(d.n_gastos)} gastos.`, 'ok');
+      showMsg(`✅ Procesado: ${n0(r.costeos?.activos)} costeos activos (${n0(r.costeos?.cancelados)} cancelados) · ${n0(d.n_partidas)} partidas · ${n0(d.n_gastos)} gastos. Siguiente paso: reconcilia de nuevo todos los meses (abajo).`, 'ok');
       $('proc').textContent = ''; $('file').value = '';
       await cargarCargas();
       if (d.carga_id) verReal(d.carga_id);
@@ -247,11 +247,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else if ((s.sin_teorico + s.sin_proveedor) === s.operaciones) {
         KoguApi.toast('Ninguna operación empató con un costeo teórico de su proveedor.', 'warn');
       } else if (s.crm_actividades_creadas) {
-        KoguApi.toast(`Reconciliado. Se generaron ${n0(s.crm_actividades_creadas)} actividad(es) CRM por operaciones "Sobre".`, 'success');
+        KoguApi.toast(`Reconciliado. Se generaron ${n0(s.crm_actividades_creadas)} actividad(es) CRM por operaciones con gastos por encima del teórico.`, 'success');
       } else if (s.sobre) {
-        KoguApi.toast('Reconciliado. Las operaciones "Sobre" ya tenían actividad CRM abierta.', 'success');
+        KoguApi.toast('Reconciliado. Las operaciones por encima del teórico ya tenían actividad CRM abierta.', 'success');
       } else {
-        KoguApi.toast('Reconciliado. Sin operaciones "Sobre" tabulador.', 'success');
+        KoguApi.toast('Reconciliado. Ninguna operación quedó por encima del teórico (sin actividades CRM).', 'success');
       }
       await cargarRecon(periodo);
     } catch (e) { $('reconMsg').textContent = ''; KoguApi.toast(e.message, 'error'); }
@@ -281,7 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sinProv = s.teoricos_sin_proveedor ? ` · ${n0(s.teoricos_sin_proveedor)} costeo(s) sin proveedor (ignorados)` : '';
     box.insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;font-size:12px;margin-top:4px;color:${warn ? '#991b1b' : '#64748b'}">
-        Escalas teóricas por proveedor (Fase 1): <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${esc(sinProv)}${warn ? ' — <strong>da de alta costeos teóricos por proveedor y escala de kg en “Costeo teórico (importación)”.</strong>' : ''}</div>`);
+        Escalas teóricas por proveedor: <strong>${n0(s.teoricos || 0)}</strong> (${esc(detalle)})${esc(sinProv)}${warn ? ' — <strong>da de alta costeos teóricos por proveedor y escala de kg en “Costeo teórico (importación)”.</strong>' : ''}</div>`);
     const cvs = s.cve_prov_sin_mapear || [];
     if (cvs.length || s.ops_sin_cve_prov) {
       const partes = [];

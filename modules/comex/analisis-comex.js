@@ -89,10 +89,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       </span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:5px">
-      <span>Resultado (vs costeo teórico):
-        <span style="font-weight:700;background:#dbeafe;color:#1e40af;padding:1px 8px;border-radius:999px">↓ Bajo</span> costó <b>menos</b> que el teórico (favorable)
-        · <span style="font-weight:700;background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:999px">↑ Sobre</span> costó <b>más</b> (revisar)
-        · <span style="font-weight:700;background:#dcfce7;color:#166534;padding:1px 8px;border-radius:999px">Dentro</span> en banda
+      <span>Estado (gastos real vs costeo teórico, por desviación sin importar el signo):
+        ${CC.chip('dentro')} ≤ 10 %
+        · ${CC.chip('fuera')} ≤ 30 %
+        · ${CC.chip('revisar')} &gt; 30 % — <b>arriba o abajo</b>: un teórico muy por encima del real también se revisa (está mal calibrado)
       </span>
     </div>
   </div>
@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${th('producto', 'Producto', 'text-align:left')}${th('kg', 'Kg')}
       ${th('mp_usd', 'MP<br/>USD/kg', M)}<th style="padding:6px">Flete</th><th style="padding:6px">Otros</th>
       ${th('cts_real', 'Gastos<br/>real')}<th style="padding:6px">Gastos<br/>teó.</th>${th('dif', 'Dif')}
-      ${th('costot', 'CostoT<br/>USD/kg')}<th style="text-align:center;padding:6px">Resultado</th>
+      ${th('costot', 'CostoT<br/>USD/kg')}<th style="text-align:center;padding:6px" title="Gastos real vs teórico: dentro ≤10 % · fuera ≤30 % · revisar >30 % (arriba o abajo)">Estado</th>
       ${th('pct_vend', '% vend.')}${th('margen', 'Margen<br/>real')}</tr></thead>`;
     if (!rows.length) {
       $('tAn').innerHTML = head + `<tbody><tr><td colspan="18" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin partidas. Reconcilia el periodo primero.'}</td></tr></tbody>`;
@@ -260,6 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dif = r.cts_ind_dif_usd == null ? null : Number(r.cts_ind_dif_usd);
       const marg = r.margen_real_pct == null ? null : Number(r.margen_real_pct);
       const margCo = marg == null ? '#94a3b8' : marg < 0 ? '#991b1b' : '#166534';
+      const est = CC.estadoGastos({ resultado: r.resultado, real: r.cts_ind_real_usd, teo: r.cts_ind_teorico_usd });
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right${marg != null && marg < 0 ? ';background:#fdf2f4' : ''}">
         <td style="text-align:left;padding:5px 6px;color:#64748b">${esc(r.periodo)}</td>
         <td style="text-align:left;padding:5px 6px;font-weight:700">${esc(r.pedimento || r.no_costeo)}</td>
@@ -274,9 +275,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:5px 6px;color:#475569">${usd2(r.otros_usd)}</td>
         <td style="padding:5px 6px;font-weight:700">${usd2(r.cts_ind_real_usd)}</td>
         <td style="padding:5px 6px;color:#b45309">${usd2(r.cts_ind_teorico_usd)}</td>
-        <td style="padding:5px 6px;font-weight:700;color:${dif == null ? '#94a3b8' : dif > 0 ? '#991b1b' : '#1e40af'}">${usd2(dif)}</td>
+        <td style="padding:5px 6px;font-weight:700;color:${dif == null ? '#94a3b8' : CC.color(est).co}">${usd2(dif)}</td>
         <td style="padding:5px 6px;font-weight:800">${usd2(r.costot_usd)}</td>
-        <td style="text-align:center;padding:5px 6px">${r.resultado ? resChip(r.resultado) : '—'}</td>
+        <td style="text-align:center;padding:5px 6px">${estChip(est)}</td>
         <td style="padding:5px 6px;color:#475569">${r.pct_vendido == null ? '—' : pct(r.pct_vendido)}</td>
         <td style="padding:5px 6px;font-weight:700;color:${margCo}">${marg == null ? '—' : pct(marg)}</td></tr>`;
     }).join('') + '</tbody>';
@@ -434,6 +435,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const m = map[r] || map.SinDatos;
     return `<span style="background:${m[0]};color:${m[1]};font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px">${m[2]}</span>`;
   };
+  // Estado por la regla única (comex-control.js); sin comparación, su motivo.
+  const estChip = (k) => (['dentro', 'fuera', 'revisar'].includes(k) ? CC.chip(k) : resChip(k));
 
   const opFila = (o) => {
     const k = Number(o.kg) || 0;
@@ -448,12 +451,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.costo_usd) / k : null)}</td>
       <td style="padding:4px 6px">${gmpPill(o.gmp == null ? null : Number(o.gmp))}</td>
       <td style="padding:4px 6px">${utiPill(o.uti == null ? null : Number(o.uti))}</td>
-      <td style="text-align:center;padding:4px 6px">${o.resultado ? resChip(o.resultado) : '—'}</td></tr>`;
+      <td style="text-align:center;padding:4px 6px">${estChip(CC.estadoGastos({ resultado: o.resultado, real: o.gastos_real_cmp, teo: o.teo_flete == null && o.teo_otros == null ? null : (Number(o.teo_flete) || 0) + (Number(o.teo_otros) || 0) }))}</td></tr>`;
   };
   const opHead = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
     <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
     <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</th>
-    <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px">Resultado</th></tr></thead>`;
+    <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px" title="Gastos real vs teórico: dentro ≤10 % · fuera ≤30 % · revisar >30 % (arriba o abajo)">Estado</th></tr></thead>`;
 
   // Detalle por operación en la vista CONTROL: cada pedimento contra su teórico,
   // con la misma regla que la fila agregada (comex-control.js). Gastos =
