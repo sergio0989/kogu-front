@@ -21,13 +21,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
-<div class="split">
+<div>
 
-  <!-- ── Lista ── -->
+  <!-- ── Lista (ancho completo; la ficha se abre en modal) ── -->
   <div class="card">
     <div class="row">
       <div><div class="eyebrow">Listado</div><h2>${MODULE.title}</h2></div>
-      <button class="btn primary" id="refreshBtn">Actualizar</button>
+      <div class="page-actions">
+        <button class="btn" id="refreshBtn">Actualizar</button>
+        <button class="btn primary" id="newBtn">Nuevo cliente</button>
+      </div>
     </div>
     <div class="grid-2" style="margin-top:16px">
       <input  class="input"  id="q"           placeholder="Buscar por nombre o RFC" />
@@ -45,11 +48,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div id="pgBar" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:13px;color:var(--muted)"></div>
   </div>
 
-  <!-- ── Formulario ── -->
-  <div class="card">
+  <!-- ── Ficha del cliente (modal) ── -->
+  <div class="modal-backdrop" id="clModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="formTitle">
     <div class="row">
-      <div><div class="eyebrow">Formulario</div><h2 id="formTitle">Alta de ${MODULE.singular}</h2></div>
-      <span class="chip" id="modeChip">Alta</span>
+      <div><div class="eyebrow">Ficha del cliente</div><h2 id="formTitle">Alta de ${MODULE.singular}</h2></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="chip" id="modeChip">Alta</span>
+        <button class="btn" id="clCerrar">Cerrar</button>
+      </div>
     </div>
     <div class="stack" style="margin-top:16px">
       <input type="hidden" id="id" />
@@ -73,14 +80,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       </div>
-      <div id="tab-cobranza" class="stack" hidden>${htmlCobranza()}</div>
-      <div id="tab-contactos" class="stack" hidden>${htmlContactos()}</div>
+      <div id="tab-cobranza" class="stack" style="display:none">${htmlCobranza()}</div>
+      <div id="tab-contactos" class="stack" style="display:none">${htmlContactos()}</div>
       <div class="page-actions">
         <button class="btn primary" id="saveBtn">Guardar</button>
         <button class="btn"         id="statusBtn">Cambiar status</button>
-        <button class="btn"         id="newBtn">Nuevo</button>
+        <button class="btn"         id="clCerrarPie">Cerrar</button>
       </div>
     </div>
+  </div>
   </div>
 
 </div>`;
@@ -143,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const opts = Object.entries(CB.ROLES).map(([v, l]) => `<option value="${v}">${KoguUi.escapeHtml(l)}</option>`).join('');
     return `
       <div class="muted" id="ctSinCliente" style="font-size:13px">Guarda el cliente para agregar contactos.</div>
-      <div id="ctPanel" hidden>
+      <div id="ctPanel" style="display:none">
         <div class="table-wrap"><table><thead><tr>
           <th>Nombre</th><th>Rol</th><th>Email</th><th>Edo. cta</th><th></th>
         </tr></thead><tbody id="ctRows"></tbody></table></div>
@@ -208,12 +216,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await KoguApi.apiFetch(MODULE.basePath + '/' + id);
       fill(res.data || res);
+      activarTab('general');
+      abrirModal();
     } catch (err) { avisar(err); }
   }
 
+  function abrirModal()  { document.getElementById('clModal').hidden = false; }
+  function cerrarModal() { document.getElementById('clModal').hidden = true; }
+
   function activarTab(t) {
     document.querySelectorAll('#clTabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
-    ['general', 'cobranza', 'contactos'].forEach(x => { document.getElementById('tab-' + x).hidden = x !== t; });
+    // display explícito: el atributo hidden pierde contra .stack{display:grid}.
+    ['general', 'cobranza', 'contactos'].forEach(x => { document.getElementById('tab-' + x).style.display = x === t ? '' : 'none'; });
   }
 
   // api.js ya avisa en 401/403/409/422; lo demás (400, validaciones locales) avisa aquí.
@@ -269,8 +283,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function pintarContactos() {
     const id = document.getElementById('id').value;
-    document.getElementById('ctSinCliente').hidden = !!id;
-    document.getElementById('ctPanel').hidden = !id;
+    document.getElementById('ctSinCliente').style.display = id ? 'none' : '';
+    document.getElementById('ctPanel').style.display = id ? '' : 'none';
     const esc = KoguUi.escapeHtml;
     document.getElementById('ctRows').innerHTML = contactos.length ? contactos.map(k => `
       <tr style="${k.activo ? '' : 'opacity:.55'}">
@@ -444,14 +458,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Eventos ───────────────────────────────────────────────────────────────
   document.getElementById('refreshBtn').onclick      = () => load(false);
-  document.getElementById('newBtn').onclick          = () => { reset(); activarTab('general'); };
+  document.getElementById('newBtn').onclick          = () => { reset(); activarTab('general'); abrirModal(); };
+  document.getElementById('clCerrar').onclick        = cerrarModal;
+  document.getElementById('clCerrarPie').onclick     = cerrarModal;
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModal(); });
   document.querySelectorAll('#clTabs .tab').forEach(t => t.onclick = () => activarTab(t.dataset.tab));
   document.getElementById('ctGuardar').onclick = guardarContacto;
   document.getElementById('ctNuevo').onclick   = limpiarContacto;
   document.getElementById('q').oninput              = () => { currentPage = 1; render(); };
   document.getElementById('activoFiltro').onchange  = () => { currentPage = 1; render(); };
 
-  KoguShell.subscribeEmpresaActivaChange(async () => { reset(); activarTab('general'); await load(true); });
+  KoguShell.subscribeEmpresaActivaChange(async () => { cerrarModal(); reset(); activarTab('general'); await load(true); });
   reset();
   cargarResponsables(b.permissions || b.permisos || []);
   await load(false);

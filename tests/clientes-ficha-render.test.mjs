@@ -1,6 +1,13 @@
 // Clientes · ficha con pestañas General / Cobranza / Contactos (F0 cobranza).
-// Pantalla completa en jsdom con la API simulada. La logica pura tiene su
-// propia prueba (clientes-cobranza.test.mjs), escrita y vista en rojo antes.
+// Pantalla completa en jsdom con la API simulada y styles.css REAL cargado.
+// La logica pura tiene su propia prueba (clientes-cobranza.test.mjs).
+//
+// Caso real (dev.kogu.ink, 2026-10-21): con la pestana Contactos activa se
+// veian tambien General y Cobranza. El atributo hidden si cambiaba, pero
+// .stack{display:grid} le gana; la version anterior de esta prueba solo
+// revisaba el atributo. Ahora se revisa el display calculado.
+// Decision del usuario: la edicion se abre en un modal (la pantalla
+// dividida quedaba muy corta).
 import { JSDOM } from 'jsdom';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -16,7 +23,8 @@ const DETALLE = { ...LISTA[0], condicion_pago: 'credito', dias_credito: 30, limi
 const CONTACTOS = [{ contacto_id: 'k-1', nombre: 'Roxana Hernandez', rol: 'pagos', email: 'pagos@aat.mx', recibe_edo_cta: true, principal: true, activo: true }];
 
 async function montar({ permisos = [], falla400 = false } = {}) {
-  const dom = new JSDOM('<!doctype html><div id="app"><div id="pageContent"></div></div>', { runScripts: 'outside-only', url: 'https://dev.kogu.ink/modules/core/clientes/clientes.html' });
+  const css = src('assets/styles.css');
+  const dom = new JSDOM(`<!doctype html><style>${css}</style><div id="app"><div id="pageContent"></div></div>`, { runScripts: 'outside-only', url: 'https://dev.kogu.ink/modules/core/clientes/clientes.html' });
   const w = dom.window;
   const llamadas = [], toasts = [];
   w.KoguUi = { escapeHtml: (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])), statusBadge: (v) => v };
@@ -46,7 +54,11 @@ async function montar({ permisos = [], falla400 = false } = {}) {
   await espera();
   const $ = (id) => w.document.getElementById(id);
   const editar = async () => { w.document.querySelector('.btn-edit').click(); await espera(); };
-  return { w, $, llamadas, toasts, espera, editar };
+  // jsdom trata [hidden] como oculto aunque una clase diga display:grid; Chrome
+  // NO (asi nacio el bug). Por eso se exige display:none explicito en el estilo.
+  const visible = (id) => $(id).style.display !== 'none' && w.getComputedStyle($(id)).display !== 'none';
+  const oculta = (id) => $(id).style.display === 'none';
+  return { w, $, llamadas, toasts, espera, editar, visible, oculta };
 }
 
 await check('al editar trae el cliente completo y llena la pestaña Cobranza', async () => {
@@ -93,9 +105,9 @@ await check('un 400 del servidor se avisa (api.js no lo hace)', async () => {
 
 await check('contactos: se listan y se agregan al cliente abierto', async () => {
   const t = await montar();
-  assert.equal(t.$('ctPanel').hidden, true, 'sin cliente no hay panel');
+  assert.equal(t.oculta('ctPanel'), true, 'sin cliente no hay panel');
   await t.editar();
-  assert.equal(t.$('ctPanel').hidden, false);
+  assert.equal(t.visible('ctPanel'), true);
   assert.match(t.$('ctRows').textContent, /Roxana Hernandez/);
   t.$('ct_nombre').value = 'Carmen Murillo'; t.$('ct_rol').value = 'cobranza'; t.$('ct_email').value = 'Cobranza@AAT.mx';
   t.$('ctGuardar').click(); await t.espera();
@@ -116,11 +128,41 @@ await check('con permiso de usuarios: la lista de responsables se llena', async 
   assert.match(t.$('cb_responsable_cobranza_id').innerHTML, /Marcela/);
 });
 
-await check('pestañas: solo una visible a la vez', async () => {
+await check('pestañas: solo se VE una a la vez (estilos reales)', async () => {
   const t = await montar();
+  await t.editar();
+  t.w.document.querySelector('#clTabs .tab[data-tab="contactos"]').click();
+  assert.equal(t.visible('tab-contactos'), true, 'contactos visible');
+  assert.equal(t.oculta('tab-general'), true, 'general oculta');
+  assert.equal(t.oculta('tab-cobranza'), true, 'cobranza oculta');
+});
+
+await check('la ficha se abre en modal al editar', async () => {
+  const t = await montar();
+  assert.ok(t.$('clModal'), 'existe el modal');
+  assert.equal(t.visible('clModal'), false, 'cerrado al cargar');
+  await t.editar();
+  assert.equal(t.visible('clModal'), true, 'abierto al editar');
+  assert.match(t.$('formTitle').textContent, /Editar/);
+});
+
+await check('cerrar el modal lo oculta', async () => {
+  const t = await montar();
+  await t.editar();
+  t.$('clCerrar').click();
+  assert.equal(t.visible('clModal'), false);
+});
+
+await check('Nuevo cliente abre el modal vacío en la pestaña General', async () => {
+  const t = await montar();
+  await t.editar();
   t.w.document.querySelector('#clTabs .tab[data-tab="cobranza"]').click();
-  assert.equal(t.$('tab-cobranza').hidden, false);
-  assert.equal(t.$('tab-general').hidden, true);
+  t.$('clCerrar').click();
+  t.$('newBtn').click();
+  assert.equal(t.visible('clModal'), true);
+  assert.equal(t.$('nombre').value, '');
+  assert.equal(t.visible('tab-general'), true);
+  assert.equal(t.oculta('tab-cobranza'), true);
 });
 
 for (const n of verde) console.log('ok -', n);
