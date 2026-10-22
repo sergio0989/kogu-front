@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('cobPreview').innerHTML = `
   <div class="card" id="cobResumen">
-    <div class="eyebrow">Vista previa · corte ${C.fmtFecha(corte.fecha_corte)}</div>
+    <div class="eyebrow" id="cobTitulo">${titulo(corte)}</div>
     <div class="cobc-big">${corte.docs} documentos · ${corte.clientes} clientes</div>
     <table class="cobc-tbl" style="max-width:520px"><tbody>
       ${C.BUCKETS.map((l, i) => `<tr><td>${l}</td><td class="num">${C.dinero(bk[i + 1] || 0)}</td></tr>`).join('')}
@@ -148,8 +148,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 `;
   }
 
+  function titulo(corte) {
+    return corte.status === 'preview' ? `Vista previa · corte ${C.fmtFecha(corte.fecha_corte)}` : `Corte ${C.fmtFecha(corte.fecha_corte)} · ${STATUS[corte.status] || esc(corte.status)}`;
+  }
+
   function acciones() {
     const { corte, resumen: r } = actual;
+    if (corte.status === 'aplicado') return `<div class="cobc-alerta ok">Corte aplicado. <a href="${CARTERA}"><b>Ver la cartera →</b></a></div>`;
     if (corte.status !== 'preview') return `<div>Este corte está <b>${STATUS[corte.status] || esc(corte.status)}</b>.</div>`;
     const difs = (r.diferencias_importe || []).length + (r.diferencias_bucket || []).length;
     return `
@@ -176,6 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const c = (await KoguApi.apiFetch(`/protected/cob/cortes/${encodeURIComponent(actual.corte.corte_id)}/aplicar`, { method: 'POST', body: JSON.stringify(body) })).data;
       actual.corte = { ...actual.corte, ...c, status: 'aplicado' };
       $('cobAcciones').innerHTML = acciones();
+      $('cobTitulo').innerHTML = titulo(actual.corte);
       msg(`Corte aplicado. <a href="${CARTERA}">Ver la cartera</a>`, 'ok');
       historial();
     } catch (e) {
@@ -189,6 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await KoguApi.apiFetch(`/protected/cob/cortes/${encodeURIComponent(actual.corte.corte_id)}/descartar`, { method: 'POST' });
       actual.corte = { ...actual.corte, status: 'descartado' };
       $('cobAcciones').innerHTML = acciones();
+      $('cobTitulo').innerHTML = titulo(actual.corte);
       msg('Vista previa descartada. Puedes cargar otro archivo.', 'ok');
       historial();
     } catch (e) {

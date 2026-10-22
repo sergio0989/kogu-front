@@ -233,3 +233,14 @@ test('aplicar con antigüedad distinta exige confirmar', async () => {
   p.$('#cobAplicar').click(); await p.espera();
   assert.deepEqual(JSON.parse(p.ultimo(/aplicar$/).o.body), { confirmar_diferencias: true });
 });
+
+test('después de aplicar: el resultado y la liga a la Cartera junto a los botones; el título ya no dice vista previa', async () => {
+  const p = await arranca({ preview: { ...PV, resumen: { ...PV.resumen, reemplaza: null } } });
+  await p.previsualizar();
+  p.$('#cobAplicar').click(); await p.espera();
+  const acc = p.$('#cobAcciones');
+  assert.match(p.texto(acc), /Corte aplicado/);
+  assert.ok(acc.querySelector('a[href="/modules/cob/cartera/cartera.html"]'));
+  assert.doesNotMatch(p.texto(p.$('#cobResumen .eyebrow')), /Vista previa/i);
+  assert.match(p.texto(p.$('#cobResumen .eyebrow')), /Aplicado/);
+});
