@@ -289,7 +289,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 .cob-aviso.mal{color:#b91c1c;font-weight:600}
 .cob-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .cob-tog{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
-.cob-scroll{overflow:auto}
+.cob-scroll{overflow:auto;max-height:calc(100vh - 170px);border:1px solid var(--line);border-radius:10px}
+/* Títulos fijos arriba y totales fijos abajo mientras se recorre la tabla */
+.cob-tbl thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
+.cob-tbl tfoot td{position:sticky;bottom:0;z-index:2;background:#fff;box-shadow:inset 0 2px 0 var(--line)}
 .cob-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .cob-tbl th{background:#f8fafc;text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
 .cob-tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -307,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 .cob-fila{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-top:12px}
 .cob-fila .cob-kpis{margin-top:0}
 .cob-fila-l{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.cob-tbl tfoot td{font-weight:800;border-top:2px solid var(--line);padding:10px}
+.cob-tbl tfoot td{font-weight:800;padding:10px}
 .cob-tbl tfoot .num{text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:700px){.cob-fila{grid-template-columns:1fr}}
 .cob-covr .num{text-align:right;font-variant-numeric:tabular-nums}
