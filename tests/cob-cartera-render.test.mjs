@@ -79,14 +79,16 @@ test('pide la cartera vigente y el historial de cortes; exige cob.cartera.read',
   assert.ok(p.pedidos.some((u) => u.startsWith('/protected/cob/cortes')));
 });
 
-test('fichas del corte: cartera y vencido como los de SAI, con documentos', async () => {
+test('fichas en dos filas, pesos y dólares, cada una en su moneda; equivalente en pesos como control', async () => {
   const p = await arranca();
-  const fichas = p.$$('[data-ficha]');
-  assert.equal(fichas.length, 7);
-  const t = (k) => p.texto(p.$(`[data-ficha="${k}"]`));
-  assert.match(t('cartera'), /\$99\.47M/); assert.match(t('cartera'), /342 docs · 55 clientes/);
-  assert.match(t('b1'), /\$82\.69M/);
-  assert.match(t('vencido'), /\$16\.78M/); assert.match(t('vencido'), /102 docs/);
+  assert.equal(p.$$('[data-moneda="MXN"] [data-ficha]').length, 7);
+  assert.equal(p.$$('[data-moneda="USD"] [data-ficha]').length, 7);
+  const t = (m, k) => p.texto(p.$(`[data-moneda="${m}"] [data-ficha="${k}"]`));
+  assert.match(t('MXN', 'cartera'), /\$27\.99M/); assert.match(t('MXN', 'cartera'), /103 docs/);
+  assert.match(t('MXN', 'vencido'), /\$2\.15M/); assert.match(t('MXN', 'vencido'), /11 docs/);
+  assert.match(t('USD', 'cartera'), /US\$4\.08M/); assert.match(t('USD', 'cartera'), /239 docs/);
+  assert.match(t('USD', 'vencido'), /US\$832,705/); assert.match(t('USD', 'vencido'), /91 docs/);
+  assert.match(p.texto(p.$('#cobControl')), /342 docs · 55 clientes · equivalente en pesos \$99,472,027\.56/);
   assert.match(p.texto(), /Corte 20\/10\/2026/i);
 });
 
@@ -103,11 +105,19 @@ test('corte desactualizado: aviso visible', async () => {
   assert.match(p.texto(p.$('#cobAvisos')), /El corte tiene 10 días/);
 });
 
-test('tabla: 342 documentos, mayor saldo primero, total al centavo', async () => {
+test('tabla: columnas USD y MXN, cada factura en la de su moneda; suma de cada columna al pie', async () => {
   const p = await arranca();
   assert.equal(p.filas().length, 342);
   assert.match(p.texto(p.filas()[0]), /A 23656/);
-  assert.match(p.texto(p.$('#cobConteo')), /342 documentos · \$99,472,027\.56/);
+  assert.match(p.texto(p.$('#cobConteo')), /342 documentos/);
+  const ths = p.$$('#cobTabla thead th').map((th) => p.texto(th).replace(/[▲▼]/g, '').trim());
+  assert.ok(ths.includes('USD') && ths.includes('MXN'));
+  assert.ok(!ths.includes('Mon.') && !ths.includes('Saldo MXN'));
+  const f = p.filas().find((tr) => /A 27162/.test(p.texto(tr)));
+  assert.equal(p.texto(f.querySelector('[data-col="usd"]')).trim(), '2,530.00');
+  assert.equal(p.texto(f.querySelector('[data-col="mxn"]')).trim(), '');
+  assert.equal(p.texto(p.$('#cobTotUSD')).trim(), '4,082,965.10');
+  assert.equal(p.texto(p.$('#cobTotMXN')).trim(), '27,986,056.36');
 });
 
 test('cliente con factoraje y cliente sin catalogar se distinguen', async () => {
@@ -121,10 +131,11 @@ test('cliente con factoraje y cliente sin catalogar se distinguen', async () => 
 
 test('ficha seleccionada filtra la tabla y aparece como chip; segundo clic la quita', async () => {
   const p = await arranca();
-  p.$('[data-ficha="b5"]').click(); await p.espera();
-  assert.equal(p.filas().length, 22);
-  assert.match(p.texto(p.$('#cobChips')), /Ficha: Más de 90/);
-  p.$('[data-ficha="b5"]').click(); await p.espera();
+  p.$('[data-moneda="USD"] [data-ficha="b5"]').click(); await p.espera();
+  assert.equal(p.filas().length, 20);
+  assert.match(p.texto(p.$('#cobChips')), /Ficha: Más de 90 · USD/);
+  assert.equal(p.texto(p.$('#cobTotMXN')).trim(), '0.00');
+  p.$('[data-moneda="USD"] [data-ficha="b5"]').click(); await p.espera();
   assert.equal(p.filas().length, 342);
 });
 
@@ -132,7 +143,8 @@ test('filtro de moneda recalcula fichas y tabla', async () => {
   const p = await arranca();
   await p.cambia('#cobMoneda', 'USD');
   assert.equal(p.filas().length, 239);
-  assert.match(p.texto(p.$('[data-ficha="cartera"]')), /\$71\.49M/);
+  assert.equal(p.$('[data-moneda="MXN"]'), null);
+  assert.match(p.texto(p.$('[data-moneda="USD"] [data-ficha="cartera"]')), /US\$4\.08M/);
   assert.match(p.texto(p.$('#cobChips')), /Moneda: USD/);
 });
 
@@ -151,6 +163,7 @@ test('agrupar por cliente: 55 grupos, el de mayor saldo arriba; los renglones se
   const g = p.$$('#cobTabla tbody tr.g');
   assert.equal(g.length, 55);
   assert.match(p.texto(g[0]), /CLIENTE 1 · 81 docs · 5 vencidas/);
+  assert.match(p.texto(g[0]), /530,097\.29/); assert.match(p.texto(g[0]), /22,869,671\.73/);
   assert.equal(p.filas().length, 0);
   g[0].click(); await p.espera();
   assert.equal(p.filas().length, 81);
@@ -160,6 +173,7 @@ test('vencido por responsable: Roxana primero, sin responsable al final', async 
   const p = await arranca();
   const r = p.$$('#cobResponsables [data-resp]').map((e) => p.texto(e));
   assert.match(r[0], /Roxana H\./);
+  assert.match(r[0], /US\$127,798\.16/); assert.match(r[0], /\$192,400\.50/);
   assert.match(r.at(-1), /Sin responsable/);
 });
 

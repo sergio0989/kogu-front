@@ -44,6 +44,30 @@
     });
   }
 
+  // Saldo en la moneda del documento (sin convertir): pesos y dólares no se suman.
+  const sumaSaldo = (docs) => r2(docs.reduce((s, d) => s + Number(d.saldo || 0), 0));
+  const MONEDAS = ['MXN', 'USD'];
+
+  // Fichas en dos filas, una por moneda, cada una en su moneda (como el reporte
+  // de Facturación, que lleva columnas USD y MXN separadas).
+  function fichasPorMoneda(docs) {
+    return MONEDAS.map((moneda) => {
+      const dm = docs.filter((d) => d.moneda === moneda);
+      return { moneda, fichas: FICHAS.map((F) => {
+        const a = dm.filter(F.f);
+        const out = { k: F.k, l: F.l, color: F.color, valor: !!F.valor, docs: a.length, saldo: sumaSaldo(a) };
+        if (F.k === 'cartera') out.clientes = new Set(a.map((d) => d.cve_cte)).size;
+        return out;
+      }) };
+    });
+  }
+
+  function totalesMoneda(docs) {
+    const out = {};
+    for (const m of MONEDAS) { const a = docs.filter((d) => d.moneda === m); out[m] = { docs: a.length, saldo: sumaSaldo(a) }; }
+    return out;
+  }
+
   function filtrar(docs, f = {}) {
     const q = (f.q || '').trim().toLowerCase();
     const ficha = f.ficha ? FICHAS.find((x) => x.k === f.ficha) : null;
@@ -51,6 +75,7 @@
       (!f.cliente || d.cve_cte === f.cliente) &&
       (!f.responsable || (f.responsable === '__none' ? !d.responsable_id : d.responsable_id === f.responsable)) &&
       (!f.moneda || d.moneda === f.moneda) &&
+      (!f.fichaMoneda || d.moneda === f.fichaMoneda) &&
       (!q || folioDe(d).toLowerCase().includes(q)) &&
       (!ficha || ficha.f(d)));
   }
@@ -74,7 +99,8 @@
       g.get(d.cve_cte).docs.push(d);
     }
     return [...g.values()]
-      .map((x) => ({ ...x, saldo_mxn: suma(x.docs), vencidas: x.docs.filter((d) => d.vencido && !d.nota).length }))
+      .map((x) => ({ ...x, saldo_mxn: suma(x.docs), vencidas: x.docs.filter((d) => d.vencido && !d.nota).length,
+        por_moneda: { MXN: sumaSaldo(x.docs.filter((d) => d.moneda === 'MXN')), USD: sumaSaldo(x.docs.filter((d) => d.moneda === 'USD')) } }))
       .sort((a, b) => b.saldo_mxn - a.saldo_mxn);
   }
 
@@ -116,10 +142,14 @@
     for (const d of docs) {
       if (!d.vencido) continue;
       const k = d.responsable_id || '';
-      const g = m.get(k) || { responsable_id: d.responsable_id || null, responsable: d.responsable || 'Sin responsable', docs: 0, vencido_mxn: 0 };
-      g.docs += 1; g.vencido_mxn += mxn(d); m.set(k, g);
+      const g = m.get(k) || { responsable_id: d.responsable_id || null, responsable: d.responsable || 'Sin responsable', docs: 0, vencido_mxn: 0,
+        por_moneda: { MXN: { docs: 0, saldo: 0 }, USD: { docs: 0, saldo: 0 } } };
+      g.docs += 1; g.vencido_mxn += mxn(d);
+      const pm = g.por_moneda[d.moneda]; if (pm) { pm.docs += 1; pm.saldo += Number(d.saldo || 0); }
+      m.set(k, g);
     }
-    return [...m.values()].map((g) => ({ ...g, vencido_mxn: r2(g.vencido_mxn) }))
+    return [...m.values()].map((g) => ({ ...g, vencido_mxn: r2(g.vencido_mxn),
+      por_moneda: { MXN: { ...g.por_moneda.MXN, saldo: r2(g.por_moneda.MXN.saldo) }, USD: { ...g.por_moneda.USD, saldo: r2(g.por_moneda.USD.saldo) } } }))
       .sort((a, b) => (a.responsable_id === null) - (b.responsable_id === null) || b.vencido_mxn - a.vencido_mxn);
   }
 
@@ -143,7 +173,11 @@
     return Math.abs(n) >= 1e6 ? `${n < 0 ? '-' : ''}$${(Math.abs(n) / 1e6).toFixed(2)}M` : (n < 0 ? '-$' : '$') + fm0.format(Math.abs(n));
   }
   function numero(v) { return fm2.format(Number(v) || 0); }
+  function dineroCortoMoneda(v, moneda) {
+    const t = dineroCorto(v);
+    return moneda === 'USD' ? t.replace('$', 'US$') : t;
+  }
 
-  return { BUCKETS, FICHAS, etiquetaBucket, folioDe, resumenFichas, filtrar, ordenar, agrupar, avisos,
+  return { BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
     opcionesClientes, opcionesResponsables, porResponsable, viernesMasReciente, fmtFecha, dinero, dineroCorto, numero };
 });

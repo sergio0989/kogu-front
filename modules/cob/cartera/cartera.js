@@ -56,7 +56,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let datos = null;          // respuesta de /cartera
   let cortes = [];
-  let ficha = '';
+  let ficha = '';        // rango elegido en las fichas…
+  let fichaMoneda = '';  // …y de qué fila (MXN / USD)
   let orden = { k: 'saldo_mxn', dir: -1 };
   const filtro = () => ({ cliente: $('cobCliente').value, responsable: $('cobResp').value, moneda: $('cobMoneda').value, q: $('cobQ').value });
 
@@ -69,6 +70,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         api('/protected/cob/cortes?limit=30').catch(() => []),
       ]);
       datos = cart; cortes = Array.isArray(lista) ? lista : [];
+      // Columnas USD / MXN de la tabla (para ordenar por cada una).
+      if (datos && datos.documentos) datos.documentos.forEach((d) => { d.usd = d.moneda === 'USD' ? d.saldo : null; d.mxn = d.moneda === 'MXN' ? d.saldo : null; });
       llenarFiltros();
       render();
     } catch (e) {
@@ -107,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const f = filtro();
     const base = C.filtrar(datos.documentos, f);
-    const rows = C.ordenar(C.filtrar(base, { ficha }), orden.k, orden.dir);
+    const rows = C.ordenar(C.filtrar(base, { ficha, fichaMoneda }), orden.k, orden.dir);
     const corte = datos.corte;
 
     const chips = [];
@@ -115,55 +118,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (f.responsable) chips.push(['cobResp', 'Responsable', $('cobResp').selectedOptions[0]?.text]);
     if (f.moneda) chips.push(['cobMoneda', 'Moneda', f.moneda]);
     if (f.q) chips.push(['cobQ', 'Folio', f.q]);
-    if (ficha) chips.push(['ficha', 'Ficha', C.FICHAS.find((x) => x.k === ficha).l]);
+    if (ficha) chips.push(['ficha', 'Ficha', `${C.FICHAS.find((x) => x.k === ficha).l} · ${fichaMoneda}`]);
     $('cobChips').innerHTML = chips.map(([id, l, v]) => `<button type="button" class="cob-chip" data-quitar="${id}">${esc(l)}: <b>${esc(v)}</b> ×</button>`).join('');
 
     const recorte = [`Corte ${C.fmtFecha(corte.fecha_corte)} · SAI`, ...(corte.status === 'reemplazado' ? ['reemplazado'] : []), ...chips.map((c) => `${c[1]}: ${c[2]}`)].join(' · ');
-    const fichas = C.resumenFichas(base).map((x) => {
-      const hint = x.k === 'cartera' ? `${x.docs} docs · ${x.clientes} clientes` : `${x.docs} docs`;
-      return `<button type="button" class="cob-kpi ${ficha === x.k ? 'sel' : ''}" data-ficha="${x.k}" style="--k:${x.color};${x.valor ? `--kv:${x.color}` : ''}">
-        <div class="l">${esc(x.l)}</div><div class="v">${C.dineroCorto(x.saldo_mxn)}</div><div class="h">${hint}</div></button>`;
-    }).join('');
+    // Dos filas de fichas, una por moneda y cada una en su moneda: como el reporte
+    // de Facturación, pesos y dólares no se suman.
+    const fichas = C.fichasPorMoneda(base).filter((r) => !f.moneda || r.moneda === f.moneda).map((r) => `
+      <div class="cob-fila" data-moneda="${r.moneda}"><div class="cob-fila-l">${r.moneda === 'MXN' ? 'Pesos' : 'Dólares'}</div>
+      <div class="cob-kpis">${r.fichas.map((x) => {
+        const hint = x.k === 'cartera' ? `${x.docs} docs · ${x.clientes} clientes` : `${x.docs} docs`;
+        return `<button type="button" class="cob-kpi ${ficha === x.k && fichaMoneda === r.moneda ? 'sel' : ''}" data-ficha="${x.k}" style="--k:${x.color};${x.valor ? `--kv:${x.color}` : ''}">
+          <div class="l">${esc(x.l)}</div><div class="v">${C.dineroCortoMoneda(x.saldo, r.moneda)}</div><div class="h">${hint}</div></button>`;
+      }).join('')}</div></div>`).join('');
+    const tot = C.resumenFichas(base)[0];
     const avisos = C.avisos(base, corte).map((a) => `<div class="cob-aviso ${a.tipo === 'desactualizado' ? 'mal' : ''}">${esc(a.texto)}</div>`).join('');
 
-    const total = C.resumenFichas(rows)[0].saldo_mxn;
+    const totM = C.totalesMoneda(rows);
     const cols = [['folio', 'Folio'], ['cliente', 'Cliente'], ['responsable', 'Resp.'], ['fecha_doc', 'Factura'], ['fecha_vencimiento', 'Vence'],
-      ['dias_vencido', 'Días', 'num'], ['moneda', 'Mon.'], ['saldo', 'Saldo', 'num'], ['saldo_mxn', 'Saldo MXN', 'num'], ['bucket', 'Antigüedad']];
+      ['dias_vencido', 'Días', 'num'], ['usd', 'USD', 'num'], ['mxn', 'MXN', 'num'], ['bucket', 'Antigüedad']];
     const th = cols.map(([k, l, c]) => `<th data-orden="${k}" class="${c || ''}">${l}${orden.k === k ? (orden.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
     const agrupar = $('cobAgrupar') ? $('cobAgrupar').checked : false;
     let tbody;
     if (agrupar) {
-      tbody = C.agrupar(rows).map((g, i) => `<tr class="g" data-grupo="${i}"><td colspan="8">▸ ${esc(g.cliente)} · ${g.docs.length} docs${g.vencidas ? ` · <span class="cob-rojo">${g.vencidas} vencidas</span>` : ''}</td>
-          <td class="num">${C.numero(g.saldo_mxn)}</td><td></td></tr>` + g.docs.map((d) => fila(d, i)).join('')).join('');
+      tbody = C.agrupar(rows).map((g, i) => `<tr class="g" data-grupo="${i}"><td colspan="6">▸ ${esc(g.cliente)} · ${g.docs.length} docs${g.vencidas ? ` · <span class="cob-rojo">${g.vencidas} vencidas</span>` : ''}</td>
+          <td class="num">${g.por_moneda.USD ? C.numero(g.por_moneda.USD) : ''}</td><td class="num">${g.por_moneda.MXN ? C.numero(g.por_moneda.MXN) : ''}</td><td></td></tr>` + g.docs.map((d) => fila(d, i)).join('')).join('');
     } else {
       tbody = rows.map((d) => fila(d)).join('');
     }
-    if (!rows.length) tbody = '<tr><td colspan="10" class="cob-muted" style="padding:20px">Sin documentos con este recorte.</td></tr>';
+    if (!rows.length) tbody = '<tr><td colspan="9" class="cob-muted" style="padding:20px">Sin documentos con este recorte.</td></tr>';
+    const tfoot = `<tr class="tot"><td colspan="6">Total · ${totM.USD.docs} en dólares · ${totM.MXN.docs} en pesos</td>
+      <td class="num" id="cobTotUSD">${C.numero(totM.USD.saldo)}</td><td class="num" id="cobTotMXN">${C.numero(totM.MXN.saldo)}</td><td></td></tr>`;
 
     const resp = C.porResponsable(base);
-    const totV = resp.reduce((s, r) => s + r.vencido_mxn, 0) || 1;
+    const mon = (pm, m) => (pm.docs ? `<span>${m === 'USD' ? 'US' : ''}${C.dinero(pm.saldo)} <span class="cob-muted">· ${pm.docs} docs</span></span>` : '<span class="cob-muted">—</span>');
 
     cuerpo.innerHTML = `
   <div class="card">
     <div class="eyebrow" id="cobRecorte">${esc(recorte)}</div>
-    <div class="cob-kpis">${fichas}</div>
-    <div id="cobAvisos">${avisos}<div class="cob-muted" style="font-size:12px;margin-top:6px">Importes en pesos al tipo de cambio de cada factura, igual que SAI.</div></div>
+    ${fichas}
+    <div id="cobAvisos">${avisos}<div class="cob-muted" id="cobControl" style="font-size:12px;margin-top:6px">${tot.docs} docs · ${tot.clientes} clientes · equivalente en pesos ${C.dinero(tot.saldo_mxn)} (tipo de cambio de cada factura, igual que el pie del reporte de SAI).</div></div>
   </div>
   <div class="card">
     <div class="cob-toolbar">
       <div class="eyebrow">Detalle por factura</div>
       <label class="cob-tog"><input type="checkbox" id="cobAgrupar" ${agrupar ? 'checked' : ''}/> Agrupar por cliente</label>
       <span class="cob-sp"></span>
-      <span id="cobConteo" class="cob-muted">${rows.length} documentos · ${C.dinero(total)}</span>
+      <span id="cobConteo" class="cob-muted">${rows.length} documentos</span>
     </div>
-    <div class="cob-scroll"><table class="cob-tbl" id="cobTabla"><thead><tr>${th}</tr></thead><tbody>${tbody}</tbody></table></div>
+    <div class="cob-scroll"><table class="cob-tbl" id="cobTabla"><thead><tr>${th}</tr></thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
   </div>
   <div class="card">
     <div class="eyebrow">Vencido por responsable de cobranza</div>
-    <div class="cob-muted" style="margin-top:4px">Del saldo vencido al corte, cuánto tiene responsable asignado en el catálogo de clientes. Lo gris no tiene a nadie.</div>
-    <div class="cob-cov" id="cobResponsables">${resp.map((r) => `<div class="cob-covr" data-resp="${esc(r.responsable_id || '__none')}"><b>${esc(r.responsable)}</b>
-      <div class="cob-bar"><i style="width:${(r.vencido_mxn / totV) * 100}%;background:${r.responsable_id ? 'var(--primary,#0891b2)' : '#94a3b8'}"></i></div>
-      <span class="num">${C.dineroCorto(r.vencido_mxn)} · ${r.docs} docs · ${Math.round((r.vencido_mxn / totV) * 100)}%</span></div>`).join('') || '<div class="cob-muted">Sin vencido con este recorte.</div>'}</div>
+    <div class="cob-muted" style="margin-top:4px">Según el responsable asignado en el catálogo de clientes.</div>
+    <div class="cob-cov" id="cobResponsables"><div class="cob-covr cob-covh"><span></span><span>Dólares</span><span>Pesos</span></div>
+      ${resp.map((r) => `<div class="cob-covr" data-resp="${esc(r.responsable_id || '__none')}"><b class="${r.responsable_id ? '' : 'cob-muted'}">${esc(r.responsable)}</b>
+      ${mon(r.por_moneda.USD, 'USD')}${mon(r.por_moneda.MXN, 'MXN')}</div>`).join('') || '<div class="cob-muted">Sin vencido con este recorte.</div>'}</div>
   </div>`;
     $('cobAgrupar').addEventListener('change', render);   // directo: el cuerpo se repinta en cada render
   }
@@ -175,8 +185,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dias = d.dias_vencido != null && d.dias_vencido > 0 ? `<b class="cob-rojo">${d.dias_vencido}</b>` : '<span class="cob-muted">—</span>';
     return `<tr class="r"${oculto} data-id="${esc(d.documento_id)}" ${grupo != null ? `data-de-grupo="${grupo}"` : ''} data-sin-catalogo="${d.sin_catalogo ? 1 : 0}">
       <td><b>${esc(C.folioDe(d))}</b>${tipo}</td><td>${esc(d.cliente)}${marcas}</td><td>${esc(d.responsable || '—')}</td>
-      <td>${C.fmtFecha(d.fecha_doc)}</td><td>${C.fmtFecha(d.fecha_vencimiento)}</td><td class="num">${dias}</td><td>${esc(d.moneda)}</td>
-      <td class="num">${C.numero(d.saldo)}</td><td class="num">${C.numero(d.saldo_mxn)}</td>
+      <td>${C.fmtFecha(d.fecha_doc)}</td><td>${C.fmtFecha(d.fecha_vencimiento)}</td><td class="num">${dias}</td>
+      <td class="num" data-col="usd">${d.moneda === 'USD' ? C.numero(d.saldo) : ''}</td><td class="num" data-col="mxn">${d.moneda === 'MXN' ? C.numero(d.saldo) : ''}</td>
       <td><span class="cob-b b${d.bucket || 0}">${C.etiquetaBucket(d.bucket)}</span></td></tr>`;
   }
 
@@ -224,17 +234,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Eventos (delegados: el cuerpo se repinta) ────────────────────
   ['cobCliente', 'cobResp', 'cobMoneda'].forEach((id) => $(id).addEventListener('change', render));
   $('cobQ').addEventListener('input', render);
-  $('cobCorte').addEventListener('change', () => { ficha = ''; cargar($('cobCorte').value); });
+  $('cobCorte').addEventListener('change', () => { ficha = ''; fichaMoneda = ''; cargar($('cobCorte').value); });
   $('cobChips').addEventListener('click', (e) => {
     const q = e.target.closest('[data-quitar]'); if (!q) return;
-    if (q.dataset.quitar === 'ficha') ficha = ''; else $(q.dataset.quitar).value = '';
+    if (q.dataset.quitar === 'ficha') { ficha = ''; fichaMoneda = ''; } else $(q.dataset.quitar).value = '';
     render();
   });
   $('cobCuerpo').addEventListener('click', (e) => {
     const k = e.target.closest('[data-ficha]');
-    if (k) { ficha = ficha === k.dataset.ficha || k.dataset.ficha === 'cartera' ? '' : k.dataset.ficha; render(); return; }
+    if (k) {
+      const m = k.closest('[data-moneda]').dataset.moneda;
+      if (ficha === k.dataset.ficha && fichaMoneda === m) { ficha = ''; fichaMoneda = ''; } else { ficha = k.dataset.ficha; fichaMoneda = m; }
+      render(); return;
+    }
     const th = e.target.closest('[data-orden]');
-    if (th) { const key = th.dataset.orden; orden = orden.k === key ? { k: key, dir: -orden.dir } : { k: key, dir: ['dias_vencido', 'saldo', 'saldo_mxn', 'bucket'].includes(key) ? -1 : 1 }; render(); return; }
+    if (th) { const key = th.dataset.orden; orden = orden.k === key ? { k: key, dir: -orden.dir } : { k: key, dir: ['dias_vencido', 'usd', 'mxn', 'bucket'].includes(key) ? -1 : 1 }; render(); return; }
     const g = e.target.closest('tr.g');
     if (g) { document.querySelectorAll(`tr[data-de-grupo="${g.dataset.grupo}"]`).forEach((tr) => { tr.style.display = tr.style.display === 'none' ? '' : 'none'; }); return; }
     const tr = e.target.closest('tr.r');
@@ -246,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Cambio de empresa: limpiar todo antes de pedir, para no mostrar datos de la anterior.
   KoguShell.subscribeEmpresaActivaChange(async () => {
-    datos = null; cortes = []; ficha = '';
+    datos = null; cortes = []; ficha = ''; fichaMoneda = '';
     ['cobCliente', 'cobResp', 'cobMoneda', 'cobQ'].forEach((id) => { $(id).value = ''; });
     cerrarFicha();
     render();
@@ -292,7 +306,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 .cob-b.b4{background:#fee2e2;color:#991b1b}.cob-b.b5{background:#7f1d1d;color:#fff}
 .cob-b.bn{background:#f1f5f9;color:#475569}.cob-b.binfo{background:#ede9fe;color:#5b21b6}.cob-b.bwarn{background:#fef3c7;color:#92400e}
 .cob-cov{display:grid;gap:10px;margin-top:10px}
-.cob-covr{display:grid;grid-template-columns:160px 1fr 220px;gap:10px;align-items:center;font-size:13px}
+.cob-covr{display:grid;grid-template-columns:200px 1fr 1fr;gap:10px;align-items:center;font-size:13px;font-variant-numeric:tabular-nums}
+.cob-covh{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.cob-fila{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-top:12px}
+.cob-fila .cob-kpis{margin-top:0}
+.cob-fila-l{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.cob-tbl tfoot td{font-weight:800;border-top:2px solid var(--line);padding:10px}
+.cob-tbl tfoot .num{text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.cob-fila{grid-template-columns:1fr}}
 .cob-covr .num{text-align:right;font-variant-numeric:tabular-nums}
 .cob-bar{height:14px;border-radius:7px;background:#f1f5f9;overflow:hidden;display:flex}
 .cob-bar i{display:block;height:100%}

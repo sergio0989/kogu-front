@@ -93,3 +93,44 @@ test('formatos: fecha dd/mm/aaaa, importes y etiqueta de antigüedad', () => {
   assert.equal(C.dineroCorto(379768.52), '$379,769');
   assert.deepEqual([1, 2, 3, 4, 5].map(C.etiquetaBucket), ['Por vencer', '1-30', '31-60', '61-90', '+90']);
 });
+
+// ── Monedas por separado (como el reporte de Facturación: columnas USD y MXN,
+//    nunca se suman pesos con dólares) ─────────────────────────────────────
+test('fichas por moneda: cada fila en su moneda, sin convertir', () => {
+  const m = Object.fromEntries(C.fichasPorMoneda(D).map((x) => [x.moneda, Object.fromEntries(x.fichas.map((f) => [f.k, [f.docs, f.saldo]]))]));
+  assert.deepEqual(m.MXN.cartera, [103, 27986056.36]);
+  assert.deepEqual(m.MXN.b2, [5, 354133.33]);
+  assert.deepEqual(m.MXN.b4, [0, 0]);
+  assert.deepEqual(m.MXN.vencido, [11, 2151568.62]);
+  assert.deepEqual(m.USD.cartera, [239, 4082965.10]);
+  assert.deepEqual(m.USD.b4, [5, 21853.98]);
+  assert.deepEqual(m.USD.vencido, [91, 832705.20]);
+  assert.deepEqual(C.fichasPorMoneda(D).map((x) => x.moneda), ['MXN', 'USD']);
+});
+
+test('ficha de una moneda filtra rango y moneda', () => {
+  assert.equal(C.filtrar(D, { ficha: 'vencido', fichaMoneda: 'USD' }).length, 91);
+  assert.equal(C.filtrar(D, { ficha: 'cartera', fichaMoneda: 'MXN' }).length, 103);
+});
+
+test('totales por moneda: suma de la columna USD y de la columna MXN', () => {
+  assert.deepEqual(C.totalesMoneda(D), { MXN: { docs: 103, saldo: 27986056.36 }, USD: { docs: 239, saldo: 4082965.10 } });
+});
+
+test('agrupar por cliente: subtotal en cada moneda', () => {
+  const g = C.agrupar(D)[0];
+  assert.equal(g.cve_cte, '1');
+  assert.deepEqual(g.por_moneda, { MXN: 22869671.73, USD: 530097.29 });
+});
+
+test('vencido por responsable separado por moneda', () => {
+  const p = Object.fromEntries(C.porResponsable(D).map((x) => [x.responsable, x.por_moneda]));
+  assert.deepEqual(p['Roxana H.'], { MXN: { docs: 1, saldo: 192400.5 }, USD: { docs: 5, saldo: 127798.16 } });
+  assert.deepEqual(p['Sin responsable'], { MXN: { docs: 10, saldo: 1959168.12 }, USD: { docs: 86, saldo: 704907.04 } });
+});
+
+test('importes cortos por moneda: US$ para dólares, $ para pesos', () => {
+  assert.equal(C.dineroCortoMoneda(3250259.9, 'USD'), 'US$3.25M');
+  assert.equal(C.dineroCortoMoneda(354133.33, 'MXN'), '$354,133');
+  assert.equal(C.dineroCortoMoneda(0, 'USD'), 'US$0');
+});
