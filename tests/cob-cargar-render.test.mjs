@@ -111,7 +111,7 @@ test('clientes sin catalogar: se listan con su saldo', async () => {
   const p = await arranca();
   await p.previsualizar();
   const t = p.texto(p.$('#cobSinCatalogo'));
-  assert.match(t, /52 clientes sin catalogar/);
+  assert.match(t, /50 clientes sin catalogar/);   // fixture: 5 de 55 claves en el catálogo de prueba
   assert.match(t, new RegExp(PV.resumen.sin_catalogo[0].nom_cte_sai));
 });
 

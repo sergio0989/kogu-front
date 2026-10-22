@@ -130,3 +130,21 @@ test('importes cortos por moneda: US$ para dólares, $ para pesos', () => {
   assert.equal(C.dineroCortoMoneda(354133.33, 'MXN'), '$354,133');
   assert.equal(C.dineroCortoMoneda(0, 'USD'), 'US$0');
 });
+
+// ── F1b: seguimiento (fixture con seguimientos del reporte del 16-oct) ──────
+test('fichas de seguimiento: vencido sin seguimiento y compromisos vencidos, con desglose por moneda', () => {
+  const f = Object.fromEntries(C.fichasSeguimiento(D).map((x) => [x.k, x]));
+  assert.equal(f.sin_seguimiento.docs, 92);
+  assert.deepEqual(f.sin_seguimiento.por_moneda, { MXN: { docs: 9, saldo: 2093471.08 }, USD: { docs: 83, saldo: 832601.74 } });
+  assert.equal(f.compromiso_vencido.docs, 1);
+  assert.deepEqual(f.compromiso_vencido.por_moneda, { MXN: { docs: 1, saldo: 58104.4 }, USD: { docs: 0, saldo: 0 } });
+});
+
+test('las fichas de seguimiento filtran como las demás', () => {
+  assert.equal(C.filtrar(D, { ficha: 'sin_seguimiento' }).length, 92);
+  assert.deepEqual(C.filtrar(D, { ficha: 'compromiso_vencido' }).map((d) => d.folio), ['27090']);
+});
+
+test('agentes de la cartera para el formulario, por nombre', () => {
+  assert.deepEqual(C.opcionesAgentes(D), [{ valor: 'ag-a', nombre: 'A. López' }, { valor: 'ag-k', nombre: 'K. Ramírez' }, { valor: 'ag-marc', nombre: 'Marcela G.' }]);
+});

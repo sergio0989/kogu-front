@@ -33,6 +33,15 @@
     { k: 'vencido', l: 'Vencido', color: '#dc2626', valor: true, f: (d) => !!d.vencido },
   ];
 
+  // F1b: fichas de seguimiento (las marcas vienen calculadas del backend por identidad de factura).
+  const FICHAS_SEG = [
+    { k: 'sin_seguimiento', l: 'Vencido sin seguimiento', color: '#b91c1c', f: (d) => !!d.sin_seguimiento,
+      ayuda: 'Vencidas sin ningún seguimiento en los últimos 7 días al corte.' },
+    { k: 'compromiso_vencido', l: 'Compromisos vencidos', color: '#d97706', f: (d) => !!d.compromiso_vencido,
+      ayuda: 'La fecha comprometida ya pasó y la factura sigue abierta.' },
+  ];
+  const fichaDe = (k) => FICHAS.find((x) => x.k === k) || FICHAS_SEG.find((x) => x.k === k) || null;
+
   function folioDe(d) { return (d.serie ? d.serie + ' ' : '') + d.folio; }
 
   function resumenFichas(docs) {
@@ -62,6 +71,19 @@
     });
   }
 
+  function fichasSeguimiento(docs) {
+    return FICHAS_SEG.map((F) => {
+      const a = docs.filter(F.f);
+      return { k: F.k, l: F.l, color: F.color, ayuda: F.ayuda, docs: a.length, por_moneda: totalesMoneda(a) };
+    });
+  }
+
+  function opcionesAgentes(docs) {
+    const m = new Map();
+    for (const d of docs) if (d.agente_id) m.set(d.agente_id, d.agente || d.agente_id);
+    return [...m.entries()].map(([valor, nombre]) => ({ valor, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
   function totalesMoneda(docs) {
     const out = {};
     for (const m of MONEDAS) { const a = docs.filter((d) => d.moneda === m); out[m] = { docs: a.length, saldo: sumaSaldo(a) }; }
@@ -70,7 +92,7 @@
 
   function filtrar(docs, f = {}) {
     const q = (f.q || '').trim().toLowerCase();
-    const ficha = f.ficha ? FICHAS.find((x) => x.k === f.ficha) : null;
+    const ficha = f.ficha ? fichaDe(f.ficha) : null;
     return docs.filter((d) =>
       (!f.cliente || d.cve_cte === f.cliente) &&
       (!f.responsable || (f.responsable === '__none' ? !d.responsable_id : d.responsable_id === f.responsable)) &&
@@ -177,6 +199,6 @@
     return moneda === 'USD' ? t.replace('$', 'US$') : t;
   }
 
-  return { BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
+  return { FICHAS_SEG, fichaDe, fichasSeguimiento, opcionesAgentes, BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
     opcionesClientes, opcionesResponsables, porResponsable, viernesMasReciente, fmtFecha, dinero, dineroCorto, numero };
 });

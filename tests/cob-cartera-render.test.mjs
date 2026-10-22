@@ -28,13 +28,26 @@ const FICHA = { documento: { ...D27162, corte_id: K20, fecha_corte: '2026-10-20'
   historia: [
     { corte_id: K13, fecha_corte: '2026-10-13', corte_status: 'aplicado', saldo: 2530, saldo_mxn: 43047.19, dias_vencido: 11, bucket: 2 },
     { corte_id: K20, fecha_corte: '2026-10-20', corte_status: 'aplicado', saldo: 2530, saldo_mxn: 43047.19, dias_vencido: 18, bucket: 2 },
+  ],
+  // F1b: seguimientos de la factura (uno anulado), como los devuelve el backend.
+  seguimientos: [
+    { seguimiento_id: 's-8', accion_clave: 'seguimiento', accion: 'Seguimiento enviado', texto: 'Correo al contacto de pagos', fecha_compromiso: null,
+      gestiona: 'cxc', agente: null, anulado: true, anulado_motivo: 'Era de otra factura', created_at: '2026-10-16T15:00:00Z', creado_por: 'CxC' },
+    { seguimiento_id: 's-9', accion_clave: 'junta', accion: 'Junta / escalamiento', texto: 'Prox junta jueves 26 oct, Marce', fecha_compromiso: '2026-10-26',
+      gestiona: 'agente', agente: 'Marcela G.', anulado: false, anulado_motivo: null, created_at: '2026-10-21T16:00:00Z', creado_por: 'CxC' },
   ] };
+const ACCIONES = [
+  { accion_id: 'a-seg', clave: 'seguimiento', nombre: 'Seguimiento enviado', requiere_fecha: false },
+  { accion_id: 'a-prog', clave: 'programada_pago', nombre: 'Programada para pago', requiere_fecha: true },
+  { accion_id: 'a-otro', clave: 'otro', nombre: 'Otro', requiere_fecha: false },
+];
 
 async function arranca({ cartera = CART, permisos = ['cob.cartera.read'] } = {}) {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
     { url: 'https://kogu.test/modules/cob/cartera/cartera.html', runScripts: 'outside-only' });
   const { window } = dom;
   const pedidos = [];
+  const envios = [];
   let alCambiarEmpresa = null;
   let respuesta = cartera;
   window.KoguShell = {
@@ -48,8 +61,12 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'] } = {})
     subscribeEmpresaActivaChange: (fn) => { alCambiarEmpresa = fn; },
   };
   window.KoguApi = {
-    apiFetch: async (url) => {
+    apiFetch: async (url, o = {}) => {
       pedidos.push(url);
+      if (o.method === 'POST') envios.push({ url, body: o.body ? JSON.parse(o.body) : null });
+      if (url === '/protected/cob/acciones') return { ok: true, data: ACCIONES };
+      if (url === '/protected/cob/seguimientos') return { ok: true, data: { creados: 2 } };
+      if (/\/protected\/cob\/seguimientos\/[^/]+\/anular$/.test(url)) return { ok: true, data: { anulado: true } };
       if (url.startsWith('/protected/cob/cortes')) return { ok: true, data: CORTES };
       if (url.startsWith('/protected/cob/cartera/documentos/')) return { ok: true, data: FICHA };
       if (url.startsWith('/protected/cob/cartera')) return { ok: true, data: typeof respuesta === 'function' ? respuesta(url) : respuesta };
@@ -68,7 +85,7 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'] } = {})
   const espera = () => new Promise((r) => setTimeout(r, 60));
   const filas = () => $$('#cobTabla tbody tr.r').filter((tr) => tr.style.display !== 'none');
   const cambia = async (sel, v) => { const e = $(sel); e.value = v; e.dispatchEvent(new window.Event(sel === '#cobQ' ? 'input' : 'change')); await espera(); };
-  return { window, pedidos, $, $$, texto, espera, filas, cambia, set: (r) => { respuesta = r; }, cambiarEmpresa: async () => { alCambiarEmpresa && (await alCambiarEmpresa()); await espera(); } };
+  return { window, pedidos, envios, $, $$, texto, espera, filas, cambia, set: (r) => { respuesta = r; }, cambiarEmpresa: async () => { alCambiarEmpresa && (await alCambiarEmpresa()); await espera(); } };
 }
 
 test('pide la cartera vigente y el historial de cortes; exige cob.cartera.read', async () => {
@@ -89,7 +106,7 @@ test('fichas en dos filas, pesos y dólares, cada una en su moneda; equivalente 
   assert.match(t('USD', 'cartera'), /US\$4\.08M/); assert.match(t('USD', 'cartera'), /239 docs/);
   assert.match(t('USD', 'vencido'), /US\$832,705/); assert.match(t('USD', 'vencido'), /91 docs/);
   assert.match(p.texto(p.$('#cobControl')), /342 docs · 55 clientes · equivalente en pesos \$99,472,027\.56/);
-  assert.match(p.texto(), /Corte 20\/10\/2026/i);
+  assert.match(p.texto(), /Corte 21\/10\/2026/i);   // el export se generó el 21
 });
 
 test('avisos: notas por aplicar y residuos; sin aviso de corte desactualizado', async () => {
@@ -219,4 +236,108 @@ test('cambio de empresa: vuelve a pedir y no deja datos de la empresa anterior',
   assert.ok(p.pedidos.length > antes);
   assert.equal(p.filas().length, 0);
   assert.doesNotMatch(p.texto(), /A 23656/);
+});
+
+// ── F1b: seguimiento de facturas ────────────────────────────────────────────
+const SEGUIR = ['cob.cartera.read', 'cob.seguimiento.write'];
+const filaDe = (p, folio) => p.filas().find((tr) => new RegExp(`\\b${folio}\\b`).test(p.texto(tr.querySelector('td[data-col="folio"]') || tr)));
+const marcar = async (p, folio) => { const c = filaDe(p, folio).querySelector('input[data-sel]'); c.checked = true; c.dispatchEvent(new p.window.Event('change', { bubbles: true })); await p.espera(); };
+
+test('tabla: columnas Agente y Último seguimiento (en lugar de Resp.); compromiso vencido en rojo', async () => {
+  const p = await arranca();
+  const ths = p.$$('#cobTabla thead th').map((th) => p.texto(th).replace(/[▲▼]/g, '').trim());
+  assert.ok(ths.includes('Agente') && ths.includes('Último seguimiento'));
+  assert.ok(!ths.includes('Resp.'));
+  const f = filaDe(p, '27162');
+  assert.match(p.texto(f), /Marcela G\./);
+  assert.match(p.texto(f.querySelector('[data-col="seg"]')), /Seguimiento enviado · 21\/10\/2026/);
+  const g = filaDe(p, '27090');
+  assert.match(p.texto(g.querySelector('[data-col="seg"]')), /Compromiso 19\/10\/2026 vencido/);
+  assert.ok(g.querySelector('[data-col="seg"] .cob-rojo'));
+});
+
+test('fichas de seguimiento: Vencido sin seguimiento (92) y Compromisos vencidos (1); filtran la tabla', async () => {
+  const p = await arranca();
+  const t = (k) => p.texto(p.$(`[data-seg] [data-ficha="${k}"]`));
+  assert.match(t('sin_seguimiento'), /92/); assert.match(t('sin_seguimiento'), /US\$832,602/); assert.match(t('sin_seguimiento'), /\$2\.09M/);
+  assert.match(t('compromiso_vencido'), /Compromisos vencidos\s*1\s*factura · \$58,104/);
+  p.$('[data-seg] [data-ficha="compromiso_vencido"]').click(); await p.espera();
+  assert.equal(p.filas().length, 1);
+  assert.match(p.texto(p.$('#cobChips')), /Ficha: Compromisos vencidos/);
+});
+
+test('sin permiso de seguimiento: no hay casillas ni botón de registrar', async () => {
+  const p = await arranca();
+  assert.equal(p.$('input[data-sel]'), null);
+  assert.equal(p.$('#cobRegistrar'), null);
+});
+
+test('registrar seguimiento en 2 facturas: exige fecha si la acción la pide y manda el lote', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  await marcar(p, '27129'); await marcar(p, '27162');
+  const btn = p.$('#cobRegistrar');
+  assert.match(p.texto(btn), /Registrar seguimiento \(2\)/);
+  assert.equal(btn.disabled, false);
+  btn.click(); await p.espera();
+  assert.notEqual(p.$('#cobSegModal').style.display, 'none');
+  assert.ok(p.pedidos.includes('/protected/cob/acciones'));
+  assert.deepEqual(p.$$('#cobSegAccion option').map((o) => o.value).filter(Boolean), ['a-seg', 'a-prog', 'a-otro']);
+  p.$('#cobSegAccion').value = 'a-prog'; p.$('#cobSegAccion').dispatchEvent(new p.window.Event('change')); await p.espera();
+  p.$('#cobSegTexto').value = 'Programada para pago lunes';
+  p.$('#cobSegGuardar').click(); await p.espera();
+  assert.equal(p.envios.length, 0);
+  assert.match(p.texto(p.$('#cobSegMsg')), /fecha compromiso/i);
+  p.$('#cobSegFecha').value = '2026-10-26';
+  const antes = p.pedidos.filter((u) => u.startsWith('/protected/cob/cartera')).length;
+  p.$('#cobSegGuardar').click(); await p.espera(); await p.espera();
+  const e = p.envios.at(-1);
+  assert.equal(e.url, '/protected/cob/seguimientos');
+  const ids = ['27129', '27162'].map((f) => CART.documentos.find((d) => d.folio === f).documento_id);
+  assert.deepEqual(e.body, { documento_ids: ids, accion_id: 'a-prog', texto: 'Programada para pago lunes', fecha_compromiso: '2026-10-26', gestiona: 'cxc' });
+  assert.equal(p.$('#cobSegModal').style.display, 'none');
+  assert.ok(p.pedidos.filter((u) => u.startsWith('/protected/cob/cartera')).length > antes, 'recarga la cartera');
+  assert.equal(p.$$('input[data-sel]:checked').length, 0, 'limpia la selección');
+});
+
+test('gestiona el agente: se elige de los agentes de la cartera; si todas las facturas son del mismo, viene seleccionado', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  await marcar(p, '27162');
+  p.$('#cobRegistrar').click(); await p.espera();
+  p.$('#cobSegAccion').value = 'a-seg';
+  const r = p.$('input[name="cobSegGestiona"][value="agente"]'); r.checked = true; r.dispatchEvent(new p.window.Event('change', { bubbles: true })); await p.espera();
+  assert.equal(p.$('#cobSegAgente').value, 'ag-marc');
+  p.$('#cobSegGuardar').click(); await p.espera();
+  assert.deepEqual([p.envios.at(-1).body.gestiona, p.envios.at(-1).body.agente_id], ['agente', 'ag-marc']);
+});
+
+test('agrupado: la casilla del cliente selecciona todas sus facturas', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  const chk = p.$('#cobAgrupar'); chk.checked = true; chk.dispatchEvent(new p.window.Event('change')); await p.espera();
+  const g = p.$('#cobTabla tbody tr.g input[data-sel-grupo]');
+  g.checked = true; g.dispatchEvent(new p.window.Event('change', { bubbles: true })); await p.espera();
+  assert.match(p.texto(p.$('#cobRegistrar')), /Registrar seguimiento \(81\)/);
+});
+
+test('ficha de factura: línea de tiempo con cortes y seguimientos; los anulados con su motivo; anular pide motivo', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  filaDe(p, '27162').querySelector('td[data-col="folio"]').click(); await p.espera();
+  const tl = p.texto(p.$('#cobHistoria'));
+  assert.match(tl, /Junta \/ escalamiento.*Prox junta jueves 26 oct, Marce.*compromiso 26\/10\/2026.*Marcela G\./);
+  assert.match(tl, /Anulado: Era de otra factura/);
+  assert.doesNotMatch(p.texto(p.$('#cobDrawer')), /llegan en la siguiente fase/);
+  p.$('[data-anular="s-9"]').click(); await p.espera();
+  p.$('#cobAnularGuardar').click(); await p.espera();
+  assert.equal(p.envios.length, 0, 'sin motivo no se anula');
+  p.$('#cobAnularMotivo').value = 'Se canceló la junta';
+  p.$('#cobAnularGuardar').click(); await p.espera();
+  assert.deepEqual(p.envios.at(-1), { url: '/protected/cob/seguimientos/s-9/anular', body: { motivo: 'Se canceló la junta' } });
+});
+
+test('desde la ficha se registra seguimiento solo para esa factura', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  filaDe(p, '27162').querySelector('td[data-col="folio"]').click(); await p.espera();
+  p.$('#cobDrawerRegistrar').click(); await p.espera();
+  p.$('#cobSegAccion').value = 'a-seg';
+  p.$('#cobSegGuardar').click(); await p.espera();
+  assert.deepEqual(p.envios.at(-1).body.documento_ids, [D27162.documento_id]);
 });
