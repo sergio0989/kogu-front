@@ -44,12 +44,15 @@ const ACCIONES = [
 
 // La cuadratura con SAI (342 docs, $99.47M) se ve con Sesión = Todos; por eso
 // las pruebas arrancan ahí salvo que pidan el valor por omisión (sesion: null).
-async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion = 'todos' } = {}) {
+async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion = 'todos', exportFalla = null } = {}) {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
     { url: 'https://kogu.test/modules/cob/cartera/cartera.html', runScripts: 'outside-only' });
   const { window } = dom;
   const pedidos = [];
   const envios = [];
+  const descargas = [];
+  const bajados = [];
+  const toasts = [];
   let alCambiarEmpresa = null;
   let respuesta = cartera;
   window.KoguShell = {
@@ -74,8 +77,17 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion
       if (url.startsWith('/protected/cob/cartera')) return { ok: true, data: typeof respuesta === 'function' ? respuesta(url) : respuesta };
       throw new Error('ruta no esperada ' + url);
     },
-    toast: () => {},
+    toast: (m, t) => toasts.push([t, m]),
+    authFetchRaw: async (url, o = {}) => {
+      descargas.push({ url, method: o.method, body: o.body ? JSON.parse(o.body) : null });
+      if (exportFalla) return { ok: false, status: exportFalla.status, headers: { get: () => 'application/json' }, json: async () => exportFalla.body };
+      return { ok: true, status: 200, headers: { get: (h) => (/disposition/i.test(h) ? 'attachment; filename="cartera_ADGM_2026-10-21.xlsx"' : '') },
+        blob: async () => new window.Blob(['PK']) };
+    },
   };
+  window.URL.createObjectURL = () => 'blob:kogu';
+  window.URL.revokeObjectURL = () => {};
+  window.HTMLAnchorElement.prototype.click = function () { bajados.push(this.download); };
   window.KoguUi = { escapeHtml: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') };
   window.eval(COMUN);
   window.eval(JS);
@@ -88,7 +100,7 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion
   const filas = () => $$('#cobTabla tbody tr.r').filter((tr) => tr.style.display !== 'none');
   const cambia = async (sel, v) => { const e = $(sel); e.value = v; e.dispatchEvent(new window.Event(sel === '#cobQ' ? 'input' : 'change')); await espera(); };
   if (sesion && $('#cobSesion')) await cambia('#cobSesion', sesion);
-  return { window, pedidos, envios, $, $$, texto, espera, filas, cambia, set: (r) => { respuesta = r; }, cambiarEmpresa: async () => { alCambiarEmpresa && (await alCambiarEmpresa()); await espera(); } };
+  return { window, pedidos, envios, descargas, bajados, toasts, $, $$, texto, espera, filas, cambia, set: (r) => { respuesta = r; }, cambiarEmpresa: async () => { alCambiarEmpresa && (await alCambiarEmpresa()); await espera(); } };
 }
 
 test('pide la cartera vigente y el historial de cortes; exige cob.cartera.read', async () => {
@@ -376,4 +388,43 @@ test('Sesión: Excluidos muestra solo esos y se quita con el chip', async () => 
   p.$('[data-quitar="cobSesion"]').click(); await p.espera();
   assert.equal(p.$('#cobSesion').value, 'todos');
   assert.equal(p.filas().length, 342);
+});
+
+// ── F1.1: Exportar a Excel (lo que se ve en pantalla, en ese orden) ─────────
+test('Exportar: manda el corte, las facturas visibles en el orden de la tabla y el recorte; baja el archivo', async () => {
+  const p = await arranca({ sesion: null });
+  p.$('[data-moneda="USD"] [data-ficha="vencido"]').click(); await p.espera();
+  const ids = p.filas().map((tr) => tr.dataset.id);
+  assert.ok(ids.length > 0);
+  p.$('#cobExportar').click(); await p.espera();
+  assert.equal(p.descargas.length, 1);
+  const d = p.descargas[0];
+  assert.equal(d.url, '/protected/cob/cartera/export');
+  assert.equal(d.method, 'POST');
+  assert.equal(d.body.corte_id, K20);
+  assert.deepEqual(d.body.documento_ids, ids);
+  assert.equal(d.body.recorte, 'Sesión: Solo los que se revisan · Ficha: Vencido');
+  assert.deepEqual(p.bajados, ['cartera_ADGM_2026-10-21.xlsx']);
+});
+
+test('Exportar agrupado por cliente: el orden del archivo es el de los grupos', async () => {
+  const p = await arranca();
+  p.$('#cobAgrupar').click(); await p.espera();
+  const ids = p.$$('#cobTabla tbody tr.r').map((tr) => tr.dataset.id);
+  p.$('#cobExportar').click(); await p.espera();
+  assert.deepEqual(p.descargas[0].body.documento_ids, ids);
+});
+
+test('Exportar sin facturas en el recorte: botón deshabilitado', async () => {
+  const p = await arranca();
+  await p.cambia('#cobQ', 'no-existe-999');
+  assert.equal(p.filas().length, 0);
+  assert.equal(p.$('#cobExportar').disabled, true);
+});
+
+test('Exportar con error del servidor: avisa con su mensaje y no baja nada', async () => {
+  const p = await arranca({ exportFalla: { status: 422, body: { ok: false, code: 'COB_EXPORT_DOCUMENTO_AJENO', message: 'Alguna factura no pertenece a este corte. Recarga la cartera y vuelve a exportar.' } } });
+  p.$('#cobExportar').click(); await p.espera();
+  assert.deepEqual(p.bajados, []);
+  assert.ok(p.toasts.some(([t, m]) => t === 'error' && /no pertenece a este corte/.test(m)));
 });

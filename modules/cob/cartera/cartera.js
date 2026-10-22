@@ -73,6 +73,8 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 </div>` : ''}`;
 
   let datos = null;          // respuesta de /cartera
+  let ordenExport = [];      // facturas de la tabla en el orden en que se ven (F1.1)
+  let recorteExport = '';
   let cortes = [];
   let ficha = '';   // rango elegido en las fichas (aplica a las dos monedas)
   let seleccion = new Set();   // F1b: facturas marcadas para registrar seguimiento (orden de selección)
@@ -144,6 +146,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     if (f.sesion !== 'todos') chips.push(['cobSesion', 'Sesión', C.SESION[f.sesion]]);
     if (f.q) chips.push(['cobQ', 'Folio', f.q]);
     if (ficha) chips.push(['ficha', 'Ficha', C.fichaDe(ficha).l]);
+    recorteExport = chips.map((c) => `${c[1]}: ${c[2]}`).join(' · ');
     $('cobChips').innerHTML = chips.map(([id, l, v]) => `<button type="button" class="cob-chip" data-quitar="${id}">${esc(l)}: <b>${esc(v)}</b> ×</button>`).join('');
 
     const recorte = [`Corte ${C.fmtFecha(corte.fecha_corte)} · SAI`, ...(corte.status === 'reemplazado' ? ['reemplazado'] : []), ...chips.map((c) => `${c[1]}: ${c[2]}`)].join(' · ');
@@ -183,9 +186,11 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     if (agrupar) {
       gruposActuales = C.agrupar(rows);
       const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+      ordenExport = gruposActuales.flatMap((g) => g.docs);
       tbody = gruposActuales.map((g, i) => `<tr class="g" data-grupo="${i}">${puedeSeguir ? `<td class="sel"><input type="checkbox" data-sel-grupo="${i}" ${g.docs.every((d) => seleccion.has(d.documento_id)) ? 'checked' : ''} aria-label="Seleccionar facturas del cliente"/></td>` : ''}<td colspan="6">▸ ${esc(g.cliente)} · ${plural(g.docs.length, 'doc', 'docs')}${g.vencidas ? ` · <span class="cob-rojo">${plural(g.vencidas, 'vencida', 'vencidas')}</span>` : ''}</td>
           <td class="num">${g.por_moneda.USD ? C.numero(g.por_moneda.USD) : ''}</td><td class="num">${g.por_moneda.MXN ? C.numero(g.por_moneda.MXN) : ''}</td><td></td><td></td></tr>` + g.docs.map((d) => fila(d, i)).join('')).join('');
     } else {
+      ordenExport = rows;
       tbody = rows.map((d) => fila(d)).join('');
     }
     if (!rows.length) tbody = `<tr><td colspan="${nCols}" class="cob-muted" style="padding:20px">Sin documentos con este recorte.</td></tr>`;
@@ -208,6 +213,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       <label class="cob-tog"><input type="checkbox" id="cobAgrupar" ${agrupar ? 'checked' : ''}/> Agrupar por cliente</label>
       <span class="cob-sp"></span>
       <span id="cobConteo" class="cob-muted">${rows.length} documentos</span>
+      <button type="button" class="btn" id="cobExportar" ${rows.length ? '' : 'disabled'} title="Las facturas de la tabla, en este orden, con su último seguimiento">Exportar a Excel</button>
       ${puedeSeguir ? '<button type="button" class="btn primary" id="cobRegistrar" disabled>Registrar seguimiento (0)</button>' : ''}
     </div>
     <div class="cob-scroll"><table class="cob-tbl" id="cobTabla"><thead><tr>${th}</tr></thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
@@ -220,6 +226,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       ${mon(r.por_moneda.USD, 'USD')}${mon(r.por_moneda.MXN, 'MXN')}</div>`).join('') || '<div class="cob-muted">Sin vencido con este recorte.</div>'}</div>
   </div>`;
     $('cobAgrupar').addEventListener('change', render);   // directo: el cuerpo se repinta en cada render
+    $('cobExportar').addEventListener('click', exportar);
     actualizarSeleccion();
   }
 
@@ -238,6 +245,37 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     if (!s) return (d.sin_seguimiento ? '<span class="cob-rojo">Sin seguimiento</span>' : '<span class="cob-muted">—</span>') + comp;
     const texto = s.texto ? `<div class="cob-muted cob-trunc" title="${esc(s.texto)}">${esc(s.texto)}</div>` : '';
     return `<div class="cob-seg"><b>${esc(s.accion)}</b> · ${C.fmtFecha(s.fecha)}${s.agente ? ` · ${esc(s.agente)}` : ''}</div>${texto}${comp}`;
+  }
+
+  // F1.1: el backend arma el Excel con estas facturas, en este orden; los
+  // filtros viven aquí, así archivo y pantalla no pueden diferir.
+  async function exportar() {
+    const btn = $('cobExportar');
+    if (!datos || !datos.corte || !ordenExport.length) return;
+    btn.disabled = true; btn.textContent = 'Generando…';
+    try {
+      const res = await KoguApi.authFetchRaw('/protected/cob/cartera/export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ corte_id: datos.corte.corte_id, documento_ids: ordenExport.map((d) => d.documento_id), recorte: recorteExport }),
+      });
+      if (!res.ok) {
+        let msg = 'No se pudo generar el archivo.';
+        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (e) { /* sin cuerpo */ }
+        KoguApi.toast(msg, 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const m = (res.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = m ? m[1] : `cartera_${datos.corte.fecha_corte}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) {
+      KoguApi.toast((e && e.message) || 'No se pudo generar el archivo.', 'error');
+    } finally {
+      if ($('cobExportar')) { $('cobExportar').disabled = !ordenExport.length; $('cobExportar').textContent = 'Exportar a Excel'; }
+    }
   }
 
   const MOTIVOS = { factoraje: 'Factoraje', intercompania: 'Intercompañía', juridico: 'Jurídico', otro: 'Otro motivo' };

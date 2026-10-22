@@ -70,11 +70,13 @@ async function arranca({ url = 'https://kogu.test/modules/cob/cargar/cargar.html
   return { window, pedidos, $, texto, espera, ponerArchivo, previsualizar, ultimo };
 }
 
-test('exige cob.corte.cargar; fecha por omisión = viernes más reciente; muestra el historial', async () => {
+// Decisión 22-oct: SAI cuenta los días contra la fecha en que se genera el
+// export y normalmente se carga el mismo día; por omisión, hoy.
+test('exige cob.corte.cargar; fecha por omisión = hoy; muestra el historial', async () => {
   const p = await arranca();
   assert.equal(p.window.__init.requiredPermission, 'cob.corte.cargar');
   assert.equal(p.window.__init.currentPage, '/modules/cob/cargar/cargar.html');
-  assert.equal(p.$('#cobFecha').value, C.viernesMasReciente(hoyLocal()));
+  assert.equal(p.$('#cobFecha').value, hoyLocal());
   assert.match(p.texto(p.$('#cobHistorial')), /20\/10\/2026.*Vista previa.*20\/10\/2026.*Aplicado/);
 });
 

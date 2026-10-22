@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div id="cobHistorial" class="cobc-muted" style="margin-top:8px">Cargando…</div>
   </div>
 </div>`;
-  $('cobFecha').value = C.viernesMasReciente(hoy());
+  $('cobFecha').value = hoy();   // SAI cuenta los días contra la fecha del export; normalmente se carga el mismo día
 
   let actual = null;   // { corte, resumen, advertencias }
 
