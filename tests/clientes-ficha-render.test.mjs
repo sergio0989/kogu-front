@@ -41,6 +41,7 @@ async function montar({ permisos = [], falla400 = false } = {}) {
         if (falla400) { const e = new Error('envio_edo_cta debe ser automatico, manual o no_aplica.'); e.status = 400; throw e; }
         return { data: { ...DETALLE, ...body } };
       }
+      if (path === '/protected/core/clientes/c-111/status' && m === 'PUT') return { data: { ...DETALLE, activo: body.activo } };
       if (path === '/protected/core/clientes/c-111/contactos' && m === 'GET') return { data: { rows: CONTACTOS } };
       if (path === '/protected/core/clientes/c-111/contactos' && m === 'POST') return { data: { contacto_id: 'k-2', ...body } };
       if (path === '/protected/core/usuarios') return { data: [{ user_id: 'u-marce', nombre: 'Marcela', activo: true }] };
@@ -221,6 +222,21 @@ await check('avisa "cambios sin guardar" al modificar', async () => {
   t.$('cb_dias_credito').value = '45';
   t.$('cb_dias_credito').dispatchEvent(new t.w.Event('input', { bubbles: true }));
   assert.equal(t.visible('clDirty'), true);
+});
+
+// Caso real (revision de codigo 2026-10-21): el boton leia un campo #status
+// que no existe en el formulario; tronaba antes de llamar a la API.
+await check('Cambiar status desactiva al cliente activo (antes tronaba)', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.match(t.$('statusBtn').textContent, /Desactivar/);
+  t.$('statusBtn').click(); await t.espera();
+  const put = t.llamadas.find(([m, p]) => m === 'PUT' && p === '/protected/core/clientes/c-111/status');
+  assert.ok(put, 'hubo PUT a /status');
+  assert.deepEqual(put[2], { activo: false });
+  assert.equal(t.$('activo').value, 'false');
+  assert.match(t.$('statusBtn').textContent, /Activar/);
+  assert.ok(!t.toasts.some(([tipo]) => tipo === 'error'), 'sin errores');
 });
 
 for (const n of verde) console.log('ok -', n);

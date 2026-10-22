@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('modeChip').textContent  = 'Edición';
     original = r;
     pintarCobranza(r); limpiarContacto(); cargarContactos();
-    pintarEncabezado(); marcarSucio(false);
+    pintarEncabezado(); marcarSucio(false); etiquetaStatus();
   }
 
   // Abre el cliente completo: la lista solo trae columnas de resumen.
@@ -330,6 +330,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       activarTab('general');
       abrirModal();
     } catch (err) { avisar(err); }
+  }
+
+  function etiquetaStatus() {
+    document.getElementById('statusBtn').textContent = original && original.activo === false ? 'Activar cliente' : 'Desactivar cliente';
   }
 
   function abrirModal()  { document.getElementById('clModal').hidden = false; }
@@ -621,20 +625,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) { avisar(err); }
   };
 
+  // Alterna activo/inactivo con el estado GUARDADO (no con lo que diga el
+  // selector sin guardar). Antes leía un #status que no existe y tronaba.
   document.getElementById('statusBtn').onclick = async () => {
     try {
       const id = document.getElementById('id').value;
-      if (!id) throw new Error('Selecciona un registro.');
-      await KoguApi.apiFetch(MODULE.basePath + '/' + id + '/status', {
+      if (!id || !original) throw new Error('Selecciona un registro.');
+      const activo = !original.activo;
+      const res = await KoguApi.apiFetch(MODULE.basePath + '/' + id + '/status', {
         method: 'PUT',
-        body: JSON.stringify({
-          status: document.getElementById('status').value,
-          activo: document.getElementById('activo').value === 'true'
-        })
+        body: JSON.stringify({ activo })
       });
-      KoguApi.toast('Status actualizado', 'success');
+      const fila = (res && (res.data || res)) || {};
+      original = { ...original, ...fila, activo: fila.activo ?? activo };
+      document.getElementById('activo').value = String(!!original.activo);
+      etiquetaStatus(); pintarEncabezado();
+      KoguApi.toast(original.activo ? 'Cliente activado' : 'Cliente desactivado', 'success');
       await load(false);
-    } catch (err) { KoguApi.toast(err.message, 'error'); }
+    } catch (err) { avisar(err); }
   };
 
   // ── Eventos ───────────────────────────────────────────────────────────────
