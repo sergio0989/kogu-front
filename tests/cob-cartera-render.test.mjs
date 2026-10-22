@@ -1,0 +1,204 @@
+// ============================================================
+// tests/cob-cartera-render.test.mjs
+// Cobranza F1 · pantalla de Cartera (sesión semanal del lunes 9:00).
+// Regla §16: escrita antes de la pantalla y mostrada fallando.
+// Datos: respuesta real de GET /protected/cob/cartera (servicio del backend
+// sobre el export SAI del 20-oct-2026 anonimizado) en tests/fixtures.
+// Se corre con: node --test tests/cob-cartera-render.test.mjs
+// ============================================================
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import fs from 'node:fs';
+
+const JS = fs.readFileSync(new URL('../modules/cob/cartera/cartera.js', import.meta.url), 'utf8');
+const COMUN = fs.readFileSync(new URL('../modules/cob/cob-comun.js', import.meta.url), 'utf8');
+const CART = JSON.parse(fs.readFileSync(new URL('./fixtures/cob-cartera-20261020.json', import.meta.url)));
+const K20 = CART.corte.corte_id;
+const K13 = '44444444-4444-4444-8444-444444444444';
+const CORTES = [
+  { corte_id: '55555555-5555-4555-8555-555555555555', fecha_corte: '2026-10-23', status: 'preview' },
+  { corte_id: K20, fecha_corte: '2026-10-20', status: 'aplicado', saldo_mxn: '99472027.56' },
+  { corte_id: '66666666-6666-4666-8666-666666666666', fecha_corte: '2026-10-20', status: 'reemplazado', saldo_mxn: '99000000.00' },
+  { corte_id: K13, fecha_corte: '2026-10-13', status: 'aplicado', saldo_mxn: '98000000.00' },
+  { corte_id: '77777777-7777-4777-8777-777777777777', fecha_corte: '2026-10-09', status: 'descartado' },
+];
+const D27162 = CART.documentos.find((d) => d.folio === '27162');
+const FICHA = { documento: { ...D27162, corte_id: K20, fecha_corte: '2026-10-20', corte_status: 'aplicado' },
+  historia: [
+    { corte_id: K13, fecha_corte: '2026-10-13', corte_status: 'aplicado', saldo: 2530, saldo_mxn: 43047.19, dias_vencido: 11, bucket: 2 },
+    { corte_id: K20, fecha_corte: '2026-10-20', corte_status: 'aplicado', saldo: 2530, saldo_mxn: 43047.19, dias_vencido: 18, bucket: 2 },
+  ] };
+
+async function arranca({ cartera = CART, permisos = ['cob.cartera.read'] } = {}) {
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
+    { url: 'https://kogu.test/modules/cob/cartera/cartera.html', runScripts: 'outside-only' });
+  const { window } = dom;
+  const pedidos = [];
+  let alCambiarEmpresa = null;
+  let respuesta = cartera;
+  window.KoguShell = {
+    initShell: async (o) => {
+      window.__init = o;
+      const d = window.document.createElement('div'); d.id = 'pageContent';
+      window.document.getElementById('app').appendChild(d);
+      return { ok: true, permissions: permisos };
+    },
+    hasPerm: (p) => permisos.includes(p),
+    subscribeEmpresaActivaChange: (fn) => { alCambiarEmpresa = fn; },
+  };
+  window.KoguApi = {
+    apiFetch: async (url) => {
+      pedidos.push(url);
+      if (url.startsWith('/protected/cob/cortes')) return { ok: true, data: CORTES };
+      if (url.startsWith('/protected/cob/cartera/documentos/')) return { ok: true, data: FICHA };
+      if (url.startsWith('/protected/cob/cartera')) return { ok: true, data: typeof respuesta === 'function' ? respuesta(url) : respuesta };
+      throw new Error('ruta no esperada ' + url);
+    },
+    toast: () => {},
+  };
+  window.KoguUi = { escapeHtml: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') };
+  window.eval(COMUN);
+  window.eval(JS);
+  window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  await new Promise((r) => setTimeout(r, 150));
+  const $ = (s) => window.document.querySelector(s);
+  const $$ = (s) => [...window.document.querySelectorAll(s)];
+  const texto = (el = window.document.getElementById('app')) => el.textContent.replace(/\s+/g, ' ');
+  const espera = () => new Promise((r) => setTimeout(r, 60));
+  const filas = () => $$('#cobTabla tbody tr.r').filter((tr) => tr.style.display !== 'none');
+  const cambia = async (sel, v) => { const e = $(sel); e.value = v; e.dispatchEvent(new window.Event(sel === '#cobQ' ? 'input' : 'change')); await espera(); };
+  return { window, pedidos, $, $$, texto, espera, filas, cambia, set: (r) => { respuesta = r; }, cambiarEmpresa: async () => { alCambiarEmpresa && (await alCambiarEmpresa()); await espera(); } };
+}
+
+test('pide la cartera vigente y el historial de cortes; exige cob.cartera.read', async () => {
+  const p = await arranca();
+  assert.equal(p.window.__init.requiredPermission, 'cob.cartera.read');
+  assert.equal(p.window.__init.currentPage, '/modules/cob/cartera/cartera.html');
+  assert.ok(p.pedidos.includes('/protected/cob/cartera'));
+  assert.ok(p.pedidos.some((u) => u.startsWith('/protected/cob/cortes')));
+});
+
+test('fichas del corte: cartera y vencido como los de SAI, con documentos', async () => {
+  const p = await arranca();
+  const fichas = p.$$('[data-ficha]');
+  assert.equal(fichas.length, 7);
+  const t = (k) => p.texto(p.$(`[data-ficha="${k}"]`));
+  assert.match(t('cartera'), /\$99\.47M/); assert.match(t('cartera'), /342 docs · 55 clientes/);
+  assert.match(t('b1'), /\$82\.69M/);
+  assert.match(t('vencido'), /\$16\.78M/); assert.match(t('vencido'), /102 docs/);
+  assert.match(p.texto(), /Corte 20\/10\/2026/i);
+});
+
+test('avisos: notas por aplicar y residuos; sin aviso de corte desactualizado', async () => {
+  const p = await arranca();
+  const a = p.texto(p.$('#cobAvisos'));
+  assert.match(a, /8 notas de crédito por aplicar/);
+  assert.match(a, /2 saldos menores a \$50/);
+  assert.doesNotMatch(a, /días; carga/);
+});
+
+test('corte desactualizado: aviso visible', async () => {
+  const p = await arranca({ cartera: { ...CART, corte: { ...CART.corte, dias_desde_corte: 10, desactualizado: true } } });
+  assert.match(p.texto(p.$('#cobAvisos')), /El corte tiene 10 días/);
+});
+
+test('tabla: 342 documentos, mayor saldo primero, total al centavo', async () => {
+  const p = await arranca();
+  assert.equal(p.filas().length, 342);
+  assert.match(p.texto(p.filas()[0]), /A 23656/);
+  assert.match(p.texto(p.$('#cobConteo')), /342 documentos · \$99,472,027\.56/);
+});
+
+test('cliente con factoraje y cliente sin catalogar se distinguen', async () => {
+  const p = await arranca();
+  const f1 = p.filas().find((tr) => /CLIENTE 1\b/.test(p.texto(tr)));
+  assert.match(p.texto(f1), /Factoraje/);
+  const sin = p.filas().find((tr) => tr.dataset.sinCatalogo === '1');
+  assert.ok(sin, 'hay renglones sin catálogo marcados');
+  assert.match(p.texto(sin), /Sin catálogo/);
+});
+
+test('ficha seleccionada filtra la tabla y aparece como chip; segundo clic la quita', async () => {
+  const p = await arranca();
+  p.$('[data-ficha="b5"]').click(); await p.espera();
+  assert.equal(p.filas().length, 22);
+  assert.match(p.texto(p.$('#cobChips')), /Ficha: Más de 90/);
+  p.$('[data-ficha="b5"]').click(); await p.espera();
+  assert.equal(p.filas().length, 342);
+});
+
+test('filtro de moneda recalcula fichas y tabla', async () => {
+  const p = await arranca();
+  await p.cambia('#cobMoneda', 'USD');
+  assert.equal(p.filas().length, 239);
+  assert.match(p.texto(p.$('[data-ficha="cartera"]')), /\$71\.49M/);
+  assert.match(p.texto(p.$('#cobChips')), /Moneda: USD/);
+});
+
+test('buscar folio (notas sin serie) y filtrar responsable "sin responsable"', async () => {
+  const p = await arranca();
+  await p.cambia('#cobQ', 'n200');
+  assert.equal(p.filas().length, 1);
+  await p.cambia('#cobQ', '');
+  await p.cambia('#cobResp', '__none');
+  assert.equal(p.filas().length, 244);
+});
+
+test('agrupar por cliente: 55 grupos, el de mayor saldo arriba; los renglones se abren al tocar el grupo', async () => {
+  const p = await arranca();
+  const chk = p.$('#cobAgrupar'); chk.checked = true; chk.dispatchEvent(new p.window.Event('change')); await p.espera();
+  const g = p.$$('#cobTabla tbody tr.g');
+  assert.equal(g.length, 55);
+  assert.match(p.texto(g[0]), /CLIENTE 1 · 81 docs · 5 vencidas/);
+  assert.equal(p.filas().length, 0);
+  g[0].click(); await p.espera();
+  assert.equal(p.filas().length, 81);
+});
+
+test('vencido por responsable: Roxana primero, sin responsable al final', async () => {
+  const p = await arranca();
+  const r = p.$$('#cobResponsables [data-resp]').map((e) => p.texto(e));
+  assert.match(r[0], /Roxana H\./);
+  assert.match(r.at(-1), /Sin responsable/);
+});
+
+test('clic en una factura: pide su ficha y muestra la historia en los cortes', async () => {
+  const p = await arranca();
+  p.filas().find((tr) => /A 27162/.test(p.texto(tr))).click(); await p.espera();
+  assert.ok(p.pedidos.includes(`/protected/cob/cartera/documentos/${D27162.documento_id}`));
+  const dr = p.$('#cobDrawer');
+  assert.notEqual(dr.style.display, 'none');
+  assert.match(p.texto(dr), /A 27162/);
+  assert.match(p.texto(dr), /13\/10\/2026.*11 días.*20\/10\/2026.*18 días/);
+  p.$('#cobDrawerCerrar').click(); await p.espera();
+  assert.equal(dr.style.display, 'none');
+});
+
+test('selector de corte: solo aplicados y reemplazados; elegir uno lo pide por corte_id', async () => {
+  const p = await arranca();
+  const ops = p.$$('#cobCorte option').map((o) => o.textContent);
+  assert.equal(ops.length, 3);
+  assert.match(ops[1], /20\/10\/2026.*reemplazado/i);
+  await p.cambia('#cobCorte', K13);
+  assert.ok(p.pedidos.includes(`/protected/cob/cartera?corte_id=${K13}`));
+});
+
+test('sin cortes cargados: estado vacío; con permiso de carga, liga a Cargar corte', async () => {
+  const vacio = { corte: null, documentos: [], fichas: CART.fichas, por_responsable: [] };
+  const p = await arranca({ cartera: vacio, permisos: ['cob.cartera.read', 'cob.corte.cargar'] });
+  assert.match(p.texto(), /Todavía no hay cortes aplicados/);
+  assert.ok(p.$('a[href="/modules/cob/cargar/cargar.html"]'));
+  const q = await arranca({ cartera: vacio });
+  assert.equal(q.$('a[href="/modules/cob/cargar/cargar.html"]'), null);
+});
+
+test('cambio de empresa: vuelve a pedir y no deja datos de la empresa anterior', async () => {
+  const p = await arranca();
+  p.set({ corte: null, documentos: [], fichas: CART.fichas, por_responsable: [] });
+  const antes = p.pedidos.length;
+  await p.cambiarEmpresa();
+  assert.ok(p.pedidos.length > antes);
+  assert.equal(p.filas().length, 0);
+  assert.doesNotMatch(p.texto(), /A 23656/);
+});

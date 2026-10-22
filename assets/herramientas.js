@@ -6,8 +6,8 @@
 (function (root) {
   // Orden fijo = orden en que se muestran las tarjetas.
   const HERRAMIENTAS = [
-    { id: 'fiscal',    nombre: 'Fiscal',         icono: '🧾', descripcion: 'CFDI, materialidad y proveedores.',
-      secciones: ['Negocio CFDI', 'Materialidad', 'Proveedores'] },
+    { id: 'fiscal',    nombre: 'Fiscal',         icono: '🧾', descripcion: 'CFDI, cobranza, materialidad y proveedores.',
+      secciones: ['Negocio CFDI', 'Cobranza', 'Materialidad', 'Proveedores'] },
     { id: 'costos',    nombre: 'Costos',         icono: '📊', descripcion: 'Costo de ventas, comercio exterior y comisiones.',
       secciones: ['Costo', 'Comercio Exterior', 'Comisiones'] },
     { id: 'comercial', nombre: 'Comercial',      icono: '🎯', descripcion: 'Radar comercial y seguimiento de clientes.',

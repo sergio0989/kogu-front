@@ -1,0 +1,149 @@
+/*
+ * modules/cob/cob-comun.js — Cobranza F1 · lógica pura de Cartera y Cargar corte.
+ * Sin DOM ni red: filtros, fichas, orden, agrupación, avisos y formatos.
+ * Se usa en el navegador como window.CobComun y en node con require().
+ * Prueba: tests/cob-comun.test.mjs (datos reales del corte SAI 20-oct-2026).
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CobComun = api;
+})(typeof self !== 'undefined' ? self : this, function () {
+  const fm2 = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fm0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+  const r2 = (x) => Math.round((Number(x) + Number.EPSILON) * 100) / 100;
+  // Suma con el saldo exacto (saldo x TC sin redondear, como SAI); el redondeado
+  // por renglón se desvía centavos del total del reporte.
+  const mxn = (d) => Number(d.saldo_mxn_exacto ?? d.saldo_mxn ?? 0);
+  const suma = (docs) => r2(docs.reduce((s, d) => s + mxn(d), 0));
+
+  // Rangos de antigüedad del reporte SAI (bucket 1..5 que calcula el backend).
+  const BUCKETS = ['Por vencer', '1-30', '31-60', '61-90', '+90'];
+  const etiquetaBucket = (b) => BUCKETS[b - 1] || '—';
+
+  // Fichas de la pantalla. En F1 no hay acuerdos: "Vencido" es todo lo vencido;
+  // "vencido sin acuerdo" y "promesas vencidas" llegan con F1b.
+  const FICHAS = [
+    { k: 'cartera', l: 'Cartera', color: '#64748b', f: () => true },
+    { k: 'b1', l: 'Por vencer', color: '#16a34a', f: (d) => d.bucket === 1 },
+    { k: 'b2', l: 'Vencido 1-30', color: '#d97706', f: (d) => d.bucket === 2 },
+    { k: 'b3', l: '31-60', color: '#ea580c', f: (d) => d.bucket === 3 },
+    { k: 'b4', l: '61-90', color: '#dc2626', f: (d) => d.bucket === 4 },
+    { k: 'b5', l: 'Más de 90', color: '#7f1d1d', f: (d) => d.bucket === 5 },
+    { k: 'vencido', l: 'Vencido', color: '#dc2626', valor: true, f: (d) => !!d.vencido },
+  ];
+
+  function folioDe(d) { return (d.serie ? d.serie + ' ' : '') + d.folio; }
+
+  function resumenFichas(docs) {
+    return FICHAS.map((F) => {
+      const a = docs.filter(F.f);
+      const out = { k: F.k, l: F.l, color: F.color, valor: !!F.valor, docs: a.length, saldo_mxn: suma(a) };
+      if (F.k === 'cartera') out.clientes = new Set(a.map((d) => d.cve_cte)).size;
+      return out;
+    });
+  }
+
+  function filtrar(docs, f = {}) {
+    const q = (f.q || '').trim().toLowerCase();
+    const ficha = f.ficha ? FICHAS.find((x) => x.k === f.ficha) : null;
+    return docs.filter((d) =>
+      (!f.cliente || d.cve_cte === f.cliente) &&
+      (!f.responsable || (f.responsable === '__none' ? !d.responsable_id : d.responsable_id === f.responsable)) &&
+      (!f.moneda || d.moneda === f.moneda) &&
+      (!q || folioDe(d).toLowerCase().includes(q)) &&
+      (!ficha || ficha.f(d)));
+  }
+
+  function ordenar(docs, key, dir = 1) {
+    const val = (d) => (key === 'folio' ? folioDe(d) : d[key]);
+    return [...docs].sort((a, b) => {
+      const x = val(a); const y = val(b);
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;            // vacíos al final en cualquier sentido
+      if (y == null) return -1;
+      if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+      return String(x).localeCompare(String(y), 'es', { numeric: true }) * dir;
+    });
+  }
+
+  function agrupar(docs) {
+    const g = new Map();
+    for (const d of docs) {
+      if (!g.has(d.cve_cte)) g.set(d.cve_cte, { cve_cte: d.cve_cte, cliente: d.cliente, docs: [] });
+      g.get(d.cve_cte).docs.push(d);
+    }
+    return [...g.values()]
+      .map((x) => ({ ...x, saldo_mxn: suma(x.docs), vencidas: x.docs.filter((d) => d.vencido && !d.nota).length }))
+      .sort((a, b) => b.saldo_mxn - a.saldo_mxn);
+  }
+
+  function avisos(docs, corte) {
+    const out = [];
+    const notas = docs.filter((d) => d.nota);
+    const res = docs.filter((d) => d.residuo);
+    if (corte && corte.desactualizado) {
+      out.push({ tipo: 'desactualizado', texto: `El corte tiene ${corte.dias_desde_corte} días; carga el de esta semana antes de la sesión.` });
+    }
+    if (notas.length) {
+      out.push({ tipo: 'notas', docs: notas.length, saldo_mxn: suma(notas),
+        texto: `${notas.length} notas de crédito por aplicar (${dinero(suma(notas))}) restan dentro de su antigüedad.` });
+    }
+    if (res.length) {
+      out.push({ tipo: 'residuos', docs: res.length, saldo_mxn: suma(res),
+        texto: `${res.length} saldos menores a $50 (${dinero(suma(res))}): residuos de cobro o tipo de cambio para depurar.` });
+    }
+    return out;
+  }
+
+  function opcionesClientes(docs) {
+    const m = new Map();
+    for (const d of docs) if (!m.has(d.cve_cte)) m.set(d.cve_cte, d.cliente || d.nom_cte_sai || d.cve_cte);
+    return [...m.entries()].map(([valor, nombre]) => ({ valor, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  function opcionesResponsables(docs) {
+    const m = new Map(); let sin = false;
+    for (const d of docs) { if (d.responsable_id) m.set(d.responsable_id, d.responsable || d.responsable_id); else sin = true; }
+    const out = [...m.entries()].map(([valor, nombre]) => ({ valor, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    if (sin) out.push({ valor: '__none', nombre: 'Sin responsable' });
+    return out;
+  }
+
+  // Misma regla que el backend: vencido (rango 2..5) por responsable de cobranza.
+  function porResponsable(docs) {
+    const m = new Map();
+    for (const d of docs) {
+      if (!d.vencido) continue;
+      const k = d.responsable_id || '';
+      const g = m.get(k) || { responsable_id: d.responsable_id || null, responsable: d.responsable || 'Sin responsable', docs: 0, vencido_mxn: 0 };
+      g.docs += 1; g.vencido_mxn += mxn(d); m.set(k, g);
+    }
+    return [...m.values()].map((g) => ({ ...g, vencido_mxn: r2(g.vencido_mxn) }))
+      .sort((a, b) => (a.responsable_id === null) - (b.responsable_id === null) || b.vencido_mxn - a.vencido_mxn);
+  }
+
+  // El export de SAI se hace el viernes en la tarde: ese es el corte por omisión.
+  function viernesMasReciente(hoyISO) {
+    const [y, m, d] = hoyISO.split('-').map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d));
+    const atras = (t.getUTCDay() - 5 + 7) % 7;
+    t.setUTCDate(t.getUTCDate() - atras);
+    return t.toISOString().slice(0, 10);
+  }
+
+  function fmtFecha(s) {
+    if (!s) return '—';
+    const [y, m, d] = String(s).slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function dinero(v) { return (v < 0 ? '-$' : '$') + fm2.format(Math.abs(Number(v) || 0)); }
+  function dineroCorto(v) {
+    const n = Number(v) || 0;
+    return Math.abs(n) >= 1e6 ? `${n < 0 ? '-' : ''}$${(Math.abs(n) / 1e6).toFixed(2)}M` : (n < 0 ? '-$' : '$') + fm0.format(Math.abs(n));
+  }
+  function numero(v) { return fm2.format(Number(v) || 0); }
+
+  return { BUCKETS, FICHAS, etiquetaBucket, folioDe, resumenFichas, filtrar, ordenar, agrupar, avisos,
+    opcionesClientes, opcionesResponsables, porResponsable, viernesMasReciente, fmtFecha, dinero, dineroCorto, numero };
+});

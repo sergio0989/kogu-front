@@ -31,6 +31,10 @@
       {href:'/modules/cfdi/rep/bandeja-rep.html',label:'Bandeja REP',perm:'screen.cfdi.cfdi_facturas'},
       {href:'/modules/cfdi/rep/emitidas-pendientes.html',label:'PPD emitidas pendientes',perm:'screen.cfdi.cfdi_facturas'},
     ]},
+    {section:'Cobranza',items:[
+      {href:'/modules/cob/cartera/cartera.html',label:'Cartera por cobrar',perm:'cob.cartera.read'},
+      {href:'/modules/cob/cargar/cargar.html',label:'Cargar corte',perm:'cob.corte.cargar'},
+    ]},
     {section:'Catálogos',items:[
       {href:'/modules/core/clientes/clientes.html',label:'Clientes',perm:'screen.catalogos.clientes'},
     ]},
