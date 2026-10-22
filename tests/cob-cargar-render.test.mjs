@@ -104,7 +104,7 @@ test('resumen: totales por antigüedad iguales a SAI, documentos y clientes', as
   assert.match(t, /Por vencer.*\$82,687,067\.45/);
   assert.match(t, /\+90.*\$4,336,659\.76/);
   assert.match(t, /Total.*\$99,472,027\.56/);
-  assert.match(t, /Cuadra con los totales de SAI renglón por renglón/);
+  assert.match(t, /Cuadra con los totales y la antigüedad de SAI renglón por renglón/);
 });
 
 test('clientes sin catalogar: se listan con su saldo', async () => {
@@ -191,4 +191,45 @@ test('retomar una vista previa por ?corte_id', async () => {
   assert.ok(p.pedidos.some((x) => x.u === `/protected/cob/cortes/${KID}`));
   assert.match(p.texto(p.$('#cobResumen')), /342 documentos/);
   assert.ok(p.$('#cobAplicar'));
+});
+
+// ── Fecha de corte equivocada (caso real 22-oct: export del 22 cargado con la
+//    fecha por omisión, viernes 16; la pantalla decía "cuadra con SAI") ───────
+const DIF_B = [
+  { linea: 8, documento: 'A 27280', bucket_sai: 1, bucket_kogu: 2, dias_vencido: 6 },
+  { linea: 180, documento: 'A 26773', bucket_sai: 2, bucket_kogu: 3, dias_vencido: 36 },
+];
+const PV_FECHA_MAL = { ...PV, corte: { ...PV.corte, fecha_corte: '2026-10-16' },
+  resumen: { ...PV.resumen, reemplaza: null, diferencias_bucket: DIF_B, fecha_sugerida: '2026-10-22' } };
+
+test('antigüedad distinta a SAI: aviso con la fecha que cuadra; no dice "cuadra con SAI"', async () => {
+  const p = await arranca({ preview: PV_FECHA_MAL });
+  await p.previsualizar();
+  const t = p.texto(p.$('#cobResumen'));
+  assert.match(t, /En 2 facturas la antigüedad no coincide con SAI/);
+  assert.match(t, /22\/10\/2026/);
+  assert.doesNotMatch(t, /Cuadra con los totales de SAI/);
+  assert.ok(p.$('#cobUsarSugerida'));
+});
+
+test('"Usar fecha sugerida": descarta la vista previa y la repite con esa fecha', async () => {
+  const p = await arranca({ preview: PV_FECHA_MAL });
+  p.$('#cobFecha').value = '2026-10-16';
+  await p.previsualizar();
+  p.$('#cobUsarSugerida').click(); await p.espera(); await p.espera();
+  assert.equal(p.ultimo(/descartar$/).u, `/protected/cob/cortes/${KID}/descartar`);
+  assert.equal(p.$('#cobFecha').value, '2026-10-22');
+  const previews = p.pedidos.filter((x) => /\/cortes\/preview$/.test(x.u));
+  assert.equal(previews.length, 2);
+  assert.equal(previews[1].o.body.get('fecha_corte'), '2026-10-22');
+});
+
+test('aplicar con antigüedad distinta exige confirmar', async () => {
+  const p = await arranca({ preview: PV_FECHA_MAL });
+  await p.previsualizar();
+  p.$('#cobAplicar').click(); await p.espera();
+  assert.equal(p.ultimo(/aplicar$/), undefined);
+  p.$('#cobConfirmarDif').checked = true;
+  p.$('#cobAplicar').click(); await p.espera();
+  assert.deepEqual(JSON.parse(p.ultimo(/aplicar$/).o.body), { confirmar_diferencias: true });
 });

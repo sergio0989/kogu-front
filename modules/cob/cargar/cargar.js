@@ -98,6 +98,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { corte, resumen: r } = p;
     const bk = r.buckets_mxn || {};
     const difs = r.diferencias_importe || [];
+    const difB = r.diferencias_bucket || [];
+    const sug = r.fecha_sugerida;
     const comp = r.comparacion;
     const fila = (d, extra = '') => `<li><b>${esc(C.folioDe(d))}</b> · ${esc(d.cve_cte)} · ${esc(d.moneda)} ${C.numero(d.saldo)}${extra}</li>`;
     const lista = (arr, f) => arr.slice(0, 15).map(f).join('') + (arr.length > 15 ? `<li class="cobc-muted">y ${arr.length - 15} más</li>` : '');
@@ -112,8 +114,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tr class="tot"><td>Total</td><td class="num">${C.dinero(Number(corte.saldo_mxn))}</td></tr>
     </tbody></table>
     ${difs.length
-    ? `<div class="cobc-alerta mal">${plural(difs.length, 'renglón no cuadra', 'renglones no cuadran')} con SAI: ${difs.slice(0, 10).map((d) => `${esc(d.documento)} (KOGU ${C.dinero(d.saldo_mxn)} · SAI ${C.dinero(d.total_sai_mxn)})`).join(', ')}.</div>`
-    : '<div class="cobc-alerta ok">Cuadra con los totales de SAI renglón por renglón.</div>'}
+    ? `<div class="cobc-alerta mal">${plural(difs.length, 'renglón no cuadra', 'renglones no cuadran')} con SAI: ${difs.slice(0, 10).map((d) => `${esc(d.documento)} (KOGU ${C.dinero(d.saldo_mxn)} · SAI ${C.dinero(d.total_sai_mxn)})`).join(', ')}.</div>` : ''}
+    ${difB.length
+    ? `<div class="cobc-alerta mal">En ${plural(difB.length, 'factura', 'facturas')} la antigüedad no coincide con SAI (${difB.slice(0, 5).map((d) => esc(d.documento)).join(', ')}${difB.length > 5 ? '…' : ''}).
+        SAI cuenta los días contra el día en que se generó el reporte.
+        ${sug ? `Con fecha de corte <b>${C.fmtFecha(sug)}</b> cuadra completo.
+          ${corte.status === 'preview' ? `<div style="margin-top:8px"><button type="button" class="btn primary" id="cobUsarSugerida" data-fecha="${esc(sug)}">Usar ${C.fmtFecha(sug)}</button></div>` : ''}`
+    : 'Revisa que la fecha de corte sea el día en que sacaste el reporte.'}</div>` : ''}
+    ${!difs.length && !difB.length ? '<div class="cobc-alerta ok">Cuadra con los totales y la antigüedad de SAI renglón por renglón.</div>' : ''}
     <div class="cobc-muted" style="margin-top:6px">Compara estos totales con los del pie del reporte en SAI antes de aplicar.</div>
   </div>
   <div class="card" id="cobAcciones">${acciones()}</div>
@@ -143,11 +151,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function acciones() {
     const { corte, resumen: r } = actual;
     if (corte.status !== 'preview') return `<div>Este corte está <b>${STATUS[corte.status] || esc(corte.status)}</b>.</div>`;
-    const difs = (r.diferencias_importe || []).length;
+    const difs = (r.diferencias_importe || []).length + (r.diferencias_bucket || []).length;
     return `
     ${r.reemplaza ? `<div class="cobc-alerta warn">Ya hay un corte aplicado al ${C.fmtFecha(r.reemplaza.fecha_corte)}. Al aplicar éste, el anterior queda como reemplazado (se conserva como historia).</div>
       <div class="label-text" style="margin-top:10px">Motivo del reemplazo</div><textarea class="input" id="cobMotivo" rows="2" style="width:100%" placeholder="Ej. se exportó antes del cierre"></textarea>` : ''}
-    ${difs ? '<label class="cobc-check"><input type="checkbox" id="cobConfirmarDif"/> Revisé los renglones que no cuadran con SAI y quiero aplicar así.</label>' : ''}
+    ${difs ? '<label class="cobc-check"><input type="checkbox" id="cobConfirmarDif"/> Revisé las diferencias contra SAI y quiero aplicar así.</label>' : ''}
     <div class="cobc-btns"><button type="button" class="btn primary" id="cobAplicar">Aplicar corte</button>
       <button type="button" class="btn" id="cobDescartar">Descartar</button></div>`;
   }
@@ -159,8 +167,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!m) { msg('Escribe el motivo del reemplazo.', 'mal'); return; }
       body.motivo = m;
     }
-    if ((actual.resumen.diferencias_importe || []).length) {
-      if (!$('cobConfirmarDif').checked) { msg('Confirma que revisaste los renglones que no cuadran con SAI.', 'mal'); return; }
+    if ((actual.resumen.diferencias_importe || []).length || (actual.resumen.diferencias_bucket || []).length) {
+      if (!$('cobConfirmarDif').checked) { msg('Confirma que revisaste las diferencias contra SAI.', 'mal'); return; }
       body.confirmar_diferencias = true;
     }
     $('cobAplicar').disabled = true;
@@ -188,9 +196,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Descarta la vista previa con la fecha equivocada y la repite con la que cuadra.
+  async function usarSugerida(fecha) {
+    try {
+      await KoguApi.apiFetch(`/protected/cob/cortes/${encodeURIComponent(actual.corte.corte_id)}/descartar`, { method: 'POST' });
+    } catch (_) { /* si ya no estaba en vista previa, seguimos */ }
+    $('cobFecha').value = fecha;
+    await previsualizar();
+  }
+
   // ── Eventos ──────────────────────────────────────────────────────
   $('cobPreviewBtn').addEventListener('click', previsualizar);
   $('cobPreview').addEventListener('click', (e) => {
+    if (e.target.id === 'cobUsarSugerida') usarSugerida(e.target.dataset.fecha);
     if (e.target.id === 'cobAplicar') aplicar();
     if (e.target.id === 'cobDescartar') descartar();
   });
