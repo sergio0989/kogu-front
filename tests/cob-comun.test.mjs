@@ -108,10 +108,6 @@ test('fichas por moneda: cada fila en su moneda, sin convertir', () => {
   assert.deepEqual(C.fichasPorMoneda(D).map((x) => x.moneda), ['MXN', 'USD']);
 });
 
-test('ficha de una moneda filtra rango y moneda', () => {
-  assert.equal(C.filtrar(D, { ficha: 'vencido', fichaMoneda: 'USD' }).length, 91);
-  assert.equal(C.filtrar(D, { ficha: 'cartera', fichaMoneda: 'MXN' }).length, 103);
-});
 
 test('totales por moneda: suma de la columna USD y de la columna MXN', () => {
   assert.deepEqual(C.totalesMoneda(D), { MXN: { docs: 103, saldo: 27986056.36 }, USD: { docs: 239, saldo: 4082965.10 } });

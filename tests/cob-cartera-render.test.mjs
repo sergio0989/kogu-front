@@ -131,11 +131,15 @@ test('cliente con factoraje y cliente sin catalogar se distinguen', async () => 
 
 test('ficha seleccionada filtra la tabla y aparece como chip; segundo clic la quita', async () => {
   const p = await arranca();
+  // La ficha filtra solo el rango, sin importar en qué fila (moneda) se tocó.
   p.$('[data-moneda="USD"] [data-ficha="b5"]').click(); await p.espera();
-  assert.equal(p.filas().length, 20);
-  assert.match(p.texto(p.$('#cobChips')), /Ficha: Más de 90 · USD/);
-  assert.equal(p.texto(p.$('#cobTotMXN')).trim(), '0.00');
-  p.$('[data-moneda="USD"] [data-ficha="b5"]').click(); await p.espera();
+  assert.equal(p.filas().length, 22);
+  assert.match(p.texto(p.$('#cobChips')), /Ficha: Más de 90/);
+  assert.doesNotMatch(p.texto(p.$('#cobChips')), /USD|MXN/);
+  assert.equal(p.$$('[data-ficha="b5"].sel').length, 2, 'se marca la ficha en las dos filas');
+  assert.equal(p.texto(p.$('#cobTotUSD')).trim(), '140,807.50');
+  assert.equal(p.texto(p.$('#cobTotMXN')).trim(), '1,632,567.04');
+  p.$('[data-moneda="MXN"] [data-ficha="b5"]').click(); await p.espera();
   assert.equal(p.filas().length, 342);
 });
 

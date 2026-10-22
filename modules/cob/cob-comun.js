@@ -75,7 +75,6 @@
       (!f.cliente || d.cve_cte === f.cliente) &&
       (!f.responsable || (f.responsable === '__none' ? !d.responsable_id : d.responsable_id === f.responsable)) &&
       (!f.moneda || d.moneda === f.moneda) &&
-      (!f.fichaMoneda || d.moneda === f.fichaMoneda) &&
       (!q || folioDe(d).toLowerCase().includes(q)) &&
       (!ficha || ficha.f(d)));
   }

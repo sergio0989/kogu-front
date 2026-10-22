@@ -56,8 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let datos = null;          // respuesta de /cartera
   let cortes = [];
-  let ficha = '';        // rango elegido en las fichas…
-  let fichaMoneda = '';  // …y de qué fila (MXN / USD)
+  let ficha = '';   // rango elegido en las fichas (aplica a las dos monedas)
   let orden = { k: 'saldo_mxn', dir: -1 };
   const filtro = () => ({ cliente: $('cobCliente').value, responsable: $('cobResp').value, moneda: $('cobMoneda').value, q: $('cobQ').value });
 
@@ -110,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const f = filtro();
     const base = C.filtrar(datos.documentos, f);
-    const rows = C.ordenar(C.filtrar(base, { ficha, fichaMoneda }), orden.k, orden.dir);
+    const rows = C.ordenar(C.filtrar(base, { ficha }), orden.k, orden.dir);
     const corte = datos.corte;
 
     const chips = [];
@@ -118,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (f.responsable) chips.push(['cobResp', 'Responsable', $('cobResp').selectedOptions[0]?.text]);
     if (f.moneda) chips.push(['cobMoneda', 'Moneda', f.moneda]);
     if (f.q) chips.push(['cobQ', 'Folio', f.q]);
-    if (ficha) chips.push(['ficha', 'Ficha', `${C.FICHAS.find((x) => x.k === ficha).l} · ${fichaMoneda}`]);
+    if (ficha) chips.push(['ficha', 'Ficha', C.FICHAS.find((x) => x.k === ficha).l]);
     $('cobChips').innerHTML = chips.map(([id, l, v]) => `<button type="button" class="cob-chip" data-quitar="${id}">${esc(l)}: <b>${esc(v)}</b> ×</button>`).join('');
 
     const recorte = [`Corte ${C.fmtFecha(corte.fecha_corte)} · SAI`, ...(corte.status === 'reemplazado' ? ['reemplazado'] : []), ...chips.map((c) => `${c[1]}: ${c[2]}`)].join(' · ');
@@ -128,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="cob-fila" data-moneda="${r.moneda}"><div class="cob-fila-l">${r.moneda === 'MXN' ? 'Pesos' : 'Dólares'}</div>
       <div class="cob-kpis">${r.fichas.map((x) => {
         const hint = x.k === 'cartera' ? `${x.docs} docs · ${x.clientes} clientes` : `${x.docs} docs`;
-        return `<button type="button" class="cob-kpi ${ficha === x.k && fichaMoneda === r.moneda ? 'sel' : ''}" data-ficha="${x.k}" style="--k:${x.color};${x.valor ? `--kv:${x.color}` : ''}">
+        return `<button type="button" class="cob-kpi ${ficha === x.k ? 'sel' : ''}" data-ficha="${x.k}" style="--k:${x.color};${x.valor ? `--kv:${x.color}` : ''}">
           <div class="l">${esc(x.l)}</div><div class="v">${C.dineroCortoMoneda(x.saldo, r.moneda)}</div><div class="h">${hint}</div></button>`;
       }).join('')}</div></div>`).join('');
     const tot = C.resumenFichas(base)[0];
@@ -234,19 +233,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Eventos (delegados: el cuerpo se repinta) ────────────────────
   ['cobCliente', 'cobResp', 'cobMoneda'].forEach((id) => $(id).addEventListener('change', render));
   $('cobQ').addEventListener('input', render);
-  $('cobCorte').addEventListener('change', () => { ficha = ''; fichaMoneda = ''; cargar($('cobCorte').value); });
+  $('cobCorte').addEventListener('change', () => { ficha = ''; cargar($('cobCorte').value); });
   $('cobChips').addEventListener('click', (e) => {
     const q = e.target.closest('[data-quitar]'); if (!q) return;
-    if (q.dataset.quitar === 'ficha') { ficha = ''; fichaMoneda = ''; } else $(q.dataset.quitar).value = '';
+    if (q.dataset.quitar === 'ficha') ficha = ''; else $(q.dataset.quitar).value = '';
     render();
   });
   $('cobCuerpo').addEventListener('click', (e) => {
     const k = e.target.closest('[data-ficha]');
-    if (k) {
-      const m = k.closest('[data-moneda]').dataset.moneda;
-      if (ficha === k.dataset.ficha && fichaMoneda === m) { ficha = ''; fichaMoneda = ''; } else { ficha = k.dataset.ficha; fichaMoneda = m; }
-      render(); return;
-    }
+    // La ficha filtra el rango en las dos monedas; la moneda se elige con el filtro Moneda.
+    if (k) { ficha = ficha === k.dataset.ficha || k.dataset.ficha === 'cartera' ? '' : k.dataset.ficha; render(); return; }
     const th = e.target.closest('[data-orden]');
     if (th) { const key = th.dataset.orden; orden = orden.k === key ? { k: key, dir: -orden.dir } : { k: key, dir: ['dias_vencido', 'usd', 'mxn', 'bucket'].includes(key) ? -1 : 1 }; render(); return; }
     const g = e.target.closest('tr.g');
@@ -260,7 +256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Cambio de empresa: limpiar todo antes de pedir, para no mostrar datos de la anterior.
   KoguShell.subscribeEmpresaActivaChange(async () => {
-    datos = null; cortes = []; ficha = ''; fichaMoneda = '';
+    datos = null; cortes = []; ficha = '';
     ['cobCliente', 'cobResp', 'cobMoneda', 'cobQ'].forEach((id) => { $(id).value = ''; });
     cerrarFicha();
     render();
