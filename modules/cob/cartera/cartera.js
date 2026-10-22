@@ -101,8 +101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!datos || !datos.corte) {
       $('cobChips').innerHTML = '';
       cuerpo.innerHTML = `<div class="card cob-vacio"><b>Todavía no hay cortes aplicados.</b>
-        <div class="cob-muted">La cartera se arma con el export de SAI "Cuentas por cliente y factura" que Facturación carga cada viernes.</div>
-        ${puedeCargar ? `<a class="btn primary" href="${CARGAR}" style="margin-top:12px">Cargar el primer corte</a>` : ''}</div>`;
+        <div class="cob-muted" style="margin-top:6px">La cartera se arma con el export de SAI "Cuentas por cliente y factura" que Facturación carga cada viernes.</div>
+        ${puedeCargar ? `<div style="margin-top:16px"><a class="btn primary" href="${CARGAR}">Cargar el primer corte</a></div>` : ''}</div>`;
       return;
     }
     const f = filtro();
