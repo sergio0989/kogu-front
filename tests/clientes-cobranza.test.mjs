@@ -96,3 +96,35 @@ test('etiquetas de rol', () => {
   assert.equal(C.ROLES.cxp, 'Cuentas por pagar del cliente');
   assert.equal(C.ROLES.pagos, 'Pagos');
 });
+
+// ── Encabezado de la ficha: chips y métricas (rediseño 21-oct) ─────────────
+test('chips de Unilever: clave SAI, crédito 120 días, factoraje', () => {
+  const r = { cve_cte: '1', rfc: 'UMA011214255', activo: true, condicion_pago: 'credito', dias_credito: 120, cobro_factoraje: true, envio_edo_cta: 'no_aplica' };
+  const chips = C.chipsCliente(r);
+  const txt = chips.map((c) => c.txt);
+  assert.ok(txt.includes('SAI 1'));
+  assert.ok(txt.includes('Crédito 120 días'));
+  assert.deepEqual(chips.find((c) => c.txt === 'Factoraje'), { txt: 'Factoraje', tono: 'warn' });
+  assert.equal(txt.some((t) => /estado de cuenta/i.test(t)), false, 'no_aplica no se muestra');
+});
+
+test('chips: bloqueado en rojo, inactivo, contado y modo de estado de cuenta', () => {
+  const txt = (r) => C.chipsCliente(r).map((c) => c.txt);
+  assert.deepEqual(C.chipsCliente({ bloqueo_credito: true }).find((c) => c.tono === 'bad'), { txt: 'Crédito bloqueado', tono: 'bad' });
+  assert.ok(txt({ activo: false }).includes('Inactivo'));
+  assert.ok(txt({ condicion_pago: 'contado' }).includes('Contado'));
+  assert.ok(txt({ envio_edo_cta: 'manual' }).includes('Estado de cuenta manual'));
+});
+
+test('métricas del encabezado', () => {
+  const m = C.metricasCliente({ condicion_pago: 'credito', dias_credito: 120, limite_credito: '800000', moneda_limite: 'MXN', tipo_fecha: 'revision', envio_edo_cta: 'manual' }, 2);
+  const v = Object.fromEntries(m.map((x) => [x.l, x.v]));
+  assert.equal(v['Crédito'], '120 días');
+  assert.equal(v['Límite'], '$800,000 MXN');
+  assert.equal(v['Plazo desde'], 'Revisión');
+  assert.equal(v['Estado de cuenta'], 'Manual');
+  assert.equal(v['Contactos'], '2');
+  const vacio = Object.fromEntries(C.metricasCliente({}, 0).map((x) => [x.l, x.v]));
+  assert.equal(vacio['Crédito'], 'Contado');
+  assert.equal(vacio['Límite'], '—');
+});

@@ -109,6 +109,7 @@ await check('contactos: se listan y se agregan al cliente abierto', async () => 
   await t.editar();
   assert.equal(t.visible('ctPanel'), true);
   assert.match(t.$('ctRows').textContent, /Roxana Hernandez/);
+  t.$('ctAgregar').click();
   t.$('ct_nombre').value = 'Carmen Murillo'; t.$('ct_rol').value = 'cobranza'; t.$('ct_email').value = 'Cobranza@AAT.mx';
   t.$('ctGuardar').click(); await t.espera();
   const post = t.llamadas.find(([m, p]) => m === 'POST' && p.endsWith('/contactos'));
@@ -143,7 +144,7 @@ await check('la ficha se abre en modal al editar', async () => {
   assert.equal(t.visible('clModal'), false, 'cerrado al cargar');
   await t.editar();
   assert.equal(t.visible('clModal'), true, 'abierto al editar');
-  assert.match(t.$('formTitle').textContent, /Editar/);
+  assert.match(t.$('modeChip').textContent, /Edición/);   // el título ahora es el nombre del cliente
 });
 
 await check('cerrar el modal lo oculta', async () => {
@@ -163,6 +164,63 @@ await check('Nuevo cliente abre el modal vacío en la pestaña General', async (
   assert.equal(t.$('nombre').value, '');
   assert.equal(t.visible('tab-general'), true);
   assert.equal(t.oculta('tab-cobranza'), true);
+});
+
+// ── Rediseño 21-oct ("lo puedes hacer mejor"): encabezado con contexto, pie
+// según pestaña, campos que aparecen solo cuando aplican, contacto a demanda.
+await check('el encabezado muestra el nombre y los chips del cliente', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.match(t.$('formTitle').textContent, /ADVANCED APPEALING/);
+  assert.match(t.$('clChips').textContent, /SAI 111/);
+  assert.match(t.$('clChips').textContent, /Crédito 30 días/);
+  assert.match(t.$('clMetrics').textContent, /Contactos/);
+});
+
+await check('en Contactos el pie no ofrece Guardar ni Cambiar status', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.visible('saveBtn'), true);
+  assert.equal(t.visible('statusBtn'), true, 'status en General');
+  t.w.document.querySelector('#clTabs .tab[data-tab="cobranza"]').click();
+  assert.equal(t.oculta('statusBtn'), true, 'status solo en General');
+  t.w.document.querySelector('#clTabs .tab[data-tab="contactos"]').click();
+  assert.equal(t.oculta('saveBtn'), true);
+});
+
+await check('el formulario de contacto se abre a demanda', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.oculta('ctForm'), true, 'cerrado al entrar');
+  t.$('ctAgregar').click();
+  assert.equal(t.visible('ctForm'), true);
+  t.$('ctNuevo').click();
+  assert.equal(t.oculta('ctForm'), true, 'cancelar lo cierra');
+});
+
+await check('plataforma de factoraje solo aparece al marcar factoraje', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.oculta('cbWrapPlataforma'), true);
+  t.$('cb_cobro_factoraje').click();
+  assert.equal(t.visible('cbWrapPlataforma'), true);
+});
+
+await check('motivo de bloqueo solo aparece al bloquear', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.oculta('cbWrapBloqueo'), true);
+  t.$('cb_bloqueo_credito').click();
+  assert.equal(t.visible('cbWrapBloqueo'), true);
+});
+
+await check('avisa "cambios sin guardar" al modificar', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.oculta('clDirty'), true);
+  t.$('cb_dias_credito').value = '45';
+  t.$('cb_dias_credito').dispatchEvent(new t.w.Event('input', { bubbles: true }));
+  assert.equal(t.visible('clDirty'), true);
 });
 
 for (const n of verde) console.log('ok -', n);

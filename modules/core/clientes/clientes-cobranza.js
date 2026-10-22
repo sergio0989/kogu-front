@@ -110,9 +110,43 @@
     };
   }
 
+  // ── Encabezado de la ficha ──────────────────────────────────────────────
+  const fmtMonto = (v) => new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(Number(v));
+  const ENVIO_CORTO = { no_aplica: 'No aplica', manual: 'Manual', automatico: 'Automático' };
+
+  function textoCredito(r) {
+    if (r.condicion_pago === 'credito') return r.dias_credito != null && r.dias_credito !== '' ? `${Number(r.dias_credito)} días` : 'Sin días';
+    return r.condicion_pago === 'anticipado' ? 'Anticipado' : 'Contado';
+  }
+
+  // Chips del encabezado: [{ txt, tono }] con tono ok | info | warn | bad | neutro.
+  function chipsCliente(r = {}) {
+    const out = [];
+    if (txt(r.cve_cte)) out.push({ txt: 'SAI ' + txt(r.cve_cte), tono: 'neutro' });
+    if (r.activo === false) out.push({ txt: 'Inactivo', tono: 'neutro' });
+    if (r.condicion_pago === 'credito') out.push({ txt: r.dias_credito ? `Crédito ${Number(r.dias_credito)} días` : 'Crédito', tono: 'info' });
+    else out.push({ txt: r.condicion_pago === 'anticipado' ? 'Anticipado' : 'Contado', tono: 'neutro' });
+    if (r.cobro_factoraje) out.push({ txt: 'Factoraje', tono: 'warn' });
+    if (r.envio_edo_cta === 'manual' || r.envio_edo_cta === 'automatico') {
+      out.push({ txt: 'Estado de cuenta ' + ENVIO_CORTO[r.envio_edo_cta].toLowerCase(), tono: 'info' });
+    }
+    if (r.bloqueo_credito) out.push({ txt: 'Crédito bloqueado', tono: 'bad' });
+    return out;
+  }
+
+  function metricasCliente(r = {}, nContactos = 0) {
+    return [
+      { l: 'Crédito', v: textoCredito(r) },
+      { l: 'Límite', v: r.limite_credito != null && r.limite_credito !== '' ? `$${fmtMonto(r.limite_credito)} ${r.moneda_limite || 'MXN'}` : '—' },
+      { l: 'Plazo desde', v: r.tipo_fecha === 'revision' ? 'Revisión' : 'Factura' },
+      { l: 'Estado de cuenta', v: ENVIO_CORTO[r.envio_edo_cta] || 'No aplica' },
+      { l: 'Contactos', v: String(nContactos || 0) },
+    ];
+  }
+
   const api = {
     DIAS, CAMPOS_SELECT, CAMPOS_TEXTO, CAMPOS_NUM, CAMPOS_BOOL, PASS, CLIENTE_VACIO, ROLES, ENVIO_EDO_CTA,
-    formDesdeCliente, cuerpoCobranza, estadoPass, cuerpoContacto,
+    formDesdeCliente, cuerpoCobranza, estadoPass, cuerpoContacto, chipsCliente, metricasCliente,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguClientesCobranza = api;
