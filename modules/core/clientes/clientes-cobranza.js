@@ -18,12 +18,15 @@
     condicion_pago: 'contado', moneda_limite: 'MXN', tipo_fecha: 'factura', envio_edo_cta: 'no_aplica',
     responsable_cobranza_id: null, dias_credito: null, limite_credito: null,
     bloqueo_credito: false, bloqueo_motivo: null,
+    cob_revision_sesion: true, cob_revision_motivo: null,
   };
 
   const ROLES = {
     cobranza: 'Cobranza', pagos: 'Pagos', cxp: 'Cuentas por pagar del cliente',
     comercial: 'Comercial', facturacion: 'Facturación', otro: 'Otro',
   };
+  // Por qué un cliente no se revisa en la sesión semanal de cobranza (22-oct).
+  const REVISION_MOTIVOS = { factoraje: 'Factoraje', intercompania: 'Intercompañía', juridico: 'Jurídico', otro: 'Otro' };
   const ENVIO_EDO_CTA = { no_aplica: 'No aplica', manual: 'Manual (se revisa antes de enviar)', automatico: 'Automático' };
 
   const txt = (v) => (v == null ? '' : String(v).trim());
@@ -51,6 +54,8 @@
     for (const k of CAMPOS_BOOL) f[k] = !!r[k];
     f.bloqueo_credito = !!r.bloqueo_credito;
     f.bloqueo_motivo = txt(r.bloqueo_motivo);
+    f.cob_revision_sesion = r.cob_revision_sesion !== false;
+    f.cob_revision_motivo = txt(r.cob_revision_motivo);
     for (const p of Object.values(PASS)) { f[p] = ''; f['borrar_' + p] = false; }
     return f;
   }
@@ -84,6 +89,18 @@
       }
     } else if (o.bloqueo_credito) {
       out.bloqueo_credito = false;
+    }
+
+    // Revisión en sesión: fuera exige motivo; volver a incluir solo manda true (el servidor limpia).
+    if (form.cob_revision_sesion === false) {
+      const m = txt(form.cob_revision_motivo);
+      if (!m) throw new Error('Indica por qué el cliente no se revisa en la sesión de cobranza.');
+      if (o.cob_revision_sesion !== false || m !== txt(o.cob_revision_motivo)) {
+        out.cob_revision_sesion = false;
+        out.cob_revision_motivo = m;
+      }
+    } else if (o.cob_revision_sesion === false) {
+      out.cob_revision_sesion = true;
     }
 
     for (const p of Object.values(PASS)) {
@@ -131,6 +148,7 @@
       out.push({ txt: 'Estado de cuenta ' + ENVIO_CORTO[r.envio_edo_cta].toLowerCase(), tono: 'info' });
     }
     if (r.bloqueo_credito) out.push({ txt: 'Crédito bloqueado', tono: 'bad' });
+    if (r.cob_revision_sesion === false) out.push({ txt: 'Fuera de la sesión de cobranza', tono: 'neutro' });
     return out;
   }
 
@@ -145,7 +163,7 @@
   }
 
   const api = {
-    DIAS, CAMPOS_SELECT, CAMPOS_TEXTO, CAMPOS_NUM, CAMPOS_BOOL, PASS, CLIENTE_VACIO, ROLES, ENVIO_EDO_CTA,
+    DIAS, CAMPOS_SELECT, CAMPOS_TEXTO, CAMPOS_NUM, CAMPOS_BOOL, PASS, CLIENTE_VACIO, ROLES, ENVIO_EDO_CTA, REVISION_MOTIVOS,
     formDesdeCliente, cuerpoCobranza, estadoPass, cuerpoContacto, chipsCliente, metricasCliente,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

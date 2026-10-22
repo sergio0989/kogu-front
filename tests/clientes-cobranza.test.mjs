@@ -128,3 +128,32 @@ test('métricas del encabezado', () => {
   assert.equal(vacio['Crédito'], 'Contado');
   assert.equal(vacio['Límite'], '—');
 });
+
+// ── Revisión en la sesión semanal (22-oct): Unilever cobra por factoraje y
+//    no se revisa en la sesión de cobranza ─────────────────────────────────
+test('por omisión el cliente entra en la sesión (también si el dato no viene)', () => {
+  assert.deepEqual([C.formDesdeCliente(VACIO).cob_revision_sesion, C.formDesdeCliente(VACIO).cob_revision_motivo], [true, '']);
+  assert.equal(C.cuerpoCobranza(VACIO, form()), null);
+});
+
+test('sacar de la sesión exige motivo; con motivo viajan los dos', () => {
+  assert.throws(() => C.cuerpoCobranza(VACIO, form({ cob_revision_sesion: false })), /por qué/i);
+  assert.deepEqual(C.cuerpoCobranza(VACIO, form({ cob_revision_sesion: false, cob_revision_motivo: 'factoraje' })),
+    { cob_revision_sesion: false, cob_revision_motivo: 'factoraje' });
+});
+
+test('volver a incluir manda solo cob_revision_sesion=true (el servidor limpia el motivo)', () => {
+  const fuera = { ...VACIO, cob_revision_sesion: false, cob_revision_motivo: 'factoraje' };
+  const f = C.formDesdeCliente(fuera);
+  assert.deepEqual([f.cob_revision_sesion, f.cob_revision_motivo], [false, 'factoraje']);
+  assert.equal(C.cuerpoCobranza(fuera, f), null, 'sin cambios');
+  assert.deepEqual(C.cuerpoCobranza(fuera, { ...f, cob_revision_sesion: true }), { cob_revision_sesion: true });
+  assert.deepEqual(C.cuerpoCobranza(fuera, { ...f, cob_revision_motivo: 'juridico' }), { cob_revision_sesion: false, cob_revision_motivo: 'juridico' });
+});
+
+test('chip "Fuera de la sesión" y etiquetas de motivo', () => {
+  const chips = C.chipsCliente({ ...VACIO, cve_cte: '1', cob_revision_sesion: false, cob_revision_motivo: 'factoraje' }).map((c) => c.txt);
+  assert.ok(chips.includes('Fuera de la sesión de cobranza'));
+  assert.equal(C.chipsCliente({ ...VACIO, cve_cte: '1' }).some((c) => /sesión/.test(c.txt)), false);
+  assert.deepEqual(Object.keys(C.REVISION_MOTIVOS), ['factoraje', 'intercompania', 'juridico', 'otro']);
+});

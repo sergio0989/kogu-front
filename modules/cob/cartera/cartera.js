@@ -42,10 +42,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card">
     <div class="cob-filtros">
       <div><div class="label-text">Corte</div><select class="select" id="cobCorte"></select></div>
-      <div><div class="label-text">Cliente</div><select class="select" id="cobCliente" style="min-width:240px"><option value="">Todos los clientes</option></select></div>
+      <div><div class="label-text">Cliente</div><select class="select" id="cobCliente" style="min-width:200px"><option value="">Todos los clientes</option></select></div>
       <div><div class="label-text">Responsable</div><select class="select" id="cobResp"><option value="">Todos</option></select></div>
       <div><div class="label-text">Moneda</div><select class="select" id="cobMoneda"><option value="">Todas</option><option>USD</option><option>MXN</option></select></div>
-      <div><div class="label-text">Buscar folio</div><input class="input" id="cobQ" placeholder="27090, N200…"/></div>
+      <div><div class="label-text">Sesión</div><select class="select" id="cobSesion" title="Clientes que se revisan en la sesión semanal (se marca en el catálogo de clientes)"><option value="sesion">Solo los que se revisan</option><option value="todos">Todos</option><option value="excluidos">Fuera de la sesión</option></select></div>
+      <div><div class="label-text">Buscar folio</div><input class="input" id="cobQ" style="width:150px" placeholder="27090, N200…"/></div>
       ${puedeCargar ? `<div class="cob-sp"></div><a class="btn" href="${CARGAR}">Cargar corte</a>` : ''}
     </div>
     <div class="cob-chips" id="cobChips"></div>
@@ -81,7 +82,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
   let rowsActuales = [];
   let gruposActuales = [];
   let orden = { k: 'saldo_mxn', dir: -1 };
-  const filtro = () => ({ cliente: $('cobCliente').value, responsable: $('cobResp').value, moneda: $('cobMoneda').value, q: $('cobQ').value });
+  const filtro = () => ({ cliente: $('cobCliente').value, responsable: $('cobResp').value, moneda: $('cobMoneda').value, sesion: $('cobSesion').value, q: $('cobQ').value });
 
   // ── Carga ────────────────────────────────────────────────────────
   async function cargar(corteId) {
@@ -140,6 +141,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     if (f.cliente) chips.push(['cobCliente', 'Cliente', $('cobCliente').selectedOptions[0]?.text]);
     if (f.responsable) chips.push(['cobResp', 'Responsable', $('cobResp').selectedOptions[0]?.text]);
     if (f.moneda) chips.push(['cobMoneda', 'Moneda', f.moneda]);
+    if (f.sesion !== 'todos') chips.push(['cobSesion', 'Sesión', C.SESION[f.sesion]]);
     if (f.q) chips.push(['cobQ', 'Folio', f.q]);
     if (ficha) chips.push(['ficha', 'Ficha', C.fichaDe(ficha).l]);
     $('cobChips').innerHTML = chips.map(([id, l, v]) => `<button type="button" class="cob-chip" data-quitar="${id}">${esc(l)}: <b>${esc(v)}</b> ×</button>`).join('');
@@ -160,6 +162,12 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       <button type="button" class="cob-kpi cob-kpi-seg ${ficha === x.k ? 'sel' : ''}" data-ficha="${x.k}" title="${esc(x.ayuda)}" style="--k:${x.color};--kv:${x.color}">
         <div class="l">${esc(x.l)}</div><div class="v">${x.docs}</div><div class="h">${x.docs === 1 ? 'factura' : 'facturas'} · ${montosSeg(x.por_moneda)}</div></button>`).join('')}</div></div>`;
     const tot = C.resumenFichas(base)[0];
+    // Lo que el filtro de sesión deja fuera, para que el total siga cuadrando con SAI.
+    const fz = f.sesion === 'sesion' ? C.fueraDeSesion(C.filtrar(datos.documentos, { ...f, sesion: 'todos' })) : null;
+    const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+    const lineaFuera = fz && fz.docs ? `<div class="cob-muted" id="cobFuera" style="font-size:12px;margin-top:4px">${pl(fz.docs, 'factura', 'facturas')} de ${pl(fz.clientes, 'cliente', 'clientes')} fuera de la sesión: ${
+      [fz.por_moneda.USD.docs ? 'US' + C.dinero(fz.por_moneda.USD.saldo) : '', fz.por_moneda.MXN.docs ? C.dinero(fz.por_moneda.MXN.saldo) : ''].filter(Boolean).join(' · ')
+    }. Para verlas, cambia Sesión a Todos.</div>` : '';
     const avisos = C.avisos(base, corte).map((a) => `<div class="cob-aviso ${a.tipo === 'desactualizado' ? 'mal' : ''}">${esc(a.texto)}</div>`).join('');
 
     const totM = C.totalesMoneda(rows);
@@ -192,7 +200,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     <div class="eyebrow" id="cobRecorte">${esc(recorte)}</div>
     ${fichas}
     ${fichasSeg}
-    <div id="cobAvisos">${avisos}<div class="cob-muted" id="cobControl" style="font-size:12px;margin-top:6px">${tot.docs} docs · ${tot.clientes} clientes · equivalente en pesos ${C.dinero(tot.saldo_mxn)} (tipo de cambio de cada factura, igual que el pie del reporte de SAI).</div></div>
+    <div id="cobAvisos">${avisos}<div class="cob-muted" id="cobControl" style="font-size:12px;margin-top:6px">${tot.docs} docs · ${tot.clientes} clientes · equivalente en pesos ${C.dinero(tot.saldo_mxn)} (tipo de cambio de cada factura, igual que el pie del reporte de SAI).</div>${lineaFuera}</div>
   </div>
   <div class="card">
     <div class="cob-toolbar">
@@ -232,10 +240,12 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     return `<div class="cob-seg"><b>${esc(s.accion)}</b> · ${C.fmtFecha(s.fecha)}${s.agente ? ` · ${esc(s.agente)}` : ''}</div>${texto}${comp}`;
   }
 
+  const MOTIVOS = { factoraje: 'Factoraje', intercompania: 'Intercompañía', juridico: 'Jurídico', otro: 'Otro motivo' };
   function fila(d, grupo) {
     const oculto = grupo != null ? ' style="display:none"' : '';
     const tipo = d.tipo_doc !== 'FAC' ? ` <span class="cob-b bn">${d.tipo_doc}</span>` : '';
-    const marcas = (d.cobro_factoraje ? ' <span class="cob-b binfo">Factoraje</span>' : '') + (d.sin_catalogo ? ' <span class="cob-b bwarn">Sin catálogo</span>' : '');
+    const marcas = (d.cobro_factoraje ? ' <span class="cob-b binfo">Factoraje</span>' : '') + (d.sin_catalogo ? ' <span class="cob-b bwarn">Sin catálogo</span>' : '')
+      + (d.en_sesion === false ? ` <span class="cob-b bn" title="${esc(MOTIVOS[d.motivo_fuera_sesion] || 'Marcado en el catálogo de clientes')}">Fuera de sesión</span>` : '');
     const dias = d.dias_vencido != null && d.dias_vencido > 0 ? `<b class="cob-rojo">${d.dias_vencido}</b>` : '<span class="cob-muted">—</span>';
     const sel = puedeSeguir ? `<td class="sel"><input type="checkbox" data-sel="${esc(d.documento_id)}" ${seleccion.has(d.documento_id) ? 'checked' : ''} aria-label="Seleccionar ${esc(C.folioDe(d))}"/></td>` : '';
     return `<tr class="r"${oculto} data-id="${esc(d.documento_id)}" ${grupo != null ? `data-de-grupo="${grupo}"` : ''} data-sin-catalogo="${d.sin_catalogo ? 1 : 0}">
@@ -366,12 +376,13 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
   }
 
   // ── Eventos (delegados: el cuerpo se repinta) ────────────────────
-  ['cobCliente', 'cobResp', 'cobMoneda'].forEach((id) => $(id).addEventListener('change', render));
+  ['cobCliente', 'cobResp', 'cobMoneda', 'cobSesion'].forEach((id) => $(id).addEventListener('change', render));
   $('cobQ').addEventListener('input', render);
   $('cobCorte').addEventListener('change', () => { ficha = ''; cargar($('cobCorte').value); });
   $('cobChips').addEventListener('click', (e) => {
     const q = e.target.closest('[data-quitar]'); if (!q) return;
-    if (q.dataset.quitar === 'ficha') ficha = ''; else $(q.dataset.quitar).value = '';
+    if (q.dataset.quitar === 'ficha') ficha = '';
+    else $(q.dataset.quitar).value = q.dataset.quitar === 'cobSesion' ? 'todos' : '';
     render();
   });
   $('cobCuerpo').addEventListener('click', (e) => {
@@ -435,6 +446,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     datos = null; cortes = []; ficha = ''; seleccion = new Set(); acciones = null;
     cerrarSeguimiento();
     ['cobCliente', 'cobResp', 'cobMoneda', 'cobQ'].forEach((id) => { $(id).value = ''; });
+    $('cobSesion').value = 'sesion';
     cerrarFicha();
     render();
     await cargar(null);

@@ -90,6 +90,18 @@
     return out;
   }
 
+  // Sesión semanal: 'sesion' = clientes que se revisan, 'excluidos' = los
+  // marcados fuera en el catálogo (p. ej. factoraje), vacío o 'todos' = SAI completo.
+  const SESION = { sesion: 'Solo los que se revisan', todos: 'Todos', excluidos: 'Fuera de la sesión' };
+  function enSesion(d, s) {
+    if (!s || s === 'todos') return true;
+    return s === 'excluidos' ? d.en_sesion === false : d.en_sesion !== false;
+  }
+  function fueraDeSesion(docs) {
+    const a = docs.filter((d) => d.en_sesion === false);
+    return { docs: a.length, clientes: new Set(a.map((d) => d.cve_cte)).size, por_moneda: totalesMoneda(a) };
+  }
+
   function filtrar(docs, f = {}) {
     const q = (f.q || '').trim().toLowerCase();
     const ficha = f.ficha ? fichaDe(f.ficha) : null;
@@ -97,6 +109,7 @@
       (!f.cliente || d.cve_cte === f.cliente) &&
       (!f.responsable || (f.responsable === '__none' ? !d.responsable_id : d.responsable_id === f.responsable)) &&
       (!f.moneda || d.moneda === f.moneda) &&
+      enSesion(d, f.sesion) &&
       (!q || folioDe(d).toLowerCase().includes(q)) &&
       (!ficha || ficha.f(d)));
   }
@@ -199,6 +212,6 @@
     return moneda === 'USD' ? t.replace('$', 'US$') : t;
   }
 
-  return { FICHAS_SEG, fichaDe, fichasSeguimiento, opcionesAgentes, BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
+  return { SESION, fueraDeSesion, FICHAS_SEG, fichaDe, fichasSeguimiento, opcionesAgentes, BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
     opcionesClientes, opcionesResponsables, porResponsable, viernesMasReciente, fmtFecha, dinero, dineroCorto, numero };
 });

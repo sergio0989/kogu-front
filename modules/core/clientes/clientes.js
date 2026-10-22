@@ -160,6 +160,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${sw('cb_cobro_factoraje', 'Se cobra por plataforma de factoraje')}
           ${campo('Plataforma o banco', '<input class="input" id="cb_plataforma_factoraje" placeholder="Ej. plataforma de proveedores">', 'id="cbWrapPlataforma" style="display:none"')}
           ${campo('Envío de estado de cuenta', `<select class="select" id="cb_envio_edo_cta">${opts(CB.ENVIO_EDO_CTA)}</select>`)}
+          ${sw('cb_cob_revision_sesion', 'Se revisa en la sesión semanal de cobranza')}
+          ${campo('Por qué no se revisa', `<select class="select" id="cb_cob_revision_motivo"><option value="">— elige —</option>${Object.entries(CB.REVISION_MOTIVOS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`, 'id="cbWrapRevision" style="display:none"')}
         </section>
         ${portal('fact', 'Portal de facturas', 'facturas', 'url_portal_facturas', 'usuario_portal_fact')}
         ${portal('pago', 'Portal de pagos', 'pagos', 'url_portal_pagos', 'usuario_portal_pago')}
@@ -369,6 +371,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     CB.CAMPOS_BOOL.forEach(k => { if ($c(k)) $c(k).checked = !!f[k]; });
     $c('bloqueo_credito').checked = f.bloqueo_credito;
     $c('bloqueo_motivo').value = f.bloqueo_motivo;
+    $c('cob_revision_sesion').checked = f.cob_revision_sesion;
+    $c('cob_revision_motivo').value = f.cob_revision_motivo || '';
     Object.values(CB.PASS).forEach(p => { $c(p).value = ''; $c('borrar_' + p).checked = false; });
     document.getElementById('cb_estado_fact').textContent = CB.estadoPass(r, 'fact');
     document.getElementById('cb_estado_pago').textContent = CB.estadoPass(r, 'pago');
@@ -382,6 +386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ver = (id, on) => { document.getElementById(id).style.display = on ? '' : 'none'; };
     ver('cbWrapPlataforma', $c('cobro_factoraje').checked);
     ver('cbWrapBloqueo', $c('bloqueo_credito').checked);
+    ver('cbWrapRevision', !$c('cob_revision_sesion').checked);
     ver('cbWrapPortal_fact', $c('usa_portal_facturas').checked);
     ver('cbWrapPortal_pago', $c('usa_portal_pagos').checked);
     const credito = $c('condicion_pago').value === 'credito';
@@ -428,6 +433,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     CB.CAMPOS_BOOL.forEach(k => { f[k] = $c(k).checked; });
     f.bloqueo_credito = $c('bloqueo_credito').checked;
     f.bloqueo_motivo = $c('bloqueo_motivo').value;
+    f.cob_revision_sesion = $c('cob_revision_sesion').checked;
+    f.cob_revision_motivo = $c('cob_revision_motivo').value;
     Object.values(CB.PASS).forEach(p => { f[p] = $c(p).value; f['borrar_' + p] = $c('borrar_' + p).checked; });
     return f;
   }

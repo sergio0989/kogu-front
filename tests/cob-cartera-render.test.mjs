@@ -42,7 +42,9 @@ const ACCIONES = [
   { accion_id: 'a-otro', clave: 'otro', nombre: 'Otro', requiere_fecha: false },
 ];
 
-async function arranca({ cartera = CART, permisos = ['cob.cartera.read'] } = {}) {
+// La cuadratura con SAI (342 docs, $99.47M) se ve con Sesión = Todos; por eso
+// las pruebas arrancan ahí salvo que pidan el valor por omisión (sesion: null).
+async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion = 'todos' } = {}) {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
     { url: 'https://kogu.test/modules/cob/cartera/cartera.html', runScripts: 'outside-only' });
   const { window } = dom;
@@ -85,6 +87,7 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'] } = {})
   const espera = () => new Promise((r) => setTimeout(r, 60));
   const filas = () => $$('#cobTabla tbody tr.r').filter((tr) => tr.style.display !== 'none');
   const cambia = async (sel, v) => { const e = $(sel); e.value = v; e.dispatchEvent(new window.Event(sel === '#cobQ' ? 'input' : 'change')); await espera(); };
+  if (sesion && $('#cobSesion')) await cambia('#cobSesion', sesion);
   return { window, pedidos, envios, $, $$, texto, espera, filas, cambia, set: (r) => { respuesta = r; }, cambiarEmpresa: async () => { alCambiarEmpresa && (await alCambiarEmpresa()); await espera(); } };
 }
 
@@ -256,10 +259,10 @@ test('tabla: columnas Agente y Último seguimiento (en lugar de Resp.); compromi
   assert.ok(g.querySelector('[data-col="seg"] .cob-rojo'));
 });
 
-test('fichas de seguimiento: Vencido sin seguimiento (92) y Compromisos vencidos (1); filtran la tabla', async () => {
+test('fichas de seguimiento: Vencido sin seguimiento (87: el cliente fuera de sesión no cuenta) y Compromisos vencidos (1); filtran la tabla', async () => {
   const p = await arranca();
   const t = (k) => p.texto(p.$(`[data-seg] [data-ficha="${k}"]`));
-  assert.match(t('sin_seguimiento'), /92/); assert.match(t('sin_seguimiento'), /US\$832,602/); assert.match(t('sin_seguimiento'), /\$2\.09M/);
+  assert.match(t('sin_seguimiento'), /87/); assert.match(t('sin_seguimiento'), /US\$707,334/); assert.match(t('sin_seguimiento'), /\$1\.90M/);
   assert.match(t('compromiso_vencido'), /Compromisos vencidos\s*1\s*factura · \$58,104/);
   p.$('[data-seg] [data-ficha="compromiso_vencido"]').click(); await p.espera();
   assert.equal(p.filas().length, 1);
@@ -340,4 +343,37 @@ test('desde la ficha se registra seguimiento solo para esa factura', async () =>
   p.$('#cobSegAccion').value = 'a-seg';
   p.$('#cobSegGuardar').click(); await p.espera();
   assert.deepEqual(p.envios.at(-1).body.documento_ids, [D27162.documento_id]);
+});
+
+// ── Clientes fuera de la sesión semanal (caso real: Unilever, factoraje) ─────
+// Fixture: el cliente 1 cobra por factoraje y está marcado fuera de la sesión.
+test('Sesión: por omisión solo los clientes que se revisan; la línea de control dice cuánto queda fuera', async () => {
+  const p = await arranca({ sesion: null });
+  assert.equal(p.$('#cobSesion').value, 'sesion');
+  assert.equal(p.filas().length, 261);
+  assert.ok(!p.filas().some((tr) => /CLIENTE 1\b/.test(p.texto(tr))));
+  const fuera = p.texto(p.$('#cobFuera'));
+  assert.match(fuera, /81 facturas de 1 cliente fuera de la sesión/);
+  assert.match(fuera, /US\$530,097\.29/); assert.match(fuera, /\$22,869,671\.73/);
+  assert.match(p.texto(p.$('#cobChips')), /Sesión: Solo los que se revisan/);
+});
+
+test('Sesión: Todos regresa al total de SAI y marca las facturas fuera de sesión', async () => {
+  const p = await arranca({ sesion: null });
+  await p.cambia('#cobSesion', 'todos');
+  assert.equal(p.filas().length, 342);
+  assert.match(p.texto(p.$('#cobControl')), /342 docs · 55 clientes · equivalente en pesos \$99,472,027\.56/);
+  const f = p.filas().find((tr) => /A 23913/.test(p.texto(tr)));
+  assert.match(p.texto(f), /Fuera de sesión/);
+  assert.equal(p.$('#cobFuera'), null, 'con Todos no hace falta la línea de lo que queda fuera');
+});
+
+test('Sesión: Excluidos muestra solo esos y se quita con el chip', async () => {
+  const p = await arranca({ sesion: null });
+  await p.cambia('#cobSesion', 'excluidos');
+  assert.equal(p.filas().length, 81);
+  assert.match(p.texto(p.$('#cobChips')), /Sesión: Fuera de la sesión/);
+  p.$('[data-quitar="cobSesion"]').click(); await p.espera();
+  assert.equal(p.$('#cobSesion').value, 'todos');
+  assert.equal(p.filas().length, 342);
 });

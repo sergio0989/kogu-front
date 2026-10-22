@@ -134,17 +134,31 @@ test('importes cortos por moneda: US$ para dólares, $ para pesos', () => {
 // ── F1b: seguimiento (fixture con seguimientos del reporte del 16-oct) ──────
 test('fichas de seguimiento: vencido sin seguimiento y compromisos vencidos, con desglose por moneda', () => {
   const f = Object.fromEntries(C.fichasSeguimiento(D).map((x) => [x.k, x]));
-  assert.equal(f.sin_seguimiento.docs, 92);
-  assert.deepEqual(f.sin_seguimiento.por_moneda, { MXN: { docs: 9, saldo: 2093471.08 }, USD: { docs: 83, saldo: 832601.74 } });
+  assert.equal(f.sin_seguimiento.docs, 87);   // el cliente 1 está fuera de la sesión
+  assert.deepEqual(f.sin_seguimiento.por_moneda, { MXN: { docs: 8, saldo: 1901070.58 }, USD: { docs: 79, saldo: 707333.58 } });
   assert.equal(f.compromiso_vencido.docs, 1);
   assert.deepEqual(f.compromiso_vencido.por_moneda, { MXN: { docs: 1, saldo: 58104.4 }, USD: { docs: 0, saldo: 0 } });
 });
 
 test('las fichas de seguimiento filtran como las demás', () => {
-  assert.equal(C.filtrar(D, { ficha: 'sin_seguimiento' }).length, 92);
+  assert.equal(C.filtrar(D, { ficha: 'sin_seguimiento' }).length, 87);
   assert.deepEqual(C.filtrar(D, { ficha: 'compromiso_vencido' }).map((d) => d.folio), ['27090']);
 });
 
 test('agentes de la cartera para el formulario, por nombre', () => {
   assert.deepEqual(C.opcionesAgentes(D), [{ valor: 'ag-a', nombre: 'A. López' }, { valor: 'ag-k', nombre: 'K. Ramírez' }, { valor: 'ag-marc', nombre: 'Marcela G.' }]);
+});
+
+test('sesión: filtrar separa los clientes que se revisan de los que no; sin opción, todo', () => {
+  assert.equal(C.filtrar(D, {}).length, 342);
+  assert.equal(C.filtrar(D, { sesion: 'todos' }).length, 342);
+  assert.equal(C.filtrar(D, { sesion: 'sesion' }).length, 261);
+  const fuera = C.filtrar(D, { sesion: 'excluidos' });
+  assert.equal(fuera.length, 81);
+  assert.ok(fuera.every((d) => d.cve_cte === '1'));
+});
+
+test('fueraDeSesion: facturas, clientes y saldo por moneda (sin sumar monedas)', () => {
+  assert.deepEqual(C.fueraDeSesion(D), { docs: 81, clientes: 1,
+    por_moneda: { USD: { docs: 15, saldo: 530097.29 }, MXN: { docs: 66, saldo: 22869671.73 } } });
 });

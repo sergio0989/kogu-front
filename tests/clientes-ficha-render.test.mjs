@@ -215,6 +215,37 @@ await check('motivo de bloqueo solo aparece al bloquear', async () => {
   assert.equal(t.visible('cbWrapBloqueo'), true);
 });
 
+// Caso real (2026-10-22): Unilever cobra por factoraje y no entra en la
+// sesion semanal; el usuario pidio "basta con un si/no por cliente".
+await check('revisión en sesión: marcado por omisión, sin motivo visible', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.$('cb_cob_revision_sesion').checked, true);
+  assert.equal(t.oculta('cbWrapRevision'), true);
+});
+
+await check('quitar la revisión pide motivo y lo manda al guardar', async () => {
+  const t = await montar();
+  await t.editar();
+  t.$('cb_cob_revision_sesion').click();
+  assert.equal(t.visible('cbWrapRevision'), true);
+  t.$('saveBtn').click(); await t.espera();
+  assert.ok(!t.llamadas.some(([m]) => m === 'PUT'), 'sin motivo no guarda');
+  assert.ok(t.toasts.some(([tipo, m]) => tipo === 'error' && /por qué/i.test(m)));
+  t.$('cb_cob_revision_motivo').value = 'factoraje';
+  t.$('saveBtn').click(); await t.espera();
+  const put = t.llamadas.find(([m, p]) => m === 'PUT' && p === '/protected/core/clientes/c-111');
+  assert.equal(put[2].cob_revision_sesion, false);
+  assert.equal(put[2].cob_revision_motivo, 'factoraje');
+});
+
+await check('el select de motivo trae los 4 motivos', async () => {
+  const t = await montar();
+  await t.editar();
+  const v = [...t.$('cb_cob_revision_motivo').options].map((o) => o.value).filter(Boolean);
+  assert.deepEqual(v, ['factoraje', 'intercompania', 'juridico', 'otro']);
+});
+
 await check('avisa "cambios sin guardar" al modificar', async () => {
   const t = await montar();
   await t.editar();
