@@ -34,6 +34,7 @@
     {section:'Cobranza',items:[
       {href:'/modules/cob/cartera/cartera.html',label:'Cartera por cobrar',perm:'cob.cartera.read'},
       {href:'/modules/cob/cargar/cargar.html',label:'Cargar corte',perm:'cob.corte.cargar'},
+      {href:'/modules/cob/acciones/acciones.html',label:'Tipos de acción',perm:'cob.acciones.manage'},
     ]},
     {section:'Catálogos',items:[
       {href:'/modules/core/clientes/clientes.html',label:'Clientes',perm:'screen.catalogos.clientes'},
