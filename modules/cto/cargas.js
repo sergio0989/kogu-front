@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     { code: 'factores',           label: 'Factores integrados (AbcHistorico)', ep: '/cargas/factores',            periodo:false, modo:false, hojaSug:'Sheet1' },
     { code: 'ventas_costo',       label: 'Ventas con costo (ALPHA ERP)',       ep: '/cargas/ventas-costo',        periodo:false, modo:true,  hojaSug:null },
     { code: 'producciones',       label: 'Producciones (historial)',           ep: '/cargas/producciones',        periodo:false, modo:'agregar', hojaSug:'Sheet1' },
+    { code: 'producciones_mp',    label: 'Producciones — materias primas (MP)', ep: '/cargas/producciones-mp',    periodo:false, modo:'agregar', hojaSug:'MP', trabajo:true },
     { code: 'costos_exportacion', label: 'Costos de exportación (Int_FacExpo)', ep: '/cargas/costos-exportacion',  periodo:false, modo:true,  hojaSug:'Sheet1' },
     { code: 'gastos_venta',       label: 'Gastos de venta por agente',         ep: '/cargas/gastos-venta',        periodo:false, modo:false, hojaSug:'AgenteCosto', soloAnio:true },
     { code: 'inventario_sistema', label: 'Inventario del sistema',             ep: '/cargas/inventario-sistema',  periodo:true,  modo:false, hojaSug:null },
@@ -167,9 +168,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const esCorte = !!f.periodo;
     $('periodoBox').style.display = 'grid';
     $('mesBox').style.display = '';
-    $('anioLbl').textContent = esCorte ? 'Año del corte' : 'Año de cierre';
-    $('mesLbl').textContent = esCorte ? 'Mes del corte' : 'Mes de cierre';
-    $('periodoHint').textContent = esCorte
+    $('anioLbl').textContent = f.trabajo ? 'Año de trabajo' : (esCorte ? 'Año del corte' : 'Año de cierre');
+    $('mesLbl').textContent = f.trabajo ? 'Mes de trabajo' : (esCorte ? 'Mes del corte' : 'Mes de cierre');
+    $('periodoHint').textContent = f.trabajo
+      ? 'Mes que estás trabajando (obligatorio). Cada consumo conserva el mes de su orden (Fech_ordp); se avisa si el archivo trae órdenes posteriores. Agregar omite órdenes ya cargadas; Reemplazar las vuelve a cargar.'
+      : esCorte
       ? 'Define el período del corte (sustituye al anterior de ese mes).'
       : 'Etiqueta la carga para trazabilidad; cada renglón conserva su propio período. Se avisa si el archivo trae meses posteriores al cierre.';
     // Prefill con período en curso si está vacío.
@@ -243,18 +246,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       const d = KoguApi.unwrapData(r) || {};
       const errores = d.errores ?? 0;
       const aviso = d.aviso || null;             // reconciliación de período (no bloqueante)
-      const warn = errores || aviso;
+      const warn = errores || aviso || (Array.isArray(d.cuadre) && d.cuadre.some(c => c.cuadra === false));
       res$.style.cssText = `display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:${warn ? '#fef9c3' : '#dcfce7'};color:${warn ? '#854d0e' : '#166534'}`;
       res$.innerHTML = `<strong>${warn ? '⚠ Carga con avisos' : '✅ Carga completada'}</strong><br>
         ${d.ok ?? '?'} filas OK · ${errores} con error · estado: ${d.carga?.status ?? '—'}
         ${errores && d.detalle?.length ? `<br><span style="font-size:11px">Primer error (fila ${d.detalle[0].fila}): ${escapeHtml(d.detalle[0].error)}</span>` : ''}
-        ${aviso ? `<br><span style="font-size:12px">🔎 ${escapeHtml(aviso)}</span>` : ''}`;
+        ${aviso ? `<br><span style="font-size:12px">🔎 ${escapeHtml(aviso)}</span>` : ''}
+        ${resumenMp(d)}`;
       KoguApi.toast(warn ? 'Carga con avisos' : 'Carga completada', warn ? 'warning' : 'success');
       loadCargas();
     } catch (e) {
       res$.style.cssText = 'display:block;margin-top:16px;padding:12px;border-radius:6px;font-size:13px;background:#fee2e2;color:#991b1b';
       res$.textContent = '❌ ' + e.message;
     } finally { $('cargarBtn').disabled = false; }
+  }
+
+  // Resumen específico de la carga de MP: órdenes omitidas y cuadre MP vs Mat_dir del PT.
+  function resumenMp(d) {
+    if (!Array.isArray(d.cuadre)) return '';
+    const omit = d.ordenes_omitidas || [];
+    const noCuadra = d.cuadre.filter(c => c.cuadra === false);
+    const sinPt = d.cuadre.filter(c => c.cuadra === null);
+    const fmt = (n) => Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let h = `<br><span style="font-size:12px">Órdenes en archivo: ${d.cuadre.length} · cuadran con PT: ${d.cuadre.length - noCuadra.length - sinPt.length}`
+      + ` · sin PT cargado: ${sinPt.length} · omitidas (ya cargadas): ${omit.length}</span>`;
+    if (noCuadra.length) {
+      h += `<br><span style="font-size:12px">⚠ No cuadran con Mat_dir: `
+        + noCuadra.slice(0, 10).map(c => `${escapeHtml(c.no_ordp)} (dif $${fmt(c.diferencia)})`).join(', ')
+        + (noCuadra.length > 10 ? ` y ${noCuadra.length - 10} más` : '') + '</span>';
+    }
+    return h;
   }
 
   // Estado de la tabla de historial (filtros + paginación).
