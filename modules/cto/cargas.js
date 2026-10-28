@@ -269,7 +269,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sinPt = d.cuadre.filter(c => c.cuadra === null);
     const fmt = (n) => Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     let h = `<br><span style="font-size:12px">Órdenes en archivo: ${d.cuadre.length} · cuadran con PT: ${d.cuadre.length - noCuadra.length - sinPt.length}`
-      + ` · sin PT cargado: ${sinPt.length} · omitidas (ya cargadas): ${omit.length}</span>`;
+      + ` · sin PT cargado: ${sinPt.length} · omitidas (ya cargadas): ${omit.length}`
+      + (d.renglones_vacios ? ` · renglones vacíos ignorados: ${d.renglones_vacios}` : '') + '</span>';
     if (noCuadra.length) {
       h += `<br><span style="font-size:12px">⚠ No cuadran con Mat_dir: `
         + noCuadra.slice(0, 10).map(c => `${escapeHtml(c.no_ordp)} (dif $${fmt(c.diferencia)})`).join(', ')
