@@ -266,15 +266,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Gramos por unidad (solo componentes con kg teórico).
     const pesados = (D.componentes || []).filter(c => c.teo && c.teo.kg_por_unidad != null).map(c => c.componente);
     if (!pesados.length) { $('tGramos').innerHTML = '<tr><td class="muted" style="padding:12px">Sin componentes con gramos teóricos.</td></tr>'; return; }
-    const gHead = `<thead><tr><th style="text-align:left">Componente</th><th class="num teo sep">Teórico</th>
+    const gHead = `<thead><tr><th style="text-align:left">Componente</th><th style="text-align:left">Claves MP</th><th class="num teo sep">Teórico</th>
       ${meses.map(m => `<th colspan="2" class="grupo sep">${MES[m.mes]}-${String(m.anio).slice(2)}</th>`).join('')}
       ${meses.length > 1 ? '<th colspan="2" class="grupo sep acum">Acumulado</th>' : ''}</tr>
-      <tr><th></th><th class="num teo sep">g</th>${meses.map(() => '<th class="num sep">Real g</th><th class="num">Dif g</th>').join('')}
+      <tr><th></th><th></th><th class="num teo sep">g</th>${meses.map(() => '<th class="num sep">Real g</th><th class="num">Dif g</th>').join('')}
       ${meses.length > 1 ? '<th class="num sep acum">Real g</th><th class="num acum">Dif g</th>' : ''}</tr></thead>`;
     const gBody = pesados.map(comp => {
       const gTeo = meta[comp].teo.kg_por_unidad * 1000;
       const a = meses.length > 1 ? acum(comp) : null;
-      return `<tr><td class="comp">${esc(comp)}</td><td class="num teo sep">${fmt(gTeo, 1)}</td>
+      return `<tr><td class="comp">${esc(comp)}</td><td class="claves">${clavesHtml(comp)}</td><td class="num teo sep">${fmt(gTeo, 1)}</td>
         ${meses.map(m => {
           const f = fila(comp, m);
           if (!f || f.g_por_unidad_real == null) return '<td class="num sep">—</td><td></td>';
