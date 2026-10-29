@@ -94,8 +94,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div class="card" style="margin-top:14px">
+  <h3 style="margin:0">Cantidad producida y rendimiento</h3>
+  <div class="muted" style="font-size:12px">Kg producidos = cantidad de PT × kg netos por unidad del catálogo de productos (sin empaque). Rendimiento = kg producidos ÷ kg de MP que entran al producto (con teórico: los componentes marcados; sin teórico: solo renglones en kg, nunca piezas).</div>
+  <div id="rendAviso" style="margin-top:8px"></div>
+  <div class="table-wrap" style="margin-top:10px"><table id="tRend" class="tabla-resumen"></table></div>
+</div>
+
+<div class="card" style="margin-top:14px">
   <h3 style="margin:0">Por orden</h3>
-  <div class="muted" style="font-size:12px">Dosis y costo de cada orden. En rojo, lo que se aleja más de 15% de la mediana del periodo (con 3 órdenes o más).</div>
+  <div class="muted" style="font-size:12px">Dosis, costo y rendimiento de cada orden. En rojo, lo que se aleja de la mediana del periodo (±15%; rendimiento ±5%; con 3 órdenes o más).</div>
   <div class="table-wrap" style="margin-top:10px"><table id="tOrdenes" style="font-variant-numeric:tabular-nums;font-size:12.5px"></table></div>
 </div>
 
@@ -143,7 +150,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function limpiar(msg) {
     $('kpis').innerHTML = '';
     $('ptIncluidos').innerHTML = '';
-    ['tResumen', 'tGramos', 'tOrdenes', 'tLotes'].forEach(id => { $(id).innerHTML = `<tr><td class="muted" style="padding:16px">${esc(msg)}</td></tr>`; });
+    $('rendAviso').innerHTML = '';
+    ['tResumen', 'tGramos', 'tRend', 'tOrdenes', 'tLotes'].forEach(id => { $(id).innerHTML = `<tr><td class="muted" style="padding:16px">${esc(msg)}</td></tr>`; });
     $('lotesTotal').textContent = '';
   }
 
@@ -155,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const r = await KoguApi.apiFetch(`${BASE}/analisis?${new URLSearchParams(p)}`);
       D = KoguApi.unwrapData(r);
       document.querySelectorAll('.lblUnidad').forEach(el => { el.textContent = D.unidad || 'unidad'; });
-      pintaKpis(); pintaResumen(); pintaOrdenes(); pintaLotes();
+      pintaKpis(); pintaResumen(); pintaRendimiento(); pintaOrdenes(); pintaLotes();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
     finally { $('btnAnalizar').disabled = false; }
   }
@@ -279,6 +287,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('tGramos').innerHTML = gHead + `<tbody>${gBody}</tbody>`;
   }
 
+  // ── Cantidad producida y rendimiento (métricas × meses + acumulado) ──
+  function pintaRendimiento() {
+    const R = D.rendimiento || [];
+    if (!R.length) { $('tRend').innerHTML = '<tr><td class="muted" style="padding:12px">Sin datos.</td></tr>'; $('rendAviso').innerHTML = ''; return; }
+    const sinPeso = R.reduce((s, x) => s + (x.ordenes_sin_peso || 0), 0);
+    const pts = [...new Set((D.ordenes || []).filter(o => o.kg_producidos == null).map(o => o.cve_pt))];
+    $('rendAviso').innerHTML = sinPeso
+      ? `<span class="badge warn">${sinPeso} orden(es) sin kg por unidad en el catálogo (${pts.map(esc).join(', ')}): quedan fuera del rendimiento. Captúralo en Catálogos → Productos.</span>` : '';
+    const sum = (k) => R.reduce((s, x) => s + (x[k] || 0), 0);
+    const conP = R.filter(x => x.kg_producidos != null);
+    const kgP = conP.reduce((s, x) => s + x.kg_producidos, 0), kgE = conP.reduce((s, x) => s + x.kg_entrada, 0);
+    const conT = R.filter(x => x.kg_entrada_teo != null);
+    const kgPt = conT.reduce((s, x) => s + x.kg_producidos, 0), kgT = conT.reduce((s, x) => s + x.kg_entrada_teo, 0);
+    const A = R.length > 1 ? {
+      ordenes: sum('ordenes'), cantidad_pt: sum('cantidad_pt'), unidades: sum('unidades'),
+      kg_producidos: conP.length ? kgP : null, kg_entrada: conP.length ? kgE : null, kg_entrada_teo: kgT || null,
+      merma_kg: conP.length ? kgE - kgP : null, rendimiento: kgE ? kgP / kgE : null, rendimiento_teo: kgT ? kgPt / kgT : null,
+    } : null;
+    const cols = [...R, ...(A ? [A] : [])];
+    const pct = (v) => (v == null ? '—' : fmt(v * 100, 1) + '%');
+    const u = plural(D.unidad);
+    const filas = [
+      ['Órdenes', x => n0(x.ordenes)],
+      ['Cantidad PT', x => n0(x.cantidad_pt)],
+      [`${u.charAt(0).toUpperCase() + u.slice(1)}`, x => n0(x.unidades)],
+      ['Kg producidos', x => x.kg_producidos == null ? '—' : fmt(x.kg_producidos, 1)],
+      ['Kg MP que entran al producto', x => x.kg_entrada == null ? '—' : fmt(x.kg_entrada, 1)],
+      ['Kg MP teórico (con merma)', x => x.kg_entrada_teo == null ? '—' : fmt(x.kg_entrada_teo, 1)],
+      ['Merma kg (entrada − producido)', x => x.merma_kg == null ? '—' : fmt(x.merma_kg, 1)],
+      ['Rendimiento real', x => `<b>${pct(x.rendimiento)}</b>`, true],
+      ['Rendimiento teórico', x => pct(x.rendimiento_teo), true],
+      ['Dif (real − teórico)', x => {
+        if (x.rendimiento == null || x.rendimiento_teo == null) return '—';
+        const d = (x.rendimiento - x.rendimiento_teo) * 100;
+        return `<span style="${difCls(d, 40)}">${d > 0 ? '+' : d < 0 ? '−' : ''}${fmt(Math.abs(d), 1)} pts</span>`;
+      }, true],
+    ];
+    const head = `<thead><tr><th style="text-align:left">Concepto</th>
+      ${R.map(x => `<th class="num sep">${MES[x.mes]}-${String(x.anio).slice(2)}</th>`).join('')}
+      ${A ? '<th class="num sep acum">Acumulado</th>' : ''}</tr></thead>`;
+    const body = filas.map(([lab, f, destacado]) => `<tr${destacado ? ' style="background:#fcfcfd"' : ''}>
+      <td class="comp">${lab}</td>
+      ${cols.map((x, i) => `<td class="num sep${A && i === cols.length - 1 ? ' acum' : ''}">${f(x)}</td>`).join('')}</tr>`).join('');
+    $('tRend').innerHTML = head + `<tbody>${body}</tbody>`;
+  }
+
   // ── Por orden ──
   function pintaOrdenes() {
     if (!D.ordenes.length) { $('tOrdenes').innerHTML = '<tr><td class="muted" style="padding:16px">Sin órdenes.</td></tr>'; return; }
@@ -289,7 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const alerta = (o, et) => o.alertas.includes(et) ? 'color:var(--danger);font-weight:700;background:var(--danger-bg)' : '';
     const head = `<thead><tr><th style="text-align:left">Orden</th><th style="text-align:left">Fecha</th><th style="text-align:left">Producto</th><th>Cantidad PT</th>
       ${comps.map(k => `<th>${esc(k)}<div class="muted" style="font-weight:400;font-size:11px">dosis · $/kg</div></th>`).join('')}
-      <th>MP por PT</th><th style="text-align:left">Revisar</th></tr></thead>`;
+      <th>MP por PT</th><th>Rend.</th><th style="text-align:left">Revisar</th></tr></thead>`;
     const body = D.ordenes.map(o => `<tr>
       <td style="text-align:left">${esc(o.no_ordp)}</td><td style="text-align:left">${esc(o.fecha || '—')}</td><td style="text-align:left">${esc(o.cve_pt)}</td>
       <td style="text-align:right">${n0(o.cantidad_pt)}</td>
@@ -301,6 +355,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           · <span style="${alerta(o, `${k} $/kg`)}">${money(v.costo_kg)}</span></td>`;
       }).join('')}
       <td style="text-align:right;${alerta(o, 'MP por PT')}">${money(o.mp_por_pt)}</td>
+      <td style="text-align:right;${alerta(o, 'Rendimiento')}">${o.rendimiento == null ? '—' : fmt(o.rendimiento * 100, 1) + '%'}</td>
       <td style="text-align:left">${o.alertas.length ? o.alertas.map(a => `<span class="badge warn" style="margin:1px">${esc(a)}</span>`).join('') : '<span class="muted">—</span>'}</td>
     </tr>`).join('');
     $('tOrdenes').innerHTML = head + `<tbody>${body}</tbody>`;

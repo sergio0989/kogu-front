@@ -144,6 +144,14 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
             </div>
 
+            <!-- Equivalencias de unidad -->
+            <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+              <div class="eyebrow" style="margin-bottom:4px">Equivalencias</div>
+              <div class="muted" style="font-size:11.5px;margin-bottom:8px">1 <b id="eqUnidadBase">unidad del producto</b> = factor × unidad. Ej. caja de sopa: 24 SOBRE y 1.968 KG netos (sin empaque). Producción usa la equivalencia a KG neta para el rendimiento.</div>
+              <div id="eqRows" style="display:flex;flex-direction:column;gap:6px"></div>
+              <button type="button" class="btn ghost" id="eqAddBtn" style="margin-top:8px;padding:4px 10px;font-size:12px">+ Agregar equivalencia</button>
+            </div>
+
             <!-- Precios -->
             <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
               <div class="eyebrow" style="margin-bottom:8px">Precios</div>
@@ -471,6 +479,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('pFamilia').onchange = () => loadSubfamiliasForFamilia(sel('pFamilia'));
 
+  // ── Equivalencias de unidad ───────────────────────────────────────────────
+  let equivs = [];
+  function eqUnidadBaseLabel() {
+    const u = unidades.find(x => x.unidad_id === sel('pUnidad'));
+    document.getElementById('eqUnidadBase').textContent = u ? `${u.clave_interna} (${u.nombre})` : 'unidad del producto';
+  }
+  function renderEquivs() {
+    eqUnidadBaseLabel();
+    const opts = (cur) => '<option value="">— Unidad —</option>' + unidades
+      .map(u => `<option value="${u.unidad_id}" ${u.unidad_id === cur ? 'selected' : ''}>${KoguUi.escapeHtml(u.clave_interna)} — ${KoguUi.escapeHtml(u.nombre)}</option>`).join('');
+    const box = document.getElementById('eqRows');
+    box.innerHTML = equivs.length ? equivs.map((e, i) => `
+      <div style="display:grid;grid-template-columns:1.4fr .8fr auto 1.6fr auto;gap:6px;align-items:center">
+        <select class="select" data-eq="${i}" data-k="unidad_id">${opts(e.unidad_id)}</select>
+        <input class="input" type="number" min="0.000001" step="any" placeholder="factor" value="${e.factor ?? ''}" data-eq="${i}" data-k="factor"/>
+        <label style="font-size:12px;display:flex;gap:4px;align-items:center;white-space:nowrap" title="Contenido de producto sin empaque">
+          <input type="checkbox" data-eq="${i}" data-k="es_neto" ${e.es_neto !== false ? 'checked' : ''}/> neto</label>
+        <input class="input" placeholder="notas (opcional)" value="${KoguUi.escapeHtml(e.notas || '')}" data-eq="${i}" data-k="notas"/>
+        <button type="button" class="btn ghost" data-eqdel="${i}" title="Quitar" style="padding:4px 8px">✕</button>
+      </div>`).join('') : '<div class="muted" style="font-size:12px">Sin equivalencias.</div>';
+    box.querySelectorAll('[data-eq]').forEach(el => el.onchange = () => {
+      const e = equivs[+el.dataset.eq], k = el.dataset.k;
+      e[k] = k === 'es_neto' ? el.checked : el.value;
+    });
+    box.querySelectorAll('[data-eqdel]').forEach(el => el.onclick = () => { equivs.splice(+el.dataset.eqdel, 1); renderEquivs(); });
+  }
+  document.getElementById('eqAddBtn').onclick = () => { equivs.push({ unidad_id: '', factor: '', es_neto: true, notas: '' }); renderEquivs(); };
+  document.getElementById('pUnidad').addEventListener('change', eqUnidadBaseLabel);
+  async function loadEquivs(productoId) {
+    equivs = [];
+    if (productoId) {
+      try {
+        const res = await KoguApi.apiFetch(`${BASE}/${productoId}/equivalencias`);
+        equivs = (KoguApi.unwrapData(res) || []).map(e => ({ unidad_id: e.unidad_id, factor: Number(e.factor), es_neto: e.es_neto, notas: e.notas || '' }));
+      } catch (err) { KoguApi.toast('No se pudieron leer las equivalencias: ' + err.message, 'error'); }
+    }
+    renderEquivs();
+  }
+  async function saveEquivs(productoId) {
+    const rows = equivs.filter(e => e.unidad_id || e.factor !== '').map(e => ({
+      unidad_id: e.unidad_id, factor: e.factor, es_neto: e.es_neto !== false, notas: e.notas || null,
+    }));
+    await KoguApi.apiFetch(`${BASE}/${productoId}/equivalencias`, { method: 'PUT', body: JSON.stringify({ rows }) });
+  }
+
   // ── Reset / Fill ─────────────────────────────────────────────────────────
   function reset() {
     setV('productoId', ''); setV('pCve', ''); setV('pDesc', ''); setV('pNombreCorto', '');
@@ -484,6 +537,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('formTitle').textContent = 'Nuevo producto';
     document.getElementById('modeChip').textContent  = 'Alta';
     document.getElementById('pSubfamilia').innerHTML = '<option value="">— Sin subfamilia —</option>';
+    equivs = []; renderEquivs();
   }
 
   async function fill(r) {
@@ -501,6 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setV('pActivoFijo', String(!!r.es_activo_fijo)); setV('pInventario', String(!!r.maneja_inventario));
     setV('pClaveSat', r.clave_prod_serv_sat || ''); setV('pUnidadSat', r.clave_unidad_sat || '');
     setV('pActivo', String(!!r.activo));
+    await loadEquivs(r.producto_id);
     document.getElementById('formTitle').textContent = 'Editar: ' + r.cve_prod;
     document.getElementById('modeChip').textContent  = 'Edición';
   }
@@ -610,9 +665,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!payload.desc_prod) throw new Error('Descripción es obligatoria.');
         if (id) {
           await KoguApi.apiFetch(`${BASE}/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+          await saveEquivs(id);
           KoguApi.toast('Producto actualizado', 'success');
         } else {
-          await KoguApi.apiFetch(BASE, { method: 'POST', body: JSON.stringify(payload) });
+          const res = await KoguApi.apiFetch(BASE, { method: 'POST', body: JSON.stringify(payload) });
+          const nuevoId = KoguApi.unwrapData(res)?.producto_id;
+          if (nuevoId && equivs.length) await saveEquivs(nuevoId);
           KoguApi.toast('Producto creado', 'success');
         }
         closeM();
