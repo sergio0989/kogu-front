@@ -100,12 +100,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><label class="muted" style="font-size:12px;display:block">Unidades por PT</label><input id="teoUpp" type="number" step="any" min="0" class="input" style="width:100px" placeholder="24"/></div>
   </div>
   <div id="teoAvisoVig" style="font-size:12px;margin-top:8px"></div>
+  <div id="teoRestaura" style="font-size:12px;margin-top:4px"></div>
   <div class="table-wrap" style="margin-top:10px"><table id="tTeo" class="tabla-resumen"></table></div>
   <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px">
     <button class="btn ghost" id="teoAdd" style="padding:4px 10px">＋ Componente</button>
     <div id="teoTotales" style="font-size:13px"></div>
   </div>
   <div id="teoOtros" style="margin-top:10px;font-size:12px"></div>
+  <div id="teoConfirm" style="margin-top:10px"></div>
   <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">
     <button class="btn primary" id="teoGuardar">Guardar teórico</button>
   </div>
@@ -158,10 +160,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     cpu: c.costo_por_unidad == null ? '' : r4(c.costo_por_unidad),
     entra_peso: !!c.entra_peso,
   });
-  const cpuCalc = (f) => {
-    const g = numOrNull(f.g), ck = numOrNull(f.costo_kg);
-    return g == null || ck == null ? null : (g / 1000) * ck * (1 + (numOrNull(f.merma_pct) || 0) / 100);
-  };
+  // Cálculo y revisión viven en produccion-teorico-calc.js (con pruebas).
+  const cpuCalc = (f) => KoguTeoCalc.cpuCalc(f);
+  let confirmado = false;   // segundo clic tras ver la confirmación en línea
 
   async function abrirTeorico(cve) {
     $('cardTeo').style.display = '';
@@ -175,17 +176,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function cargarTeorico(cve) {
     try {
       const r = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/teorico/${encodeURIComponent(cve)}`));
-      teo = { cve, versiones: r.versiones || [], filas: [] };
-      $('teoVersion').innerHTML = teo.versiones.length
+      teo = { cve, versiones: r.versiones || [], anteriores: r.anteriores || [], filas: [] };
+      const cuando = (iso) => (iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '');
+      $('teoVersion').innerHTML = (teo.versiones.length
         ? teo.versiones.map((v, i) => `<option value="${i}">Desde ${esc(v.vigente_desde)}${i === 0 ? ' · la más reciente' : ''}</option>`).join('')
-        : '<option value="">Sin teórico — captura uno nuevo</option>';
+        : '<option value="">Sin teórico — captura uno nuevo</option>')
+        + (teo.anteriores.length ? `<optgroup label="Reemplazadas (para restaurar)">${teo.anteriores.map((v, i) =>
+          `<option value="a${i}">Desde ${esc(v.vigente_desde)} · reemplazada ${esc(cuando(v.reemplazado_at))}</option>`).join('')}</optgroup>` : '');
       usarVersion(teo.versiones.length ? 0 : null);
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
 
   function usarVersion(i) {
-    const v = i == null ? null : teo.versiones[i];
+    const v = i == null ? null : String(i).startsWith('a') ? teo.anteriores[+String(i).slice(1)] : teo.versiones[i];
     teo.filas = v ? v.componentes.map(aFila) : [filaVacia()];
+    $('teoRestaura').innerHTML = v && v.reemplazado_at
+      ? `<span style="color:var(--warn);font-weight:600">Versión reemplazada cargada.</span> Si la guardas con la misma fecha, vuelve a ser la vigente (la actual pasa a reemplazadas).` : '';
     $('teoVig').value = v ? v.vigente_desde : `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
     $('teoUnidad').value = v?.unidad || 'sobre';
     $('teoUpp').value = v?.unidades_por_pt ?? '';
@@ -214,7 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td class="num">${inp(i, 'g', 'type="number" step="any" min="0" style="width:80px;text-align:right"')}</td>
           <td class="num">${inp(i, 'costo_kg', 'type="number" step="any" min="0" style="width:85px;text-align:right"')}</td>
           <td class="num">${inp(i, 'merma_pct', 'type="number" step="any" min="0" max="99" style="width:70px;text-align:right"')}</td>
-          <td class="num">${inp(i, 'cpu', `type="number" step="any" min="0" style="width:85px;text-align:right" placeholder="${calc == null ? '' : r4(calc)}" title="Vacío = se calcula"`)}</td>
+          <td class="num">${inp(i, 'cpu', `type="number" step="any" min="0" style="width:85px;text-align:right" placeholder="${calc == null ? '' : r4(calc)}" title="Vacío = se calcula"`)}<div class="teoAlerta" data-al="${i}"></div></td>
           <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="entra_peso" ${f.entra_peso ? 'checked' : ''}/></td>
           <td><button class="btn ghost" data-del="${i}" style="padding:2px 8px" title="Quitar">✕</button></td></tr>`;
       }).join('')}</tbody>`;
@@ -225,12 +231,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         const c2 = cpuCalc(teo.filas[+el.dataset.i]);
         el.closest('tr').querySelector('[data-k="cpu"]').placeholder = c2 == null ? '' : r4(c2);
       }
-      totalesTeo();
+      totalesTeo(); marcarAlertas();
     }));
     $('tTeo').querySelectorAll('[data-del]').forEach(b2 => b2.addEventListener('click', () => {
       teo.filas.splice(+b2.dataset.del, 1); if (!teo.filas.length) teo.filas.push(filaVacia()); pintaTeo();
     }));
-    totalesTeo(); avisoVigencia(); pintaOtros();
+    totalesTeo(); avisoVigencia(); pintaOtros(); marcarAlertas();
+  }
+
+  // $ por unidad capturado que no cuadra con g × $/kg × (1 + merma): ámbar ≥1%, rojo >10%.
+  function marcarAlertas() {
+    const r = KoguTeoCalc.revisar({ filas: teo.filas, vigenteDesde: $('teoVig').value, versiones: teo.versiones });
+    $('tTeo').querySelectorAll('.teoAlerta').forEach(el => { el.innerHTML = ''; });
+    $('tTeo').querySelectorAll('[data-k="cpu"]').forEach(el => { el.style.borderColor = ''; });
+    for (const a of r.alertas) {
+      const color = a.nivel === 'rojo' ? 'var(--danger)' : 'var(--warn)';
+      const cel = $('tTeo').querySelector(`.teoAlerta[data-al="${a.i}"]`);
+      const inp = $('tTeo').querySelector(`[data-k="cpu"][data-i="${a.i}"]`);
+      if (inp) inp.style.borderColor = color;
+      if (cel) cel.innerHTML = `<span style="font-size:11px;color:${color};font-weight:600;white-space:nowrap"
+        title="g × $/kg × (1 + merma) = ${money(a.calc, 4)}">calc ${money(a.calc)} (${fmt(a.pct * 100, 0)}%)</span>
+        <button class="btn ghost" data-usar="${a.i}" style="padding:0 6px;font-size:11px">usar</button>`;
+    }
+    $('tTeo').querySelectorAll('[data-usar]').forEach(b2 => b2.addEventListener('click', () => {
+      const f = teo.filas[+b2.dataset.usar];
+      f.cpu = r4(cpuCalc(f)); pintaTeo();
+    }));
+    confirmado = false; $('teoConfirm').innerHTML = '';
+    return r;
   }
 
   function totalesTeo() {
@@ -254,6 +282,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function guardarTeorico(btn) {
     const cve = ($('teoPt').value || '').trim().toUpperCase();
     if (!cve) return KoguApi.toast('Indica el producto.', 'error');
+    // Confirmación en línea (sin diálogos del navegador) si hay $ que no cuadran o se reemplaza una versión.
+    const rev = KoguTeoCalc.revisar({ filas: teo.filas, vigenteDesde: $('teoVig').value, versiones: teo.versiones });
+    if (rev.bloquea && !confirmado) {
+      const rojos = rev.alertas.filter(a => a.nivel === 'rojo');
+      $('teoConfirm').innerHTML = `<div style="border:1px solid var(--warn);background:#fffbeb;border-radius:10px;padding:10px 12px;font-size:13px">
+        <b>Antes de guardar:</b><ul style="margin:6px 0 8px 18px;padding:0">
+        ${rojos.map(a => `<li><b>${esc(a.componente || 'Componente ' + (a.i + 1))}</b>: capturaste ${money(a.cpu)} por unidad pero g × $/kg × merma da <b>${money(a.calc)}</b> (${fmt(a.pct * 100, 0)}% de diferencia). ¿Cambiaste los gramos y quedó el $ anterior?</li>`).join('')}
+        ${rev.reemplaza ? `<li>Vas a <b>reemplazar la versión vigente desde ${esc(rev.reemplaza)}</b>: cambia el teórico de todas las órdenes desde esa fecha. La actual queda en "Reemplazadas" por si hay que volver. Para no tocar meses ya analizados, usa una fecha nueva.</li>` : ''}
+        </ul><button class="btn primary" id="teoConfirmSi" style="padding:4px 12px">Sí, guardar así</button>
+        <button class="btn ghost" id="teoConfirmNo" style="padding:4px 12px">Revisar</button></div>`;
+      $('teoConfirmSi').addEventListener('click', () => { confirmado = true; guardarTeorico($('teoGuardar')); });
+      $('teoConfirmNo').addEventListener('click', () => { $('teoConfirm').innerHTML = ''; });
+      $('teoConfirm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    confirmado = false; $('teoConfirm').innerHTML = '';
     const componentes = teo.filas.filter(f => String(f.componente).trim() || String(f.claves).trim()).map(f => ({
       componente: f.componente,
       claves_mp: String(f.claves).split(',').map(x => x.trim()).filter(Boolean),
@@ -287,8 +331,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnTeorico').addEventListener('click', () => abrirTeorico());
   $('teoCerrar').addEventListener('click', () => { $('cardTeo').style.display = 'none'; });
   $('teoPt').addEventListener('change', () => { const k = $('teoPt').value.trim().toUpperCase(); $('teoPt').value = k; if (k) cargarTeorico(k); });
-  $('teoVersion').addEventListener('change', () => usarVersion($('teoVersion').value === '' ? null : +$('teoVersion').value));
-  $('teoVig').addEventListener('input', avisoVigencia);
+  $('teoVersion').addEventListener('change', () => { const v = $('teoVersion').value; usarVersion(v === '' ? null : v.startsWith('a') ? v : +v); });
+  $('teoVig').addEventListener('input', () => { avisoVigencia(); marcarAlertas(); });
   $('teoUnidad').addEventListener('input', () => { document.querySelectorAll('.lblUnidadTeo').forEach(el => { el.textContent = $('teoUnidad').value || 'unidad'; }); totalesTeo(); });
   $('teoAdd').addEventListener('click', () => { teo.filas.push(filaVacia()); pintaTeo(); });
   $('teoGuardar').addEventListener('click', (e) => guardarTeorico(e.currentTarget));
