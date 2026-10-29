@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       .tabla-resumen tr.total td{font-weight:700;border-top:2px solid var(--line);background:#f8fafc}
       .tabla-resumen td.comp{font-weight:600;position:sticky;left:0;background:#fff;z-index:1}
       .tabla-resumen tr.total td.comp{background:#f8fafc}
+      .tabla-resumen thead tr:first-child th:first-child{position:sticky;left:0;z-index:2;background:#f8fafc;box-shadow:2px 0 0 var(--line)}
+      .tabla-resumen td.comp{box-shadow:2px 0 0 var(--line)}
       .table-wrap .tabla-resumen td.claves{white-space:normal;min-width:170px;max-width:240px;line-height:1.9}
       .tabla-resumen .clave{display:inline-block;white-space:nowrap;font-size:11px;padding:1px 6px;margin:1px 2px 1px 0;border-radius:6px;background:#eef2f7;color:var(--text);font-weight:600}
       .tabla-resumen .clave.sin{background:transparent;border:1px dashed #cbd5e1;color:#94a3b8;font-weight:400}
