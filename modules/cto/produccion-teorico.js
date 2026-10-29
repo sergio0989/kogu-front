@@ -5,7 +5,10 @@
 //   1) Resumen por mes y componente (formato de la hoja de costos: real · teórico · dif)
 //   2) Por orden: dosis, $/kg y MP por PT; marca lo que se aleja de la mediana
 //   3) MP producida en casa vs costo de MP de su lote (corrección del sazonador)
-// Endpoint: GET /protected/cto/produccion-mp/{productos|analisis}
+//   4) Editor del teórico por producto, con versiones "vigente desde": cada orden se
+//      compara contra la versión vigente en su fecha (un cambio no reescribe meses pasados)
+// Endpoints: GET /protected/cto/produccion-mp/{productos|analisis}
+//            GET|PUT /protected/cto/produccion-mp/teorico/:cvePt (guardar: cto.import)
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -74,10 +77,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><label class="muted" style="font-size:12px;display:block">Mes inicial</label><select id="mesIni" class="select" style="min-width:110px"></select></div>
     <div><label class="muted" style="font-size:12px;display:block">Mes final</label><select id="mesFin" class="select" style="min-width:110px"></select></div>
     <button class="btn primary" id="btnAnalizar">Analizar</button>
+    <button class="btn ghost" id="btnTeorico" title="Capturar o cambiar el teórico de un producto">✎ Teórico</button>
   </div>
   <div style="margin-top:14px">
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700">Productos con MP en el periodo</div>
     <div id="productos" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><span class="muted" style="font-size:12px">—</span></div>
+  </div>
+</div>
+
+<div id="cardTeo" class="card" style="margin-top:14px;display:none;border-left:4px solid var(--primary, #2563eb)">
+  <div class="row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="flex:1 1 300px"><h3 style="margin:0">Teórico del producto</h3>
+      <div class="muted" style="font-size:12px">Por <b>unidad de presentación</b> (sobre). Gramos y merma como se capturan en la hoja de costos; el $ por unidad se calcula si lo dejas vacío (g × $/kg × (1 + merma)).
+        Cada orden se compara contra la versión vigente en su fecha: <b>una fecha nueva no cambia los meses anteriores</b>.</div></div>
+    <button class="btn ghost" id="teoCerrar" style="padding:4px 10px">✕</button>
+  </div>
+  <div class="row" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:12px">
+    <div><label class="muted" style="font-size:12px;display:block">Producto</label><input id="teoPt" class="input" list="teoPtList" style="width:140px;text-transform:uppercase" placeholder="GPT0030"/><datalist id="teoPtList"></datalist></div>
+    <div><label class="muted" style="font-size:12px;display:block">Versión</label><select id="teoVersion" class="select" style="min-width:190px"></select></div>
+    <div><label class="muted" style="font-size:12px;display:block">Vigente desde</label><input id="teoVig" type="date" class="input" style="width:150px"/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Unidad</label><input id="teoUnidad" class="input" style="width:90px" placeholder="sobre"/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Unidades por PT</label><input id="teoUpp" type="number" step="any" min="0" class="input" style="width:100px" placeholder="24"/></div>
+  </div>
+  <div id="teoAvisoVig" style="font-size:12px;margin-top:8px"></div>
+  <div class="table-wrap" style="margin-top:10px"><table id="tTeo" class="tabla-resumen"></table></div>
+  <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px">
+    <button class="btn ghost" id="teoAdd" style="padding:4px 10px">＋ Componente</button>
+    <div id="teoTotales" style="font-size:13px"></div>
+  </div>
+  <div id="teoOtros" style="margin-top:10px;font-size:12px"></div>
+  <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">
+    <button class="btn primary" id="teoGuardar">Guardar teórico</button>
   </div>
 </div>
 
@@ -114,6 +144,154 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div style="text-align:right"><div id="lotesTotal" style="font-size:14px;font-weight:700"></div><div id="lotesToggle" style="margin-top:6px"></div></div></div>
   <div class="table-wrap" style="margin-top:10px"><table id="tLotes" style="font-variant-numeric:tabular-nums;font-size:12.5px"></table></div>
 </div>`;
+
+  // ── Editor del teórico ──
+  let teo = { cve: null, versiones: [], filas: [] };
+  const numOrNull = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+  const r4 = (v) => (v == null ? '' : String(Math.round(v * 1e4) / 1e4));
+  const filaVacia = () => ({ componente: '', claves: '', g: '', costo_kg: '', merma_pct: '', cpu: '', entra_peso: false });
+  const aFila = (c) => ({
+    componente: c.componente, claves: (c.claves_mp || []).join(', '),
+    g: c.kg_por_unidad == null ? '' : r4(c.kg_por_unidad * 1000),
+    costo_kg: c.costo_kg == null ? '' : r4(c.costo_kg),
+    merma_pct: c.merma == null ? '' : r4(c.merma * 100),
+    cpu: c.costo_por_unidad == null ? '' : r4(c.costo_por_unidad),
+    entra_peso: !!c.entra_peso,
+  });
+  const cpuCalc = (f) => {
+    const g = numOrNull(f.g), ck = numOrNull(f.costo_kg);
+    return g == null || ck == null ? null : (g / 1000) * ck * (1 + (numOrNull(f.merma_pct) || 0) / 100);
+  };
+
+  async function abrirTeorico(cve) {
+    $('cardTeo').style.display = '';
+    $('teoPtList').innerHTML = productos.map(x => `<option value="${esc(x.cve_pt)}">`).join('');
+    const pt = (cve || [...seleccion][0] || productos[0]?.cve_pt || '').toUpperCase();
+    $('teoPt').value = pt;
+    if (pt) await cargarTeorico(pt); else pintaTeo();
+    $('cardTeo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function cargarTeorico(cve) {
+    try {
+      const r = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/teorico/${encodeURIComponent(cve)}`));
+      teo = { cve, versiones: r.versiones || [], filas: [] };
+      $('teoVersion').innerHTML = teo.versiones.length
+        ? teo.versiones.map((v, i) => `<option value="${i}">Desde ${esc(v.vigente_desde)}${i === 0 ? ' · la más reciente' : ''}</option>`).join('')
+        : '<option value="">Sin teórico — captura uno nuevo</option>';
+      usarVersion(teo.versiones.length ? 0 : null);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
+  }
+
+  function usarVersion(i) {
+    const v = i == null ? null : teo.versiones[i];
+    teo.filas = v ? v.componentes.map(aFila) : [filaVacia()];
+    $('teoVig').value = v ? v.vigente_desde : `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+    $('teoUnidad').value = v?.unidad || 'sobre';
+    $('teoUpp').value = v?.unidades_por_pt ?? '';
+    pintaTeo();
+  }
+
+  function avisoVigencia() {
+    const vig = $('teoVig').value;
+    const existe = teo.versiones.find(v => v.vigente_desde === vig);
+    const previa = teo.versiones.filter(v => v.vigente_desde < vig).sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))[0];
+    $('teoAvisoVig').innerHTML = !vig ? ''
+      : existe ? `<span style="color:var(--warn);font-weight:600">Reemplaza la versión vigente desde ${esc(vig)}.</span> Las órdenes desde esa fecha se recalculan con lo que captures.`
+      : `<span style="color:var(--primary, #2563eb);font-weight:600">Versión nueva desde ${esc(vig)}.</span> ${previa ? `Las órdenes anteriores siguen con la versión del ${esc(previa.vigente_desde)}.` : 'Es la primera versión del producto.'}`;
+  }
+
+  function pintaTeo() {
+    const inp = (i, k, extra = '') => `<input class="input" data-i="${i}" data-k="${k}" value="${esc(teo.filas[i][k])}" ${extra}/>`;
+    $('tTeo').innerHTML = `<thead><tr><th>Componente</th><th>Claves de MP <small class="muted">(separadas por coma)</small></th>
+      <th class="num">g por <span class="lblUnidadTeo">sobre</span></th><th class="num">$/kg</th><th class="num">Merma %</th>
+      <th class="num">$ por <span class="lblUnidadTeo">sobre</span></th><th title="Entra al peso neto del producto (rendimiento)">Entra al peso</th><th></th></tr></thead>
+      <tbody>${teo.filas.map((f, i) => {
+        const calc = cpuCalc(f);
+        return `<tr>
+          <td>${inp(i, 'componente', 'style="width:120px" placeholder="Pasta"')}</td>
+          <td>${inp(i, 'claves', 'style="width:230px;text-transform:uppercase" placeholder="WWP1331, WWP1332"')}</td>
+          <td class="num">${inp(i, 'g', 'type="number" step="any" min="0" style="width:80px;text-align:right"')}</td>
+          <td class="num">${inp(i, 'costo_kg', 'type="number" step="any" min="0" style="width:85px;text-align:right"')}</td>
+          <td class="num">${inp(i, 'merma_pct', 'type="number" step="any" min="0" max="99" style="width:70px;text-align:right"')}</td>
+          <td class="num">${inp(i, 'cpu', `type="number" step="any" min="0" style="width:85px;text-align:right" placeholder="${calc == null ? '' : r4(calc)}" title="Vacío = se calcula"`)}</td>
+          <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="entra_peso" ${f.entra_peso ? 'checked' : ''}/></td>
+          <td><button class="btn ghost" data-del="${i}" style="padding:2px 8px" title="Quitar">✕</button></td></tr>`;
+      }).join('')}</tbody>`;
+    document.querySelectorAll('.lblUnidadTeo').forEach(el => { el.textContent = $('teoUnidad').value || 'unidad'; });
+    $('tTeo').querySelectorAll('input[data-k]').forEach(el => el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
+      teo.filas[+el.dataset.i][el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+      if (['g', 'costo_kg', 'merma_pct'].includes(el.dataset.k)) {
+        const c2 = cpuCalc(teo.filas[+el.dataset.i]);
+        el.closest('tr').querySelector('[data-k="cpu"]').placeholder = c2 == null ? '' : r4(c2);
+      }
+      totalesTeo();
+    }));
+    $('tTeo').querySelectorAll('[data-del]').forEach(b2 => b2.addEventListener('click', () => {
+      teo.filas.splice(+b2.dataset.del, 1); if (!teo.filas.length) teo.filas.push(filaVacia()); pintaTeo();
+    }));
+    totalesTeo(); avisoVigencia(); pintaOtros();
+  }
+
+  function totalesTeo() {
+    let tot = 0, g = 0, gEnt = 0;
+    for (const f of teo.filas) {
+      const cpu = numOrNull(f.cpu) ?? cpuCalc(f);
+      if (cpu != null) tot += cpu;
+      if (f.entra_peso && numOrNull(f.g) != null) { g += Number(f.g); gEnt += Number(f.g) * (1 + (numOrNull(f.merma_pct) || 0) / 100); }
+    }
+    const u = $('teoUnidad').value || 'unidad';
+    $('teoTotales').innerHTML = `Total MP: <b>${money(tot)}</b> por ${esc(u)}` +
+      (g ? ` · Peso neto <b>${fmt(g, 1)} g</b> · entra con merma ${fmt(gEnt, 1)} g · rendimiento teórico <b>${fmt(g / gEnt * 100, 1)}%</b>` : '');
+  }
+
+  function pintaOtros() {
+    const otros = productos.filter(x => x.con_teorico || seleccion.has(x.cve_pt)).map(x => x.cve_pt).filter(k => k !== teo.cve);
+    $('teoOtros').innerHTML = otros.length ? `<span class="muted">Aplicar también a:</span> ` + otros.map(k =>
+      `<label style="margin-right:10px;white-space:nowrap"><input type="checkbox" class="teoOtro" value="${esc(k)}"/> ${esc(k)}</label>`).join('') : '';
+  }
+
+  async function guardarTeorico(btn) {
+    const cve = ($('teoPt').value || '').trim().toUpperCase();
+    if (!cve) return KoguApi.toast('Indica el producto.', 'error');
+    const componentes = teo.filas.filter(f => String(f.componente).trim() || String(f.claves).trim()).map(f => ({
+      componente: f.componente,
+      claves_mp: String(f.claves).split(',').map(x => x.trim()).filter(Boolean),
+      kg_por_unidad: numOrNull(f.g) == null ? null : Number(f.g) / 1000,
+      costo_kg: numOrNull(f.costo_kg),
+      merma: numOrNull(f.merma_pct) == null ? null : Number(f.merma_pct) / 100,
+      costo_por_unidad: numOrNull(f.cpu),
+      entra_peso: !!f.entra_peso,
+    }));
+    const body = { vigente_desde: $('teoVig').value, unidad: $('teoUnidad').value, unidades_por_pt: $('teoUpp').value || null, componentes };
+    const destinos = [cve, ...[...document.querySelectorAll('.teoOtro:checked')].map(x => x.value)];
+    await KoguUi.withLoading(btn, async () => {
+      const ok = [];
+      for (const k of destinos) {
+        try {
+          await KoguApi.apiFetch(`${BASE}/teorico/${encodeURIComponent(k)}`, { method: 'PUT', body: JSON.stringify(body) });
+          ok.push(k);
+        } catch (e) { KoguApi.toast(`${k}: ${e.message}`, 'error'); break; }
+      }
+      if (!ok.length) return;
+      KoguApi.toast(`Teórico guardado (desde ${body.vigente_desde}): ${ok.join(', ')}`, 'success');
+      await cargarTeorico(cve);
+      const i = teo.versiones.findIndex(v => v.vigente_desde === body.vigente_desde);
+      if (i >= 0) { $('teoVersion').value = i; usarVersion(i); }
+      const r = await KoguApi.apiFetch(`${BASE}/productos?${new URLSearchParams(periodo())}`);
+      productos = KoguApi.unwrapData(r) || productos; pintaProductos();
+      if (seleccion.size) await analizar();
+    }, 'Guardando...');
+  }
+
+  $('btnTeorico').addEventListener('click', () => abrirTeorico());
+  $('teoCerrar').addEventListener('click', () => { $('cardTeo').style.display = 'none'; });
+  $('teoPt').addEventListener('change', () => { const k = $('teoPt').value.trim().toUpperCase(); $('teoPt').value = k; if (k) cargarTeorico(k); });
+  $('teoVersion').addEventListener('change', () => usarVersion($('teoVersion').value === '' ? null : +$('teoVersion').value));
+  $('teoVig').addEventListener('input', avisoVigencia);
+  $('teoUnidad').addEventListener('input', () => { document.querySelectorAll('.lblUnidadTeo').forEach(el => { el.textContent = $('teoUnidad').value || 'unidad'; }); totalesTeo(); });
+  $('teoAdd').addEventListener('click', () => { teo.filas.push(filaVacia()); pintaTeo(); });
+  $('teoGuardar').addEventListener('click', (e) => guardarTeorico(e.currentTarget));
 
   // ── Filtros ──
   const opts = MES.slice(1).map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
