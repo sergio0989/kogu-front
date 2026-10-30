@@ -114,6 +114,7 @@
       {href:'/modules/cto/inventario.html',label:'Inventario integrado',perm:'screen.costo'},
       {href:'/modules/cto/productos-b.html',label:'Productos B (producidos)',perm:'screen.costo'},
       {href:'/modules/cto/produccion-teorico.html',label:'🏭 Producción · Teórico vs real',perm:'screen.costo'},
+      {href:'/modules/cto/produccion-vendido.html',label:'📦 Producción · Resultado de lo vendido',perm:'screen.costo'},
       {href:'/modules/cto/cierre.html',label:'Validación / Cierre de periodo',perm:'screen.costo'},
     ]},
     {section:'Comercio Exterior',items:[
