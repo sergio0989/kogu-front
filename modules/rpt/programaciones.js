@@ -101,6 +101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     : `<div class="rpt-cuando"><b>${(p.horas || []).map(esc).join(', ')}</b><br><small>${esc(diasTxt(p.dias_semana))}</small></div>`;
   const reporteNombre = (k) => (catalogo.reportes.find((r) => r.key === k) || {}).nombre || k;
   const periodoNombre = (k) => (catalogo.periodos.find((p) => p.clave === k) || {}).etiqueta || k;
+  // En la lista, el periodo solo se muestra si el reporte lo usa.
+  const conPeriodo = (p) => (paramsDe(p.reporte_key).includes('periodo') ? ` · ${periodoNombre(p.parametros?.periodo || 'hoy')}` : '');
   const badge = (st) => { const [cls, txt] = STATUS_BADGE[st] || ['neutral', st || '—']; return `<span class="badge ${cls}">${esc(txt)}</span>`; };
 
   // ── carga ────────────────────────────────────────────────────
@@ -150,7 +152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn" data-act="ejecutar" data-id="${esc(p.rpt_programacion_id)}" title="Envía ya a todos los destinatarios">Enviar ahora</button>`
         : '';
       return `<tr>
-        <td><b>${esc(p.nombre)}</b><div class="muted" style="font-size:12px">${esc(reporteNombre(p.reporte_key))} · ${esc(periodoNombre(p.parametros?.periodo || 'hoy'))}</div></td>
+        <td><b>${esc(p.nombre)}</b><div class="muted" style="font-size:12px">${esc(reporteNombre(p.reporte_key))}${esc(conPeriodo(p))}</div></td>
         <td>${cuandoTxt(p)}</td>
         <td title="${esc(dest)}">${esc(n)} correo${n === 1 ? '' : 's'}<div class="muted" style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(dest)}</div></td>
         <td>${p.activo ? '<span class="badge success">Activa</span>' : '<span class="badge neutral">Apagada</span>'}</td>
@@ -202,6 +204,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const form = document.getElementById('form');
   let editId = null;
 
+  // Parámetros que declara cada reporte del catálogo (rpt.catalogo.js). Si el
+  // reporte no se conoce, se muestran todos (comportamiento anterior).
+  const paramsDe = (key) => {
+    const r = catalogo.reportes.find((x) => x.key === key);
+    return r && Array.isArray(r.parametros) ? r.parametros : ['periodo', ...Object.keys(FILTROS_CFDI)];
+  };
+
   function selectHtml(name, opts, val) {
     return `<select class="select" name="${name}">${opts.map(([v, t]) => `<option value="${esc(v)}" ${String(val ?? '') === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
   }
@@ -225,10 +234,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       <div class="rpt-sec"><h4>Qué incluye</h4>
         <div class="grid-3" style="gap:12px">
-          <div><div class="label-text">Periodo</div>${selectHtml('periodo', catalogo.periodos.map((x) => [x.clave, x.etiqueta]), par.periodo || 'hoy')}
+          <div data-param="periodo"><div class="label-text">Periodo</div>${selectHtml('periodo', catalogo.periodos.map((x) => [x.clave, x.etiqueta]), par.periodo || 'hoy')}
             <div class="muted" style="font-size:11.5px;margin-top:3px">Se calcula al enviar, en hora de México.</div></div>
-          ${Object.entries(FILTROS_CFDI).map(([k, f]) => `<div><div class="label-text">${esc(f.label)}</div>${selectHtml(`f_${k}`, f.opts, par[k] ?? (k === 'scope' ? 'recibidos' : ''))}</div>`).join('')}
+          ${Object.entries(FILTROS_CFDI).map(([k, f]) => `<div data-param="${k}"><div class="label-text">${esc(f.label)}</div>${selectHtml(`f_${k}`, f.opts, par[k] ?? (k === 'scope' ? 'recibidos' : ''))}</div>`).join('')}
         </div>
+        <div class="muted" id="paramNota" style="font-size:12.5px;display:none"></div>
       </div>
 
       <div class="rpt-sec"><h4>Cuándo se envía</h4>
@@ -279,6 +289,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     form.querySelectorAll('input[name="disparador"]').forEach((r) => r.addEventListener('change', toggle));
     toggle();
+    // Solo los filtros que usa el reporte elegido (p. ej. el de cobranza no usa ninguno).
+    const aplicarParams = () => {
+      const key = form.querySelector('[name="reporte_key"]').value;
+      const usa = paramsDe(key);
+      form.querySelectorAll('[data-param]').forEach((el) => { el.style.display = usa.includes(el.dataset.param) ? '' : 'none'; });
+      const nota = form.querySelector('#paramNota');
+      const rep = catalogo.reportes.find((x) => x.key === key);
+      nota.textContent = usa.length ? '' : `Este reporte no tiene filtros. ${rep?.descripcion || ''}`.trim();
+      nota.style.display = usa.length ? 'none' : '';
+    };
+    form.querySelector('[name="reporte_key"]').addEventListener('change', aplicarParams);
+    aplicarParams();
     form.querySelector('#btnCancel').onclick = cerrarEditor;
     modal.hidden = false;
     form.querySelector('input[name="nombre"]').focus();
@@ -293,8 +315,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function leerForm() {
     const fd = new FormData(form);
-    const parametros = { periodo: fd.get('periodo') };
-    for (const k of Object.keys(FILTROS_CFDI)) { const v = fd.get(`f_${k}`); if (v) parametros[k] = v; }
+    // Solo los parámetros que declara el reporte elegido.
+    const usa = paramsDe(fd.get('reporte_key'));
+    const parametros = {};
+    if (usa.includes('periodo')) parametros.periodo = fd.get('periodo');
+    for (const k of Object.keys(FILTROS_CFDI)) { const v = fd.get(`f_${k}`); if (v && usa.includes(k)) parametros[k] = v; }
     const disparador = fd.get('disparador');
     return {
       nombre: fd.get('nombre'),
