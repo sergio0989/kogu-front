@@ -480,3 +480,21 @@ test('Estado de cuenta: deshabilitado sin cliente; con Alys (222) baja su PDF de
   assert.equal(d.method, 'GET');
   assert.deepEqual(p.bajados, ['estado_cuenta_222_2026-10-21.pdf'], 'sin encabezado legible (P-001) usa el mismo nombre que el servidor');
 });
+
+// Caso real (captura 30-oct): se marcaron A 26712 y A 26979 de Herdez con las
+// casillas y el botón "Estado de cuenta (PDF)" seguía apagado (solo miraba el filtro Cliente).
+test('Estado de cuenta: casillas de un solo cliente (Herdez A 26712 y A 26979) lo activan para ese cliente', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  assert.equal(p.$('#cobEdoCta').disabled, true);
+  await marcar(p, '26712'); await marcar(p, '26979');
+  assert.equal(p.$('#cobEdoCta').disabled, false);
+  p.$('#cobEdoCta').click(); await p.espera();
+  assert.equal(p.descargas.at(-1).url, `/protected/cob/estados-cuenta/4/pdf?corte_id=${K20}`);
+});
+
+test('Estado de cuenta: casillas de dos clientes lo dejan apagado y lo explica', async () => {
+  const p = await arranca({ permisos: SEGUIR });
+  await marcar(p, '26712'); await marcar(p, '27129');
+  assert.equal(p.$('#cobEdoCta').disabled, true);
+  assert.match(p.$('#cobEdoCta').title, /un solo cliente/);
+});

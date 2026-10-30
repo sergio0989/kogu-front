@@ -252,7 +252,25 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
   }
 
   // ── Selección para registrar seguimiento (F1b) ──────────────────
+  // Cliente del estado de cuenta: el del filtro Cliente o, si no hay, el de las
+  // casillas marcadas cuando todas son del mismo cliente (caso real 30-oct).
+  function clienteEdoCta() {
+    const fil = $('cobCliente') ? $('cobCliente').value : '';
+    if (fil) return { cve: fil };
+    if (!seleccion.size || !datos || !datos.documentos) return { cve: '', motivo: 'Elige un cliente en el filtro Cliente o marca facturas de un solo cliente' };
+    const cves = new Set(datos.documentos.filter((d) => seleccion.has(d.documento_id)).map((d) => d.cve_cte));
+    return cves.size === 1 ? { cve: [...cves][0] } : { cve: '', motivo: 'Las facturas marcadas son de varios clientes: marca facturas de un solo cliente' };
+  }
+  function actualizarEdoCta() {
+    const b = $('cobEdoCta');
+    if (!b || b.textContent === 'Generando…') return;
+    const c = clienteEdoCta();
+    b.disabled = !c.cve;
+    b.title = c.cve ? 'Estado de cuenta en PDF del cliente, con el corte que se ve' : c.motivo;
+  }
+
   function actualizarSeleccion() {
+    actualizarEdoCta();
     const b = $('cobRegistrar');
     if (!b) return;
     b.textContent = `Registrar seguimiento (${seleccion.size})`;
@@ -301,7 +319,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 
   // Estado de cuenta en PDF del cliente filtrado (idioma según su ficha).
   async function estadoCuenta() {
-    const cve = $('cobCliente').value;
+    const cve = clienteEdoCta().cve;
     const btn = $('cobEdoCta');
     if (!cve || !datos || !datos.corte) return;
     btn.disabled = true; btn.textContent = 'Generando…';
@@ -324,7 +342,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     } catch (e) {
       KoguApi.toast((e && e.message) || 'No se pudo generar el estado de cuenta.', 'error');
     } finally {
-      if ($('cobEdoCta')) { $('cobEdoCta').disabled = !$('cobCliente').value; $('cobEdoCta').textContent = 'Estado de cuenta (PDF)'; }
+      if ($('cobEdoCta')) { $('cobEdoCta').textContent = 'Estado de cuenta (PDF)'; actualizarEdoCta(); }
     }
   }
 
