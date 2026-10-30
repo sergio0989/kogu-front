@@ -73,6 +73,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 </div>` : ''}`;
 
   let datos = null;          // respuesta de /cartera
+  let control = null;        // control CFDI del corte (si falla, la cartera se ve igual)
   let ordenExport = [];      // facturas de la tabla en el orden en que se ven (F1.1)
   let recorteExport = '';
   let cortes = [];
@@ -98,6 +99,14 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       seleccion = new Set();
       // Columnas USD / MXN de la tabla (para ordenar por cada una).
       if (datos && datos.documentos) datos.documentos.forEach((d) => { d.usd = d.moneda === 'USD' ? d.saldo : null; d.mxn = d.moneda === 'MXN' ? d.saldo : null; });
+      // Control fiscal CFDI del mismo corte: opcional, no bloquea la cartera.
+      control = null;
+      if (datos && datos.corte) {
+        try {
+          control = await api(`/protected/cob/controles/cfdi?corte_id=${encodeURIComponent(datos.corte.corte_id)}`);
+          C.unirControlCfdi(datos.documentos, control);
+        } catch (e) { control = null; }
+      }
       llenarFiltros();
       render();
     } catch (e) {
@@ -164,6 +173,15 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     const fichasSeg = `<div class="cob-fila" data-seg><div class="cob-fila-l">Seguimiento</div><div class="cob-kpis">${C.fichasSeguimiento(base).map((x) => `
       <button type="button" class="cob-kpi cob-kpi-seg ${ficha === x.k ? 'sel' : ''}" data-ficha="${x.k}" title="${esc(x.ayuda)}" style="--k:${x.color};--kv:${x.color}">
         <div class="l">${esc(x.l)}</div><div class="v">${x.docs}</div><div class="h">${x.docs === 1 ? 'factura' : 'facturas'} · ${montosSeg(x.por_moneda)}</div></button>`).join('')}</div></div>`;
+    // Control CFDI: lo fiscal y lo que falta descargar del SAT, en fichas aparte.
+    const cfdi = control ? C.fichasCfdi(base) : [];
+    const pl2 = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+    const fichasCfdi = control ? `<div class="cob-fila" data-cfdi><div class="cob-fila-l">CFDI</div><div class="cob-kpis">${cfdi.map((x) => `
+      <button type="button" class="cob-kpi cob-kpi-seg ${ficha === x.k ? 'sel' : ''}" data-ficha="${x.k}" title="${esc(x.ayuda)}" style="--k:${x.color};--kv:${x.color}">
+        <div class="l">${esc(x.l)}</div><div class="v">${x.docs}</div><div class="h">${x.docs === 1 ? 'factura' : 'facturas'}${x.k === 'cfdi_descarga' && x.docs ? ` · ${pl2(x.fechas.length, 'fecha', 'fechas')}` : ''} · ${montosSeg(x.por_moneda)}</div></button>`).join('')}</div></div>` : '';
+    const descarga = cfdi.find((x) => x.k === 'cfdi_descarga');
+    const avisoDescarga = descarga && descarga.docs
+      ? `<div class="cob-aviso">Falta descargar del SAT los CFDI emitidos de ${pl2(descarga.fechas.length, 'día', 'días')}: ${descarga.fechas.map((f) => C.fmtFecha(f)).join(', ')}. Pide esas fechas en CFDI › Solicitudes SAT (emitidos); mientras, sus facturas salen como "CFDI por descargar".</div>` : '';
     const tot = C.resumenFichas(base)[0];
     // Lo que el filtro de sesión deja fuera, para que el total siga cuadrando con SAI.
     const fz = f.sesion === 'sesion' ? C.fueraDeSesion(C.filtrar(datos.documentos, { ...f, sesion: 'todos' })) : null;
@@ -171,7 +189,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     const lineaFuera = fz && fz.docs ? `<div class="cob-muted" id="cobFuera" style="font-size:12px;margin-top:4px">${pl(fz.docs, 'factura', 'facturas')} de ${pl(fz.clientes, 'cliente', 'clientes')} fuera de la sesión: ${
       [fz.por_moneda.USD.docs ? 'US' + C.dinero(fz.por_moneda.USD.saldo) : '', fz.por_moneda.MXN.docs ? C.dinero(fz.por_moneda.MXN.saldo) : ''].filter(Boolean).join(' · ')
     }. Para verlas, cambia Sesión a Todos.</div>` : '';
-    const avisos = C.avisos(base, corte).map((a) => `<div class="cob-aviso ${a.tipo === 'desactualizado' ? 'mal' : ''}">${esc(a.texto)}</div>`).join('');
+    const avisos = C.avisos(base, corte).map((a) => `<div class="cob-aviso ${a.tipo === 'desactualizado' ? 'mal' : ''}">${esc(a.texto)}</div>`).join('') + avisoDescarga;
 
     const totM = C.totalesMoneda(rows);
     const cols = [['folio', 'Folio'], ['cliente', 'Cliente'], ['agente', 'Agente'], ['fecha_doc', 'Factura'], ['fecha_vencimiento', 'Vence'],
@@ -205,6 +223,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     <div class="eyebrow" id="cobRecorte">${esc(recorte)}</div>
     ${fichas}
     ${fichasSeg}
+    ${fichasCfdi}
     <div id="cobAvisos">${avisos}<div class="cob-muted" id="cobControl" style="font-size:12px;margin-top:6px">${tot.docs} docs · ${tot.clientes} clientes · equivalente en pesos ${C.dinero(tot.saldo_mxn)} (tipo de cambio de cada factura, igual que el pie del reporte de SAI).</div>${lineaFuera}</div>
   </div>
   <div class="card">
@@ -283,6 +302,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     const oculto = grupo != null ? ' style="display:none"' : '';
     const tipo = d.tipo_doc !== 'FAC' ? ` <span class="cob-b bn">${d.tipo_doc}</span>` : '';
     const marcas = (d.cobro_factoraje ? ' <span class="cob-b binfo">Factoraje</span>' : '') + (d.sin_catalogo ? ' <span class="cob-b bwarn">Sin catálogo</span>' : '')
+      + (d.cfdi_estado ? ` <span class="cob-b ${d.cfdi_estado === 'falta_descarga' ? 'bn' : 'bwarn'}" title="${esc(d.cfdi_estado === 'falta_descarga' ? 'Ese día no hay CFDI emitidos descargados en KOGU' : `CFDI ${d.cfdi_estatus_sat || 'no encontrado en KOGU'}${d.cfdi_uuid ? ' · ' + d.cfdi_uuid : ''}`)}">${C.ETIQUETA_CFDI[d.cfdi_estado]}</span>` : '')
       + (d.en_sesion === false ? ` <span class="cob-b bn" title="${esc(MOTIVOS[d.motivo_fuera_sesion] || 'Marcado en el catálogo de clientes')}">Fuera de sesión</span>` : '');
     const dias = d.dias_vencido != null && d.dias_vencido > 0 ? `<b class="cob-rojo">${d.dias_vencido}</b>` : '<span class="cob-muted">—</span>';
     const sel = puedeSeguir ? `<td class="sel"><input type="checkbox" data-sel="${esc(d.documento_id)}" ${seleccion.has(d.documento_id) ? 'checked' : ''} aria-label="Seleccionar ${esc(C.folioDe(d))}"/></td>` : '';
@@ -481,7 +501,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 
   // Cambio de empresa: limpiar todo antes de pedir, para no mostrar datos de la anterior.
   KoguShell.subscribeEmpresaActivaChange(async () => {
-    datos = null; cortes = []; ficha = ''; seleccion = new Set(); acciones = null;
+    datos = null; control = null; cortes = []; ficha = ''; seleccion = new Set(); acciones = null;
     cerrarSeguimiento();
     ['cobCliente', 'cobResp', 'cobMoneda', 'cobQ'].forEach((id) => { $(id).value = ''; });
     $('cobSesion').value = 'sesion';

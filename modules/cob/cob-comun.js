@@ -40,7 +40,17 @@
     { k: 'compromiso_vencido', l: 'Compromisos vencidos', color: '#d97706', f: (d) => !!d.compromiso_vencido,
       ayuda: 'La fecha comprometida ya pasó y la factura sigue abierta.' },
   ];
-  const fichaDe = (k) => FICHAS.find((x) => x.k === k) || FICHAS_SEG.find((x) => x.k === k) || null;
+  // Control CFDI (GET /protected/cob/controles/cfdi): lo fiscal y lo que es hueco
+  // de la descarga del SAT van en fichas distintas.
+  const CFDI_FISCAL = ['no_encontrado', 'cancelado', 'sin_cfdi', 'sin_estatus'];
+  const FICHAS_CFDI = [
+    { k: 'cfdi_sin_vigente', l: 'Sin CFDI vigente', color: '#b91c1c', f: (d) => CFDI_FISCAL.includes(d.cfdi_estado),
+      ayuda: 'El CFDI no aparece, está cancelado o el SAT no lo encuentra, aunque ese día sí hay CFDI descargados. Revisar con Facturación.' },
+    { k: 'cfdi_descarga', l: 'Falta descargar CFDI', color: '#64748b', f: (d) => d.cfdi_estado === 'falta_descarga',
+      ayuda: 'Ese día no hay ningún CFDI emitido descargado en KOGU: hay que pedir la descarga de esa fecha en Solicitudes SAT.' },
+  ];
+  const ETIQUETA_CFDI = { no_encontrado: 'Sin CFDI vigente', cancelado: 'Sin CFDI vigente', sin_cfdi: 'Sin CFDI vigente', sin_estatus: 'Sin CFDI vigente', falta_descarga: 'CFDI por descargar' };
+  const fichaDe = (k) => FICHAS.find((x) => x.k === k) || FICHAS_SEG.find((x) => x.k === k) || FICHAS_CFDI.find((x) => x.k === k) || null;
 
   function folioDe(d) { return (d.serie ? d.serie + ' ' : '') + d.folio; }
 
@@ -75,6 +85,24 @@
     return FICHAS_SEG.map((F) => {
       const a = docs.filter(F.f);
       return { k: F.k, l: F.l, color: F.color, ayuda: F.ayuda, docs: a.length, por_moneda: totalesMoneda(a) };
+    });
+  }
+
+  // Marca cada documento con el estado de su CFDI (las vigentes no traen alerta).
+  function unirControlCfdi(docs, control) {
+    const m = new Map(((control && control.alertas) || []).map((a) => [a.documento_id, a]));
+    for (const d of docs) {
+      const a = m.get(d.documento_id);
+      if (a) { d.cfdi_estado = a.estado; d.cfdi_uuid = a.uuid || null; d.cfdi_estatus_sat = a.estatus_sat || null; } else { delete d.cfdi_estado; }
+    }
+    return docs;
+  }
+
+  function fichasCfdi(docs) {
+    return FICHAS_CFDI.map((F) => {
+      const a = docs.filter(F.f);
+      return { k: F.k, l: F.l, color: F.color, ayuda: F.ayuda, docs: a.length, por_moneda: totalesMoneda(a),
+        fechas: [...new Set(a.map((d) => d.fecha_doc))].sort() };
     });
   }
 
@@ -212,6 +240,6 @@
     return moneda === 'USD' ? t.replace('$', 'US$') : t;
   }
 
-  return { SESION, fueraDeSesion, FICHAS_SEG, fichaDe, fichasSeguimiento, opcionesAgentes, BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
+  return { FICHAS_CFDI, ETIQUETA_CFDI, unirControlCfdi, fichasCfdi, SESION, fueraDeSesion, FICHAS_SEG, fichaDe, fichasSeguimiento, opcionesAgentes, BUCKETS, FICHAS, MONEDAS, etiquetaBucket, folioDe, resumenFichas, fichasPorMoneda, totalesMoneda, dineroCortoMoneda, filtrar, ordenar, agrupar, avisos,
     opcionesClientes, opcionesResponsables, porResponsable, viernesMasReciente, fmtFecha, dinero, dineroCorto, numero };
 });

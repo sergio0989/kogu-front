@@ -162,3 +162,32 @@ test('fueraDeSesion: facturas, clientes y saldo por moneda (sin sumar monedas)',
   assert.deepEqual(C.fueraDeSesion(D), { docs: 81, clientes: 1,
     por_moneda: { USD: { docs: 15, saldo: 530097.29 }, MXN: { docs: 66, saldo: 22869671.73 } } });
 });
+
+// ── Control CFDI (casos reales del diagnóstico contra prod, 30-oct) ──────────
+const CTL = JSON.parse(readFileSync(new URL('./fixtures/cob-control-cfdi-20261020.json', import.meta.url)));
+const conCfdi = () => C.unirControlCfdi(D.map((d) => ({ ...d })), CTL);
+
+test('unirControlCfdi: marca cada factura con su estado; las vigentes quedan sin marca', () => {
+  const docs = conCfdi();
+  const est = (folio) => docs.find((d) => d.folio === folio && d.tipo_doc === 'FAC').cfdi_estado;
+  assert.equal(est('27381'), 'no_encontrado');
+  assert.equal(est('23656'), 'falta_descarga');
+  assert.equal(est('27162'), undefined);
+  assert.equal(docs.filter((d) => d.cfdi_estado).length, 14);
+});
+
+test('fichas CFDI: sin CFDI vigente y falta descargar, con fechas y montos por moneda', () => {
+  const f = Object.fromEntries(C.fichasCfdi(conCfdi()).map((x) => [x.k, x]));
+  assert.equal(f.cfdi_sin_vigente.docs, 1);
+  assert.deepEqual(f.cfdi_sin_vigente.por_moneda, { MXN: { docs: 0, saldo: 0 }, USD: { docs: 1, saldo: 8700 } });
+  assert.equal(f.cfdi_descarga.docs, 13);
+  assert.deepEqual(f.cfdi_descarga.fechas, ['2025-03-04', '2025-04-09', '2025-05-20', '2025-05-26', '2025-06-10', '2026-04-08', '2026-08-25', '2026-08-26']);
+  assert.deepEqual(f.cfdi_descarga.por_moneda, { MXN: { docs: 1, saldo: 1632573.9 }, USD: { docs: 12, saldo: 220655.21 } });
+});
+
+test('las fichas CFDI filtran como las demás y respetan el filtro de sesión', () => {
+  const docs = conCfdi();
+  assert.equal(C.filtrar(docs, { ficha: 'cfdi_descarga' }).length, 13);
+  assert.equal(C.filtrar(C.filtrar(docs, { sesion: 'sesion' }), { ficha: 'cfdi_descarga' }).length, 9);
+  assert.deepEqual(C.filtrar(docs, { ficha: 'cfdi_sin_vigente' }).map((d) => d.folio), ['27381']);
+});

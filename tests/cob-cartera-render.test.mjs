@@ -15,6 +15,7 @@ const JS = fs.readFileSync(new URL('../modules/cob/cartera/cartera.js', import.m
 const COMUN = fs.readFileSync(new URL('../modules/cob/cob-comun.js', import.meta.url), 'utf8');
 const CART = JSON.parse(fs.readFileSync(new URL('./fixtures/cob-cartera-20261020.json', import.meta.url)));
 const K20 = CART.corte.corte_id;
+const CTL = JSON.parse(fs.readFileSync(new URL('./fixtures/cob-control-cfdi-20261020.json', import.meta.url)));
 const K13 = '44444444-4444-4444-8444-444444444444';
 const CORTES = [
   { corte_id: '55555555-5555-4555-8555-555555555555', fecha_corte: '2026-10-23', status: 'preview' },
@@ -44,7 +45,7 @@ const ACCIONES = [
 
 // La cuadratura con SAI (342 docs, $99.47M) se ve con Sesión = Todos; por eso
 // las pruebas arrancan ahí salvo que pidan el valor por omisión (sesion: null).
-async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion = 'todos', exportFalla = null } = {}) {
+async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion = 'todos', exportFalla = null, control = CTL } = {}) {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
     { url: 'https://kogu.test/modules/cob/cartera/cartera.html', runScripts: 'outside-only' });
   const { window } = dom;
@@ -74,6 +75,7 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion
       if (/\/protected\/cob\/seguimientos\/[^/]+\/anular$/.test(url)) return { ok: true, data: { anulado: true } };
       if (url.startsWith('/protected/cob/cortes')) return { ok: true, data: CORTES };
       if (url.startsWith('/protected/cob/cartera/documentos/')) return { ok: true, data: FICHA };
+      if (url.startsWith('/protected/cob/controles/cfdi')) { if (!control) throw Object.assign(new Error('falla'), { status: 500 }); return { ok: true, data: control }; }
       if (url.startsWith('/protected/cob/cartera')) return { ok: true, data: typeof respuesta === 'function' ? respuesta(url) : respuesta };
       throw new Error('ruta no esperada ' + url);
     },
@@ -427,4 +429,40 @@ test('Exportar con error del servidor: avisa con su mensaje y no baja nada', asy
   p.$('#cobExportar').click(); await p.espera();
   assert.deepEqual(p.bajados, []);
   assert.ok(p.toasts.some(([t, m]) => t === 'error' && /no pertenece a este corte/.test(m)));
+});
+
+// ── Control CFDI: casos reales (13 por descargar, IFF A 27381 "No encontrado") ─
+test('CFDI: pide el control del corte y pinta la fila con sus dos fichas', async () => {
+  const p = await arranca();
+  assert.ok(p.pedidos.some((u) => u === `/protected/cob/controles/cfdi?corte_id=${K20}`));
+  const t = (k) => p.texto(p.$(`[data-cfdi] [data-ficha="${k}"]`));
+  assert.match(t('cfdi_sin_vigente'), /Sin CFDI vigente\s*1\s*factura · US\$8,700/);
+  assert.match(t('cfdi_descarga'), /Falta descargar CFDI\s*13\s*facturas · 8 fechas/);
+});
+
+test('CFDI: la ficha filtra la tabla y cada factura lleva su etiqueta', async () => {
+  const p = await arranca();
+  p.$('[data-cfdi] [data-ficha="cfdi_descarga"]').click(); await p.espera();
+  assert.equal(p.filas().length, 13);
+  const tecsa = p.filas().find((tr) => /A 23656/.test(p.texto(tr)));
+  assert.match(p.texto(tecsa), /CFDI por descargar/);
+  p.$('[data-cfdi] [data-ficha="cfdi_sin_vigente"]').click(); await p.espera();
+  assert.equal(p.filas().length, 1);
+  assert.match(p.texto(p.filas()[0]), /A 27381.*Sin CFDI vigente/);
+});
+
+test('CFDI: aviso con las fechas que hay que pedir en Solicitudes SAT', async () => {
+  const p = await arranca();
+  assert.match(p.texto(p.$('#cobAvisos')), /Falta descargar del SAT los CFDI emitidos de 8 días: 04\/03\/2025, 09\/04\/2025.*26\/08\/2026/);
+});
+
+test('CFDI: con el filtro de sesión por omisión cuenta solo lo que se revisa (9 por descargar)', async () => {
+  const p = await arranca({ sesion: null });
+  assert.match(p.texto(p.$('[data-cfdi] [data-ficha="cfdi_descarga"]')), /CFDI\s*9\s*facturas · 5 fechas/);
+});
+
+test('CFDI: si el control falla, la cartera se ve igual y sin la fila', async () => {
+  const p = await arranca({ control: null });
+  assert.equal(p.$('[data-cfdi]'), null);
+  assert.equal(p.filas().length, 342);
 });
