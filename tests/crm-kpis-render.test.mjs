@@ -37,25 +37,26 @@ const CON_DATOS = {
   detalle: [
     { actividad_id: 'd1', cliente: 'CLIENTE VENCIDO', cliente_ref: '205',
       agente: 'ISELA RODRIGUEZ', titulo: 'Atender vencida', periodo_analizado: '2026-08',
-      motivo: 'deriva', severidad: 'critica', origen: 'mi-panel',
+      motivo: 'deriva', motivos: ['deriva'], severidad: 'critica', origen: 'mi-panel',
       kg: 2000, mxn: 200000, estado: 'en_proceso', resultado: null,
       vencida: true, dias_abierta: 75, dias_cierre: null },
     { actividad_id: 'd2', cliente: 'TROPHE INGREDIENTES', cliente_ref: '102',
       agente: 'MARCELA GARZA', titulo: 'Recuperar TROPHE', periodo_analizado: '2026-09',
-      motivo: 'caida_dormancia', severidad: 'alerta', origen: 'mi-panel',
+      motivo: 'caida', motivos: ['caida', 'deriva'], severidad: 'alerta', origen: 'mi-panel',
       kg: 1667, mxn: 290998.9, estado: 'abierta', resultado: null,
       vencida: false, dias_abierta: 5, dias_cierre: null },
     { actividad_id: 'd3', cliente: 'BOCASANO', cliente_ref: '362',
       agente: 'MARCELA GARZA', titulo: 'Recuperar BOCASANO', periodo_analizado: '2026-09',
-      motivo: 'caida_dormancia', severidad: 'critica', origen: 'mi-panel',
+      motivo: 'sin_compra', motivos: ['sin_compra'], severidad: 'critica', origen: 'mi-panel',
       kg: 0, mxn: 0, estado: 'cerrada', resultado: 'baja_total',
       vencida: false, dias_abierta: null, dias_cierre: 10 },
   ],
   vigencia: { cerradas_a_tiempo: 3, pct_a_tiempo: 0.75, dias_mediana_cierre: 7, dias_mediana_tomar: 1 },
   volumen: {
-    caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 5, en_cero: 2 },
-    deriva:          { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0 },
-    sin_motivo:      { kg: 0, mxn: 0, actividades: 1, en_cero: 1 },
+    caida:      { kg: 1767, mxn: 300998.90, actividades: 2, en_cero: 0, multi_motivo: 1 },
+    sin_compra: { kg: 300, mxn: 30000, actividades: 3, en_cero: 2, multi_motivo: 0 },
+    deriva:     { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0, multi_motivo: 0 },
+    sin_motivo: { kg: 0, mxn: 0, actividades: 1, en_cero: 1, multi_motivo: 0 },
   },
 };
 
@@ -66,9 +67,10 @@ const LIMPIO = {
   cierre: { cerradas: 8, canceladas: 0, tasa_cierre: 0.8889 },
   vigencia: { cerradas_a_tiempo: 8, pct_a_tiempo: 0.95, dias_mediana_cierre: 3, dias_mediana_tomar: 1 },
   volumen: {
-    caida_dormancia: { kg: 2067, mxn: 330998.90, actividades: 3, en_cero: 0 },
-    deriva:          { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0 },
-    sin_motivo:      { kg: 0, mxn: 0, actividades: 0, en_cero: 0 },
+    caida:      { kg: 1767, mxn: 300998.90, actividades: 2, en_cero: 0, multi_motivo: 0 },
+    sin_compra: { kg: 300, mxn: 30000, actividades: 1, en_cero: 0, multi_motivo: 0 },
+    deriva:     { kg: 2500, mxn: 250000, actividades: 2, en_cero: 0, multi_motivo: 0 },
+    sin_motivo: { kg: 0, mxn: 0, actividades: 0, en_cero: 0, multi_motivo: 0 },
   },
 };
 
@@ -107,7 +109,8 @@ const VACIO = {
   desenlace: { recuperado: 0, parcial: 0, perdido: 0, no_aplica: 0, completada: 0 },
   vigencia: { cerradas_a_tiempo: 0, pct_a_tiempo: null, dias_mediana_cierre: null, dias_mediana_tomar: null },
   volumen: {
-    caida_dormancia: { kg: 0, mxn: 0, actividades: 0 },
+    caida: { kg: 0, mxn: 0, actividades: 0 },
+    sin_compra: { kg: 0, mxn: 0, actividades: 0 },
     deriva: { kg: 0, mxn: 0, actividades: 0 },
     sin_motivo: { kg: 0, mxn: 0, actividades: 0 },
   },
@@ -163,12 +166,38 @@ async function arranca(cuerpo = CON_DATOS) {
 
 console.log('\n── La honestidad de los numeros ────────────────────────────────');
 
-await check('el volumen se pinta en TRES cubetas separadas', async () => {
+// CAMBIO ACORDADO el 21-oct: tres cubetas de motivo, no dos, y con el
+// vocabulario que el vendedor ya lee en Mi panel. "Dormancia" es el nombre
+// de la regla RC-004; la pantalla de Mi panel se tomo el trabajo de
+// traducirlo a "Sin compra" y esta se habia quedado hablando otro idioma.
+await check('el volumen se pinta en TRES cubetas de motivo, mas sin motivo', async () => {
   const { texto } = await arranca();
   const t = texto();
-  assert.ok(/ca[ií]da|dormancia/i.test(t), 'falta la cubeta de caida/dormancia');
-  assert.ok(/deriva|encogi/i.test(t), 'falta la cubeta de deriva');
+  assert.ok(/En ca[ií]da/i.test(t), 'falta la cubeta En caida');
+  assert.ok(/Sin compra/i.test(t), 'falta la cubeta Sin compra');
+  assert.ok(/Encogiendo/i.test(t), 'falta la cubeta Encogiendo');
   assert.ok(/sin motivo/i.test(t), 'falta la cubeta sin motivo');
+});
+
+await check('no usa la jerga interna del motor en la pantalla', async () => {
+  const { texto } = await arranca();
+  assert.ok(!/dormancia/i.test(texto()),
+    '"dormancia" es el nombre de la regla, no lo que el vendedor lee');
+});
+
+await check('la cubeta avisa cuantas de sus tarjetas traen ademas otro motivo', async () => {
+  const { texto } = await arranca();
+  assert.match(texto(), /1 de 2[^.]*otro motivo|tambi[eé]n|adem[aá]s/i,
+    'la caida se lleva en silencio a un cliente que ademas lleva un anio encogiendo');
+});
+
+await check('la tabla muestra los DOS motivos de una tarjeta, no solo uno', async () => {
+  const { window } = await arranca();
+  const fila = [...window.document.querySelectorAll('#kpiTabla tbody tr')]
+    .find((tr) => /TROPHE/.test(tr.textContent));
+  assert.ok(fila, 'no encontro la fila de TROPHE');
+  assert.match(fila.textContent, /En ca[ií]da/i, 'falta el motivo que nombra la cifra');
+  assert.match(fila.textContent, /Encogiendo/i, 'la tabla oculta que la tarjeta tambien deriva');
 });
 
 await check('NUNCA aparece el total que mezcla las bases de tiempo', async () => {
@@ -303,7 +332,7 @@ console.log('\n── El color dice algo, y nunca dice solo ──────�
 await check('cada cubeta delata las actividades que quedaron en cero', async () => {
   const { texto } = await arranca();
   assert.ok(/en cero/i.test(texto()), 'no dice cuantas quedaron en cero');
-  assert.ok(/2 de 5|2 en cero/i.test(texto()), 'no dice cuantas de cuantas');
+  assert.ok(/2 de 3|2 en cero/i.test(texto()), 'no dice cuantas de cuantas');
 });
 
 await check('si ninguna quedo en cero, no lo menciona', async () => {
@@ -392,7 +421,7 @@ await check('la tabla NO lleva fila de totales', async () => {
 await check('los totales por motivo quedan debajo, separados', async () => {
   const { texto } = await arranca();
   const t = texto();
-  assert.ok(/ca[ií]da|dormancia/i.test(t) && /deriva/i.test(t),
+  assert.ok(/En ca[ií]da/i.test(t) && /Sin compra/i.test(t) && /Encogiendo/i.test(t),
     'se perdieron los totales por motivo');
 });
 

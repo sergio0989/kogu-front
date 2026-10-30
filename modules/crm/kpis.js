@@ -57,7 +57,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // en deuteranopía y 17.0 en visión normal, ambos sobre el piso. El gris
   // de "sin motivo" es deliberado: es ausencia de información, no una
   // categoría más.
-  const IDENT = { caida: '#0891b2', deriva: '#6366f1', sinMotivo: '#94a3b8' };
+  //
+  // La tercera identidad —"sin compra"— entra con el corte de tres cubetas del
+  // 21-oct. Rosa 700 contra los otros dos: ΔE2000 62.5 contra el cian y 33.6
+  // contra el índigo en visión normal, y además L* 41.8 contra 55.6 y 50.1, o
+  // sea que también se separan por claridad y no sólo por tono. La separación
+  // en deuteranopía NO se volvió a medir aquí: por eso ninguna cubeta depende
+  // del color — cada una lleva su rótulo, su cifra y su base de tiempo escrita.
+  const IDENT = {
+    caida: '#0891b2', sinCompra: '#be185d', deriva: '#6366f1', sinMotivo: '#94a3b8',
+  };
 
   // Banda de desempeño de una proporción.
   const banda = (v) => (v == null ? EST.neutro : v >= 0.7 ? EST.ok : v >= 0.4 ? EST.warn : EST.mal);
@@ -159,9 +168,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       </span>`).join('');
   }
 
+  // El MISMO vocabulario que Mi panel. "Dormancia" es el nombre de la regla
+  // RC-004: el vendedor lee "Sin compra" en su lista y tiene que leer lo mismo
+  // aquí, o son dos pantallas del mismo módulo hablando distinto de la misma
+  // señal.
   const MOTIVO_TXT = {
-    caida_dormancia: 'Caída / dormancia',
-    deriva: 'Deriva',
+    caida: 'En caída',
+    sin_compra: 'Sin compra',
+    deriva: 'Encogiendo',
     sin_motivo: 'Sin motivo',
   };
   const SEV_COLOR = { critica: EST.mal, alerta: EST.warn, info: EST.neutro };
@@ -192,7 +206,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${td(`<b>${esc(f.cliente)}</b>${f.vencida ? ` <span style="color:${EST.mal};font-size:11px;font-weight:700">VENCIDA</span>` : ''}`)}
             ${td(esc(f.agente || '—'))}
             ${td(f.periodo_analizado ? esc(fmtMes(f.periodo_analizado)) : '—')}
-            ${td(esc(MOTIVO_TXT[f.motivo] || f.motivo))}
+            ${td(esc(((f.motivos && f.motivos.length ? f.motivos : [f.motivo])
+              .map((m) => MOTIVO_TXT[m] || m)).join(' + ')))}
             ${td(`<span style="color:${SEV_COLOR[f.severidad] || EST.neutro}">${esc(SEV_TXT[f.severidad] || f.severidad || '—')}</span>`)}
             ${td(nf0.format(f.kg || 0), true)}
             ${td(money(f.mxn || 0), true)}
@@ -208,7 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintar(d) {
     const v = d.volumen || {};
     const sinMotivo = (v.sin_motivo && v.sin_motivo.actividades) || 0;
-    const enCeroTotal = ['caida_dormancia', 'deriva', 'sin_motivo']
+    const enCeroTotal = ['caida', 'sin_compra', 'deriva', 'sin_motivo']
       .reduce((t, k) => t + ((v[k] && v[k].en_cero) || 0), 0);
 
     const origenes = Object.entries(d.creadas.por_origen || {})
@@ -222,6 +237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cubeta = (titulo, nota, dato, acento) => {
       const n = dato.actividades || 0;
       const cero = dato.en_cero || 0;
+      const multi = dato.multi_motivo || 0;
       return `
       <div style="border:1px solid var(--line);border-left:4px solid ${acento};border-radius:12px;padding:14px;min-width:0">
         <div style="display:flex;align-items:center;gap:7px">
@@ -233,6 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="font-size:13px;color:var(--muted)">${money(dato.mxn || 0)}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px">${n} actividad${n === 1 ? '' : 'es'}</div>
         ${cero ? `<div style="font-size:11px;color:${EST.warn};margin-top:4px;font-weight:600">${cero} de ${n} registradas en cero</div>` : ''}
+        ${multi ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${multi} de ${n} traen además otro motivo</div>` : ''}
       </div>`;
     };
 
@@ -274,12 +291,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         <div class="eyebrow" style="margin:18px 0 8px">Volumen atendido</div>
         <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:10px">
-          Van por separado a propósito: la <b>deriva</b> mide doce meses y la <b>caída</b> un bimestre.
-          Sumarlas daría una cifra sin significado.
+          Son los <b>kg de las actividades creadas</b>, no la cartera en riesgo. Van por separado a
+          propósito: <b>encogiendo</b> mide doce meses, <b>en caída</b> un bimestre y <b>sin compra</b>
+          su ventana. Sumarlas daría una cifra sin significado. Cada actividad cuenta en la cubeta del
+          motivo que <b>produjo su cifra</b>; si traía otro motivo además, la cubeta lo dice.
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
-          ${cubeta('Caída / dormancia', 'bimestre o ventana sin compra', v.caida_dormancia || {}, IDENT.caida)}
-          ${cubeta('Deriva', 'últimos 12 meses vs los 12 previos', v.deriva || {}, IDENT.deriva)}
+          ${cubeta('En caída', 'bimestre contra su base', v.caida || {}, IDENT.caida)}
+          ${cubeta('Sin compra', 'lo que venía comprando en la ventana', v.sin_compra || {}, IDENT.sinCompra)}
+          ${cubeta('Encogiendo', 'últimos 12 meses vs los 12 previos', v.deriva || {}, IDENT.deriva)}
           ${sinMotivo ? cubeta('Sin motivo', 'no quedó registrado por qué entraron', v.sin_motivo, IDENT.sinMotivo) : ''}
         </div>
         ${enCeroTotal ? `<div class="hint" style="color:var(--muted);font-size:12px;margin-top:10px">
