@@ -42,7 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card">
     <div class="cob-filtros">
       <div><div class="label-text">Corte</div><select class="select" id="cobCorte"></select></div>
-      <div><div class="label-text">Cliente</div><select class="select" id="cobCliente" style="min-width:200px"><option value="">Todos los clientes</option></select></div>
+      <div><div class="label-text">Cliente</div>
+        <input class="input" id="cobClienteQ" list="cobClientesLista" placeholder="Buscar cliente o clave…" autocomplete="off" style="min-width:220px"/>
+        <datalist id="cobClientesLista"></datalist>
+        <select id="cobCliente" hidden aria-hidden="true"><option value="">Todos los clientes</option></select></div>
       <div><div class="label-text">Responsable</div><select class="select" id="cobResp"><option value="">Todos</option></select></div>
       <div><div class="label-text">Moneda</div><select class="select" id="cobMoneda"><option value="">Todas</option><option>USD</option><option>MXN</option></select></div>
       <div><div class="label-text">Sesión</div><select class="select" id="cobSesion" title="Clientes que se revisan en la sesión semanal (se marca en el catálogo de clientes)"><option value="sesion">Solo los que se revisan</option><option value="todos">Todos</option><option value="excluidos">Fuera de la sesión</option></select></div>
@@ -72,6 +75,8 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
   <div class="cob-btns"><button type="button" class="btn" id="cobSegCancelar">Cancelar</button><button type="button" class="btn primary" id="cobSegGuardar">Guardar</button></div>
 </div>` : ''}`;
 
+  let opcionesCli = [];      // clientes del corte para el buscador
+  const etiquetaCli = (o) => `${o.nombre} · ${o.valor}`;
   let datos = null;          // respuesta de /cartera
   let control = null;        // control CFDI del corte (si falla, la cartera se ve igual)
   let ordenExport = [];      // facturas de la tabla en el orden en que se ven (F1.1)
@@ -125,8 +130,10 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     const docs = (datos && datos.documentos) || [];
     const keep = (id) => $(id).value;
     const cli = keep('cobCliente'); const resp = keep('cobResp');
+    opcionesCli = C.opcionesClientes(docs);
     $('cobCliente').innerHTML = '<option value="">Todos los clientes</option>' +
-      C.opcionesClientes(docs).map((o) => `<option value="${esc(o.valor)}">${esc(o.nombre)}</option>`).join('');
+      opcionesCli.map((o) => `<option value="${esc(o.valor)}">${esc(o.nombre)}</option>`).join('');
+    $('cobClientesLista').innerHTML = opcionesCli.map((o) => `<option value="${esc(etiquetaCli(o))}"></option>`).join('');
     $('cobResp').innerHTML = '<option value="">Todos</option>' +
       C.opcionesResponsables(docs).map((o) => `<option value="${esc(o.valor)}">${esc(o.nombre)}</option>`).join('');
     $('cobCliente').value = docs.some((d) => d.cve_cte === cli) ? cli : '';
@@ -135,6 +142,11 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 
   // ── Render ───────────────────────────────────────────────────────
   function render() {
+    // El buscador refleja el filtro (chip quitado, cambio de empresa o de corte).
+    if (document.activeElement !== $('cobClienteQ')) {
+      const sel = opcionesCli.find((o) => o.valor === $('cobCliente').value);
+      $('cobClienteQ').value = sel ? etiquetaCli(sel) : '';
+    }
     const cuerpo = $('cobCuerpo');
     if (!datos || !datos.corte) {
       $('cobChips').innerHTML = '';
@@ -484,6 +496,21 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 
   // ── Eventos (delegados: el cuerpo se repinta) ────────────────────
   ['cobCliente', 'cobResp', 'cobMoneda', 'cobSesion'].forEach((id) => $(id).addEventListener('change', render));
+  // Buscador de clientes: la sugerencia elegida (o la clave exacta) filtra; vacío = todos;
+  // Enter elige si solo un cliente coincide por nombre o clave.
+  const elegirCliente = (cve) => { $('cobCliente').value = cve; render(); };
+  $('cobClienteQ').addEventListener('input', () => {
+    const t = $('cobClienteQ').value.trim().toLowerCase();
+    if (!t) { if ($('cobCliente').value) elegirCliente(''); return; }
+    const o = opcionesCli.find((x) => etiquetaCli(x).toLowerCase() === t || String(x.valor).toLowerCase() === t);
+    if (o && $('cobCliente').value !== o.valor) elegirCliente(o.valor);
+  });
+  $('cobClienteQ').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const t = $('cobClienteQ').value.trim().toLowerCase();
+    const m = t ? opcionesCli.filter((x) => etiquetaCli(x).toLowerCase().includes(t)) : [];
+    if (m.length === 1) { $('cobClienteQ').value = etiquetaCli(m[0]); elegirCliente(m[0].valor); }
+  });
   $('cobQ').addEventListener('input', render);
   $('cobCorte').addEventListener('change', () => { ficha = ''; cargar($('cobCorte').value); });
   $('cobChips').addEventListener('click', (e) => {

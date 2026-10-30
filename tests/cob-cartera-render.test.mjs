@@ -498,3 +498,46 @@ test('Estado de cuenta: casillas de dos clientes lo dejan apagado y lo explica',
   assert.equal(p.$('#cobEdoCta').disabled, true);
   assert.match(p.$('#cobEdoCta').title, /un solo cliente/);
 });
+
+// Buscador de clientes (pedido 30-oct, al sacar el estado de cuenta de Alys):
+// la lista de 56 clientes no tenía búsqueda.
+const tecleaCliente = async (p, texto, enter = false) => {
+  const i = p.$('#cobClienteQ'); i.value = texto;
+  i.dispatchEvent(new p.window.Event('input', { bubbles: true }));
+  if (enter) i.dispatchEvent(new p.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await p.espera();
+};
+test('buscador de clientes: sugiere "nombre · clave" de todos los clientes del corte', async () => {
+  const p = await arranca();
+  const ops = p.$$('#cobClientesLista option').map((o) => o.value);
+  assert.equal(ops.length, new Set(CART.documentos.map((d) => d.cve_cte)).size);
+  assert.ok(ops.includes('CLIENTE 222 · 222'));
+});
+
+test('buscador: elegir la sugerencia filtra al cliente y activa el estado de cuenta', async () => {
+  const p = await arranca();
+  await tecleaCliente(p, 'CLIENTE 222 · 222');
+  assert.equal(p.$('#cobCliente').value, '222');
+  assert.equal(p.filas().length, 8);
+  assert.equal(p.$('#cobEdoCta').disabled, false);
+});
+
+test('buscador: Enter elige si solo un cliente coincide (por nombre o clave, sin mayúsculas)', async () => {
+  const p = await arranca();
+  await tecleaCliente(p, 'cliente 1012', true);
+  assert.equal(p.$('#cobCliente').value, '1012');
+  await tecleaCliente(p, 'cliente 1', true);
+  assert.equal(p.$('#cobCliente').value, '1012', 'varios coinciden: no cambia');
+});
+
+test('buscador: vaciarlo regresa a todos; quitar el chip lo limpia', async () => {
+  const p = await arranca();
+  await tecleaCliente(p, 'CLIENTE 222 · 222');
+  await tecleaCliente(p, '');
+  assert.equal(p.$('#cobCliente').value, '');
+  assert.equal(p.filas().length, 342);
+  await tecleaCliente(p, 'CLIENTE 222 · 222');
+  p.$('[data-quitar="cobCliente"]').click(); await p.espera();
+  assert.equal(p.$('#cobClienteQ').value, '');
+  assert.equal(p.filas().length, 342);
+});
