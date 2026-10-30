@@ -160,6 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${sw('cb_cobro_factoraje', 'Se cobra por plataforma de factoraje')}
           ${campo('Plataforma o banco', '<input class="input" id="cb_plataforma_factoraje" placeholder="Ej. plataforma de proveedores">', 'id="cbWrapPlataforma" style="display:none"')}
           ${campo('Envío de estado de cuenta', `<select class="select" id="cb_envio_edo_cta">${opts(CB.ENVIO_EDO_CTA)}</select>`)}
+          ${campo('Idioma del estado de cuenta', `<select class="select" id="cb_cob_idioma_edo_cta">${opts(CB.IDIOMAS_EDO_CTA)}</select>`)}
           ${sw('cb_cob_revision_sesion', 'Se revisa en la sesión semanal de cobranza')}
           ${campo('Por qué no se revisa', `<select class="select" id="cb_cob_revision_motivo"><option value="">— elige —</option>${Object.entries(CB.REVISION_MOTIVOS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`, 'id="cbWrapRevision" style="display:none"')}
         </section>

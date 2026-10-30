@@ -232,6 +232,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       <label class="cob-tog"><input type="checkbox" id="cobAgrupar" ${agrupar ? 'checked' : ''}/> Agrupar por cliente</label>
       <span class="cob-sp"></span>
       <span id="cobConteo" class="cob-muted">${rows.length} documentos</span>
+      <button type="button" class="btn" id="cobEdoCta" ${f.cliente ? '' : 'disabled'} title="${f.cliente ? 'Estado de cuenta en PDF del cliente filtrado, con el corte que se ve' : 'Elige un cliente en el filtro Cliente'}">Estado de cuenta (PDF)</button>
       <button type="button" class="btn" id="cobExportar" ${rows.length ? '' : 'disabled'} title="Las facturas de la tabla, en este orden, con su último seguimiento">Exportar a Excel</button>
       ${puedeSeguir ? '<button type="button" class="btn primary" id="cobRegistrar" disabled>Registrar seguimiento (0)</button>' : ''}
     </div>
@@ -246,6 +247,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
   </div>`;
     $('cobAgrupar').addEventListener('change', render);   // directo: el cuerpo se repinta en cada render
     $('cobExportar').addEventListener('click', exportar);
+    $('cobEdoCta').addEventListener('click', estadoCuenta);
     actualizarSeleccion();
   }
 
@@ -294,6 +296,35 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       KoguApi.toast((e && e.message) || 'No se pudo generar el archivo.', 'error');
     } finally {
       if ($('cobExportar')) { $('cobExportar').disabled = !ordenExport.length; $('cobExportar').textContent = 'Exportar a Excel'; }
+    }
+  }
+
+  // Estado de cuenta en PDF del cliente filtrado (idioma según su ficha).
+  async function estadoCuenta() {
+    const cve = $('cobCliente').value;
+    const btn = $('cobEdoCta');
+    if (!cve || !datos || !datos.corte) return;
+    btn.disabled = true; btn.textContent = 'Generando…';
+    try {
+      const res = await KoguApi.authFetchRaw(`/protected/cob/estados-cuenta/${encodeURIComponent(cve)}/pdf?corte_id=${encodeURIComponent(datos.corte.corte_id)}`, { method: 'GET' });
+      if (!res.ok) {
+        let msg = 'No se pudo generar el estado de cuenta.';
+        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (e) { /* sin cuerpo */ }
+        KoguApi.toast(msg, 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const m = (res.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      // Mismo nombre que el servidor por si el encabezado no llega (P-001).
+      a.download = m ? m[1] : `estado_cuenta_${cve.replace(/[^A-Za-z0-9_-]+/g, '')}_${datos.corte.fecha_corte}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) {
+      KoguApi.toast((e && e.message) || 'No se pudo generar el estado de cuenta.', 'error');
+    } finally {
+      if ($('cobEdoCta')) { $('cobEdoCta').disabled = !$('cobCliente').value; $('cobEdoCta').textContent = 'Estado de cuenta (PDF)'; }
     }
   }
 

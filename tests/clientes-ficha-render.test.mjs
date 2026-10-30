@@ -246,6 +246,18 @@ await check('el select de motivo trae los 4 motivos', async () => {
   assert.deepEqual(v, ['factoraje', 'intercompania', 'juridico', 'otro']);
 });
 
+// Estado de cuenta (30-oct): idioma por cliente (exportación en inglés).
+await check('idioma del estado de cuenta: Español por omisión; English se guarda', async () => {
+  const t = await montar();
+  await t.editar();
+  assert.equal(t.$('cb_cob_idioma_edo_cta').value, 'es');
+  assert.deepEqual([...t.$('cb_cob_idioma_edo_cta').options].map((o) => o.value), ['es', 'en']);
+  t.$('cb_cob_idioma_edo_cta').value = 'en';
+  t.$('saveBtn').click(); await t.espera();
+  const put = t.llamadas.find(([m, p]) => m === 'PUT' && p === '/protected/core/clientes/c-111');
+  assert.equal(put[2].cob_idioma_edo_cta, 'en');
+});
+
 await check('avisa "cambios sin guardar" al modificar', async () => {
   const t = await montar();
   await t.editar();

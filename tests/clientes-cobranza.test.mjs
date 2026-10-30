@@ -157,3 +157,11 @@ test('chip "Fuera de la sesión" y etiquetas de motivo', () => {
   assert.equal(C.chipsCliente({ ...VACIO, cve_cte: '1' }).some((c) => /sesión/.test(c.txt)), false);
   assert.deepEqual(Object.keys(C.REVISION_MOTIVOS), ['factoraje', 'intercompania', 'juridico', 'otro']);
 });
+
+// Estado de cuenta (30-oct): idioma por cliente; Unilever North America en inglés.
+test('idioma del estado de cuenta: español por omisión; cambiar a inglés manda solo ese campo', () => {
+  assert.equal(C.formDesdeCliente(VACIO).cob_idioma_edo_cta, 'es');
+  assert.equal(C.cuerpoCobranza(VACIO, form()), null);
+  assert.deepEqual(C.cuerpoCobranza(VACIO, form({ cob_idioma_edo_cta: 'en' })), { cob_idioma_edo_cta: 'en' });
+  assert.deepEqual(C.IDIOMAS_EDO_CTA, { es: 'Español', en: 'English' });
+});

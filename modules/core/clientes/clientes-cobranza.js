@@ -5,7 +5,7 @@
 (function (root) {
   const DIAS = ['lu', 'ma', 'mi', 'ju', 'vi', 'sa', 'do'];
 
-  const CAMPOS_SELECT = ['condicion_pago', 'moneda_limite', 'tipo_fecha', 'envio_edo_cta', 'responsable_cobranza_id'];
+  const CAMPOS_SELECT = ['condicion_pago', 'moneda_limite', 'tipo_fecha', 'envio_edo_cta', 'cob_idioma_edo_cta', 'responsable_cobranza_id'];
   const CAMPOS_TEXTO = ['url_portal_facturas', 'usuario_portal_fact', 'url_portal_pagos', 'usuario_portal_pago',
     'plataforma_factoraje', 'hora_revision_ini', 'hora_revision_fin', 'hora_cobro_ini', 'hora_cobro_fin'];
   const CAMPOS_NUM = ['dias_credito', 'limite_credito'];
@@ -15,7 +15,7 @@
 
   // Defaults de la tabla: un cliente nuevo se compara contra esto.
   const CLIENTE_VACIO = {
-    condicion_pago: 'contado', moneda_limite: 'MXN', tipo_fecha: 'factura', envio_edo_cta: 'no_aplica',
+    condicion_pago: 'contado', moneda_limite: 'MXN', tipo_fecha: 'factura', envio_edo_cta: 'no_aplica', cob_idioma_edo_cta: 'es',
     responsable_cobranza_id: null, dias_credito: null, limite_credito: null,
     bloqueo_credito: false, bloqueo_motivo: null,
     cob_revision_sesion: true, cob_revision_motivo: null,
@@ -27,6 +27,8 @@
   };
   // Por qué un cliente no se revisa en la sesión semanal de cobranza (22-oct).
   const REVISION_MOTIVOS = { factoraje: 'Factoraje', intercompania: 'Intercompañía', juridico: 'Jurídico', otro: 'Otro' };
+  // Idioma del estado de cuenta (30-oct): los clientes de exportación en inglés.
+  const IDIOMAS_EDO_CTA = { es: 'Español', en: 'English' };
   const ENVIO_EDO_CTA = { no_aplica: 'No aplica', manual: 'Manual (se revisa antes de enviar)', automatico: 'Automático' };
 
   const txt = (v) => (v == null ? '' : String(v).trim());
@@ -163,7 +165,7 @@
   }
 
   const api = {
-    DIAS, CAMPOS_SELECT, CAMPOS_TEXTO, CAMPOS_NUM, CAMPOS_BOOL, PASS, CLIENTE_VACIO, ROLES, ENVIO_EDO_CTA, REVISION_MOTIVOS,
+    DIAS, CAMPOS_SELECT, CAMPOS_TEXTO, CAMPOS_NUM, CAMPOS_BOOL, PASS, CLIENTE_VACIO, ROLES, ENVIO_EDO_CTA, IDIOMAS_EDO_CTA, REVISION_MOTIVOS,
     formDesdeCliente, cuerpoCobranza, estadoPass, cuerpoContacto, chipsCliente, metricasCliente,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

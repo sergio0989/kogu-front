@@ -83,6 +83,7 @@ async function arranca({ cartera = CART, permisos = ['cob.cartera.read'], sesion
     authFetchRaw: async (url, o = {}) => {
       descargas.push({ url, method: o.method, body: o.body ? JSON.parse(o.body) : null });
       if (exportFalla) return { ok: false, status: exportFalla.status, headers: { get: () => 'application/json' }, json: async () => exportFalla.body };
+      if (/estados-cuenta/.test(url)) return { ok: true, status: 200, headers: { get: () => '' }, blob: async () => new window.Blob(['%PDF']) };
       return { ok: true, status: 200, headers: { get: (h) => (/disposition/i.test(h) ? 'attachment; filename="cartera_ADGM_2026-10-21.xlsx"' : '') },
         blob: async () => new window.Blob(['PK']) };
     },
@@ -465,4 +466,17 @@ test('CFDI: si el control falla, la cartera se ve igual y sin la fila', async ()
   const p = await arranca({ control: null });
   assert.equal(p.$('[data-cfdi]'), null);
   assert.equal(p.filas().length, 342);
+});
+
+// ── Estado de cuenta por cliente (PDF), decisión del 30-oct ─────────────────
+test('Estado de cuenta: deshabilitado sin cliente; con Alys (222) baja su PDF del corte que se ve', async () => {
+  const p = await arranca();
+  assert.equal(p.$('#cobEdoCta').disabled, true);
+  await p.cambia('#cobCliente', '222');
+  assert.equal(p.$('#cobEdoCta').disabled, false);
+  p.$('#cobEdoCta').click(); await p.espera();
+  const d = p.descargas.at(-1);
+  assert.equal(d.url, `/protected/cob/estados-cuenta/222/pdf?corte_id=${K20}`);
+  assert.equal(d.method, 'GET');
+  assert.deepEqual(p.bajados, ['estado_cuenta_222_2026-10-21.pdf'], 'sin encabezado legible (P-001) usa el mismo nombre que el servidor');
 });
