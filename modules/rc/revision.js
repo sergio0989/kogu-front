@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               ${money(c.venta_base)} → ${money(c.venta_periodo)}
               <b style="color:${colDelta}">${fmtPct(delta)}</b> ${base}
               · ${nf0.format(c.kg_periodo)} kg
-              · última compra ${c.ultima_compra ? KoguUi.fmtDate(c.ultima_compra).split(',')[0] : '—'}
+              · última compra ${c.ultima_compra ? KoguUi.fmtDateOnly(c.ultima_compra) : '—'}
             </div>
             <div style="font-size:12px;margin-top:6px;color:${c.clasificacion ? 'var(--muted)' : 'var(--text,#0f172a)'}">
               ${catProp ? `<b>Propuesta: ${KoguUi.escapeHtml(catProp.nombre)}</b> — ` : ''}${KoguUi.escapeHtml(c.propuesta_motivo || '')}

@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               ${estadoBadge(c)}
             </div>
             ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
-            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
+            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDateOnly(c.dormancia.ultima_compra)}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
             ${derivaRazon(c)}
             ${c.deriva ? '' : derivaTxt(c)}
             ${top ? `<div style="margin-top:8px">${top}${masTxt}</div>` : ''}
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${kpi(`${vent1} (${metricaLbl()})`, fmtVal(totP1), `${ind.facturas_p1} fac · ticket ${ticketP1 != null ? fmtVal(ticketP1) : '—'}`)}
         ${kpi(`${vent2} (${metricaLbl()})`, fmtVal(totP2), `${ind.facturas_p2} fac · ticket ${ticketP2 != null ? fmtVal(ticketP2) : '—'}`)}
         ${recKpi}
-        ${kpi('Última compra', KoguUi.fmtDate(ind.ultima_compra).split(',')[0] || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
+        ${kpi('Última compra', KoguUi.fmtDateOnly(ind.ultima_compra) || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
       </div>`;
     const filas = prods.slice(0, 40).map(pr => {
       const a = valP1(pr), bb = valP2(pr);

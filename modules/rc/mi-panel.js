@@ -488,7 +488,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span style="font-weight:700">${KoguUi.escapeHtml(c.nombre || c.cliente_ref)}</span>
             </div>
             ${c.caida ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Caída ${varTxt} ${baseTxt} · ${fmtVal(esDinero() ? c.caida.venta_p1 : c.caida.cant_p1)} → ${fmtVal(esDinero() ? c.caida.venta_p2 : c.caida.cant_p2)}</div>` : ''}
-            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDate(c.dormancia.ultima_compra).split(',')[0]}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
+            ${c.dormancia ? `<div style="font-size:12px;color:var(--warning,#d97706);margin-top:3px">⏳ Sin compra hace ${c.dormancia.dias_sin_compra} días · última ${KoguUi.fmtDateOnly(c.dormancia.ultima_compra)}${c.dormancia.venta_ventana ? ` · venía comprando ${money(c.dormancia.venta_ventana)}` : ''}</div>` : ''}
             ${derivaRazon(c)}
             ${c.deriva ? '' : derivaTxt(c)}
             ${prods ? `<div style="margin-top:8px">${prods}</div>` : ''}
@@ -671,7 +671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const color = enR ? 'var(--danger,#dc2626)' : (sinV ? 'var(--muted,#64748b)' : 'var(--ok,#16a34a)');
       const estado = enR ? 'En riesgo' : (sinV ? 'Sin compra' : 'Sano');
       const venta = esDinero() ? Number(c.venta_imp || 0) : Number(c.venta_qty || 0);
-      const ult = c.ultima_compra ? KoguUi.fmtDate(c.ultima_compra).split(',')[0] : '—';
+      const ult = c.ultima_compra ? KoguUi.fmtDateOnly(c.ultima_compra) : '—';
       return `<div style="border:1px solid var(--line);border-left:4px solid ${color};border-radius:12px;padding:12px 14px;margin-bottom:8px">
         <div class="row" style="align-items:center">
           <div style="flex:1">
@@ -833,7 +833,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : `<span style="color:${colDelta(deltaRec)}">${fmtPctCap(deltaRec)}</span>`,
                   deltaRec == null ? 'sin caída marcada en el bimestre' : `${lblRec} · contexto, no titular`)
               : kpi('Variación', `<span style="color:${colDelta(deltaTot)}">${fmtPctCap(deltaTot)}</span>`)}
-            ${kpi('Última compra', KoguUi.fmtDate(ind.ultima_compra).split(',')[0] || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
+            ${kpi('Última compra', KoguUi.fmtDateOnly(ind.ultima_compra) || '—', ind.dias_sin_compra != null ? `${ind.dias_sin_compra} días sin comprar` : '')}
           </div>
           <div class="eyebrow" style="margin:16px 0 8px">Productos (${prods.length}) · ${metricaLbl()} · ${esRolling ? `últimos 12 meses ${r2} vs los 12 previos ${r1}` : `${r1} vs ${r2}`} · ordenados por mayor caída</div>
           <div class="table-wrap"><table><thead><tr><th>Cve</th><th>Producto</th><th style="text-align:right">${vent1}</th><th style="text-align:right">${vent2}</th><th style="text-align:right">Var</th></tr></thead><tbody>${filas || '<tr><td colspan="5" class="empty">Sin productos</td></tr>'}</tbody></table></div>

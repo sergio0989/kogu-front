@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const t = pp.totales, ritmo = Number(t.ritmo_esperado || 0);
     const av = avVal(t);
     const col = semColor(av, ritmo);
-    const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
+    const ultv = t.ult_venta ? KoguUi.fmtDateOnly(t.ult_venta) : '—';
     const sc = pp.sin_cruce || { kg_real: 0, ventas_real: 0 };
     const scVal = esDinero() ? Number(sc.ventas_real || 0) : Number(sc.kg_real || 0);
     const cob = esDinero() ? t.cobertura_ventas : t.cobertura_kg;   // 0..1 atribuido a sublíneas
@@ -690,7 +690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const faltante = proy != null ? Math.max(0, ppA - proy) : null;
     const mesesRest = Math.max(1, 12 - mesesT);
     const necesarioMes = (ppA - realA) > 0 ? (ppA - realA) / mesesRest : 0;
-    const ultv = t.ult_venta ? KoguUi.fmtDate(t.ult_venta).split(',')[0] : '—';
+    const ultv = t.ult_venta ? KoguUi.fmtDateOnly(t.ult_venta) : '—';
     const uni = esDinero() ? 'venta (MXN)' : 'volumen (kg)';
     const pend = !!pp.pp_pendiente;   // sin PP capturado: los pasos 4–6 no aplican
 
