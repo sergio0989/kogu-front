@@ -232,6 +232,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const vencidas = d.pendiente.vencidas || 0;
     const des = d.desenlace || {};
 
+    // Desenlace: el titular nombra el desenlace que MÁS ocurrió, no uno fijo.
+    //
+    // Antes el titular era siempre "N en aumento". Con una sola actividad
+    // cerrada en estable, la tarjeta decía "0 en aumento" en tipografía
+    // grande y "1 estable" en chico (visto en dev el 30-oct): un cero grande
+    // se lee como "no pasó nada", y sí pasó. Con el vocabulario de diez
+    // valores, estable, spot y seguimiento son desenlaces legítimos y no
+    // fracasos, así que el titular no puede estar clavado en uno solo.
+    //
+    // El aumento NO se pierde: cuando no es el dominante, el pie lo dice
+    // —"ninguna en aumento"— porque ese sí es el dato que gerencia busca.
+    // Lo que se quita es el cero en grande, no la información.
+    //
+    // Los empates los desempata RES_ORDEN: se filtra en ese orden y el sort
+    // por conteo es estable, así que el orden canónico se conserva.
+    const RES_BUENO = new Set(['aumento', 'nuevo_cliente']);
+    const RES_MALO = new Set(['disminucion', 'baja_temporal', 'baja_total']);
+    const desDom = RES_ORDEN.filter((r) => (des[r] || 0) > 0)
+      .sort((a, b) => (des[b] || 0) - (des[a] || 0))[0] || null;
+    const desOtros = RES_ORDEN.filter((r) => r !== desDom && (des[r] || 0) > 0)
+      .map((r) => `${des[r]} ${RES_TXT[r].toLowerCase()}`);
+    if (!(des.aumento > 0)) desOtros.push('ninguna en aumento');
+    const desColor = RES_BUENO.has(desDom) ? EST.ok : (RES_MALO.has(desDom) ? EST.mal : EST.neutro);
+
     // Cubetas de volumen. Cada una con su base de tiempo dicha, para que
     // a nadie se le ocurra sumarlas mentalmente.
     const cubeta = (titulo, nota, dato, acento) => {
@@ -272,10 +296,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                  banda(d.cierre.tasa_cierre), { valor: true })}
           ${(d.cierre.cerradas || 0) === 0
             ? card('Desenlace', 'Sin cierres', 'aún no se ha cerrado ninguna actividad', EST.neutro)
-            : card('Desenlace', `${des.aumento || 0} en aumento`,
-                 RES_ORDEN.filter((r) => r !== 'aumento' && (des[r] || 0) > 0)
-                   .map((r) => `${des[r]} ${RES_TXT[r].toLowerCase()}`).join(' · ') || 'sin otros desenlaces',
-                 (des.aumento || 0) > 0 ? EST.ok : EST.neutro, { valor: (des.aumento || 0) > 0 })}
+            : card('Desenlace',
+                 desDom ? `${des[desDom]} ${RES_TXT[desDom].toLowerCase()}` : 'Sin resultado',
+                 desOtros.join(' · ') || 'único desenlace registrado',
+                 desColor, { valor: RES_BUENO.has(desDom) || RES_MALO.has(desDom) })}
           ${card('Vigencia cumplida', pct(d.vigencia.pct_a_tiempo),
                  `mediana: ${dias(d.vigencia.dias_mediana_cierre)} en cerrar · ${dias(d.vigencia.dias_mediana_tomar)} en tomar`,
                  banda(d.vigencia.pct_a_tiempo), { valor: d.vigencia.pct_a_tiempo != null })}

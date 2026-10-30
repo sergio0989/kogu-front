@@ -74,6 +74,22 @@ const LIMPIO = {
   },
 };
 
+// §16.5 — CASO REAL, dev.kogu.ink/modules/crm/kpis.html el 30-oct-2026:
+// una sola actividad creada, cerrada, con desenlace ESTABLE. La tarjeta
+// mostraba "0 en aumento" en tipografia grande y "1 estable" en chico: un
+// cero grande se lee como "no paso nada", y si paso. Con el vocabulario de
+// diez valores, estable, spot o seguimiento son desenlaces legitimos, no
+// fracasos, asi que el titular no puede estar clavado en aumento.
+const SOLO_ESTABLE = {
+  ...CON_DATOS,
+  creadas: { total: 1, por_origen: { 'mi-panel': 1 } },
+  pendiente: { abiertas: 0, en_proceso: 0, vencidas: 0 },
+  cierre: { cerradas: 1, canceladas: 0, tasa_cierre: 1 },
+  desenlace: { aumento: 0, estable: 1, disminucion: 0, baja_temporal: 0,
+               baja_total: 0, nuevo_cliente: 0, spot: 0, seguimiento: 0,
+               no_aplica: 0, completada: 0 },
+};
+
 // Recorte con agente y mes puestos, como lo devuelve el servicio.
 const CON_RECORTE = {
   ...CON_DATOS,
@@ -423,6 +439,35 @@ await check('los totales por motivo quedan debajo, separados', async () => {
   const t = texto();
   assert.ok(/En ca[ií]da/i.test(t) && /Sin compra/i.test(t) && /Encogiendo/i.test(t),
     'se perdieron los totales por motivo');
+});
+
+console.log('\n── El desenlace nombra lo que paso ────────────────────────────');
+
+await check('el titular nombra el desenlace que ocurrio, no un cero', async () => {
+  const { texto } = await arranca(SOLO_ESTABLE);
+  const t = texto();
+  assert.match(t, /1 estable/i, 'no nombra el desenlace que si ocurrio');
+  assert.ok(!/0 en aumento/i.test(t),
+    'un cero en grande se lee como "no paso nada" y si se cerro una actividad');
+});
+
+await check('aun asi dice que ninguna termino en aumento', async () => {
+  const { texto } = await arranca(SOLO_ESTABLE);
+  assert.match(texto(), /ninguna en aumento/i,
+    'gerencia pierde de vista el dato que si le importa');
+});
+
+await check('cuando el aumento manda, el titular lo dice', async () => {
+  const CON_AUMENTO = { ...SOLO_ESTABLE,
+    cierre: { cerradas: 3, canceladas: 0, tasa_cierre: 1 },
+    desenlace: { ...SOLO_ESTABLE.desenlace, aumento: 2, estable: 1 } };
+  const { texto } = await arranca(CON_AUMENTO);
+  assert.match(texto(), /2 aumento|2 en aumento/i, 'se perdio el desenlace dominante');
+});
+
+await check('sin cierres sigue diciendo que no hay cierres', async () => {
+  const { texto } = await arranca(SIN_CIERRES);
+  assert.match(texto(), /sin cierres/i, 'inventa un desenlace donde no hay ninguno');
 });
 
 console.log('\n── El recorte viaja con los numeros ────────────────────────────');
