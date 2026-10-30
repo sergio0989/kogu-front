@@ -624,11 +624,25 @@ document.addEventListener('DOMContentLoaded', async () => {
        <div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">Métrica: ${esDinero() ? 'Importe (MXN)' : 'Cantidad (kg)'} · ${clientes.length} clientes · ${d.anio}</div>`;
   }
 
+  // El libro del agente lleva ahora las alertas del Radar, así que el export
+  // tiene que mandar el MISMO recorte que está en pantalla: la ventana propia
+  // de Mi panel y los dos filtros. Sin la ventana, el Excel mediría un periodo
+  // distinto del que el vendedor está viendo y nadie podría notarlo, porque el
+  // archivo se lee lejos de la pantalla.
+  //
+  // En `auto` no se manda periodo: el backend cae en los meses cerrados, que es
+  // exactamente lo que hace el comparativo de esta pantalla en ese caso.
   async function exportarAgente() {
     const ag = sel('agenteSel');
     const anio = sel('anioFil') || new Date().getFullYear();
+    const q = new URLSearchParams({ anio: String(anio) });
+    if (ag) q.set('agente_id', ag);
+    const per = computePeriodos();
+    if (per) { q.set('p1d', per.p1d); q.set('p1h', per.p1h); q.set('p2d', per.p2d); q.set('p2h', per.p2h); }
+    const sv = sel('sevFil'); if (sv) q.set('severidad', sv);
+    if (motivoFil) q.set('motivo', motivoFil);
     try {
-      const res = await KoguApi.authFetchRaw(`${BASE}/reporte/agente?anio=${anio}${ag ? `&agente_id=${ag}` : ''}`);
+      const res = await KoguApi.authFetchRaw(`${BASE}/reporte/agente?${q}`);
       if (!res.ok) { KoguApi.toast('No se pudo generar el reporte (¿agente sin resolver?).', 'error'); return; }
       const blob = await res.blob();
       const cd = res.headers.get('Content-Disposition') || '';
