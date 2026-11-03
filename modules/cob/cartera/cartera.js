@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const permisos = b.permissions || b.permisos || [];
   const puedeCargar = permisos.includes('cob.corte.cargar');
   const puedeSeguir = permisos.includes('cob.seguimiento.write');   // F1b: cfdi_cobranza y administradores
+  const puedeEnviar = permisos.includes('cob.edo_cta.send');         // estado de cuenta, paso 2 (3-nov-2026)
 
   const esc = (s) => KoguUi.escapeHtml(s);
   const $ = (id) => document.getElementById(id);
@@ -73,6 +74,25 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
   </div>
   <div id="cobSegMsg" class="cob-msg"></div>
   <div class="cob-btns"><button type="button" class="btn" id="cobSegCancelar">Cancelar</button><button type="button" class="btn primary" id="cobSegGuardar">Guardar</button></div>
+</div>` : ''}
+${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none"></div>
+<div class="cob-modal cob-env" id="cobEnvModal" style="display:none" role="dialog" aria-labelledby="cobEnvTitulo">
+  <div class="eyebrow">Enviar estado de cuenta</div><h3 id="cobEnvTitulo" style="margin:4px 0 2px"></h3>
+  <div id="cobEnvSub" class="cob-muted"></div>
+  <div id="cobEnvAvisos"></div>
+  <div class="cob-env-dest">
+    <div><div class="label-text">Para</div><div id="cobEnvPara"></div></div>
+    <div><div class="label-text">Copia (CxC)</div><div id="cobEnvCopia" class="cob-env-v"></div></div>
+    <div><div class="label-text">Las respuestas llegan a</div><div id="cobEnvResp" class="cob-env-v"></div></div>
+  </div>
+  <label class="cob-env-check"><input type="checkbox" id="cobEnvRevise"/> Revisé los destinatarios</label>
+  <div id="cobEnvMsg" class="cob-msg"></div>
+  <div class="cob-btns">
+    <button type="button" class="btn" id="cobEnvCerrar">Cerrar</button>
+    <button type="button" class="btn" id="cobEnvPrueba" title="Te llega a ti, sin copia a CxC">Enviarme una prueba</button>
+    <button type="button" class="btn primary" id="cobEnvEnviar" disabled>Enviar</button>
+  </div>
+  <div class="cob-env-hist"><div class="eyebrow">Envíos anteriores</div><div id="cobEnvHist" class="cob-muted">—</div></div>
 </div>` : ''}`;
 
   let opcionesCli = [];      // clientes del corte para el buscador
@@ -245,6 +265,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
       <span class="cob-sp"></span>
       <span id="cobConteo" class="cob-muted">${rows.length} documentos</span>
       <button type="button" class="btn" id="cobEdoCta" ${f.cliente ? '' : 'disabled'} title="${f.cliente ? 'Estado de cuenta en PDF del cliente filtrado, con el corte que se ve' : 'Elige un cliente en el filtro Cliente'}">Estado de cuenta (PDF)</button>
+      ${puedeEnviar ? '<button type="button" class="btn" id="cobEnviarEdoCta" disabled>Enviar estado de cuenta</button>' : ''}
       <button type="button" class="btn" id="cobExportar" ${rows.length ? '' : 'disabled'} title="Las facturas de la tabla, en este orden, con su último seguimiento">Exportar a Excel</button>
       ${puedeSeguir ? '<button type="button" class="btn primary" id="cobRegistrar" disabled>Registrar seguimiento (0)</button>' : ''}
     </div>
@@ -260,6 +281,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     $('cobAgrupar').addEventListener('change', render);   // directo: el cuerpo se repinta en cada render
     $('cobExportar').addEventListener('click', exportar);
     $('cobEdoCta').addEventListener('click', estadoCuenta);
+    if ($('cobEnviarEdoCta')) $('cobEnviarEdoCta').addEventListener('click', () => abrirEnvio(clienteEdoCta().cve));
     actualizarSeleccion();
   }
 
@@ -274,11 +296,112 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     return cves.size === 1 ? { cve: [...cves][0] } : { cve: '', motivo: 'Las facturas marcadas son de varios clientes: marca facturas de un solo cliente' };
   }
   function actualizarEdoCta() {
+    const c = clienteEdoCta();
+    const e = $('cobEnviarEdoCta');
+    if (e) { e.disabled = !c.cve; e.title = c.cve ? 'Mandarlo a los contactos del cliente que reciben estado de cuenta' : c.motivo; }
     const b = $('cobEdoCta');
     if (!b || b.textContent === 'Generando…') return;
-    const c = clienteEdoCta();
     b.disabled = !c.cve;
     b.title = c.cve ? 'Estado de cuenta en PDF del cliente, con el corte que se ve' : c.motivo;
+  }
+
+  // ── Estado de cuenta, paso 2: enviarlo desde KOGU ───────────────
+  // Decisiones 3-nov-2026: manual, CxC en copia visible y como reply-to,
+  // prueba al usuario antes y el envío real a la lista exacta que se vio.
+  let envio = null;   // { cve, dest, enviando }
+  const urlEdo = (cve, p) => `/protected/cob/estados-cuenta/${encodeURIComponent(cve)}/${p}`;
+  const fechaHora = (s) => { try { return new Date(s).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return String(s || ''); } };
+
+  async function abrirEnvio(cve) {
+    if (!cve || !datos || !datos.corte) return;
+    envio = { cve, dest: null, enviando: false };
+    $('cobEnvTitulo').textContent = 'Cargando…';
+    $('cobEnvSub').textContent = ''; $('cobEnvMsg').textContent = '';
+    $('cobEnvModal').style.display = 'block'; $('cobEnvOv').style.display = 'block';
+    await Promise.all([cargarDestinatarios(), cargarHistorial()]);
+  }
+  function cerrarEnvio() { envio = null; if ($('cobEnvModal')) { $('cobEnvModal').style.display = 'none'; $('cobEnvOv').style.display = 'none'; } }
+
+  async function cargarDestinatarios() {
+    const cve = envio && envio.cve;
+    try {
+      const d = await api(urlEdo(cve, 'destinatarios'));
+      if (!envio || envio.cve !== cve) return;
+      envio.dest = d;
+    } catch (e) { if (envio) envio.dest = null; avisarError(e); }
+    pintarEnvio();
+  }
+
+  async function cargarHistorial() {
+    const cve = envio && envio.cve;
+    let h = [];
+    try { h = (await api(urlEdo(cve, 'envios'))) || []; } catch (e) { h = []; }
+    if (!envio || envio.cve !== cve) return;
+    $('cobEnvHist').innerHTML = h.length ? `<table class="cob-env-tbl"><tbody>${h.map((x) => `<tr data-envio="${esc(x.estado_cuenta_id)}">
+      <td>${esc(fechaHora(x.created_at))}</td><td>${x.tipo === 'prueba' ? 'Prueba' : 'Envío'}</td>
+      <td class="cob-env-v">${esc((x.para || []).join(', '))}${x.error ? `<div class="cob-rojo">${esc(x.error)}</div>` : ''}</td>
+      <td><span class="cob-b ${x.estado === 'enviado' ? 'bok' : 'bwarn'}">${x.estado === 'enviado' ? 'Enviado' : (x.estado === 'omitido' ? 'Omitido' : 'Falló')}</span></td>
+      <td class="cob-muted">${esc(x.enviado_por || '')}${x.fecha_corte ? ` · corte ${C.fmtFecha(x.fecha_corte)}` : ''}</td></tr>`).join('')}</tbody></table>`
+      : 'Todavía no se le ha mandado.';
+  }
+
+  function pintarEnvio() {
+    if (!envio) return;
+    const d = envio.dest;
+    const doc = (datos.documentos || []).find((x) => x.cve_cte === envio.cve);
+    $('cobEnvTitulo').textContent = (d && d.cliente) || (doc && doc.cliente) || `Cliente ${envio.cve}`;
+    $('cobEnvSub').textContent = `Clave ${envio.cve} · Corte ${C.fmtFecha(datos.corte.fecha_corte)} · ${d && d.idioma === 'en' ? 'en inglés' : 'en español'} · PDF adjunto`;
+    const avisos = (d && d.avisos) || [];
+    $('cobEnvAvisos').innerHTML = avisos.map((a) => `<div class="cob-env-aviso ${a.bloquea ? 'bloq' : ''}" data-aviso="${esc(a.codigo)}">${esc(a.mensaje)}</div>`).join('');
+    const para = (d && d.para) || [];
+    $('cobEnvPara').innerHTML = para.length
+      ? para.map((k) => `<div class="cob-env-v" data-email="${esc(k.email)}"><b>${esc(k.email)}</b>${k.nombre ? ` <span class="cob-muted">· ${esc(k.nombre)}${k.rol ? ` (${esc(k.rol)})` : ''}</span>` : ''}</div>`).join('')
+      : '<span class="cob-muted">Sin contactos que reciban estado de cuenta.</span>';
+    $('cobEnvCopia').textContent = d && d.copia && d.copia.length ? d.copia.join(', ') : 'Sin copia';
+    $('cobEnvResp').textContent = d && d.responder && d.responder.length ? d.responder.join(', ') : 'Al remitente de KOGU';
+    const puede = !!(d && d.puede_enviar && para.length);
+    $('cobEnvRevise').checked = false;
+    $('cobEnvRevise').disabled = !puede;
+    $('cobEnvPrueba').disabled = !!envio.enviando;
+    actualizarBotonEnvio();
+  }
+  function actualizarBotonEnvio() {
+    if (!envio) return;
+    const n = ((envio.dest && envio.dest.para) || []).length;
+    const b = $('cobEnvEnviar');
+    b.textContent = n ? `Enviar a ${n} ${n === 1 ? 'contacto' : 'contactos'}` : 'Enviar';
+    b.disabled = !!envio.enviando || !(envio.dest && envio.dest.puede_enviar && n && $('cobEnvRevise').checked);
+  }
+
+  async function mandarEnvio(prueba) {
+    if (!envio || envio.enviando || !datos || !datos.corte) return;
+    const cve = envio.cve;
+    const confirmar = ((envio.dest && envio.dest.para) || []).map((k) => k.email);
+    const body = prueba ? { corte_id: datos.corte.corte_id, prueba: true } : { corte_id: datos.corte.corte_id, confirmar };
+    envio.enviando = true; $('cobEnvMsg').textContent = '';
+    $('cobEnvPrueba').disabled = true; actualizarBotonEnvio();
+    const nombre = $('cobEnvTitulo').textContent;
+    try {
+      const r = (await KoguApi.apiFetch(urlEdo(cve, 'enviar'), { method: 'POST', body: JSON.stringify(body) })).data || {};
+      if (r.estado === 'enviado') {
+        KoguApi.toast(prueba ? `Prueba enviada a ${(r.para || []).join(', ')}.` : `Estado de cuenta de ${nombre} enviado a ${(r.para || confirmar).join(', ')}.`, 'success');
+        if (!prueba && envio) { $('cobEnvRevise').checked = false; }
+      } else {
+        const m = r.error || 'No se pudo enviar el correo.';
+        $('cobEnvMsg').textContent = m;
+        KoguApi.toast(m, 'error');
+      }
+    } catch (e) {
+      $('cobEnvMsg').textContent = (e && e.message) || 'No se pudo enviar.';
+      if (e && e.status === 409) { if (envio) { envio.enviando = false; await cargarDestinatarios(); } }
+      else if (![401, 403, 422].includes(e && e.status)) KoguApi.toast((e && e.message) || 'No se pudo enviar.', 'error');
+    } finally {
+      if (envio && envio.cve === cve) {
+        envio.enviando = false;
+        $('cobEnvPrueba').disabled = false; actualizarBotonEnvio();
+        await cargarHistorial();
+      }
+    }
   }
 
   function actualizarSeleccion() {
@@ -569,16 +692,24 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
     $('cobSegAccion').addEventListener('change', refrescarForm);
     $('cobSegModal').addEventListener('change', (e) => { if (e.target.name === 'cobSegGestiona') refrescarForm(); });
   }
+  if (puedeEnviar) {
+    $('cobEnvCerrar').addEventListener('click', cerrarEnvio);
+    $('cobEnvOv').addEventListener('click', cerrarEnvio);
+    $('cobEnvPrueba').addEventListener('click', () => mandarEnvio(true));
+    $('cobEnvEnviar').addEventListener('click', () => mandarEnvio(false));
+    $('cobEnvRevise').addEventListener('change', actualizarBotonEnvio);
+  }
   $('cobOv').addEventListener('click', cerrarFicha);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if ($('cobSegModal') && $('cobSegModal').style.display !== 'none') cerrarSeguimiento(); else cerrarFicha();
+    if ($('cobEnvModal') && $('cobEnvModal').style.display !== 'none') cerrarEnvio();
+    else if ($('cobSegModal') && $('cobSegModal').style.display !== 'none') cerrarSeguimiento(); else cerrarFicha();
   });
 
   // Cambio de empresa: limpiar todo antes de pedir, para no mostrar datos de la anterior.
   KoguShell.subscribeEmpresaActivaChange(async () => {
     datos = null; control = null; cortes = []; ficha = ''; seleccion = new Set(); acciones = null;
-    cerrarSeguimiento();
+    cerrarSeguimiento(); cerrarEnvio();
     ['cobCliente', 'cobResp', 'cobMoneda', 'cobQ'].forEach((id) => { $(id).value = ''; });
     $('cobSesion').value = 'sesion';
     cerrarFicha();
@@ -635,7 +766,17 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 .cob-radios{display:flex;gap:16px;font-size:13px;flex-wrap:wrap}
 .cob-radios label{display:flex;gap:6px;align-items:center}
 .cob-msg{color:var(--danger,#dc2626);font-size:13px;font-weight:600;margin-top:10px;min-height:1em}
-.cob-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.cob-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.cob-env{width:min(640px,calc(100% - 32px))}
+.cob-env-dest{display:grid;gap:12px;margin-top:14px}
+.cob-env-v{font-size:13px;overflow-wrap:anywhere}
+.cob-env-aviso{margin-top:10px;padding:8px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:13px}
+.cob-env-aviso.bloq{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.cob-env-check{display:flex;gap:8px;align-items:center;margin-top:14px;font-size:14px}
+.cob-env-hist{margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
+.cob-env-tbl{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+.cob-env-tbl td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+@media (max-width:640px){.cob-env-tbl tr{display:block;padding:6px 0;border-bottom:1px solid var(--line)}.cob-env-tbl td{display:inline-block;border:0;padding:2px 8px 2px 0}.cob-env-tbl td.cob-env-v{display:block}}
 .cob-link{all:unset;color:var(--primary,#0891b2);cursor:pointer;font-size:12px;font-weight:600;margin-left:6px}
 .cob-tl .cob-tl-seg:before{background:#7c3aed}
 .cob-tl .anulado{opacity:.6}
@@ -645,7 +786,7 @@ ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none">
 .cob-b{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap}
 .cob-b.b1{background:#e0f2fe;color:#075985}.cob-b.b2{background:#fef3c7;color:#92400e}.cob-b.b3{background:#fed7aa;color:#9a3412}
 .cob-b.b4{background:#fee2e2;color:#991b1b}.cob-b.b5{background:#7f1d1d;color:#fff}
-.cob-b.bn{background:#f1f5f9;color:#475569}.cob-b.binfo{background:#ede9fe;color:#5b21b6}.cob-b.bwarn{background:#fef3c7;color:#92400e}
+.cob-b.bn{background:#f1f5f9;color:#475569}.cob-b.binfo{background:#ede9fe;color:#5b21b6}.cob-b.bwarn{background:#fef3c7;color:#92400e}.cob-b.bok{background:#dcfce7;color:#166534}
 .cob-cov{display:grid;gap:10px;margin-top:10px}
 .cob-covr{display:grid;grid-template-columns:200px 1fr 1fr;gap:10px;align-items:center;font-size:13px;font-variant-numeric:tabular-nums}
 .cob-covh{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
