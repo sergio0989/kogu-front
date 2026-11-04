@@ -74,12 +74,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- ── Excepción por producto ── -->
   <div class="card">
     <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Excepción de comisión por producto</h2></div></div>
-    <div style="color:var(--muted);font-size:12px;margin-top:4px">Para la combinación cliente + agente + producto, la comisión usa este porcentaje en lugar del porcentaje normal del agente.</div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">Para la combinación cliente + agente + producto, la comisión usa este porcentaje en lugar del porcentaje normal del agente. El agente debe ser el <b>agente primario</b> del cliente.</div>
     <div class="grid-4" style="margin-top:12px;gap:10px;align-items:end">
       <div><div class="label-text">Clave cliente</div><input class="input" id="ovCte" placeholder="Ej: 9" /></div>
       <div><div class="label-text">Clave agente</div><input class="input" id="ovAge" type="number" min="1" placeholder="Ej: 6" /></div>
       <div><div class="label-text">Clave producto</div><input class="input" id="ovProd" placeholder="Ej: WWP0871" /></div>
-      <div><div class="label-text">% comisión</div><input class="input" id="ovPct" type="number" step="0.01" min="0" placeholder="Ej: 5 = 5%" /></div>
+      <div><div class="label-text">% comisión</div><input class="input" id="ovPct" type="number" step="0.01" min="0" max="100" placeholder="Ej: 5 = 5%" /></div>
     </div>
     <div class="grid-4" style="margin-top:8px;gap:10px;align-items:end">
       <div style="grid-column:span 3"><div class="label-text">Motivo</div><input class="input" id="ovMot" placeholder="Opcional (ej: Especial)" /></div>
@@ -91,11 +91,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   <!-- ── Comisión adicional por cliente ── -->
   <div class="card">
     <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Comisión adicional por cliente</h2></div></div>
-    <div style="color:var(--muted);font-size:12px;margin-top:4px">El cliente comisiona, <b>además</b> de su agente primario, a este agente adicional con el % capturado. Aplica solo sobre los pagos que sí comisionaron al agente primario (hereda exclusiones).</div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">El cliente comisiona, <b>además</b> de su agente primario, a este agente adicional (debe ser distinto del primario) con el % capturado. Aplica solo sobre los pagos que sí comisionaron al agente primario (hereda exclusiones).</div>
     <div class="grid-4" style="margin-top:12px;gap:10px;align-items:end">
       <div><div class="label-text">Clave cliente</div><input class="input" id="ccCte" placeholder="Ej: 2" /></div>
       <div><div class="label-text">Clave agente</div><input class="input" id="ccAge" type="number" min="1" placeholder="Ej: 14" /></div>
-      <div><div class="label-text">% comisión</div><input class="input" id="ccPct" type="number" step="0.01" min="0" placeholder="Ej: 1 = 1%" /></div>
+      <div><div class="label-text">% comisión</div><input class="input" id="ccPct" type="number" step="0.01" min="0" max="100" placeholder="Ej: 1 = 1%" /></div>
       <div><button class="btn primary" id="ccAdd" style="width:100%">Agregar</button></div>
     </div>
     <div class="grid-4" style="margin-top:8px;gap:10px">
@@ -170,54 +170,72 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadAll() { await Promise.all([loadTc(), loadEc(), loadEp(), loadOv(), loadCc(), loadKgAgentes(), loadKg()]); }
 
   // ── Alta ────────────────────────────────────────────────────────────────
+  // Devuelve true si guardó. Los formularios solo se limpian si guardó: ante
+  // un rechazo (422) el usuario ve el motivo y conserva lo capturado.
   async function post(path, body, reload, okMsg) {
     try {
       await KoguApi.apiFetch(`${BASE}${path}`, { method: 'POST', body: JSON.stringify(body) });
       KoguApi.toast(okMsg, 'success');
       await reload();
-    } catch (err) { KoguApi.toast(err.message || 'No se pudo guardar', 'error'); }
+      return true;
+    } catch (err) { KoguApi.toast(err.message || 'No se pudo guardar', 'error'); return false; }
   }
+  // % capturado en porcentaje (5 = 5%); tope 100, igual que backend y BD.
+  const pctFueraDeRango = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      KoguApi.toast('El % de comisión debe estar entre 0 y 100 (5 = 5%).', 'error');
+      return true;
+    }
+    return false;
+  };
 
   document.getElementById('tcAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('tcVal')) return KoguApi.toast('Captura el TC', 'error');
-    await post('/tc', { anio: Number(sel('tcAnio')), mes: Number(sel('tcMes')), tc_pago: Number(val('tcVal')) }, loadTc, 'TC guardado');
-    setV('tcVal', '');
+    if (await post('/tc', { anio: Number(sel('tcAnio')), mes: Number(sel('tcMes')), tc_pago: Number(val('tcVal')) }, loadTc, 'TC guardado')) {
+      setV('tcVal', '');
+    }
   }, 'Guardando...');
 
   document.getElementById('ecAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('ecCve')) return KoguApi.toast('Captura la clave de cliente', 'error');
-    await post('/exclusion-clientes', { cve_cte: val('ecCve'), motivo: val('ecMot') }, loadEc, 'Cliente excluido');
-    setV('ecCve', ''); setV('ecMot', '');
+    if (await post('/exclusion-clientes', { cve_cte: val('ecCve'), motivo: val('ecMot') }, loadEc, 'Cliente excluido')) {
+      setV('ecCve', ''); setV('ecMot', '');
+    }
   }, 'Guardando...');
 
   document.getElementById('epAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('epCve')) return KoguApi.toast('Captura la clave de producto', 'error');
-    await post('/exclusion-productos', { cve_prod: val('epCve'), motivo: val('epMot') }, loadEp, 'Producto excluido');
-    setV('epCve', ''); setV('epMot', '');
+    if (await post('/exclusion-productos', { cve_prod: val('epCve'), motivo: val('epMot') }, loadEp, 'Producto excluido')) {
+      setV('epCve', ''); setV('epMot', '');
+    }
   }, 'Guardando...');
 
   document.getElementById('ovAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('ovCte') || !val('ovAge') || !val('ovProd') || val('ovPct') === '') return KoguApi.toast('Cliente, agente, producto y % son obligatorios', 'error');
-    await post('/comision-producto', {
+    if (pctFueraDeRango(val('ovPct'))) return;
+    const ok = await post('/comision-producto', {
       cve_cte: val('ovCte'), cve_age: Number(val('ovAge')), cve_prod: val('ovProd'),
       porcom_override: pctToFrac(val('ovPct')), motivo: val('ovMot'),
     }, loadOv, 'Excepción guardada');
-    setV('ovCte', ''); setV('ovAge', ''); setV('ovProd', ''); setV('ovPct', ''); setV('ovMot', '');
+    if (ok) { setV('ovCte', ''); setV('ovAge', ''); setV('ovProd', ''); setV('ovPct', ''); setV('ovMot', ''); }
   }, 'Guardando...');
 
   document.getElementById('ccAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('ccCte') || !val('ccAge') || val('ccPct') === '') return KoguApi.toast('Cliente, agente y % son obligatorios', 'error');
-    await post('/comision-cliente', {
+    if (pctFueraDeRango(val('ccPct'))) return;
+    const ok = await post('/comision-cliente', {
       cve_cte: val('ccCte'), cve_age: Number(val('ccAge')),
       porcom: pctToFrac(val('ccPct')), motivo: val('ccMot'),
     }, loadCc, 'Comisión adicional guardada');
-    setV('ccCte', ''); setV('ccAge', ''); setV('ccPct', ''); setV('ccMot', '');
+    if (ok) { setV('ccCte', ''); setV('ccAge', ''); setV('ccPct', ''); setV('ccMot', ''); }
   }, 'Guardando...');
 
   document.getElementById('kgAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     if (!val('kgCte') || !sel('kgAge')) return KoguApi.toast('Captura cliente y selecciona el agente kg', 'error');
-    await post('/kg-clientes', { cve_cte: val('kgCte'), cve_age: Number(sel('kgAge')) }, loadKg, 'Cliente kg-USD agregado');
-    setV('kgCte', '');
+    if (await post('/kg-clientes', { cve_cte: val('kgCte'), cve_age: Number(sel('kgAge')) }, loadKg, 'Cliente kg-USD agregado')) {
+      setV('kgCte', '');
+    }
   }, 'Guardando...');
 
   // ── Eliminar (delegado) ─────────────────────────────────────────────────
