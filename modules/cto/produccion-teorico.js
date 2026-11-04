@@ -116,6 +116,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div id="kpis" class="grid-4" style="margin-top:14px"></div>
 
 <div class="card" style="margin-top:14px">
+  <div class="row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="flex:1 1 420px"><h3 style="margin:0">Resumen operativo</h3>
+      <div class="muted" style="font-size:12px">Por producto, solo materia prima. <b>MP</b> = lo que entra al peso según el teórico (cebolla, jitomate…). Rendimiento = kg PT ÷ kg MP. PT Costo = toda la MP (sin servicios) ÷ kg PT.
+        Más de 100% no es posible: es una orden con <b>captura incompleta</b>.</div></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;white-space:nowrap;cursor:pointer" title="Estima la MP que falta en las órdenes con captura incompleta, al rendimiento de referencia del producto y al MP Prom del mes">
+      <input type="checkbox" id="opSimular"/> Simular órdenes con captura incompleta</label>
+  </div>
+  <div id="opCuerpo" style="margin-top:10px"></div>
+</div>
+
+<div class="card" style="margin-top:14px">
   <div class="row" style="align-items:flex-start">
     <div><h3 style="margin:0">Resumen por mes y componente</h3>
       <div class="muted" style="font-size:12px">Costo de MP por <span class="lblUnidad">unidad</span> producida. A la izquierda el teórico; por mes el gasto, el real por <span class="lblUnidad">unidad</span> y la diferencia (teórico − real). Lejos de 0 en cualquier sentido = el teórico no representa la realidad.</div></div>
@@ -371,10 +382,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     }));
   }
 
+  // ── Resumen operativo por producto (MP Cant, MP Prom, Rendimiento, PT Cant, PT Costo) ──
+  // Lógica de filas en produccion-teorico-calc.js (con pruebas).
+  function pintaOperativo() {
+    const ops = D.operativo?.productos || [];
+    if (!ops.length) { $('opCuerpo').innerHTML = '<div class="muted" style="font-size:12px">Sin datos.</div>'; return; }
+    const simular = $('opSimular').checked;
+    const pctTxt = (r) => (r == null ? '—' : fmt(r * 100, 1) + '%');
+    $('opCuerpo').innerHTML = ops.map(p => {
+      const filas = KoguTeoCalc.filasOperativo(p, simular);
+      const avisoPeso = p.sin_peso ? `<div style="font-size:12px;color:var(--warn);font-weight:600;margin:4px 0">Sin kg por unidad en el catálogo: no hay rendimiento ni PT en kg. Captura la equivalencia a KG en Catálogos → Productos.</div>` : '';
+      const tabla = `<div class="table-wrap" style="margin-top:6px"><table class="tabla-resumen">
+        <thead><tr><th>Periodo</th><th class="num">Órdenes</th><th class="num sep">MP Cant (kg)</th><th class="num">MP Prom ($/kg)</th>
+          <th class="num sep">Rendimiento</th><th class="num">PT Cant (kg)</th><th class="num sep">PT Costo ($/kg)</th><th></th></tr></thead>
+        <tbody>${filas.map(f => {
+          const x = f.valores;
+          const imposible = KoguTeoCalc.rendimientoImposible(x.rendimiento);
+          const marca = f.simulado ? '<span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:11px" title="Incluye la MP estimada de las órdenes con captura incompleta">simulado</span>'
+            : f.revisar ? '<span class="badge" style="background:#fee2e2;color:#991b1b;font-size:11px" title="Tiene órdenes con captura incompleta">revisar</span>' : '';
+          return `<tr class="${f.acumulado ? 'total' : ''}"${f.simulado ? ' style="background:#faf5ff"' : ''}>
+            <td class="comp">${esc(f.etiqueta)}</td><td class="num">${n0(x.ordenes)}</td>
+            <td class="num sep">${fmt(x.mp_kg, 2)}</td><td class="num">${money(x.mp_prom)}</td>
+            <td class="num sep" style="${imposible ? 'color:var(--danger);font-weight:700' : ''}">${pctTxt(x.rendimiento)}</td>
+            <td class="num">${fmt(x.pt_kg, 2)}</td><td class="num sep" style="font-weight:600">${money(x.pt_costo)}</td><td>${marca}</td></tr>`;
+        }).join('')}</tbody></table></div>`;
+      const inc = p.incompletas.length ? `<div style="margin-top:8px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;padding:8px 12px;font-size:12.5px">
+        <b style="color:#991b1b">Captura incompleta (${p.incompletas.length})</b> — rendimiento de referencia del producto: <b>${pctTxt(p.rendimiento_ref)}</b> (sus órdenes completas del periodo).
+        <div class="table-wrap" style="margin-top:6px"><table class="tabla-resumen" style="background:transparent"><thead><tr>
+          <th>Orden</th><th>Fecha</th><th class="num">PT (kg)</th><th class="num">MP capturada (kg)</th><th class="num">Rendimiento</th>
+          <th class="num sep">Kg que faltarían</th><th class="num">$/kg del mes</th><th class="num">Costo estimado</th></tr></thead>
+          <tbody>${p.incompletas.map(i => `<tr><td class="comp" style="background:transparent">${esc(i.no_ordp)}</td><td>${esc(i.fecha || '—')}</td>
+            <td class="num">${fmt(i.pt_kg, 2)}</td><td class="num">${fmt(i.mp_kg, 2)}</td>
+            <td class="num" style="color:var(--danger);font-weight:700">${pctTxt(i.rendimiento)}</td>
+            <td class="num sep" style="font-weight:700">${fmt(i.kg_faltantes, 2)}</td><td class="num">${money(i.precio_kg)}</td>
+            <td class="num" style="font-weight:700">${money(i.costo_estimado)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="muted" style="font-size:11.5px;margin-top:4px">Estimación: kg PT ÷ rendimiento de referencia − MP capturada, al MP Prom del mes. Corrige la orden en el ERP y vuelve a cargar el mes en Costo → Cargas.</div></div>` : '';
+      return `<div style="margin-top:14px"><div style="font-weight:800;font-size:14px">${esc(p.cve_pt)}</div>${avisoPeso}${tabla}${inc}</div>`;
+    }).join('');
+  }
+
   function limpiar(msg) {
     $('kpis').innerHTML = '';
     $('ptIncluidos').innerHTML = '';
     $('rendAviso').innerHTML = '';
+    $('opCuerpo').innerHTML = '';
     ['tResumen', 'tGramos', 'tRend', 'tOrdenes', 'tLotes'].forEach(id => { $(id).innerHTML = `<tr><td class="muted" style="padding:16px">${esc(msg)}</td></tr>`; });
     $('lotesTotal').textContent = '';
   }
@@ -387,7 +438,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const r = await KoguApi.apiFetch(`${BASE}/analisis?${new URLSearchParams(p)}`);
       D = KoguApi.unwrapData(r);
       document.querySelectorAll('.lblUnidad').forEach(el => { el.textContent = D.unidad || 'unidad'; });
-      pintaKpis(); pintaResumen(); pintaRendimiento(); pintaOrdenes(); pintaLotes();
+      pintaKpis(); pintaOperativo(); pintaResumen(); pintaRendimiento(); pintaOrdenes(); pintaLotes();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
     finally { $('btnAnalizar').disabled = false; }
   }
@@ -614,6 +665,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   $('btnAnalizar').addEventListener('click', analizar);
+  $('opSimular').addEventListener('change', () => { if (D) pintaOperativo(); });
   ['anio', 'mesIni', 'mesFin'].forEach(id => $(id).addEventListener('change', cargarProductos));
   KoguShell.subscribeEmpresaActivaChange(() => { D = null; productos = []; seleccion.clear(); cargarProductos(); });
 

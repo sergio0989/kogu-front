@@ -7,6 +7,9 @@
  *              (ámbar ≥ 1%, rojo > 10%: casi seguro gramos cambiados y $ viejo)
  *     reemplaza: fecha de la versión existente que se sobrescribiría, o null
  *     bloquea: hay rojo o reemplazo → pedir confirmación antes de guardar
+ *   filasOperativo(producto, simular) → filas del Resumen operativo (meses + acumulado)
+ *     con los valores reales o los simulados (captura incompleta estimada)
+ *   rendimientoImposible(r) → más de 100%: sale más de lo que entra
  */
 (function (root) {
   const UMBRAL_AMBAR = 0.01;
@@ -32,7 +35,22 @@
     return { alertas, reemplaza, bloquea: !!reemplaza || alertas.some((a) => a.nivel === 'rojo') };
   }
 
-  const api = { cpuCalc, revisar, UMBRAL_AMBAR, UMBRAL_ROJO };
+  const MES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const rendimientoImposible = (r) => r != null && Number(r) > 1;
+
+  function filasOperativo(p, simular) {
+    const meses = new Set((p.incompletas || []).map((i) => i.mes));
+    const fila = (etiqueta, x, revisar, esAcum) => {
+      const sim = !!(simular && x.simulado_aplica);
+      return { etiqueta, acumulado: esAcum, valores: sim ? x.sim : x.real, simulado: sim, revisar };
+    };
+    return [
+      ...(p.meses || []).map((x) => fila(`${MES[x.mes]}-${String(x.anio).slice(2)}`, x, meses.has(x.mes), false)),
+      fila('Acumulado', p.acumulado, meses.size > 0, true),
+    ];
+  }
+
+  const api = { cpuCalc, revisar, filasOperativo, rendimientoImposible, UMBRAL_AMBAR, UMBRAL_ROJO };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguTeoCalc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
