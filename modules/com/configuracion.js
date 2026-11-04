@@ -88,10 +88,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Agente</th><th>Producto</th><th style="text-align:right">%</th><th>Motivo</th><th></th></tr></thead><tbody id="ovRows"></tbody></table></div>
   </div>
 
-  <!-- ── Comisión adicional por cliente ── -->
+  <!-- ── Comisión por cliente ── -->
   <div class="card">
-    <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Comisión adicional por cliente</h2></div></div>
-    <div style="color:var(--muted);font-size:12px;margin-top:4px">El cliente comisiona, <b>además</b> de su agente primario, a este agente adicional (debe ser distinto del primario) con el % capturado. Aplica solo sobre los pagos que sí comisionaron al agente primario (hereda exclusiones).</div>
+    <div class="row"><div><div class="eyebrow">Comisiones · Configuración</div><h2>Comisión por cliente</h2></div></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px;line-height:1.5">
+      Cada agente capturado cobra <b>su %</b> sobre el pago del cliente (no se reparten).<br/>
+      · <b>Cliente con agente primario:</b> el agente es <b>adicional</b> al primario (debe ser distinto) y solo cobra los pagos que sí comisionaron al primario.<br/>
+      · <b>Cliente sin agente primario:</b> los agentes capturados aquí son los que cobran; el espejo no cobra sobre ellos.<br/>
+      · <b>Producto</b> (opcional): el agente cobra solo la parte de ese producto en cada factura. Vacío = todos los productos.
+    </div>
     <div class="grid-4" style="margin-top:12px;gap:10px;align-items:end">
       <div><div class="label-text">Clave cliente</div><input class="input" id="ccCte" placeholder="Ej: 2" /></div>
       <div><div class="label-text">Clave agente</div><input class="input" id="ccAge" type="number" min="1" placeholder="Ej: 14" /></div>
@@ -99,9 +104,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div><button class="btn primary" id="ccAdd" style="width:100%">Agregar</button></div>
     </div>
     <div class="grid-4" style="margin-top:8px;gap:10px">
-      <div style="grid-column:span 4"><div class="label-text">Motivo</div><input class="input" id="ccMot" placeholder="Opcional (ej: Cliente comisiona a dos agentes)" /></div>
+      <div><div class="label-text">Clave producto (opcional)</div><input class="input" id="ccProd" placeholder="Vacío = todos" /></div>
+      <div style="grid-column:span 3"><div class="label-text">Motivo</div><input class="input" id="ccMot" placeholder="Opcional (ej: Cliente comisiona a tres agentes)" /></div>
     </div>
-    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Agente</th><th style="text-align:right">%</th><th>Motivo</th><th></th></tr></thead><tbody id="ccRows"></tbody></table></div>
+    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Agente</th><th>Producto</th><th style="text-align:right">%</th><th>Motivo</th><th></th></tr></thead><tbody id="ccRows"></tbody></table></div>
   </div>
 
   <!-- ── Clientes con comisión kg-USD ── -->
@@ -153,8 +159,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('ccRows').innerHTML = rows.length ? rows.map(r => `
       <tr><td><span class="chip-compact">${esc(r.cve_cte)}</span> ${esc(r.cliente_nombre || '')}</td>
       <td><span class="chip-compact">${esc(String(r.cve_age))}</span> ${esc(r.agente_nombre || '')}</td>
+      <td>${r.cve_prod ? `<span class="chip-compact">${esc(r.cve_prod)}</span>` : '<span style="color:var(--muted)">Todos</span>'}</td>
       <td style="text-align:right;font-weight:700">${fracToPct(r.porcom)}</td>
-      <td>${esc(r.motivo || '')}</td><td>${delCell('cc:' + r.comcli_id)}</td></tr>`).join('') : empty(5, 'Sin comisiones adicionales por cliente');
+      <td>${esc(r.motivo || '')}</td><td>${delCell('cc:' + r.comcli_id)}</td></tr>`).join('') : empty(6, 'Sin comisiones por cliente');
   }
   async function loadKgAgentes() {
     const rows = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/kg-agentes`)) || [];
@@ -226,9 +233,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (pctFueraDeRango(val('ccPct'))) return;
     const ok = await post('/comision-cliente', {
       cve_cte: val('ccCte'), cve_age: Number(val('ccAge')),
-      porcom: pctToFrac(val('ccPct')), motivo: val('ccMot'),
-    }, loadCc, 'Comisión adicional guardada');
-    if (ok) { setV('ccCte', ''); setV('ccAge', ''); setV('ccPct', ''); setV('ccMot', ''); }
+      porcom: pctToFrac(val('ccPct')), cve_prod: val('ccProd') || null, motivo: val('ccMot'),
+    }, loadCc, 'Comisión por cliente guardada');
+    if (ok) { setV('ccCte', ''); setV('ccAge', ''); setV('ccPct', ''); setV('ccProd', ''); setV('ccMot', ''); }
   }, 'Guardando...');
 
   document.getElementById('kgAdd').onclick = (e) => KoguUi.withLoading(e.target, async () => {

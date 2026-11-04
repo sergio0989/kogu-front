@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const MES_ABR = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  const ESQ_LBL = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD', adicional_cliente: 'Adicional' };
+  const ESQ_LBL = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD', adicional_cliente: 'Por cliente' };
   const ESQ_BADGE = { espejo: 'warn', por_kg_usd: 'neutral', adicional_cliente: 'success' };
   const MOTIVO = {
     tipo_pago_no_valido: 'Tipo de pago no válido', base_no_positiva: 'Base ≤ 0',

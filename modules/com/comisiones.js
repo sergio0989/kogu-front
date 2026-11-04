@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Helpers ────────────────────────────────────────────────────────────
   const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const ESQUEMA = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD', adicional_cliente: 'Adicional' };
+  const ESQUEMA = { porcentaje: 'Porcentaje', espejo: 'Espejo', por_kg_usd: 'Kg-USD', adicional_cliente: 'Por cliente' };
   const ESQ_BADGE = { porcentaje: 'primary', espejo: 'warn', por_kg_usd: 'neutral', adicional_cliente: 'success' };
   const MOTIVO = {
     tipo_pago_no_valido: 'Tipo de pago no válido', base_no_positiva: 'Base ≤ 0',
@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="porcentaje">Porcentaje</option>
         <option value="espejo">Espejo</option>
         <option value="por_kg_usd">Kg-USD</option>
-        <option value="adicional_cliente">Adicional</option>
+        <option value="adicional_cliente">Por cliente</option>
       </select>
       <select class="select" id="detAgente"><option value="">Todos los agentes</option></select>
       <div style="display:flex;align-items:center;justify-content:flex-end;color:var(--muted);font-size:13px" id="detCounter"></div>
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       miniCard('Espejo', money(k.comision_espejo), 'clones'),
     ];
     if (Number(k.comision_adicional || 0) > 0) {
-      cards.push(miniCard('Adicional', money(k.comision_adicional), 'por cliente'));
+      cards.push(miniCard('Por cliente', money(k.comision_adicional), 'comisión por cliente'));
     }
     cards.push(
       miniCard('Kg-USD', money(k.comision_kg_usd), `USD ${Number(k.comision_kg_usd_divisa || 0).toFixed(2)}`),
