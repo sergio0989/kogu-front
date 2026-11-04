@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const now = new Date();
   const anios = [];
   for (let y = now.getFullYear() + 1; y >= now.getFullYear() - 3; y--) anios.push(y);
+  // Periodo por defecto del TC = mes anterior (el que se paga), igual que
+  // la pantalla de cálculo. Antes abría en enero del año siguiente.
+  const defAnio = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const defMes = now.getMonth() === 0 ? 12 : now.getMonth();
 
   const c = document.getElementById('pageContent');
   c.innerHTML = `
@@ -35,8 +39,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <div style="color:var(--muted);font-size:12px;margin-top:4px">TC con el que se convierte a pesos la comisión por kg en dólares. Uno por periodo.</div>
     <div class="grid-4" style="margin-top:12px;gap:10px;align-items:end">
-      <div><div class="label-text">Año</div><select class="select" id="tcAnio">${anios.map(y => `<option value="${y}">${y}</option>`).join('')}</select></div>
-      <div><div class="label-text">Mes</div><select class="select" id="tcMes">${MESES.slice(1).map((m, i) => `<option value="${i + 1}">${m}</option>`).join('')}</select></div>
+      <div><div class="label-text">Año</div><select class="select" id="tcAnio">${anios.map(y => `<option value="${y}" ${y === defAnio ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
+      <div><div class="label-text">Mes</div><select class="select" id="tcMes">${MESES.slice(1).map((m, i) => `<option value="${i + 1}" ${i + 1 === defMes ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
       <div><div class="label-text">TC de pago</div><input class="input" id="tcVal" type="number" step="0.0001" min="0" placeholder="17.3752" /></div>
       <div><button class="btn primary" id="tcAdd" style="width:100%">Guardar TC</button></div>
     </div>

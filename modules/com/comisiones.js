@@ -190,6 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       elById('resumenCard').style.display = 'none';
       elById('detalleCard').style.display = 'none';
       elById('exclCard').style.display = 'none';
+      elById('warns').innerHTML = '';
       return;
     }
     elById('exclCard').style.display = '';
@@ -226,6 +227,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       `TC de pago: ${k.tc_pago != null ? Number(k.tc_pago).toFixed(4) : '—'}  ·  ` +
       `Subtotal periodo: ${money(k.subtotal_periodo_raw)}  ·  ` +
       `Calculada: ${fmtDateTime(k.created_at)}`;
+
+    // Advertencias del motor (p.ej. TC faltante → kg-USD omitido). Viven en
+    // la corrida (params.warnings), así sobreviven a la recarga y se ven
+    // también al consultar una corrida guardada.
+    const warns = warningsDe(k);
+    elById('warns').innerHTML = warns.length
+      ? `<div style="font-weight:700;font-size:12px;margin-bottom:4px;color:var(--danger,#dc2626)">Advertencias del cálculo (${warns.length})</div>` +
+        warns.map(w => `<div class="badge warn" style="display:block;margin:4px 0;white-space:normal">${esc(w)}</div>`).join('')
+      : '';
+  }
+
+  function warningsDe(k) {
+    let p = k && k.params;
+    if (typeof p === 'string') { try { p = JSON.parse(p); } catch (_) { p = null; } }
+    return Array.isArray(p?.warnings) ? p.warnings.filter(Boolean).map(String) : [];
   }
 
   function renderResumen() {
@@ -324,11 +340,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       method: 'POST', body: JSON.stringify({ anio, mes }),
     });
     const data = KoguApi.unwrapData(res);
-    KoguApi.toast(`Corrida ${MESES[mes]} ${anio}: comisión total ${money(data?.totales?.comisionTotal)}`, 'success');
-    if (data?.warnings?.length) {
-      elById('statusLine').innerHTML = data.warnings
-        .map(w => `<div class="badge warn" style="display:block;margin:4px 0">${esc(w)}</div>`).join('');
-    }
+    const nw = data?.warnings?.length || 0;
+    KoguApi.toast(
+      `Corrida ${MESES[mes]} ${anio}: comisión total ${money(data?.totales?.comisionTotal)}` +
+      (nw ? ` · ${nw} advertencia(s), revísalas en el resumen` : ''),
+      nw ? 'error' : 'success');
+    // Las advertencias se pintan desde la corrida recargada (params.warnings).
     await loadVigente(true);
   }
 
