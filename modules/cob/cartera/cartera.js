@@ -58,6 +58,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div id="cobCuerpo"></div>
 </div>
 <div class="cob-ov" id="cobOv" style="display:none"></div>
+<div class="cob-ov cob-ov2" id="cobRepOv" style="display:none"></div>
+<div class="cob-modal cob-rep" id="cobRepModal" style="display:none" role="dialog" aria-labelledby="cobRepTitulo">
+  <div class="eyebrow">PPD cobrada sin REP · toda la empresa</div><h3 id="cobRepTitulo" style="margin:4px 0 4px"></h3>
+  <div id="cobRepAyuda" class="cob-muted" style="font-size:13px"></div>
+  <div class="cob-scroll" style="margin-top:12px"><table class="cob-tbl" id="cobRepTabla"></table></div>
+  <div class="cob-btns"><button type="button" class="btn" id="cobRepCerrar">Cerrar</button></div>
+</div>
 <aside class="cob-drawer" id="cobDrawer" style="display:none" aria-label="Ficha de factura"></aside>
 ${puedeSeguir ? `<div class="cob-ov cob-ov2" id="cobSegOv" style="display:none"></div>
 <div class="cob-modal" id="cobSegModal" style="display:none" role="dialog" aria-label="Registrar seguimiento">
@@ -95,10 +102,41 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
   <div class="cob-env-hist"><div class="eyebrow">Envíos anteriores</div><div id="cobEnvHist" class="cob-muted">—</div></div>
 </div>` : ''}`;
 
+  // Control "PPD cobrada sin REP" (claude/cobranza-control-ppd-sin-rep.md).
+  const REP_CATS = [
+    { k: 'falta_rep', l: 'Falta REP', color: '#b91c1c',
+      ayuda: 'Facturas PPD que ya no están en la cartera (cobradas) y cuyo REP no cubre el total. El REP vence el día 5 del mes siguiente al cobro; si SAI aún no tiene el cobro (la cobranza se carga mensual), el plazo se estima con la fecha del corte.' },
+    { k: 'factoraje', l: 'Factoraje', color: '#7c3aed',
+      ayuda: 'Cobradas por factoraje: SAI registra la transferencia y una "COMPENSACIÓN", y el REP solo cubre la compensación. Confirmar con Facturación/fiscal si falta el REP de la transferencia.' },
+    { k: 'incongruente', l: 'Abierta con REP', color: '#d97706',
+      ayuda: 'Siguen abiertas en SAI aunque un REP emitido en o antes de la fecha del corte ya las cubre: revisar si falta aplicar el cobro en SAI.' },
+    { k: 'diferencia_menor', l: 'Diferencia menor', color: '#64748b',
+      ayuda: 'El REP cubre el total salvo menos de 1% (comisión bancaria o redondeo). Sin alerta.' },
+  ];
+  const dm = (v, m) => (m === 'USD' ? 'US' : '') + C.dinero(v);
+
+  function abrirRep(k) {
+    const cat = REP_CATS.find((c) => c.k === k);
+    if (!cat || !controlRep) return;
+    const fs = (controlRep.facturas || []).filter((x) => x.categoria === k);
+    const conPlazo = k === 'falta_rep';
+    $('cobRepTitulo').textContent = `${cat.l} · ${fs.length} ${fs.length === 1 ? 'factura' : 'facturas'}`;
+    $('cobRepAyuda').textContent = cat.ayuda;
+    $('cobRepTabla').innerHTML = `<thead><tr><th>Factura</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th class="num">Cubierto por REP</th><th class="num">Falta</th><th>Último cobro (SAI)</th>${conPlazo ? '<th>Plazo del REP</th>' : ''}</tr></thead><tbody>${fs.map((x) => `
+      <tr data-rep-folio="${esc(x.folio)}"><td>${esc((x.serie ? x.serie + ' ' : '') + x.folio)}</td><td>${esc(x.cliente || '')}</td><td>${C.fmtFecha(x.fecha)}</td>
+        <td class="num">${dm(x.total, x.moneda)}</td><td class="num">${dm(x.rep_pagado, x.moneda)}</td><td class="num">${x.faltante ? dm(x.faltante, x.moneda) : '—'}</td>
+        <td>${x.ultimo_cobro ? C.fmtFecha(x.ultimo_cobro) : '<span class="cob-muted">Sin cobro en SAI</span>'}</td>
+        ${conPlazo ? `<td>${C.fmtFecha(x.plazo)}${x.plazo_estimado ? ' <span class="cob-muted">(estimado)</span>' : ''}${x.vencido ? ' <span class="cob-b cob-b-rojo">Vencido</span>' : ''}</td>` : ''}</tr>`).join('')
+      || `<tr><td colspan="${conPlazo ? 8 : 7}" class="cob-muted">Sin facturas.</td></tr>`}</tbody>`;
+    $('cobRepModal').style.display = 'block'; $('cobRepOv').style.display = 'block';
+  }
+  function cerrarRep() { if ($('cobRepModal')) { $('cobRepModal').style.display = 'none'; $('cobRepOv').style.display = 'none'; } }
+
   let opcionesCli = [];      // clientes del corte para el buscador
   const etiquetaCli = (o) => `${o.nombre} · ${o.valor}`;
   let datos = null;          // respuesta de /cartera
   let control = null;        // control CFDI del corte (si falla, la cartera se ve igual)
+  let controlRep = null;     // control "PPD cobrada sin REP" (facturas ya cobradas; no están en la tabla)
   let ordenExport = [];      // facturas de la tabla en el orden en que se ven (F1.1)
   let recorteExport = '';
   let cortes = [];
@@ -131,7 +169,11 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
           control = await api(`/protected/cob/controles/cfdi?corte_id=${encodeURIComponent(datos.corte.corte_id)}`);
           C.unirControlCfdi(datos.documentos, control);
         } catch (e) { control = null; }
-      }
+        // PPD cobrada sin REP: opcional, como el control CFDI.
+        try {
+          controlRep = await api(`/protected/cob/controles/rep?corte_id=${encodeURIComponent(datos.corte.corte_id)}`);
+        } catch (e) { controlRep = null; }
+      } else { controlRep = null; }
       llenarFiltros();
       render();
     } catch (e) {
@@ -211,6 +253,15 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     const fichasCfdi = control ? `<div class="cob-fila" data-cfdi><div class="cob-fila-l">CFDI</div><div class="cob-kpis">${cfdi.map((x) => `
       <button type="button" class="cob-kpi cob-kpi-seg ${ficha === x.k ? 'sel' : ''}" data-ficha="${x.k}" title="${esc(x.ayuda)}" style="--k:${x.color};--kv:${x.color}">
         <div class="l">${esc(x.l)}</div><div class="v">${x.docs}</div><div class="h">${x.docs === 1 ? 'factura' : 'facturas'}${x.k === 'cfdi_descarga' && x.docs ? ` · ${pl2(x.fechas.length, 'fecha', 'fechas')}` : ''} · ${montosSeg(x.por_moneda)}</div></button>`).join('')}</div></div>` : '';
+    // PPD cobrada sin REP (3-nov-2026): de toda la empresa, no cambia con los filtros.
+    const fichasRep = controlRep && controlRep.resumen ? `<div class="cob-fila" data-rep><div class="cob-fila-l" title="De toda la empresa; no cambia con los filtros">REP<div class="cob-muted" style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">toda la empresa</div></div><div class="cob-kpis">${REP_CATS.map((c) => {
+      const r = controlRep.resumen[c.k] || { facturas: 0, vencidas: 0, por_moneda: {} };
+      const pm = r.por_moneda || {};
+      const montos = ['USD', 'MXN'].filter((m) => pm[m] && pm[m].faltante > 0).map((m) => C.dineroCortoMoneda(pm[m].faltante, m));
+      const partes = [`${r.facturas === 1 ? 'factura' : 'facturas'}`, ...(c.k === 'falta_rep' && r.vencidas ? [`${r.vencidas} ${r.vencidas === 1 ? 'vencida' : 'vencidas'}`] : []), ...montos];
+      return `<button type="button" class="cob-kpi cob-kpi-seg" data-rep-cat="${c.k}" title="${esc(c.ayuda)}" style="--k:${c.color};${r.facturas ? `--kv:${c.color}` : ''}">
+        <div class="l">${esc(c.l)}</div><div class="v">${r.facturas}</div><div class="h">${partes.join(' · ')}</div></button>`;
+    }).join('')}</div></div>` : '';
     const descarga = cfdi.find((x) => x.k === 'cfdi_descarga');
     const avisoDescarga = descarga && descarga.docs
       ? `<div class="cob-aviso">Falta descargar del SAT los CFDI emitidos de ${pl2(descarga.fechas.length, 'día', 'días')}: ${descarga.fechas.map((f) => C.fmtFecha(f)).join(', ')}. Pide esas fechas en CFDI › Solicitudes SAT (emitidos); mientras, sus facturas salen como "CFDI por descargar".</div>` : '';
@@ -256,6 +307,7 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     ${fichas}
     ${fichasSeg}
     ${fichasCfdi}
+    ${fichasRep}
     <div id="cobAvisos">${avisos}<div class="cob-muted" id="cobControl" style="font-size:12px;margin-top:6px">${tot.docs} docs · ${tot.clientes} clientes · equivalente en pesos ${C.dinero(tot.saldo_mxn)} (tipo de cambio de cada factura, igual que el pie del reporte de SAI).</div>${lineaFuera}</div>
   </div>
   <div class="card">
@@ -643,6 +695,8 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     render();
   });
   $('cobCuerpo').addEventListener('click', (e) => {
+    const rc = e.target.closest('[data-rep-cat]');
+    if (rc) { abrirRep(rc.dataset.repCat); return; }
     const k = e.target.closest('[data-ficha]');
     // La ficha filtra el rango en las dos monedas; la moneda se elige con el filtro Moneda.
     if (k) { ficha = ficha === k.dataset.ficha || k.dataset.ficha === 'cartera' ? '' : k.dataset.ficha; render(); return; }
@@ -692,6 +746,8 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     $('cobSegAccion').addEventListener('change', refrescarForm);
     $('cobSegModal').addEventListener('change', (e) => { if (e.target.name === 'cobSegGestiona') refrescarForm(); });
   }
+  $('cobRepCerrar').addEventListener('click', cerrarRep);
+  $('cobRepOv').addEventListener('click', cerrarRep);
   if (puedeEnviar) {
     $('cobEnvCerrar').addEventListener('click', cerrarEnvio);
     $('cobEnvOv').addEventListener('click', cerrarEnvio);
@@ -702,13 +758,14 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
   $('cobOv').addEventListener('click', cerrarFicha);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if ($('cobEnvModal') && $('cobEnvModal').style.display !== 'none') cerrarEnvio();
+    if ($('cobRepModal') && $('cobRepModal').style.display !== 'none') cerrarRep();
+    else if ($('cobEnvModal') && $('cobEnvModal').style.display !== 'none') cerrarEnvio();
     else if ($('cobSegModal') && $('cobSegModal').style.display !== 'none') cerrarSeguimiento(); else cerrarFicha();
   });
 
   // Cambio de empresa: limpiar todo antes de pedir, para no mostrar datos de la anterior.
   KoguShell.subscribeEmpresaActivaChange(async () => {
-    datos = null; control = null; cortes = []; ficha = ''; seleccion = new Set(); acciones = null;
+    datos = null; control = null; controlRep = null; cerrarRep(); cortes = []; ficha = ''; seleccion = new Set(); acciones = null;
     cerrarSeguimiento(); cerrarEnvio();
     ['cobCliente', 'cobResp', 'cobMoneda', 'cobQ'].forEach((id) => { $(id).value = ''; });
     $('cobSesion').value = 'sesion';
@@ -768,6 +825,9 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
 .cob-msg{color:var(--danger,#dc2626);font-size:13px;font-weight:600;margin-top:10px;min-height:1em}
 .cob-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 .cob-env{width:min(640px,calc(100% - 32px))}
+.cob-rep{width:min(1040px,calc(100% - 32px))}
+.cob-rep .cob-tbl th{cursor:default}
+.cob-b.cob-b-rojo{background:#fee2e2;color:#991b1b}
 .cob-env-dest{display:grid;gap:12px;margin-top:14px}
 .cob-env-v{font-size:13px;overflow-wrap:anywhere}
 .cob-env-aviso{margin-top:10px;padding:8px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:13px}

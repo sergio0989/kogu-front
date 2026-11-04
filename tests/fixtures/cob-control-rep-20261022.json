@@ -1,0 +1,207 @@
+{
+  "corte": {
+    "corte_id": "k-22oct",
+    "fecha_corte": "2026-10-22"
+  },
+  "hoy": "2026-11-03",
+  "resumen": {
+    "falta_rep": {
+      "facturas": 4,
+      "vencidas": 3,
+      "por_moneda": {
+        "USD": {
+          "facturas": 2,
+          "faltante": 35756.46
+        },
+        "MXN": {
+          "facturas": 2,
+          "faltante": 372380
+        }
+      }
+    },
+    "factoraje": {
+      "facturas": 2,
+      "vencidas": 0,
+      "por_moneda": {
+        "MXN": {
+          "facturas": 2,
+          "faltante": 2254736.57
+        }
+      }
+    },
+    "incongruente": {
+      "facturas": 1,
+      "vencidas": 0,
+      "por_moneda": {
+        "USD": {
+          "facturas": 1,
+          "faltante": 0
+        }
+      }
+    },
+    "diferencia_menor": {
+      "facturas": 1,
+      "vencidas": 0,
+      "por_moneda": {
+        "USD": {
+          "facturas": 1,
+          "faltante": 15.92
+        }
+      }
+    }
+  },
+  "facturas": [
+    {
+      "cfdi_id": "c-26379",
+      "uuid": "UUID-26379",
+      "serie": "A",
+      "folio": "26379",
+      "fecha": "2026-05-14",
+      "cliente": "MSI EXPRESS, INC.",
+      "moneda": "USD",
+      "total": 69100,
+      "rep_pagado": 57005,
+      "reps": 4,
+      "ultimo_rep": "2026-10-01",
+      "ultimo_cobro": "2026-09-29",
+      "faltante": 12095,
+      "categoria": "falta_rep",
+      "plazo": "2026-10-05",
+      "plazo_estimado": false,
+      "vencido": true
+    },
+    {
+      "cfdi_id": "c-27186",
+      "uuid": "UUID-27186",
+      "serie": "A",
+      "folio": "27186",
+      "fecha": "2026-09-07",
+      "cliente": "EXPOALIMENTOS",
+      "moneda": "USD",
+      "total": 23661.46,
+      "rep_pagado": 0,
+      "reps": 0,
+      "ultimo_rep": null,
+      "ultimo_cobro": "2026-09-23",
+      "faltante": 23661.46,
+      "categoria": "falta_rep",
+      "plazo": "2026-10-05",
+      "plazo_estimado": false,
+      "vencido": true
+    },
+    {
+      "cfdi_id": "c-27187",
+      "uuid": "UUID-27187",
+      "serie": "A",
+      "folio": "27187",
+      "fecha": "2026-09-07",
+      "cliente": "EXPOALIMENTOS",
+      "moneda": "MXN",
+      "total": 44880,
+      "rep_pagado": 0,
+      "reps": 0,
+      "ultimo_rep": null,
+      "ultimo_cobro": "2026-09-23",
+      "faltante": 44880,
+      "categoria": "falta_rep",
+      "plazo": "2026-10-05",
+      "plazo_estimado": false,
+      "vencido": true
+    },
+    {
+      "cfdi_id": "c-27354",
+      "uuid": "UUID-27354",
+      "serie": "A",
+      "folio": "27354",
+      "fecha": "2026-10-05",
+      "cliente": "NOVALIMENTOS DE MEXICO",
+      "moneda": "MXN",
+      "total": 327500,
+      "rep_pagado": 0,
+      "reps": 0,
+      "ultimo_rep": null,
+      "ultimo_cobro": null,
+      "faltante": 327500,
+      "categoria": "falta_rep",
+      "plazo": "2026-11-05",
+      "plazo_estimado": true,
+      "vencido": false
+    },
+    {
+      "cfdi_id": "c-26421",
+      "uuid": "UUID-26421",
+      "serie": "A",
+      "folio": "26421",
+      "fecha": "2026-05-22",
+      "cliente": "UNILEVER MANUFACTURERA",
+      "moneda": "MXN",
+      "total": 1353260.64,
+      "rep_pagado": 18741.31,
+      "reps": 1,
+      "ultimo_rep": "2026-07-20",
+      "ultimo_cobro": "2026-07-17",
+      "faltante": 1334519.33,
+      "categoria": "factoraje",
+      "plazo": null,
+      "plazo_estimado": false,
+      "vencido": false
+    },
+    {
+      "cfdi_id": "c-26658",
+      "uuid": "UUID-26658",
+      "serie": "A",
+      "folio": "26658",
+      "fecha": "2026-06-24",
+      "cliente": "UNILEVER MANUFACTURERA",
+      "moneda": "MXN",
+      "total": 920217.24,
+      "rep_pagado": 0,
+      "reps": 0,
+      "ultimo_rep": null,
+      "ultimo_cobro": "2026-08-21",
+      "faltante": 920217.24,
+      "categoria": "factoraje",
+      "plazo": null,
+      "plazo_estimado": false,
+      "vencido": false
+    },
+    {
+      "cfdi_id": "c-26942",
+      "uuid": "UUID-26942",
+      "serie": "A",
+      "folio": "26942",
+      "fecha": "2026-07-30",
+      "cliente": "RDL THINKING IN SOLUTIONS",
+      "moneda": "USD",
+      "total": 15780.06,
+      "rep_pagado": 15780.06,
+      "reps": 1,
+      "ultimo_rep": "2026-08-10",
+      "ultimo_cobro": null,
+      "faltante": 0,
+      "categoria": "incongruente",
+      "plazo": null,
+      "plazo_estimado": false,
+      "vencido": false
+    },
+    {
+      "cfdi_id": "c-26454",
+      "uuid": "UUID-26454",
+      "serie": "A",
+      "folio": "26454",
+      "fecha": "2026-05-27",
+      "cliente": "INDUSTRIAS CAMPO FRESCO",
+      "moneda": "USD",
+      "total": 5307,
+      "rep_pagado": 5291.08,
+      "reps": 1,
+      "ultimo_rep": "2026-06-20",
+      "ultimo_cobro": "2026-06-19",
+      "faltante": 15.92,
+      "categoria": "diferencia_menor",
+      "plazo": null,
+      "plazo_estimado": false,
+      "vencido": false
+    }
+  ]
+}
