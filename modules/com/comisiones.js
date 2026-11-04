@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     requiredPermission: PERM,
   });
   if (!b) return;
+  const permisos = b.permissions || b.permisos || [];
+  const puedePagar = permisos.includes('com.comisiones.manage');
 
   // ── Helpers ────────────────────────────────────────────────────────────
   const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -85,7 +87,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)">¿Qué hace cada botón?</summary>
       <div style="margin-top:10px;font-size:13px;color:var(--muted);line-height:1.55">
         <div style="margin-bottom:6px"><b style="color:var(--text,#0f172a)">Cargar corrida</b> · Muestra la corrida ya guardada del periodo. Es lectura pura: no toca la cobranza ni vuelve a correr el motor. Si no hay corrida guardada, te invita a calcularla.</div>
-        <div><b style="color:var(--text,#0f172a)">Calcular y guardar</b> · Vuelve a correr el motor sobre la cobranza actual y guarda el resultado. Si ya existe una corrida del periodo, pide confirmación antes de sobrescribir; la anterior se conserva como histórico.</div>
+        <div style="margin-bottom:6px"><b style="color:var(--text,#0f172a)">Calcular y guardar</b> · Vuelve a correr el motor sobre la cobranza actual y guarda el resultado. Si ya existe una corrida del periodo, pide confirmación antes de sobrescribir; la anterior se conserva como histórico.</div>
+        <div><b style="color:var(--text,#0f172a)">Marcar como pagada</b> · Congela la corrida del periodo una vez que se pagó a los agentes. A partir de ahí el periodo ya no se puede recalcular.</div>
       </div>
     </details>
     <div id="statusLine" style="margin-top:12px"></div>
@@ -95,7 +98,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="card" id="kpiCard" style="display:none">
     <div class="row">
       <div><div class="eyebrow">Resumen del periodo</div><h2 id="kpiTitle">—</h2></div>
-      <span class="badge" id="estadoBadge"></span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn primary" id="pagarBtn" style="display:none">Marcar como pagada</button>
+        <span class="badge" id="estadoBadge"></span>
+      </div>
     </div>
     <div id="kpis" style="margin-top:14px"></div>
     <div id="meta" style="margin-top:10px;color:var(--muted);font-size:12px"></div>
@@ -191,6 +197,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       elById('detalleCard').style.display = 'none';
       elById('exclCard').style.display = 'none';
       elById('warns').innerHTML = '';
+      elById('pagarBtn').style.display = 'none';
+      elById('calcBtn').disabled = false;
       return;
     }
     elById('exclCard').style.display = '';
@@ -200,8 +208,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     elById('detalleCard').style.display = '';
     elById('kpiTitle').textContent = `${MESES[k.mes]} ${k.anio}`;
     const eb = elById('estadoBadge');
-    eb.textContent = (k.vigente ? 'Vigente' : 'Histórico') + (k.estado ? ` · ${k.estado}` : '');
-    eb.className = 'badge ' + (k.vigente ? 'success' : 'neutral');
+    const pagada = k.estado === 'pagada';
+    eb.textContent = pagada
+      ? `Pagada · ${fmtDate(k.pagada_at)}`
+      : (k.vigente ? 'Vigente' : 'Histórico') + (k.estado ? ` · ${k.estado}` : '');
+    eb.className = 'badge ' + (pagada ? 'primary' : k.vigente ? 'success' : 'neutral');
+    // Pagada = periodo congelado: no se recalcula ni se vuelve a pagar.
+    elById('pagarBtn').style.display = (puedePagar && k.vigente && k.estado === 'calculada') ? '' : 'none';
+    const cb = elById('calcBtn');
+    cb.disabled = pagada;
+    cb.title = pagada ? 'El periodo ya está pagado; no se puede recalcular.' : '';
 
     const cards = [
       miniCard('Comisión total', money(k.comision_total), `${k.num_detalle} renglones`, 'var(--accent,#2563eb)'),
@@ -226,7 +242,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     elById('meta').textContent =
       `TC de pago: ${k.tc_pago != null ? Number(k.tc_pago).toFixed(4) : '—'}  ·  ` +
       `Subtotal periodo: ${money(k.subtotal_periodo_raw)}  ·  ` +
-      `Calculada: ${fmtDateTime(k.created_at)}`;
+      `Calculada: ${fmtDateTime(k.created_at)}` +
+      (pagada ? `  ·  Pagada: ${fmtDateTime(k.pagada_at)}${k.referencia_pago ? ` · Ref: ${k.referencia_pago}` : ''}` : '');
 
     // Advertencias del motor (p.ej. TC faltante → kg-USD omitido). Viven en
     // la corrida (params.warnings), así sobreviven a la recarga y se ven
@@ -346,6 +363,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       (nw ? ` · ${nw} advertencia(s), revísalas en el resumen` : ''),
       nw ? 'error' : 'success');
     // Las advertencias se pintan desde la corrida recargada (params.warnings).
+    await loadVigente(true);
+  }
+
+  async function marcarPagada() {
+    if (!corridaActual) return;
+    const k = corridaActual;
+    const ref = window.prompt(
+      `Marcar como PAGADA la corrida de ${MESES[k.mes]} ${k.anio} (comisión total ${money(k.comision_total)}).\n\n` +
+      `Una vez pagada, el periodo ya no se podrá recalcular.\n\n` +
+      `Referencia del pago (SPEI, póliza…), opcional:`, '');
+    if (ref === null) return; // canceló
+    await KoguApi.apiFetch(`${BASE}/corridas/${k.corrida_id}/pagar`, {
+      method: 'POST', body: JSON.stringify({ referencia: ref.trim() || null }),
+    });
+    KoguApi.toast(`${MESES[k.mes]} ${k.anio} marcada como pagada`, 'success');
     await loadVigente(true);
   }
 
@@ -474,7 +506,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     let existe = false;
     try {
       const chk = await KoguApi.apiFetch(`${BASE}/corridas/vigente?anio=${anio}&mes=${mes}`);
-      existe = !!(KoguApi.unwrapData(chk)?.corrida);
+      const cv = KoguApi.unwrapData(chk)?.corrida;
+      existe = !!cv;
+      if (cv && cv.estado === 'pagada') {
+        KoguApi.toast(`${MESES[mes]} ${anio} ya está pagada; no se puede recalcular.`, 'error');
+        await loadVigente(false);
+        return;
+      }
     } catch (_) { existe = false; } // 404 = no hay corrida → seguir directo
     if (existe) {
       const ok = window.confirm(
@@ -488,6 +526,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       try { await calcular(); } catch (_) { /* apiFetch ya notificó */ }
     }, 'Calculando...');
   };
+  elById('pagarBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
+    try { await marcarPagada(); } catch (_) { /* apiFetch ya notificó */ }
+  }, 'Guardando...');
+  // Al cambiar de periodo, el bloqueo del periodo anterior ya no aplica; el
+  // clic en Calcular vuelve a verificar si el nuevo periodo está pagado.
+  elById('fAnio').onchange = elById('fMes').onchange = () => { elById('calcBtn').disabled = false; elById('calcBtn').title = ''; };
   elById('detBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     try { await loadDetalle(); } catch (_) { /* apiFetch ya notificó */ }
   }, 'Cargando...');
