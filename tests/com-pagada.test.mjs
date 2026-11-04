@@ -29,7 +29,7 @@ async function montar({ corrida, permisos = ['screen.comisiones', 'com.comisione
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
     { url: 'https://kogu.test/modules/com/comisiones.html', runScripts: 'outside-only' });
   const { window } = dom;
-  const pedidos = [];
+  const pedidos = []; const toasts = [];
   let actual = corrida;
   window.KoguShell = {
     initShell: async () => {
@@ -50,7 +50,7 @@ async function montar({ corrida, permisos = ['screen.comisiones', 'com.comisione
       if (u.includes('/corridas/vigente')) return { ok: true, data: { corrida: actual, resumen: [] } };
       throw new Error('ruta no esperada ' + method + ' ' + u);
     },
-    toast: () => {}, unwrapData: (r) => r?.data, unwrapRows: (r) => r?.data || [],
+    toast: (m, t) => toasts.push([t, m]), unwrapData: (r) => r?.data, unwrapRows: (r) => r?.data || [],
     getEmpresaActiva: () => ({ nombre_corto: 'ADEGERMEX' }), authFetchRaw: async () => ({ ok: false }),
   };
   window.KoguUi = { escapeHtml: esc, money: (n) => `$${Number(n).toFixed(2)}`, withLoading: async (_e, fn) => fn() };
@@ -59,14 +59,19 @@ async function montar({ corrida, permisos = ['screen.comisiones', 'com.comisione
   window.eval(JS);
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 80));
-  return { window, pedidos, $: (id) => window.document.getElementById(id) };
+  return { window, pedidos, toasts, $: (id) => window.document.getElementById(id) };
 }
 const visible = (el) => !!el && el.style.display !== 'none' && !el.hidden;
+// "Bloqueado" = se ve atenuado y lo anuncia (aria-disabled), pero NO usa el
+// atributo disabled: un boton disabled se traga el clic sin avisar
+// (observado en dev 04-nov-2026, Septiembre 2026 pagada).
+const bloqueado = (el) => el.getAttribute('aria-disabled') === 'true' && el.disabled === false;
 
 test('corrida vigente calculada + permiso manage → botón "Marcar como pagada" visible y Calcular habilitado', async () => {
   const { $ } = await montar({ corrida: base() });
   assert.ok(visible($('pagarBtn')), 'debe existir y verse #pagarBtn');
   assert.equal($('calcBtn').disabled, false);
+  assert.notEqual($('calcBtn').getAttribute('aria-disabled'), 'true');
 });
 
 test('al marcar pagada: POST /pagar con la referencia capturada y la pantalla queda en "Pagada" con Calcular bloqueado', async () => {
@@ -78,7 +83,7 @@ test('al marcar pagada: POST /pagar con la referencia capturada y la pantalla qu
   assert.equal(post.u, '/protected/com/comisiones/corridas/c-1/pagar');
   assert.deepEqual(post.body, { referencia: 'SPEI 0611' });
   assert.match($('estadoBadge').textContent, /Pagada/);
-  assert.equal($('calcBtn').disabled, true);
+  assert.ok(bloqueado($('calcBtn')));
   assert.ok(!visible($('pagarBtn')));
   assert.match(window.document.getElementById('pageContent').textContent, /SPEI 0611/);
 });
@@ -93,8 +98,18 @@ test('si se cancela el cuadro de referencia, no se manda nada', async () => {
 test('corrida ya pagada al cargar → badge Pagada, Calcular bloqueado, sin botón de pago', async () => {
   const { $ } = await montar({ corrida: base({ estado: 'pagada', pagada_at: '2026-07-05T09:00:00', referencia_pago: 'SPEI junio' }) });
   assert.match($('estadoBadge').textContent, /Pagada/);
-  assert.equal($('calcBtn').disabled, true);
+  assert.ok(bloqueado($('calcBtn')));
   assert.ok(!visible($('pagarBtn')));
+});
+
+test('clic en Calcular sobre un periodo pagado → avisa que ya está pagada y NO calcula', async () => {
+  const { $, pedidos, toasts } = await montar({ corrida: base({ mes: 9, estado: 'pagada', pagada_at: '2026-11-04T10:50:00' }) });
+  $('fMes').value = '9';
+  $('calcBtn').click();
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(!pedidos.some((p) => p.method === 'POST'), 'no debe mandar el cálculo');
+  const aviso = toasts.find(([t, m]) => t === 'error' && /pagad/i.test(m));
+  assert.ok(aviso, 'debe avisar que el periodo ya está pagado');
 });
 
 test('sin permiso com.comisiones.manage no aparece el botón de pago', async () => {

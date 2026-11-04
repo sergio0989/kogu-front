@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       elById('exclCard').style.display = 'none';
       elById('warns').innerHTML = '';
       elById('pagarBtn').style.display = 'none';
-      elById('calcBtn').disabled = false;
+      setCalcBloqueado(false);
       return;
     }
     elById('exclCard').style.display = '';
@@ -215,9 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     eb.className = 'badge ' + (pagada ? 'primary' : k.vigente ? 'success' : 'neutral');
     // Pagada = periodo congelado: no se recalcula ni se vuelve a pagar.
     elById('pagarBtn').style.display = (puedePagar && k.vigente && k.estado === 'calculada') ? '' : 'none';
-    const cb = elById('calcBtn');
-    cb.disabled = pagada;
-    cb.title = pagada ? 'El periodo ya está pagado; no se puede recalcular.' : '';
+    setCalcBloqueado(pagada);
 
     const cards = [
       miniCard('Comisión total', money(k.comision_total), `${k.num_detalle} renglones`, 'var(--accent,#2563eb)'),
@@ -253,6 +251,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? `<div style="font-weight:700;font-size:12px;margin-bottom:4px;color:var(--danger,#dc2626)">Advertencias del cálculo (${warns.length})</div>` +
         warns.map(w => `<div class="badge warn" style="display:block;margin:4px 0;white-space:normal">${esc(w)}</div>`).join('')
       : '';
+  }
+
+  // Bloqueo VISUAL de Calcular para periodos pagados. No usa `disabled`: un
+  // botón disabled se traga el clic sin avisar. Queda atenuado y, al pulsarlo,
+  // el handler verifica el periodo y avisa que ya está pagado.
+  function setCalcBloqueado(on) {
+    const cb = elById('calcBtn');
+    cb.disabled = false;
+    cb.setAttribute('aria-disabled', on ? 'true' : 'false');
+    cb.style.opacity = on ? '0.55' : '';
+    cb.style.cursor = on ? 'not-allowed' : '';
+    cb.title = on ? 'El periodo ya está pagado; no se puede recalcular.' : '';
   }
 
   function warningsDe(k) {
@@ -531,7 +541,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 'Guardando...');
   // Al cambiar de periodo, el bloqueo del periodo anterior ya no aplica; el
   // clic en Calcular vuelve a verificar si el nuevo periodo está pagado.
-  elById('fAnio').onchange = elById('fMes').onchange = () => { elById('calcBtn').disabled = false; elById('calcBtn').title = ''; };
+  elById('fAnio').onchange = elById('fMes').onchange = () => setCalcBloqueado(false);
   elById('detBtn').onclick = (e) => KoguUi.withLoading(e.target, async () => {
     try { await loadDetalle(); } catch (_) { /* apiFetch ya notificó */ }
   }, 'Cargando...');
