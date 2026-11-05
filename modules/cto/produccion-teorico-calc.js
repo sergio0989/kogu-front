@@ -13,6 +13,9 @@
  *   ordenesVisibles(ordenes, verTodas) → por omisión solo las que tienen alerta
  *   componentesConDosis(ordenes, nombres) → componentes con gramos teóricos
  *   lotesConCosto(lotes) → hay algún lote producido en casa con costo conocido
+ *   resumenLotes(lotes) / lotesVisibles(lotes, verTodos) → por omisión solo los
+ *     renglones con diferencia real (≥ $0.50); los que cuadran y los sin lote, resumidos
+ *   plural(unidad) → "sobres", "cajas"; las abreviaturas ("kg") no cambian
  */
 (function (root) {
   const UMBRAL_AMBAR = 0.01;
@@ -58,7 +61,18 @@
     nombres.filter((k) => ordenes.some((o) => o.componentes[k] && o.componentes[k].g_por_unidad != null));
   const lotesConCosto = (lotes) => (lotes || []).some((l) => l.costo_lote_kg != null);
 
-  const api = { cpuCalc, revisar, filasOperativo, rendimientoImposible, ordenesVisibles, componentesConDosis, lotesConCosto, UMBRAL_AMBAR, UMBRAL_ROJO };
+  const DIF_MIN = 0.5;
+  const conDif = (l) => l.dif != null && Math.abs(l.dif) >= DIF_MIN;
+  const resumenLotes = (lotes) => ({
+    conDiferencia: (lotes || []).filter(conDif).length,
+    cuadran: (lotes || []).filter((l) => l.dif != null && !conDif(l)).length,
+    sinLote: (lotes || []).filter((l) => l.dif == null).length,
+  });
+  const lotesVisibles = (lotes, verTodos) => (verTodos ? (lotes || []) : (lotes || []).filter(conDif));
+  // Plural de la unidad de presentación; sin vocal (kg, g, lt) es abreviatura y no cambia.
+  const plural = (u) => (!u ? 'unidades' : !/[aeiouáéíóú]/i.test(u) ? u : u + (/[aeiouáéíóú]$/i.test(u) ? 's' : 'es'));
+
+  const api = { resumenLotes, lotesVisibles, plural, cpuCalc, revisar, filasOperativo, rendimientoImposible, ordenesVisibles, componentesConDosis, lotesConCosto, UMBRAL_AMBAR, UMBRAL_ROJO };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguTeoCalc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

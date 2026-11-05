@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const fmt = (v, d = 2) => (v == null ? '—' : Number(v).toLocaleString('es-MX', { minimumFractionDigits: d, maximumFractionDigits: d }));
   const money = (v, d = 2) => (v == null ? '—' : (Number(v) < 0 ? '−$' + fmt(-v, d) : '$' + fmt(v, d)));
-  const plural = (u) => (u ? u + (/[aeiou]$/i.test(u) ? 's' : 'es') : 'unidades');
+  const plural = (u) => KoguTeoCalc.plural(u);
   const warnDif = (v) => (v == null || Math.abs(v) < 0.005 ? '' : 'color:var(--warn);font-weight:700');
   const n0 = (v) => (v == null ? '—' : Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 }));
   // Diferencia = teórico − real. Se pinta por distancia a 0 en cualquier sentido:
@@ -652,13 +652,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const abs = D.lotes.reduce((s, l) => s + Math.abs(l.dif || 0), 0);
     $('lotesTotal').innerHTML = `Neto: ${money(D.lotes_total_dif)} <span class="muted" style="font-weight:400;font-size:12px">· a corregir (suma absoluta): ${money(abs)}</span>`;
-    const conDif = D.lotes.filter(l => l.dif == null || Math.abs(l.dif) >= 0.5);
-    const filas = verTodosLotes ? D.lotes : conDif;
-    const ocultos = D.lotes.length - conDif.length;
+    // Por omisión solo diferencias reales (≥ $0.50); cuadrados y sin lote, resumidos (calc.js).
+    const R = KoguTeoCalc.resumenLotes(D.lotes);
+    const filas = KoguTeoCalc.lotesVisibles(D.lotes, verTodosLotes);
+    const ocultos = D.lotes.length - KoguTeoCalc.lotesVisibles(D.lotes, false).length;
     $('lotesToggle').innerHTML = ocultos
-      ? `<button class="btn ghost" id="btnLotes" style="padding:3px 10px;font-size:12px">${verTodosLotes ? 'Solo con diferencia' : `Ver todos (${ocultos} sin diferencia)`}</button>`
+      ? `<button class="btn ghost" id="btnLotes" style="padding:3px 10px;font-size:12px">${verTodosLotes ? 'Solo con diferencia' : `Ver todos (${D.lotes.length})`}</button>`
       : '';
     if ($('btnLotes')) $('btnLotes').onclick = () => { verTodosLotes = !verTodosLotes; pintaLotes(); };
+    if (!filas.length) {
+      $('tLotes').innerHTML = `<tr><td class="muted" style="padding:16px">Sin diferencias que corregir: ${R.cuadran} renglón(es) cuadran con el costo de su lote${R.sinLote ? ` y ${R.sinLote} son de lotes que no se produjeron en casa (o sin producción cargada)` : ''}.</td></tr>`;
+      return;
+    }
     const head = `<thead><tr><th style="text-align:left">Orden</th><th style="text-align:left">Fecha</th><th style="text-align:left">Producto</th><th style="text-align:left">MP</th><th style="text-align:left">Lote</th>
       <th>kg</th><th>$/kg en la orden</th><th>$/kg del lote</th><th style="text-align:left">Produjo</th><th>Diferencia</th></tr></thead>`;
     const body = (filas.length ? filas : []).map(l => `<tr>

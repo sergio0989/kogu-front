@@ -33,3 +33,27 @@ test('MP producida en casa: se muestra solo si algún lote tiene costo conocido'
   assert.equal(T.lotesConCosto([...sinMp, { no_ordp: '1387', costo_lote_kg: 30.6561, dif: -19217.68 }]), true);
   assert.equal(T.lotesConCosto([]), false);
 });
+
+// PDF v1134 (2026-11-05): con GPT0003 la sección seguía llena de "sin MP del lote".
+// 44 renglones SÍ tenían costo de lote (GMP0003 tiene órdenes propias) y cuadraban
+// al centavo (neto $0.05), y los "sin MP del lote" se mostraban como si tuvieran
+// diferencia. Por omisión: solo diferencia real (≥ $0.50); lo demás, resumido.
+test('MP producida en casa: por omisión solo diferencias reales; cuadrados y sin lote van resumidos', () => {
+  const cuadra = Array.from({ length: 44 }, (_, i) => ({ no_ordp: String(1200 + i), costo_lote_kg: 15, dif: i === 0 ? 0.05 : 0 }));
+  const sinLote = Array.from({ length: 120 }, (_, i) => ({ no_ordp: String(1300 + i), costo_lote_kg: null, dif: null }));
+  const r = T.resumenLotes([...cuadra, ...sinLote]);
+  assert.deepEqual(r, { conDiferencia: 0, cuadran: 44, sinLote: 120 });
+  assert.deepEqual(T.lotesVisibles([...cuadra, ...sinLote], false), []);
+  assert.equal(T.lotesVisibles([...cuadra, ...sinLote], true).length, 164);
+  // Sopas: la 1387 sí se ve por omisión
+  const s1387 = { no_ordp: '1387', costo_lote_kg: 30.6561, dif: -19217.68 };
+  assert.deepEqual(T.lotesVisibles([...cuadra, s1387, ...sinLote], false).map((l) => l.no_ordp), ['1387']);
+});
+
+test('unidad en plural: "kg" no se vuelve "kges"; "sobre" sí es "sobres"', () => {
+  assert.equal(T.plural('kg'), 'kg');
+  assert.equal(T.plural('sobre'), 'sobres');
+  assert.equal(T.plural('caja'), 'cajas');
+  assert.equal(T.plural('pieza'), 'piezas');
+  assert.equal(T.plural(null), 'unidades');
+});
