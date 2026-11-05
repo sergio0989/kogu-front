@@ -10,6 +10,9 @@
  *   filasOperativo(producto, simular) → filas del Resumen operativo (meses + acumulado)
  *     con los valores reales o los simulados (captura incompleta estimada)
  *   rendimientoImposible(r) → más de 100%: sale más de lo que entra
+ *   ordenesVisibles(ordenes, verTodas) → por omisión solo las que tienen alerta
+ *   componentesConDosis(ordenes, nombres) → componentes con gramos teóricos
+ *   lotesConCosto(lotes) → hay algún lote producido en casa con costo conocido
  */
 (function (root) {
   const UMBRAL_AMBAR = 0.01;
@@ -50,7 +53,12 @@
     ];
   }
 
-  const api = { cpuCalc, revisar, filasOperativo, rendimientoImposible, UMBRAL_AMBAR, UMBRAL_ROJO };
+  const ordenesVisibles = (ordenes, verTodas) => (verTodas ? ordenes : ordenes.filter((o) => (o.alertas || []).length));
+  const componentesConDosis = (ordenes, nombres) =>
+    nombres.filter((k) => ordenes.some((o) => o.componentes[k] && o.componentes[k].g_por_unidad != null));
+  const lotesConCosto = (lotes) => (lotes || []).some((l) => l.costo_lote_kg != null);
+
+  const api = { cpuCalc, revisar, filasOperativo, rendimientoImposible, ordenesVisibles, componentesConDosis, lotesConCosto, UMBRAL_AMBAR, UMBRAL_ROJO };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguTeoCalc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const hoy = new Date();
-  let productos = [], seleccion = new Set(), D = null, verTodosLotes = false;
+  let productos = [], seleccion = new Set(), D = null, verTodosLotes = false, verTodasOrdenes = false;
 
   if (!document.getElementById('estiloProdTeo')) {
     const st = document.createElement('style'); st.id = 'estiloProdTeo';
@@ -146,8 +146,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 </div>
 
 <div class="card" style="margin-top:14px">
-  <h3 style="margin:0">Por orden</h3>
-  <div class="muted" style="font-size:12px">Dosis, costo y rendimiento de cada orden. En rojo, lo que se aleja de la mediana del periodo (±15%; rendimiento ±5%; con 3 órdenes o más).</div>
+  <div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1"><h3 style="margin:0">Por orden</h3>
+  <div class="muted" style="font-size:12px">Dosis, costo y rendimiento de cada orden. En rojo, lo que se sale: precio ($/kg, MP por PT) contra la mediana <b>del mes</b> (±15%; si el mes tiene menos de 3 órdenes, contra el periodo); dosis y rendimiento contra el periodo (rendimiento ±5%). Más de 100% = captura incompleta.</div></div>
+  <div id="ordToggle"></div></div>
   <div class="table-wrap" style="margin-top:10px"><table id="tOrdenes" style="font-variant-numeric:tabular-nums;font-size:12.5px"></table></div>
 </div>
 
@@ -612,35 +613,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pintaOrdenes() {
     if (!D.ordenes.length) { $('tOrdenes').innerHTML = '<tr><td class="muted" style="padding:16px">Sin órdenes.</td></tr>'; return; }
     // Mismo orden que el resumen (orden del teórico).
-    const enOrdenes = new Set(D.ordenes.flatMap(o => Object.entries(o.componentes).filter(([, v]) => v.con_teorico).map(([k]) => k)));
-    const comps = [...new Set(D.resumen.map(f => f.componente))].filter(k => enOrdenes.has(k));
+    // Solo componentes con gramos teóricos (los que tienen dosis comparable); el resto ya va en "MP por PT".
+    const comps = KoguTeoCalc.componentesConDosis(D.ordenes, [...new Set(D.resumen.map(f => f.componente))]);
+    const visibles = KoguTeoCalc.ordenesVisibles(D.ordenes, verTodasOrdenes);
+    const ocultas = D.ordenes.length - visibles.length;
+    $('ordToggle').innerHTML = ocultas || verTodasOrdenes
+      ? `<button class="btn ghost" id="btnOrdenes" style="padding:3px 10px;font-size:12px;white-space:nowrap">${verTodasOrdenes ? 'Solo las que se salen' : `Ver todas (${D.ordenes.length})`}</button>` : '';
+    if ($('btnOrdenes')) $('btnOrdenes').onclick = () => { verTodasOrdenes = !verTodasOrdenes; pintaOrdenes(); };
+    if (!visibles.length) { $('tOrdenes').innerHTML = `<tr><td class="muted" style="padding:16px">Ninguna de las ${D.ordenes.length} órdenes se sale. Usa "Ver todas" para revisarlas.</td></tr>`; return; }
     const u = D.unidad || 'unidad';
     const alerta = (o, et) => o.alertas.includes(et) ? 'color:var(--danger);font-weight:700;background:var(--danger-bg)' : '';
     const head = `<thead><tr><th style="text-align:left">Orden</th><th style="text-align:left">Fecha</th><th style="text-align:left">Producto</th><th>Cantidad PT</th>
-      ${comps.map(k => `<th>${esc(k)}<div class="muted" style="font-weight:400;font-size:11px">dosis · $/kg</div></th>`).join('')}
+      ${comps.map(k => `<th>${esc(k)}<div class="muted" style="font-weight:400;font-size:11px">g/${esc(u)} · $/kg</div></th>`).join('')}
       <th>MP por PT</th><th>Rend.</th><th style="text-align:left">Revisar</th></tr></thead>`;
-    const body = D.ordenes.map(o => `<tr>
+    const body = visibles.map(o => `<tr>
       <td style="text-align:left">${esc(o.no_ordp)}</td><td style="text-align:left">${esc(o.fecha || '—')}</td><td style="text-align:left">${esc(o.cve_pt)}</td>
       <td style="text-align:right">${n0(o.cantidad_pt)}</td>
       ${comps.map(k => {
         const v = o.componentes[k];
         if (!v) return '<td style="text-align:right">—</td>';
-        const dosis = v.g_por_unidad != null ? fmt(v.g_por_unidad, 1) + ' g' : (v.kg_por_pt != null ? fmt(v.kg_por_pt, 2) + '/PT' : '—');
+        const dosis = v.g_por_unidad != null ? fmt(v.g_por_unidad, 1) + ' g' : '—';
         return `<td style="text-align:right"><span style="${alerta(o, `${k} g/unidad`)}">${dosis}</span>
           · <span style="${alerta(o, `${k} $/kg`)}">${money(v.costo_kg)}</span></td>`;
       }).join('')}
       <td style="text-align:right;${alerta(o, 'MP por PT')}">${money(o.mp_por_pt)}</td>
-      <td style="text-align:right;${alerta(o, 'Rendimiento')}">${o.rendimiento == null ? '—' : fmt(o.rendimiento * 100, 1) + '%'}</td>
-      <td style="text-align:left">${o.alertas.length ? o.alertas.map(a => `<span class="badge warn" style="margin:1px">${esc(a)}</span>`).join('') : '<span class="muted">—</span>'}</td>
+      <td style="text-align:right;${alerta(o, 'Rendimiento') || alerta(o, 'Captura incompleta')}">${o.rendimiento == null ? '—' : fmt(o.rendimiento * 100, 1) + '%'}</td>
+      <td style="text-align:left;white-space:nowrap">${o.alertas.length ? o.alertas.map(a => `<span class="badge ${a === 'Captura incompleta' ? 'danger' : 'warn'}" style="margin:1px;display:inline-block">${esc(a)}</span>`).join(' ') : '<span class="muted">—</span>'}</td>
     </tr>`).join('');
     $('tOrdenes').innerHTML = head + `<tbody>${body}</tbody>`;
   }
 
   // ── Lotes ──
   function pintaLotes() {
-    if (!D.lotes.length) {
-      $('tLotes').innerHTML = '<tr><td class="muted" style="padding:16px">Ninguna MP de estos productos se produce en casa (o su producción no está cargada).</td></tr>';
-      $('lotesTotal').textContent = ''; return;
+    // Sin ningún lote con costo conocido no hay nada que comparar (p.ej. GPT0003: la cebolla es de compra).
+    if (!KoguTeoCalc.lotesConCosto(D.lotes)) {
+      $('tLotes').innerHTML = `<tr><td class="muted" style="padding:16px">Ningún lote consumido se produjo en casa con costo conocido${D.lotes.length ? ` (${D.lotes.length} renglones de MP que también tiene órdenes propias, pero de lotes de compra o sin producción cargada)` : ''}.</td></tr>`;
+      $('lotesTotal').textContent = ''; $('lotesToggle').innerHTML = ''; return;
     }
     const abs = D.lotes.reduce((s, l) => s + Math.abs(l.dif || 0), 0);
     $('lotesTotal').innerHTML = `Neto: ${money(D.lotes_total_dif)} <span class="muted" style="font-weight:400;font-size:12px">· a corregir (suma absoluta): ${money(abs)}</span>`;
