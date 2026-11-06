@@ -77,7 +77,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   <div class="table-wrap" style="margin-top:14px">
     <table>
       <thead><tr id="thead">
-        <th data-sort="folio" style="cursor:pointer">Folio</th><th data-sort="cliente" style="cursor:pointer">Cliente</th>
+        <th data-sort="folio" style="cursor:pointer">Folio</th>
+        <th data-sort="fecha" style="cursor:pointer">Fecha</th>
+        <th style="text-align:center">IVA</th>
+        <th data-sort="cliente" style="cursor:pointer">Cliente</th>
         <th data-sort="producto" style="cursor:pointer">Producto<div style="font-size:9px;font-weight:400;color:#94a3b8">+ lote</div></th>
         <th data-sort="kg" style="text-align:right;cursor:pointer">Kg</th><th data-sort="subtotal" style="text-align:right;cursor:pointer" title="SubTotal y moneda de la factura">SubTotal<div style="font-size:9px;font-weight:400;color:#94a3b8">+ moneda</div></th>
         <th data-sort="subtotal" style="text-align:right;cursor:pointer" title="Precio de venta por kg: MXN arriba, USD abajo">P.venta/kg<div style="font-size:9px;font-weight:400;color:#94a3b8">MXN · USD</div></th>
@@ -111,6 +114,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mchip = (on, txt, col) => `<span style="font-size:11px;font-weight:700;margin:0 1px;color:${on ? col : '#d1d5db'}">${txt}</span>`;
   // Moneda de la factura (cve_mon: 1=pesos, 2=dólares).
   const moneda = (c) => Number(c) === 2 ? 'USD' : Number(c) === 1 ? 'MXN' : '';
+  // Fecha de factura (date de pg → Date; formateo con partes UTC para no recorrer un día).
+  const fdate = (v) => { if (!v) return '—'; const d = v instanceof Date ? v : new Date(v); if (isNaN(d)) return '—'; return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`; };
+  // IVA del renglón: iva_prod (fracción) > 0 → "IVA 16%"; 0% nacional → "Exento";
+  // 0% no-nacional → "Export."; null → "—" (meses cargados antes de capturar IVA).
+  const ivaChip = (r) => {
+    const iv = r.iva_prod;
+    if (iv == null || iv === '') return '<span style="color:#cbd5e1;font-size:11px">—</span>';
+    const pct = Number(iv) > 1 ? Number(iv) : Number(iv) * 100;
+    if (pct > 0) return `<span class="chip" style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:1px 6px">IVA ${pct.toFixed(0)}%</span>`;
+    return r.es_nacional
+      ? `<span class="chip" style="background:#e5e7eb;color:#6b7280;font-size:10px;font-weight:700;padding:1px 6px">Exento</span>`
+      : `<span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:10px;font-weight:700;padding:1px 6px">Export.</span>`;
+  };
   // Referencia de costo por renglón: producción import → producción mov → compra.
   function refInfo(r) {
     if (r.ref_prod != null)    return { ref: Number(r.ref_prod),    fuente: 'producción' };
@@ -214,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function render(rows) {
     const tb = $('rows');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:24px;color:var(--muted)">Sin renglones.</td></tr>'; return; }
     tb.innerHTML = rows.map(r => {
       const ri = refInfo(r);
       // Dif. %: costo usado (Costo MP u.) vs referencia (producción/compra).
@@ -227,6 +243,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `
       <tr style="${r.costo_manual ? 'background:#fef9c3' : (r.es_muestra ? 'background:#eef2ff' : '')}">
         <td style="font-size:12px">${esc((r.serie || '') + ' ' + (r.folio || ''))}</td>
+        <td style="font-size:11px;white-space:nowrap;color:#475569">${fdate(r.fecha_factura)}</td>
+        <td style="text-align:center">${ivaChip(r)}</td>
         <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.nom_cte)}">${esc(r.nom_cte || '—')}${r.es_interno ? ' <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:1px 4px">interno</span>' : ''}</td>
         <td style="font-size:12px"><strong>${esc(r.cve_prod)}</strong><div style="font-family:monospace;font-size:10px;color:#64748b">${esc(r.lote || '—')}</div></td>
         <td style="text-align:right;font-size:12px">${fmtNum(r.cant_surt)}</td>
