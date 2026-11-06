@@ -111,6 +111,15 @@ document.addEventListener('DOMContentLoaded', async()=>{
             </div>
 
             <div>
+              <div class="label-text">Correos alertas CFDI</div>
+              <div class="muted" style="font-size:12px;margin-bottom:6px">A quién llegan los avisos CFDI de esta empresa (p. ej. IVA exento), hasta 10. No necesitan ser usuarios de KOGU.</div>
+              <div id="cfdiCorreosLista" style="display:grid;gap:6px"></div>
+              <button type="button" class="btn" id="cfdiCorreosAgregar" style="margin-top:8px">Agregar correo</button>
+              <div class="hero-note" id="cfdiCorreosVista" style="margin-top:8px"></div>
+              <div id="cfdiCorreosMsg" style="color:#b91c1c;font-size:13px;margin-top:4px"></div>
+            </div>
+
+            <div>
               <div class="label-text">Empresa seleccionada</div>
               <div class="hero-note" id="empresaBadge">Sin empresa</div>
             </div>
@@ -245,11 +254,41 @@ document.addEventListener('DOMContentLoaded', async()=>{
     }catch(_){}
   }
 
+  // ── Correos alertas CFDI (06-nov-2026) ─────────────────────────
+  // Lista editable con Quitar / Agregar correo, igual que Configuración de cobranza.
+  const CFDI_CORREOS_MAX=10;
+  const CORREO_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  let cfdiCorreos=[''];
+  function cfdiCorreosLimpios(){
+    return cfdiCorreos.map(c=>String(c||'').trim().toLowerCase()).filter((c,i,a)=>c&&a.indexOf(c)===i);
+  }
+  function vistaCfdiCorreos(){
+    const c=cfdiCorreosLimpios();
+    document.getElementById('cfdiCorreosVista').innerHTML=c.length
+      ?`<strong>Las alertas CFDI llegan a:</strong> ${KoguUi.escapeHtml(c.join(', '))}`
+      :'<span class="muted">Sin correos: las alertas llegan a los usuarios con permiso de facturas CFDI de la empresa.</span>';
+  }
+  function pintarCfdiCorreos(){
+    document.getElementById('cfdiCorreosLista').innerHTML=cfdiCorreos.map((c,i)=>`
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="input" type="email" data-i="${i}" value="${KoguUi.escapeHtml(c)}" maxlength="254" placeholder="cxp@empresa.com.mx"/>
+        <button type="button" class="btn" data-quitar="${i}" aria-label="Quitar correo">Quitar</button>
+      </div>`).join('');
+    document.getElementById('cfdiCorreosAgregar').disabled=cfdiCorreos.length>=CFDI_CORREOS_MAX;
+    document.getElementById('cfdiCorreosMsg').textContent='';
+    vistaCfdiCorreos();
+  }
+  function setCfdiCorreos(lista){
+    cfdiCorreos=Array.isArray(lista)&&lista.length?[...lista]:[''];
+    pintarCfdiCorreos();
+  }
+
   function reset(){
     ['empresa_id','clave_empresa','nombre_corto','razon_social','rfc'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('status').value='activa';
     document.getElementById('activo').value='true';
     document.getElementById('cfdi_descarga_auto').value='true';
+    setCfdiCorreos([]);
     document.getElementById('formTitle').textContent='Formulario de empresa';
     document.getElementById('modeChip').textContent='Alta';
     setSelectedEmpresa(null);
@@ -266,6 +305,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
     document.getElementById('activo').value=String(!!row.activo);
     // Sin el campo (backend previo) se asume encendida, igual que el DEFAULT.
     document.getElementById('cfdi_descarga_auto').value=String(row.cfdi_descarga_auto!==false);
+    setCfdiCorreos(row.cfdi_correos_alertas);
     document.getElementById('formTitle').textContent='Editar empresa';
     document.getElementById('modeChip').textContent='Edición';
     setSelectedEmpresa(row);
@@ -452,7 +492,40 @@ document.addEventListener('DOMContentLoaded', async()=>{
   document.getElementById('q').oninput=render;
   document.getElementById('activoFiltro').onchange=render;
 
+  document.getElementById('cfdiCorreosLista').addEventListener('input',(e)=>{
+    const i=e.target.dataset.i;
+    if(i===undefined) return;
+    cfdiCorreos[Number(i)]=e.target.value;
+    vistaCfdiCorreos();
+  });
+  document.getElementById('cfdiCorreosLista').addEventListener('click',(e)=>{
+    const q=e.target.closest('[data-quitar]');
+    if(!q) return;
+    cfdiCorreos.splice(Number(q.dataset.quitar),1);
+    if(!cfdiCorreos.length) cfdiCorreos=[''];
+    pintarCfdiCorreos();
+  });
+  document.getElementById('cfdiCorreosAgregar').addEventListener('click',()=>{
+    if(cfdiCorreos.length>=CFDI_CORREOS_MAX) return;
+    cfdiCorreos.push('');
+    pintarCfdiCorreos();
+    const ins=document.querySelectorAll('#cfdiCorreosLista input');
+    ins[ins.length-1].focus();
+  });
+
+  pintarCfdiCorreos(); // alta: renglón vacío y vista previa desde que abre la pantalla
+
   document.getElementById('saveBtn').onclick=async()=>{
+    const correosAlertas=cfdiCorreosLimpios();
+    const malo=correosAlertas.find(x=>!CORREO_RE.test(x));
+    if(malo){
+      document.getElementById('cfdiCorreosMsg').textContent=`El correo "${malo}" no es válido.`;
+      return;
+    }
+    if(correosAlertas.length>CFDI_CORREOS_MAX){
+      document.getElementById('cfdiCorreosMsg').textContent=`Máximo ${CFDI_CORREOS_MAX} correos.`;
+      return;
+    }
     try{
       const payload={
         clave_empresa:val('clave_empresa'),
@@ -461,7 +534,8 @@ document.addEventListener('DOMContentLoaded', async()=>{
         rfc:val('rfc'),
         status:document.getElementById('status').value,
         activo:document.getElementById('activo').value==='true',
-        cfdi_descarga_auto:document.getElementById('cfdi_descarga_auto').value==='true'
+        cfdi_descarga_auto:document.getElementById('cfdi_descarga_auto').value==='true',
+        cfdi_correos_alertas:correosAlertas
       };
       if(!payload.clave_empresa||!payload.nombre_corto||!payload.razon_social||!payload.rfc){
         throw new Error('Completa clave, nombre corto, razón social y RFC.');
