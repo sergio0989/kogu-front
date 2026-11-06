@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
                 <th>RFC</th>
                 <th>Status</th>
                 <th>Activo</th>
+                <th>Descarga CFDI</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -101,9 +102,17 @@ document.addEventListener('DOMContentLoaded', async()=>{
                 </select>
               </div>
               <div>
-                <div class="label-text">Empresa seleccionada</div>
-                <div class="hero-note" id="empresaBadge">Sin empresa</div>
+                <div class="label-text">Descarga automática CFDI</div>
+                <select class="select" id="cfdi_descarga_auto" title="No: el sistema deja de pedir CFDI al SAT de forma automática para esta empresa. No da de baja la empresa; lo ya solicitado se termina de procesar.">
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
+                </select>
               </div>
+            </div>
+
+            <div>
+              <div class="label-text">Empresa seleccionada</div>
+              <div class="hero-note" id="empresaBadge">Sin empresa</div>
             </div>
 
             <div class="page-actions">
@@ -240,6 +249,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
     ['empresa_id','clave_empresa','nombre_corto','razon_social','rfc'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('status').value='activa';
     document.getElementById('activo').value='true';
+    document.getElementById('cfdi_descarga_auto').value='true';
     document.getElementById('formTitle').textContent='Formulario de empresa';
     document.getElementById('modeChip').textContent='Alta';
     setSelectedEmpresa(null);
@@ -254,6 +264,8 @@ document.addEventListener('DOMContentLoaded', async()=>{
     document.getElementById('rfc').value=row.rfc||'';
     document.getElementById('status').value=row.status||'activa';
     document.getElementById('activo').value=String(!!row.activo);
+    // Sin el campo (backend previo) se asume encendida, igual que el DEFAULT.
+    document.getElementById('cfdi_descarga_auto').value=String(row.cfdi_descarga_auto!==false);
     document.getElementById('formTitle').textContent='Editar empresa';
     document.getElementById('modeChip').textContent='Edición';
     setSelectedEmpresa(row);
@@ -285,6 +297,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
         <td>${KoguUi.escapeHtml(r.rfc||'')}</td>
         <td>${KoguUi.statusBadge(r.status||'-')}</td>
         <td>${KoguUi.statusBadge(r.activo?'Sí':'No')}</td>
+        <td>${KoguUi.statusBadge(r.cfdi_descarga_auto===false?'No':'Sí')}</td>
         <td>
           <div class="actions-cell">
             <button class="btn btn-edit" data-id="${r.empresa_id}">Editar</button>
@@ -293,7 +306,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
           </div>
         </td>
       </tr>
-    `).join(''):`<tr><td colspan="7" class="empty">Sin resultados</td></tr>`;
+    `).join(''):`<tr><td colspan="8" class="empty">Sin resultados</td></tr>`;
 
     document.querySelectorAll('.btn-edit').forEach(x=>x.onclick=()=>{
       const row=rows.find(r=>String(r.empresa_id)===x.dataset.id);
@@ -447,7 +460,8 @@ document.addEventListener('DOMContentLoaded', async()=>{
         razon_social:val('razon_social'),
         rfc:val('rfc'),
         status:document.getElementById('status').value,
-        activo:document.getElementById('activo').value==='true'
+        activo:document.getElementById('activo').value==='true',
+        cfdi_descarga_auto:document.getElementById('cfdi_descarga_auto').value==='true'
       };
       if(!payload.clave_empresa||!payload.nombre_corto||!payload.razon_social||!payload.rfc){
         throw new Error('Completa clave, nombre corto, razón social y RFC.');

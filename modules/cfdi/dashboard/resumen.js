@@ -295,15 +295,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const retenidosHomologadoMxn = safeNumber(homologado.retenido ?? resumen.retenido_vigente ?? 0);
     const totalHomologadoMxn = safeNumber(homologado.total ?? resumen.total_vigente ?? 0);
     const usdSinTc = safeNumber(homologado.usd_sin_tipo_cambio ?? 0);
+    // Desglose (06-nov-2026): descuento, IVA e IEPS por separado. Los CFDI
+    // procesados antes del desglose (no se reprocesan) no suman aquí.
+    const descuentoHomologadoMxn = safeNumber(homologado.descuento ?? 0);
+    const ivaHomologadoMxn = safeNumber(homologado.iva ?? 0);
+    const iepsHomologadoMxn = safeNumber(homologado.ieps ?? 0);
+    const conIvaExento = safeNumber(homologado.con_iva_exento ?? 0);
+    const sinDesglose = safeNumber(homologado.sin_desglose ?? 0);
 
     const subtotalVigMxn = safeNumber(mxn.subtotal ?? 0);
     const trasladosVigMxn = safeNumber(mxn.traslado ?? 0);
     const retenidosVigMxn = safeNumber(mxn.retenido ?? 0);
+    const descuentoVigMxn = safeNumber(mxn.descuento ?? 0);
+    const ivaVigMxn = safeNumber(mxn.iva ?? 0);
+    const iepsVigMxn = safeNumber(mxn.ieps ?? 0);
     const totalVigMxn = safeNumber(mxn.total ?? 0);
 
     const subtotalVigUsd = safeNumber(usd.subtotal ?? 0);
     const trasladosVigUsd = safeNumber(usd.traslado ?? 0);
     const retenidosVigUsd = safeNumber(usd.retenido ?? 0);
+    const descuentoVigUsd = safeNumber(usd.descuento ?? 0);
+    const ivaVigUsd = safeNumber(usd.iva ?? 0);
+    const iepsVigUsd = safeNumber(usd.ieps ?? 0);
     const totalVigUsd = safeNumber(usd.total ?? 0);
 
     const vigentesMxn = safeNumber(mxn.vigentes ?? 0);
@@ -347,7 +360,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const importes = [
       ['Subtotal homologado MXN', KoguUi.money(subtotalHomologadoMxn), 'Vigentes con TC aplicado cuando corresponde'],
-      ['Traslados homologados MXN', KoguUi.money(trasladosHomologadoMxn), 'Impuestos trasladados'],
+      ['Descuento homologado MXN', KoguUi.money(descuentoHomologadoMxn), 'Descuento del comprobante'],
+      ['Traslados homologados MXN', KoguUi.money(trasladosHomologadoMxn), 'IVA + IEPS'],
+      ['IVA trasladado MXN', KoguUi.money(ivaHomologadoMxn), 'Solo IVA'],
+      ['IEPS trasladado MXN', KoguUi.money(iepsHomologadoMxn), 'Solo IEPS'],
       ['Retenidos homologados MXN', KoguUi.money(retenidosHomologadoMxn), 'Impuestos retenidos']
     ];
     document.getElementById('importesTop').innerHTML = importes.map(x => KoguUi.cardStat(x[0], x[1], x[2])).join('');
@@ -359,13 +375,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           <h3>Lectura ejecutiva principal</h3>
           <div class="ejecutivo-stats-grid">
             ${buildMiniStat('Subtotal homologado', KoguUi.money(subtotalHomologadoMxn), 'Homologado a MXN', 'neutral')}
-            ${buildMiniStat('Traslados homologados', KoguUi.money(trasladosHomologadoMxn), 'Homologado a MXN', 'neutral')}
+            ${buildMiniStat('Descuento homologado', KoguUi.money(descuentoHomologadoMxn), 'Homologado a MXN', 'neutral')}
+            ${buildMiniStat('Traslados homologados', KoguUi.money(trasladosHomologadoMxn), 'IVA + IEPS', 'neutral')}
+            ${buildMiniStat('IVA homologado', KoguUi.money(ivaHomologadoMxn), 'Homologado a MXN', 'neutral')}
+            ${buildMiniStat('IEPS homologado', KoguUi.money(iepsHomologadoMxn), 'Homologado a MXN', 'neutral')}
             ${buildMiniStat('Retenidos homologados', KoguUi.money(retenidosHomologadoMxn), 'Homologado a MXN', 'neutral')}
             ${buildMiniStat('Total homologado', KoguUi.money(totalHomologadoMxn), 'Lectura principal del tablero', 'success')}
           </div>
           <div class="hero-note">
             La lectura principal del tablero ya se presenta en <strong>MXN homologado</strong>. Los CFDI en USD se convierten con <strong>tipo de cambio</strong> cuando está disponible.
             ${usdSinTc > 0 ? `<br><strong>Atención:</strong> existen ${KoguUi.int(usdSinTc)} CFDI en USD sin tipo de cambio válido; se excluyen de la homologación para no distorsionar los KPI.` : ''}
+            ${conIvaExento > 0 ? `<br><strong>IVA exento:</strong> ${KoguUi.int(conIvaExento)} CFDI con IVA exento en el periodo. Revísalos en la Bandeja con el filtro "Con IVA exento".` : ''}
+            ${sinDesglose > 0 ? `<br><strong>Nota:</strong> ${KoguUi.int(sinDesglose)} CFDI se procesaron antes del desglose de impuestos (sin desglose); su descuento, IVA e IEPS no suman en estos renglones, aunque sí en Traslados y Total.` : ''}
           </div>
         </div>
 
@@ -375,7 +396,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="ejecutivo-stats-grid ejecutivo-stats-grid-compact">
             ${buildMiniStat('Vigentes MXN', KoguUi.int(vigentesMxn), 'Conteo en pesos', 'neutral')}
             ${buildMiniStat('Subtotal MXN', KoguUi.money(subtotalVigMxn), 'Importe base en pesos', 'neutral')}
-            ${buildMiniStat('Traslados MXN', KoguUi.money(trasladosVigMxn), 'Impuestos trasladados', 'neutral')}
+            ${buildMiniStat('Descuento MXN', KoguUi.money(descuentoVigMxn), 'Descuento del comprobante', 'neutral')}
+            ${buildMiniStat('Traslados MXN', KoguUi.money(trasladosVigMxn), 'IVA + IEPS', 'neutral')}
+            ${buildMiniStat('IVA MXN', KoguUi.money(ivaVigMxn), 'Solo IVA', 'neutral')}
+            ${buildMiniStat('IEPS MXN', KoguUi.money(iepsVigMxn), 'Solo IEPS', 'neutral')}
             ${buildMiniStat('Retenidos MXN', KoguUi.money(retenidosVigMxn), 'Impuestos retenidos', 'neutral')}
             ${buildMiniStat('Total MXN', KoguUi.money(totalVigMxn), 'Monto vigente en pesos', 'success')}
           </div>
@@ -387,7 +411,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="ejecutivo-stats-grid ejecutivo-stats-grid-compact">
             ${buildMiniStat('Vigentes USD', KoguUi.int(vigentesUsd), 'Conteo en dólares', 'warn')}
             ${buildMoneyStat('Subtotal USD', subtotalVigUsd, 'USD', 'Importe base en dólares')}
-            ${buildMoneyStat('Traslados USD', trasladosVigUsd, 'USD', 'Impuestos trasladados')}
+            ${buildMoneyStat('Descuento USD', descuentoVigUsd, 'USD', 'Descuento del comprobante')}
+            ${buildMoneyStat('Traslados USD', trasladosVigUsd, 'USD', 'IVA + IEPS')}
+            ${buildMoneyStat('IVA USD', ivaVigUsd, 'USD', 'Solo IVA')}
+            ${buildMoneyStat('IEPS USD', iepsVigUsd, 'USD', 'Solo IEPS')}
             ${buildMoneyStat('Retenidos USD', retenidosVigUsd, 'USD', 'Impuestos retenidos')}
             ${buildMoneyStat('Total USD', totalVigUsd, 'USD', 'Monto vigente en dólares')}
           </div>

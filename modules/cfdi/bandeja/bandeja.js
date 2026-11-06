@@ -23,6 +23,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         box-shadow: 0 4px 14px rgba(15, 23, 42, 0.30);
         transform: translateY(-1px);
       }
+      /* IVA exento (06-nov-2026). styles.css no trae .chip.warn: se define aquí. */
+      .chip.chip-exento { background:#fef3c7; color:#92400e; }
+      .monto-stack .muted-note { color: var(--muted); font-size: 11px; }
+      .grid-filtros-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      @media (max-width: 1100px) { .grid-filtros-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     </style>
     <div class="stack">
       <div class="card">
@@ -110,7 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div class="grid-4" style="margin-top:16px">
+        <div class="grid-4 grid-filtros-5" style="margin-top:16px">
           <div>
             <div class="label-text">UUID</div>
             <input class="input" id="uuid" placeholder="UUID">
@@ -125,6 +130,16 @@ document.addEventListener('DOMContentLoaded', async () => {
               <option value="">Todos</option>
               <option value="PUE">PUE</option>
               <option value="PPD">PPD</option>
+            </select>
+          </div>
+          <div>
+            <div class="label-text">Impuestos / descuento</div>
+            <select class="select" id="especial" title="Filtra por desglose de impuestos. Los CFDI procesados antes del desglose no tienen IVA/IEPS separados.">
+              <option value="">Todos</option>
+              <option value="iva_exento">Con IVA exento</option>
+              <option value="ieps">Con IEPS</option>
+              <option value="descuento">Con descuento</option>
+              <option value="sin_desglose">Sin desglose (históricos)</option>
             </select>
           </div>
           <div>
@@ -285,6 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('rfc').value = '';
     document.getElementById('metodo_pago').value = '';
     document.getElementById('moneda').value = '';
+    document.getElementById('especial').value = '';
     document.getElementById('date_from').value = start.toISOString().slice(0, 10);
     document.getElementById('date_to').value = now.toISOString().slice(0, 10);
     document.getElementById('periodo_anio').value = '';
@@ -344,6 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       date_to: document.getElementById('date_to').value,
       metodo_pago: document.getElementById('metodo_pago').value,
       moneda: document.getElementById('moneda').value,
+      especial: document.getElementById('especial').value,
       scope: state.scope,
       tipo_comprobante: state.tipo,
       limit: state.limit,
@@ -456,10 +473,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const moneda = row.moneda ? ` ${String(row.moneda).toUpperCase()}` : '';
     const tipoCambio = safeNumber(row.tipo_cambio);
 
+    // Desglose (06-nov-2026): con desglose_impuestos_at se separan IVA e IEPS y
+    // se muestra el descuento si lo hay. Los CFDI históricos (no se reprocesan)
+    // conservan "Traslados" y lo dicen, en vez de pintar IVA/IEPS en $0.00.
+    const conDesglose = !!row.desglose_impuestos_at;
+    const descuento = safeNumber(row.descuento);
+    const iva = safeNumber(row.iva_trasladado);
+    const ieps = safeNumber(row.ieps_trasladado);
+    const impuestosHtml = conDesglose
+      ? `${descuento > 0 ? `<div><strong>Descuento:</strong> ${KoguUi.money(descuento)}${moneda}</div>` : ''}
+        <div><strong>IVA:</strong> ${KoguUi.money(iva)}${moneda}</div>
+        ${ieps > 0 ? `<div><strong>IEPS:</strong> ${KoguUi.money(ieps)}${moneda}</div>` : ''}`
+      : `<div><strong>Traslados:</strong> ${KoguUi.money(tras)}${moneda}</div>
+        <div class="muted-note">Sin desglose</div>`;
+    const exentoHtml = row.tiene_iva_exento
+      ? `<div><span class="chip chip-exento" title="Base exenta: ${KoguUi.escapeHtml(KoguUi.money(row.base_iva_exento))}">IVA exento</span></div>`
+      : '';
+
     return `
       <div class="monto-stack">
         <div><strong>Subtotal:</strong> ${KoguUi.money(subtotal)}${moneda}</div>
-        <div><strong>Traslados:</strong> ${KoguUi.money(tras)}${moneda}</div>
+        ${impuestosHtml}
+        ${exentoHtml}
         <div><strong>Retenidos:</strong> ${KoguUi.money(ret)}${moneda}</div>
         <div><strong>Total:</strong> ${KoguUi.money(total)}${moneda}</div>
         ${String(row.moneda || '').toUpperCase() === 'USD' && tipoCambio > 0 ? `<div><strong>TC:</strong> ${tipoCambio.toFixed(4)}</div>` : ''}
@@ -714,10 +749,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const from = state.total ? ((state.page - 1) * state.limit) + 1 : 0;
     const to = Math.min(state.page * state.limit, state.total);
 
+    const t = state.totales || {};
+    const totalesHtml = state.totales ? `
+      <div style="margin-top:6px">
+        <strong>Descuento:</strong> ${KoguUi.money(t.descuento)} ·
+        <strong>IVA:</strong> ${KoguUi.money(t.iva_trasladado)} ·
+        <strong>IEPS:</strong> ${KoguUi.money(t.ieps_trasladado)} ·
+        <strong>IVA exento:</strong> ${KoguUi.int(t.con_iva_exento)} CFDI
+        ${Number(t.sin_desglose) > 0 ? ` · <span class="muted" title="CFDI procesados antes del desglose: sus importes no suman en Descuento/IVA/IEPS.">Sin desglose: ${KoguUi.int(t.sin_desglose)}</span>` : ''}
+      </div>` : '';
+
     document.getElementById('summaryBox').innerHTML = `
       <strong>Total CFDI:</strong> ${KoguUi.int(state.total)} ·
       <strong>Mostrando:</strong> ${KoguUi.int(from)} a ${KoguUi.int(to)} ·
       <strong>Página:</strong> ${KoguUi.int(state.page)} de ${KoguUi.int(totalPages)}
+      ${totalesHtml}
     `;
     document.getElementById('pageInfo').textContent = `Página ${state.page} de ${totalPages}`;
     document.getElementById('prevBtn').disabled = state.page <= 1;
@@ -772,6 +818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     state.total = Number(data.total || data.count || 0);
     state.items = data.items || data.rows || KoguApi.unwrapRows(res) || [];
+    state.totales = data.totales || null;
     updateTabCounts(data.conteos_por_tipo);
     renderBandeja();
   }
@@ -816,6 +863,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         estatus_sat: filters.estatus_sat || '',
         metodo_pago: filters.metodo_pago || '',
         moneda: filters.moneda || '',
+        especial: filters.especial || '',
         scope: filters.scope || '',
         tipo_comprobante: filters.tipo_comprobante || '',
         date_from: filters.date_from || '',
@@ -881,6 +929,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Moneda auto-aplica: su razón de ser es cortar volumen rápido (p. ej. para
   // que un export anual quepa), así que no obliga a pasar por "Aplicar".
   document.getElementById('moneda').onchange = async () => {
+    state.page = 1;
+    await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
+  };
+
+  // Filtro de impuestos/descuento: auto-aplica igual que moneda.
+  document.getElementById('especial').onchange = async () => {
     state.page = 1;
     await refreshAll().catch(err => KoguApi.toast(err.message, 'error'));
   };

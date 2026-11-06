@@ -171,6 +171,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const retIva = n(ficha.retencion_iva || ficha.desglose?.retencion_iva || ficha.impuestos_ret_iva);
   const retIsr = n(ficha.retencion_isr || ficha.desglose?.retencion_isr || ficha.impuestos_ret_isr);
   const total = n(ficha.total || ficha.desglose?.total);
+  // Desglose (06-nov-2026): descuento del comprobante, IVA e IEPS por separado
+  // y base de IVA exento. Los CFDI procesados antes del desglose (no se
+  // reprocesan) conservan "Impuestos trasladados" y lo dicen.
+  const conDesglose = !!ficha.desglose_impuestos_at;
+  const descuentoCfdi = n(ficha.descuento);
+  const ivaTras = n(ficha.iva_trasladado);
+  const iepsTras = n(ficha.ieps_trasladado);
+  const baseExento = n(ficha.base_iva_exento);
 
   const conceptos = Array.isArray(ficha.conceptos) ? ficha.conceptos : [];
   const relaciones = Array.isArray(ficha.relaciones) ? ficha.relaciones : [];
@@ -306,7 +314,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             <div class="factura-totales">
               <div class="factura-total-row"><span>Subtotal</span><strong>${KoguUi.money(subtotal)}</strong></div>
-              <div class="factura-total-row"><span>Impuestos trasladados</span><strong>${KoguUi.money(traslados)}</strong></div>
+              ${conDesglose && descuentoCfdi > 0 ? `<div class="factura-total-row"><span>Descuento</span><strong>${KoguUi.money(descuentoCfdi)}</strong></div>` : ''}
+              ${
+                conDesglose
+                  ? `<div class="factura-total-row"><span>IVA trasladado</span><strong>${KoguUi.money(ivaTras)}</strong></div>
+              ${iepsTras > 0 ? `<div class="factura-total-row"><span>IEPS trasladado</span><strong>${KoguUi.money(iepsTras)}</strong></div>` : ''}`
+                  : `<div class="factura-total-row"><span>Impuestos trasladados</span><strong>${KoguUi.money(traslados)}</strong></div>
+              <div class="factura-total-row"><span class="muted" style="font-size:12px">CFDI procesado antes del desglose de impuestos (sin desglose)</span><strong></strong></div>`
+              }
+              ${ficha.tiene_iva_exento ? `<div class="factura-total-row"><span>IVA exento (base)</span><strong>${KoguUi.money(baseExento)}</strong></div>` : ''}
               <div class="factura-total-row"><span>Retenciones</span><strong>${KoguUi.money(retenidos)}</strong></div>
               <div class="factura-total-row"><span>Retención IVA</span><strong>${KoguUi.money(retIva)}</strong></div>
               <div class="factura-total-row"><span>Retención ISR</span><strong>${KoguUi.money(retIsr)}</strong></div>
