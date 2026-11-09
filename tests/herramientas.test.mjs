@@ -13,7 +13,7 @@ const NAV = [
   { section: 'Negocio CFDI', items: [{ href: '/modules/cfdi/bandeja/bandeja.html', perm: 'screen.cfdi.sat_dm' }] },
   { section: 'Radar Comercial', items: [{ href: '/modules/rc/mi-panel.html', perm: 'screen.ventas.vendedor' }] },
   { section: 'CRM', items: [{ href: '/modules/crm/actividades.html', perm: 'crm.actividades.read' }] },
-  { section: 'Costo', items: [{ href: '/modules/cto/resumen.html', perm: 'screen.costo' }] },
+  { section: 'Costo · Costo de ventas', items: [{ href: '/modules/cto/resumen.html', perm: 'screen.costo' }] },
   { section: 'Lab QA', items: [{ href: '/modules/lab/lab-lotes.html', perm: 'screen.lab.lotes' }] },
 ];
 
