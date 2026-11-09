@@ -116,6 +116,8 @@
       {href:'/modules/cto/productos-b.html',label:'Productos B (producidos)',perm:'screen.costo'},
       {href:'/modules/cto/produccion-teorico.html',label:'🏭 Producción · Teórico vs real',perm:'screen.costo'},
       {href:'/modules/cto/produccion-vendido.html',label:'📦 Producción · Resultado de lo vendido',perm:'screen.costo'},
+      {href:'/modules/cto/requisiciones.html',label:'🧾 Requisiciones · Precios',perm:'screen.cto.requisiciones'},
+      {href:'/modules/cto/precios-pactados.html',label:'🏷️ Precios pactados (requisiciones)',perm:'screen.cto.requisiciones'},
       {href:'/modules/cto/cierre.html',label:'Validación / Cierre de periodo',perm:'screen.costo'},
     ]},
     {section:'Comercio Exterior',items:[
