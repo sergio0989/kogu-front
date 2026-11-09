@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <option value="aprobada">Aprobada</option><option value="enviada">Enviada</option></select></div>
     <div><label class="muted" style="font-size:12px;display:block">Buscar</label><input id="fQ" class="input" placeholder="Número o solicitante" style="width:180px"/></div>
     <button class="btn" id="btnBuscar">Buscar</button>
-    <a class="btn ghost" href="/modules/cto/precios-pactados.html">Precios pactados</a>
+    <a class="btn ghost" href="/modules/cto/precios-pactados.html">Margen y precios pactados</a>
     ${puedeEscribir ? '<button class="btn primary" id="btnNueva">+ Nueva requisición</button>' : ''}
   </div>
   ${puedeEscribir ? `

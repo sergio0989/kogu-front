@@ -121,7 +121,7 @@
     ]},
     {section:'Costo · Requisiciones',items:[
       {href:'/modules/cto/requisiciones.html',label:'🧾 Precios de requisiciones',perm:'screen.cto.requisiciones'},
-      {href:'/modules/cto/precios-pactados.html',label:'🏷️ Precios pactados',perm:'screen.cto.requisiciones'},
+      {href:'/modules/cto/precios-pactados.html',label:'🏷️ Margen y precios pactados',perm:'screen.cto.requisiciones'},
     ]},
     {section:'Costo · Captura y cierre',items:[
       {href:'/modules/cto/cargas.html',label:'Cargas / Importación',perm:'screen.costo'},

@@ -1,23 +1,26 @@
 // ============================================================
-// precios-pactados.js — Costo · Precios de requisiciones · Precios pactados.
-// Reemplaza la hoja Precios_Pactados de configuracion.xlsx: precio fijo de
-// venta por producto (sin margen). Tiene prioridad sobre el kardex.
+// precios-pactados.js — Costo · Precios de requisiciones · Margen y precios pactados.
+// Reemplaza configuracion.xlsx: la hoja General (margen y tolerancias, tarjeta
+// "Parametros") y la hoja Precios_Pactados (precio fijo por producto, sin margen,
+// con prioridad sobre el kardex).
 // Endpoints: GET    /protected/cto/precios-pactados?q&inactivos=1
 //            POST   /protected/cto/precios-pactados
 //            PATCH  /protected/cto/precios-pactados/:id
 //            DELETE /protected/cto/precios-pactados/:id   (da de baja)
+//            GET|PUT /protected/cto/requisiciones-parametros (margen y tolerancias)
 // Prueba: tests/cto-precios-pactados-render.test.mjs
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
   const PAGE = '/modules/cto/precios-pactados.html';
   const BASE = '/protected/cto/precios-pactados';
+  const PARAMS = '/protected/cto/requisiciones-parametros';
   const R = window.CtoReq;
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
-    title: 'Precios pactados',
-    description: 'Precio fijo de venta por producto para las requisiciones (no lleva margen).',
+    title: 'Margen y precios pactados',
+    description: 'Margen de utilidad de las requisiciones y precio fijo por producto (los pactados no llevan margen).',
     requiredPermission: 'screen.cto.requisiciones',
   });
   if (!b) return;
@@ -29,10 +32,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   let editandoId = null;
 
   const c = $('pageContent');
+  const dis = puede ? '' : 'disabled';
   c.innerHTML = `
-<div class="card">
+<div class="card" id="parametros">
+  <div class="eyebrow">Costo · Requisiciones</div>
+  <h2 style="margin:0 0 4px">Parámetros de precio</h2>
+  <div class="muted" style="font-size:12px;margin-bottom:10px">Precio sugerido = costo de la entrada × (1 + margen). Cambiarlos no toca las requisiciones ya calculadas: se aplican al calcular o recalcular. Las aprobadas no cambian.</div>
+  <div class="row" style="gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div><label class="muted" style="font-size:12px;display:block">Margen de utilidad (%)</label>
+      <input id="parMargen" class="input" type="number" step="0.01" min="0" max="100" style="width:110px" ${dis}/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Costo antiguo después de (meses)</label>
+      <input id="parMeses" class="input" type="number" step="1" min="1" max="120" style="width:110px" ${dis}/></div>
+    <div><label class="muted" style="font-size:12px;display:block">Aviso si un lote varía más de (%)</label>
+      <input id="parVariacion" class="input" type="number" step="0.1" min="0" max="100" style="width:110px" ${dis}/></div>
+    ${puede ? '<button class="btn primary" id="parGuardar">Guardar parámetros</button>' : ''}
+  </div>
+  <div id="parOrigen" class="muted" style="font-size:12px;margin-top:8px"></div>
+  <div id="parMsg" style="margin-top:6px;font-size:13px"></div>
+</div>
+<div class="card" style="margin-top:14px">
   <div class="row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
-    <div style="flex:1 1 320px"><div class="eyebrow">Costo · Requisiciones</div><h2 style="margin:0">Precios pactados</h2>
+    <div style="flex:1 1 320px"><h2 style="margin:0">Precios pactados</h2>
       <div class="muted" style="font-size:12px">Si un producto tiene precio pactado vigente, la requisición usa ese precio y no el costo del kardex.</div></div>
     <div><label class="muted" style="font-size:12px;display:block">Buscar</label><input id="pacQ" class="input" placeholder="Clave o nota" style="width:180px"/></div>
     <label class="muted" style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pacInactivos"/> Ver dados de baja</label>
@@ -64,6 +84,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const vigencia = (p) => (!p.vigente_desde && !p.vigente_hasta) ? 'Siempre'
     : `${p.vigente_desde ? R.fmtFecha(p.vigente_desde) : '…'} – ${p.vigente_hasta ? R.fmtFecha(p.vigente_hasta) : '…'}`;
+
+  const pct = (f) => (f == null ? '' : String(Math.round(Number(f) * 1e4) / 100));
+
+  function pintarParametros(d) {
+    $('parMargen').value = pct(d.margen);
+    $('parMeses').value = d.meses_antiguedad ?? '';
+    $('parVariacion').value = pct(d.var_lote_pct);
+    const def = Object.entries(d.origen || {}).filter(([, v]) => v === 'default').map(([k]) => k);
+    const nombres = { margen: 'margen', meses_antiguedad: 'meses', var_lote_pct: 'variación del lote' };
+    $('parOrigen').textContent = def.length
+      ? `Valor por omisión (aún no configurado en esta empresa): ${def.map((k) => nombres[k] || k).join(', ')}.`
+      : 'Configurado para esta empresa.';
+  }
+
+  async function cargarParametros() {
+    try {
+      const res = await KoguApi.apiFetch(PARAMS);
+      pintarParametros(res?.data ?? res);
+    } catch (e) {
+      $('parOrigen').textContent = '';
+      $('parMsg').style.color = 'var(--danger)';
+      $('parMsg').textContent = `No se pudieron cargar los parámetros: ${e.message || 'error'}.`;
+    }
+  }
+
+  async function guardarParametros(ev) {
+    const msg = $('parMsg');
+    msg.style.color = 'var(--danger)';
+    const margen = R.num($('parMargen').value);
+    const meses = R.num($('parMeses').value);
+    const varia = R.num($('parVariacion').value);
+    if (margen == null || margen < 0 || margen > 100) { msg.textContent = 'El margen debe estar entre 0 y 100 %.'; return; }
+    if (meses == null || !Number.isInteger(meses) || meses < 1 || meses > 120) { msg.textContent = 'Los meses van de 1 a 120 (entero).'; return; }
+    if (varia == null || varia < 0 || varia > 100) { msg.textContent = 'La variación del lote debe estar entre 0 y 100 %.'; return; }
+    ev.target.disabled = true;
+    try {
+      // Con "%" explicito: sin signo, 1 se leeria como fraccion (100 %).
+      const res = await KoguApi.apiFetch(PARAMS, { method: 'PUT',
+        body: JSON.stringify({ margen: `${margen}%`, meses_antiguedad: meses, var_lote_pct: `${varia}%` }) });
+      pintarParametros(res?.data ?? res);
+      msg.style.color = 'var(--success)';
+      msg.textContent = `Guardado: margen ${margen} %. Aplica a las requisiciones que calcules o recalcules desde ahora.`;
+      KoguApi.toast('Parámetros de precio guardados.', 'success');
+    } catch (e) { msg.textContent = e.message || 'No se pudo guardar.'; }
+    finally { ev.target.disabled = false; }
+  }
 
   async function cargar() {
     const qs = new URLSearchParams({ q: $('pacQ').value.trim(), inactivos: $('pacInactivos').checked ? '1' : '0' });
@@ -160,9 +226,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('pacQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') cargar(); });
   $('pacInactivos').addEventListener('change', cargar);
   if (puede) {
+    $('parGuardar').addEventListener('click', guardarParametros);
     $('pacGuardar').addEventListener('click', guardar);
     $('pacCancelar').addEventListener('click', limpiar);
   }
-  KoguShell.subscribeEmpresaActivaChange?.(() => { if (puede) limpiar(); cargar(); });
-  await cargar();
+  KoguShell.subscribeEmpresaActivaChange?.(() => { if (puede) limpiar(); $('parMsg').textContent = ''; cargarParametros(); cargar(); });
+  await Promise.all([cargarParametros(), cargar()]);
 });
