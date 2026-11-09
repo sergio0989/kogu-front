@@ -36,7 +36,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!document.getElementById('estiloReq')) {
     const st = document.createElement('style'); st.id = 'estiloReq';
     st.textContent = `
-      .req-tabla{table-layout:auto;width:max-content;min-width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+      /* styles.css fija .table-wrap table{table-layout:fixed}: con columnas de ancho fijo el texto se encimaba */
+      .table-wrap table.req-tabla{table-layout:auto;width:max-content;min-width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
       .table-wrap .req-tabla th,.table-wrap .req-tabla td{word-break:normal;overflow-wrap:normal;white-space:nowrap;padding:7px 9px;vertical-align:top}
       .req-tabla td.num{text-align:right}
       .req-tabla td.wrap{white-space:normal;min-width:160px;max-width:260px}
@@ -165,7 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<tr data-renglon="${p.renglon}" data-pid="${esc(p.partida_id)}" class="req-${esc(p.regla || 'sin_calcular')}">
       <td class="num">${p.renglon}</td>
       <td><b>${esc(p.cve_prod)}</b></td>
-      <td>${esc(p.lote || '—')}</td>
+      <td>${esc(R.loteVisible(p.lote))}</td>
       <td class="num">${esc(cant)}</td>
       <td>${p.regla ? `<span class="req-chip ${esc(p.regla)}" title="${esc(R.ayudaTipo(p.regla))}">${esc(R.etiquetaTipo(p.regla))}</span>` : '<span class="muted">Sin calcular</span>'}</td>
       <td>${esc(p.cve_prod_match || '—')}</td>

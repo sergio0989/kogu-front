@@ -89,3 +89,13 @@ test('IVA del editor: acepta 16 o 0.16; vacio = sin cambio', () => {
   assert.equal(C.ivaDeTexto(''), undefined);
   assert.equal(C.ivaDeTexto('abc'), null);
 });
+
+// Caso real: REQUISICION 931 (09-nov-2026) trae lotes con el acento que pone
+// Excel al inicio ('´605000177'); en pantalla se muestran limpios.
+test('lote visible: sin el acento ni el apostrofo de Excel al inicio', () => {
+  assert.equal(C.loteVisible('´605000177'), '605000177');
+  assert.equal(C.loteVisible("'2026012522D0"), '2026012522D0');
+  assert.equal(C.loteVisible('M26031002-03/2026620'), 'M26031002-03/2026620');
+  assert.equal(C.loteVisible(null), '—');
+  assert.equal(C.loteVisible('  '), '—');
+});

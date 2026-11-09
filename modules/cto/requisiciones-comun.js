@@ -131,6 +131,13 @@
     const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : (v ? String(v) : '—');
   }
+  // El lote se guarda como llego; en pantalla sin el acento/apostrofo que
+  // Excel deja al inicio ('´605000177' en la REQUISICION 931 real).
+  function loteVisible(l) {
+    const t = String(l ?? '').trim().replace(/^['´`]+/, '').trim();
+    return t || '—';
+  }
+
   function entrada(m) {
     if (!m) return '—';
     const partes = [m.no_ref || (m.no_pedc ? `OC ${m.no_pedc}` : null), m.f_mov ? fmtFecha(m.f_mov) : null].filter(Boolean);
@@ -140,6 +147,6 @@
   return {
     TIPOS, AVISOS, PASOS, etiquetaTipo, ayudaTipo, etiquetasAvisos, esAvisoRevisar, etiquetaStatus, badgeStatus, abierta,
     resumen, faltanParaAprobar, numDelArchivo, numDelTitulo, contarPartidas, validarEdicion, ivaDeTexto,
-    fmtPrecio, fmtIva, fmtFecha, entrada, num,
+    fmtPrecio, fmtIva, fmtFecha, entrada, num, loteVisible,
   };
 });

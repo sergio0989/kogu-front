@@ -209,3 +209,19 @@ test('sin ?id no llama al backend y lo dice', async () => {
   assert.equal(p.pedidos.length, 0);
   assert.match(p.texto(p.$('#reqMsg')), /requisición/i);
 });
+
+// Caso real: REQUISICION 931 con lotes '´2026012522D0' (acento de Excel).
+test('tabla: el lote se ve sin el acento de Excel', async () => {
+  const det = clon(DET);
+  det.partidas.find((x) => x.renglon === 7).lote = '´52H.12239';
+  const p = await arranca({ det });
+  const t = p.texto(p.fila(7));
+  assert.ok(t.includes('52H.12239'));
+  assert.ok(!t.includes('´'), t);
+});
+
+test('tabla: no hereda el ancho fijo de columnas de .table-wrap (se encimaban)', async () => {
+  const p = await arranca();
+  const css = p.window.document.getElementById('estiloReq').textContent;
+  assert.match(css, /\.table-wrap table\.req-tabla\{[^}]*table-layout:auto/);
+});
