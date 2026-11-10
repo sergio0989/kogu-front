@@ -35,6 +35,7 @@
       {href:'/modules/cob/cartera/cartera.html',label:'Cartera por cobrar',perm:'cob.cartera.read'},
       {href:'/modules/cob/cargar/cargar.html',label:'Cargar corte',perm:'cob.corte.cargar'},
       {href:'/modules/cob/acciones/acciones.html',label:'Tipos de acción',perm:'cob.acciones.manage'},
+      {href:'/modules/core/clientes/clientes.html',label:'Clientes',perm:'cob.clientes.write'},
       {href:'/modules/cob/config/config.html',label:'Configuración',perm:'cob.config.manage'},
     ]},
     {section:'Catálogos',items:[

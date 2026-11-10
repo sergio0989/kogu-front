@@ -15,9 +15,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentPage:        MODULE.currentPage,
     title:              MODULE.title,
     description:        MODULE.description,
-    requiredPermission: 'screen.catalogos.clientes'
+    // Facturación/CxC entra con cob.clientes.write (10-nov-2026): edita Cobranza y Contactos.
+    requiredPermission: ['screen.catalogos.clientes', 'cob.clientes.write']
   });
   if (!b) return;
+  const permisosFicha = b.permissions || b.permisos || [];
+  // Sin el permiso del catálogo: General en solo lectura, sin Nuevo ni Desactivar.
+  const soloCobranza = permisosFicha.includes('cob.clientes.write')
+    && !permisosFicha.some((p) => p === '*' || p === 'screen.catalogos.clientes');
 
   estilosFicha();
   const c = document.getElementById('pageContent');
@@ -75,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div class="clx-body">
       <input type="hidden" id="id" />
       <div id="tab-general" class="clx-pane">
+        <div id="clSoloLectura" class="clx-aviso" style="display:none">Datos generales en solo lectura: los cambia el administrador del catálogo. Tú puedes editar las pestañas Cobranza y Contactos.</div>
         <section class="clx-sec">
           <h4>Identificación</h4>
           <div class="clx-f"><div class="label-text">Nombre</div><input class="input" id="nombre" /></div>
@@ -249,6 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 .clx-count:empty{display:none}
 .clx-body{flex:1;overflow:auto;padding:20px 26px;background:var(--panel2)}
 .clx-pane{display:grid;gap:14px}
+.clx-aviso{padding:10px 14px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:13px}
 .clx-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
 .clx-sec{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:grid;gap:12px;align-content:start}
 .clx-sec h4{margin:0;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -348,7 +355,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ['general', 'cobranza', 'contactos'].forEach(x => { document.getElementById('tab-' + x).style.display = x === t ? '' : 'none'; });
     // Pie según pestaña: los contactos se guardan uno por uno.
     document.getElementById('saveBtn').style.display = t === 'contactos' ? 'none' : '';
-    document.getElementById('statusBtn').style.display = t === 'general' && document.getElementById('id').value ? '' : 'none';
+    document.getElementById('statusBtn').style.display = !soloCobranza && t === 'general' && document.getElementById('id').value ? '' : 'none';
     document.getElementById('clFootHint').textContent = {
       general: 'Datos de identificación del cliente.',
       cobranza: 'Guardar aplica General y Cobranza juntos.',
@@ -609,6 +616,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Guardar ───────────────────────────────────────────────────────────────
   document.getElementById('saveBtn').onclick = async () => {
     try {
+      if (soloCobranza) {
+        // El backend rechaza (403) cualquier campo fuera de la pestaña Cobranza.
+        const id = document.getElementById('id').value;
+        const cuerpo = CB.cuerpoCobranza(original, leerCobranza());
+        if (!id) return;
+        if (!cuerpo) { KoguApi.toast('No hay cambios que guardar.', 'info'); return; }
+        const res = await KoguApi.apiFetch(MODULE.basePath + '/' + id, { method: 'PUT', body: JSON.stringify(cuerpo) });
+        KoguApi.toast(MODULE.singular + ' actualizado', 'success');
+        const filaC = res && (res.data || res);
+        if (filaC && filaC.cliente_id) fill(filaC);
+        await load(false);
+        return;
+      }
       const payload = MODULE.buildPayload({
         nombre:  val('nombre'),
         rfc:     val('rfc'),
@@ -656,6 +676,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Eventos ───────────────────────────────────────────────────────────────
   document.getElementById('refreshBtn').onclick      = () => load(false);
   document.getElementById('newBtn').onclick          = () => { reset(); activarTab('general'); abrirModal(); };
+  // Perfil de cobranza (cob.clientes.write sin catálogo): no crea clientes ni toca
+  // los datos generales; el backend también lo impide.
+  if (soloCobranza) {
+    document.getElementById('newBtn').style.display = 'none';
+    ['nombre', 'rfc', 'cveCte', 'activo'].forEach((id) => { document.getElementById(id).disabled = true; });
+    document.getElementById('clSoloLectura').style.display = '';
+  }
   document.getElementById('clCerrar').onclick        = cerrarModal;
   document.getElementById('clCerrarPie').onclick     = cerrarModal;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModal(); });
