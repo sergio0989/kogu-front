@@ -99,3 +99,29 @@ test('lote visible: sin el acento ni el apostrofo de Excel al inicio', () => {
   assert.equal(C.loteVisible(null), '—');
   assert.equal(C.loteVisible('  '), '—');
 });
+
+// IVA (decision 10-nov-2026): la fuente es el catalogo de IVA por clave.
+// Fixture real (servicio + PostgreSQL): r3 catalogo, r4 pactado, r6 IVA de la
+// compra por confirmar, r1/r2 WWP1226 importacion sin propuesta.
+test('IVA: aviso "Confirmar IVA con contabilidad" en ambar', () => {
+  assert.deepEqual(C.etiquetasAvisos(['iva_por_confirmar']), ['Confirmar IVA con contabilidad']);
+  assert.equal(C.esAvisoRevisar('iva_por_confirmar'), true);
+});
+
+test('IVA: la tasa se muestra con su origen', () => {
+  const p = Object.fromEntries(P931.map((x) => [x.renglon, x]));
+  assert.equal(C.ivaConOrigen(p[3]), '16% · catálogo');
+  assert.equal(C.ivaConOrigen(p[4]), '16% · pactado');
+  assert.equal(C.ivaConOrigen(p[6]), '16% · compra, por confirmar');
+  assert.equal(C.ivaConOrigen(p[1]), 'Por confirmar');
+  assert.equal(C.ivaConOrigen({ ...p[6], iva_origen: 'manual' }), '16% · confirmado');
+  assert.equal(C.ivaConOrigen(p[8]), '—');            // pendiente de lote, sin precio
+  assert.equal(C.ivaPorConfirmarSn(p[6]), true);
+  assert.equal(C.ivaPorConfirmarSn(p[3]), false);
+});
+
+test('IVA: para aprobar, los renglones con precio y sin IVA confirmado son 1, 2 y 6', () => {
+  assert.deepEqual(C.ivaPorConfirmar(P931), [1, 2, 6]);
+  const ok = P931.map((x) => ({ ...x, iva_final: x.iva_final ?? 0.16, iva_origen: 'catalogo' }));
+  assert.deepEqual(C.ivaPorConfirmar(ok), []);
+});

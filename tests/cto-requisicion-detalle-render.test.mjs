@@ -48,7 +48,12 @@ async function arranca({ det = DET, perms = TODOS, id = RID } = {}) {
       if (u.startsWith(`${base}/partidas/`)) {
         const p = actual.partidas.find((x) => u.endsWith(x.partida_id));
         const b = JSON.parse(o.body);
-        Object.assign(p, { precio_final: b.precio_final, es_manual: true, motivo_manual: b.motivo });
+        Object.assign(p, { precio_final: b.precio_final, es_manual: b.precio_final !== p.precio_sugerido,
+          motivo_manual: b.motivo ?? null });
+        if (b.iva_final !== undefined) {
+          Object.assign(p, { iva_final: b.iva_final, iva_origen: 'manual',
+            banderas: (p.banderas || []).filter((x) => x !== 'iva_por_confirmar') });
+        }
         return { ok: true, data: p };
       }
       throw new Error('ruta no esperada ' + u);
@@ -127,6 +132,7 @@ test('aprobar con lotes pendientes: no manda nada y dice que renglones faltan', 
 test('aprobar completa: manda POST aprobar y la pantalla queda cerrada (sin editar ni calcular)', async () => {
   const det = clon(DET);
   for (const x of det.partidas) if (x.precio_final == null) Object.assign(x, { regla: 'exacta', precio_final: 10, moneda: 'MXN' });
+  for (const x of det.partidas) Object.assign(x, { iva_final: x.iva_final ?? 0.16, iva_origen: 'catalogo' });
   const p = await arranca({ det });
   p.$('#btnAprobar').click(); await p.espera();
   assert.ok(p.ultimo(/\/aprobar$/));
@@ -224,4 +230,45 @@ test('tabla: no hereda el ancho fijo de columnas de .table-wrap (se encimaban)',
   const p = await arranca();
   const css = p.window.document.getElementById('estiloReq').textContent;
   assert.match(css, /\.table-wrap table\.req-tabla\{[^}]*table-layout:auto/);
+});
+
+// IVA (decision 10-nov-2026): fixture real — r3 catalogo, r6 compra por
+// confirmar, r1/r2 WWP1226 importacion sin IVA propuesto.
+test('IVA: la columna dice de donde sale y el aviso pide confirmarlo con contabilidad', async () => {
+  const p = await arranca();
+  assert.match(p.texto(p.fila(3)), /16% · catálogo/);
+  assert.match(p.texto(p.fila(6)), /16% · compra, por confirmar/);
+  assert.match(p.texto(p.fila(1)), /Por confirmar/);
+  const av = [...p.fila(6).querySelectorAll('.req-aviso')].find((x) => /Confirmar IVA con contabilidad/.test(x.textContent));
+  assert.ok(av, 'fila 6 trae el aviso');
+  assert.ok(av.classList.contains('revisar'));
+  assert.ok(p.fila(6).querySelector('.req-iva-pendiente'), 'la celda de IVA por confirmar se resalta');
+  assert.equal(p.fila(3).querySelector('.req-iva-pendiente'), null);
+});
+
+test('IVA: con todos los precios pero IVA por confirmar no se aprueba y dice que renglones', async () => {
+  const det = clon(DET);
+  for (const x of det.partidas) if (x.precio_final == null) Object.assign(x, { regla: 'exacta', precio_final: 10, moneda: 'MXN', iva_final: 0.16, iva_origen: 'catalogo' });
+  const p = await arranca({ det });
+  p.$('#btnAprobar').click(); await p.espera();
+  assert.equal(p.ultimo(/\/aprobar$/), undefined);
+  const m = p.texto(p.$('#reqMsg'));
+  assert.match(m, /IVA/);
+  assert.match(m, /1, 2, 6/);
+  assert.match(m, /contabilidad/i);
+});
+
+test('IVA: el editor avisa que guardar el IVA lo confirma; cambiar solo el IVA no pide motivo', async () => {
+  const p = await arranca();
+  const r1 = DET.partidas.find((x) => x.renglon === 1);
+  p.fila(1).querySelector('.btn-editar').click(); await p.espera();
+  assert.match(p.texto(p.$('.req-editor')), /queda confirmado/i);
+  assert.equal(p.$('#edIva').value, '');
+  p.$('#edIva').value = '16';
+  p.$('#edGuardar').click(); await p.espera();
+  const r = p.ultimo(/\/partidas\//);
+  assert.ok(r, 'manda el PATCH');
+  assert.deepEqual(r.body, { precio_final: r1.precio_final, iva_final: 0.16 });
+  await p.espera();
+  assert.match(p.texto(p.fila(1)), /16% · confirmado/);
 });
