@@ -36,13 +36,16 @@
     lote_req_sin_costo: 'el lote pedido entró con costo 0',
     lote_solo_produccion: 'el lote pedido solo existe como producción',
     moneda_desconocida: 'moneda desconocida',
+    iva_por_confirmar: 'Confirmar IVA con contabilidad',
+    // Avisos de antes del 10-nov-2026 (partidas sin recalcular).
     iva_difiere: 'IVA compra ≠ venta',
     sin_iva_venta: 'sin IVA de venta',
     requiere_manual: 'requiere precio manual',
     precio_editado: 'precio editado',
   };
   // Avisos que piden revisar (se pintan en ambar); el resto es informativo.
-  const AVISOS_REVISAR = new Set(['costo_antiguo', 'lote_costos_distintos', 'iva_difiere', 'requiere_manual', 'moneda_desconocida']);
+  const AVISOS_REVISAR = new Set(['costo_antiguo', 'lote_costos_distintos', 'iva_difiere', 'requiere_manual', 'moneda_desconocida',
+    'iva_por_confirmar']);
   const STATUS = { recibida: 'Recibida', calculada: 'Calculada', aprobada: 'Aprobada', enviada: 'Enviada', cancelada: 'Cancelada' };
   const STATUS_BADGE = { recibida: 'neutral', calculada: 'primary', aprobada: 'success', enviada: 'success', cancelada: 'danger' };
   const PASOS = ['recibida', 'calculada', 'aprobada', 'enviada'];
@@ -73,6 +76,23 @@
   const faltanParaAprobar = (partidas) => (partidas || [])
     .filter((p) => p.regla !== 'sin_cantidad' && p.precio_final == null)
     .map((p) => p.renglon);
+
+  // IVA (decision 10-nov-2026): solo cuenta el del catalogo de IVA por clave,
+  // el del precio pactado o el confirmado a mano. El de la compra es una
+  // propuesta; importacion o sin dato queda vacio. Mismo criterio que aprobar
+  // en el backend (CTO_REQ_IVA_POR_CONFIRMAR).
+  const IVA_OK = ['pactado', 'catalogo', 'manual'];
+  const ORIGEN_IVA = { pactado: 'pactado', catalogo: 'catálogo', manual: 'confirmado', compra: 'compra, por confirmar' };
+  const conPrecio = (p) => p && p.precio_final != null;
+  const ivaPorConfirmarSn = (p) => conPrecio(p) && (p.iva_final == null || !IVA_OK.includes(p.iva_origen));
+  const ivaPorConfirmar = (partidas) => (partidas || []).filter(ivaPorConfirmarSn).map((p) => p.renglon);
+  function ivaConOrigen(p) {
+    if (!p) return '—';
+    if (!conPrecio(p)) return p.iva_final == null ? '—' : fmtIva(p.iva_final);
+    if (p.iva_final == null) return 'Por confirmar';
+    const o = ORIGEN_IVA[p.iva_origen];
+    return o ? `${fmtIva(p.iva_final)} · ${o}` : `${fmtIva(p.iva_final)} · por confirmar`;
+  }
 
   function numDelArchivo(nombre) {
     const m = String(nombre || '').match(/REQUISICI[OÓ]N[\s_-]*(\d+)/i);
@@ -146,7 +166,7 @@
 
   return {
     TIPOS, AVISOS, PASOS, etiquetaTipo, ayudaTipo, etiquetasAvisos, esAvisoRevisar, etiquetaStatus, badgeStatus, abierta,
-    resumen, faltanParaAprobar, numDelArchivo, numDelTitulo, contarPartidas, validarEdicion, ivaDeTexto,
+    resumen, faltanParaAprobar, ivaPorConfirmar, ivaPorConfirmarSn, ivaConOrigen, numDelArchivo, numDelTitulo, contarPartidas, validarEdicion, ivaDeTexto,
     fmtPrecio, fmtIva, fmtFecha, entrada, num, loteVisible,
   };
 });

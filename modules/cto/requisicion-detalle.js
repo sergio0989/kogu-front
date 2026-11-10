@@ -53,6 +53,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       .req-chip.sin_coincidencia{background:#ffd7d7;color:#9c0006}.req-chip.pendiente_lote,.req-chip.sin_cantidad{background:#e7e9ee;color:#475569}
       .req-aviso{display:inline-block;font-size:11px;padding:1px 6px;margin:1px 3px 1px 0;border-radius:6px;background:#f1f5f9;color:#475569}
       .req-aviso.revisar{background:#fff4ce;color:#7a5b00}
+      .req-iva-pendiente{display:inline-block;padding:1px 6px;border-radius:6px;background:#fff4ce;color:#7a5b00;font-weight:600}
+      .req-nota{font-size:12px;margin-top:6px}
       .req-final.manual{color:#9c0006;font-weight:700}
       .req-editor td{background:#f8fafc}
       .req-editor .input{max-width:140px}
@@ -174,7 +176,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td class="num">${esc(R.fmtPrecio(p.costo_unit, p.moneda))}</td>
       <td class="num">${esc(R.fmtPrecio(p.precio_sugerido, p.moneda))}</td>
       <td class="num"><span class="req-final ${p.es_manual ? 'manual' : ''}">${esc(R.fmtPrecio(p.precio_final, p.moneda))}</span></td>
-      <td class="num">${esc(R.fmtIva(p.iva_final))}</td>
+      <td class="num">${R.ivaPorConfirmarSn(p)
+        ? `<span class="req-iva-pendiente" title="Confirmar IVA con contabilidad">${esc(R.ivaConOrigen(p))}</span>`
+        : esc(R.ivaConOrigen(p))}</td>
       <td class="wrap">${avisos || '<span class="muted">—</span>'}</td>
       <td class="wrap">${esc(p.motivo_manual || '')}</td>
       <td>${editable ? `<button class="btn ghost btn-editar" data-pid="${esc(p.partida_id)}" style="padding:3px 10px">Editar</button>` : ''}</td>
@@ -201,6 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn primary" id="edGuardar">Guardar</button>
         <button class="btn ghost" id="edCancelar">Cancelar</button>
       </div>
+      <div class="muted req-nota">Al guardar, el IVA capturado queda confirmado (ya no pide confirmarlo con contabilidad). Si solo cambias el IVA no hace falta motivo.</div>
       <div id="edMsg" class="req-msg"></div>
     </td>`;
     tr.after(ed);
@@ -222,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await KoguApi.apiFetch(`${BASE}/${encodeURIComponent(id)}/partidas/${encodeURIComponent(p.partida_id)}`,
         { method: 'PATCH', body: JSON.stringify(body) });
-      KoguApi.toast(`Precio de ${p.cve_prod} guardado.`, 'success');
+      KoguApi.toast(`${p.cve_prod}: ${iva !== undefined ? 'precio e IVA guardados' : 'precio guardado'}.`, 'success');
       await cargar();
     } catch (e) { $('edMsg').textContent = e.message || 'No se pudo guardar.'; }
   }
@@ -270,6 +275,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const faltan = R.faltanParaAprobar(D.partidas);
       if (faltan.length) {
         msg(`No se puede aprobar: faltan precio los renglones ${faltan.join(', ')} (lote pendiente de almacén o sin coincidencia en el kardex).`);
+        return;
+      }
+      const ivaPend = R.ivaPorConfirmar(D.partidas);
+      if (ivaPend.length) {
+        msg(`No se puede aprobar: falta confirmar el IVA con contabilidad en los renglones ${ivaPend.join(', ')}. Captúralo en Editar para confirmarlo.`);
         return;
       }
       ev.target.disabled = true; msg('');
