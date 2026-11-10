@@ -114,6 +114,7 @@
       {href:'/modules/cto/productos-b.html',label:'Productos B (producidos)',perm:'screen.costo'},
       {href:'/modules/cto/produccion-teorico.html',label:'🏭 Teórico vs real',perm:'screen.costo'},
       {href:'/modules/cto/produccion-vendido.html',label:'📦 Resultado de lo vendido',perm:'screen.costo'},
+      {href:'/modules/cto/produccion-kpis.html',label:'📊 KPIs de producción',perm:'screen.costo'},
     ]},
     {section:'Costo · Exportación',items:[
       {href:'/modules/cto/exportacion-analisis.html',label:'🌎 Análisis',perm:'screen.costo'},

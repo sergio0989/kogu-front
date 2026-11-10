@@ -54,6 +54,8 @@ const ANTES = {
   '/modules/cto/productos-b.html': "'screen.costo'",
   '/modules/cto/produccion-teorico.html': "'screen.costo'",
   '/modules/cto/produccion-vendido.html': "'screen.costo'",
+  // 2026-11-10: pantalla nueva, KPIs de producción (no venía de la sección "Costo").
+  '/modules/cto/produccion-kpis.html': "'screen.costo'",
   '/modules/cto/requisiciones.html': "'screen.cto.requisiciones'",
   '/modules/cto/precios-pactados.html': "'screen.cto.requisiciones'",
   '/modules/cto/cierre.html': "'screen.costo'",
@@ -62,7 +64,7 @@ const ANTES = {
 const SUBSECCIONES = {
   'Costo · Dirección': ['direccion-ventas', 'dashboard-bruta', 'dashboard-operacion', 'segmentos', 'reporte-ejecutivo', 'eficiencia-comercial'],
   'Costo · Costo de ventas': ['resumen', 'bandeja', 'factura', 'rentabilidad', 'factores-abc', 'compras-usd'],
-  'Costo · Producción e inventario': ['inventario', 'productos-b', 'produccion-teorico', 'produccion-vendido'],
+  'Costo · Producción e inventario': ['inventario', 'productos-b', 'produccion-teorico', 'produccion-vendido', 'produccion-kpis'],
   'Costo · Exportación': ['exportacion-analisis', 'costo-export-cliente', 'integraciones-export'],
   'Costo · Requisiciones': ['requisiciones', 'precios-pactados'],
   'Costo · Captura y cierre': ['cargas', 'captura-abc', 'captura-gastos-venta', 'segmentos-catalogo', 'cierre'],
