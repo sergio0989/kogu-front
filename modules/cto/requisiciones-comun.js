@@ -146,6 +146,11 @@
 
   const fmtNum = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const fmtPrecio = (v, moneda) => (v == null ? '—' : `${fmtNum.format(Number(v))} ${moneda || ''}`.trim());
+  // Importes de factura: siempre 2 decimales, con su moneda.
+  const fmtMoney = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtImporte = (v, moneda) => (v == null ? '—' : `${fmtMoney.format(Number(v))} ${moneda || ''}`.trim());
+  const MOTIVO_PENDIENTE = { sin_precio: 'sin precio', iva_por_confirmar: 'IVA por confirmar' };
+  const motivoPendiente = (m) => MOTIVO_PENDIENTE[m] || m || '';
   const fmtIva = (t) => (t == null ? '—' : `${Math.round(Number(t) * 100)}%`);
   function fmtFecha(v) {
     const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -167,6 +172,6 @@
   return {
     TIPOS, AVISOS, PASOS, etiquetaTipo, ayudaTipo, etiquetasAvisos, esAvisoRevisar, etiquetaStatus, badgeStatus, abierta,
     resumen, faltanParaAprobar, ivaPorConfirmar, ivaPorConfirmarSn, ivaConOrigen, numDelArchivo, numDelTitulo, contarPartidas, validarEdicion, ivaDeTexto,
-    fmtPrecio, fmtIva, fmtFecha, entrada, num, loteVisible,
+    fmtPrecio, fmtIva, fmtImporte, motivoPendiente, fmtFecha, entrada, num, loteVisible,
   };
 });

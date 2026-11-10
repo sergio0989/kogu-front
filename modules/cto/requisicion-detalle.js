@@ -55,6 +55,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       .req-aviso.revisar{background:#fff4ce;color:#7a5b00}
       .req-iva-pendiente{display:inline-block;padding:1px 6px;border-radius:6px;background:#fff4ce;color:#7a5b00;font-weight:600}
       .req-nota{font-size:12px;margin-top:6px}
+      #reqFacturacion:empty{display:none}
+      .req-fac-resumen{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 4px}
+      .req-fac-chip{border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;min-width:190px;background:#f8fafc}
+      .req-fac-chip b{display:block;font-size:13px}
+      .req-fac-chip .tot{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+      .req-fac-grupo{margin-top:10px}
+      .req-fac-grupo summary{cursor:pointer;font-weight:600;padding:4px 0}
+      .req-fac-grupo table{font-size:12.5px;font-variant-numeric:tabular-nums}
+      .req-fac-fuera{margin-top:10px;padding:8px 12px;border-radius:10px;background:#fff4ce;color:#7a5b00;font-size:13px}
       .req-final.manual{color:#9c0006;font-weight:700}
       .req-editor td{background:#f8fafc}
       .req-editor .input{max-width:140px}
@@ -92,7 +101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     <tbody id="reqTabla"></tbody>
   </table></div>
   <div class="muted" style="font-size:12px;margin-top:8px">Precio sugerido = costo de la entrada × (1 + margen). El precio pactado no lleva margen. En rojo: precio editado a mano.</div>
-</div>`;
+</div>
+<div class="card" style="margin-top:14px" id="reqFacturacion"></div>`;
 
   const msg = (t) => { $('reqMsg').textContent = t || ''; };
 
@@ -157,7 +167,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('reqAcciones').innerHTML = acc.join('');
 
     $('reqTabla').innerHTML = ps.map((p) => fila(p, abierta)).join('');
+    $('reqFacturacion').innerHTML = facturacion(D.facturacion);
     enlazar();
+  }
+
+  // Para facturar: un CFDI lleva una sola moneda; el backend agrupa por
+  // moneda-IVA (misma agrupacion que la hoja "Facturación" del Excel).
+  function facturacion(f) {
+    if (!f || !Array.isArray(f.grupos) || (!f.grupos.length && !(f.pendientes || []).length)) return '';
+    const ivaTxt = (g) => `${g.moneda} · IVA ${R.fmtIva(g.iva)}`;
+    const resumen = f.grupos.map((g) => `<div class="req-fac-chip">
+        <b>${esc(ivaTxt(g))}</b>
+        <div class="muted" style="font-size:12px">${g.n} partida${g.n === 1 ? '' : 's'} · subtotal ${esc(R.fmtImporte(g.subtotal, g.moneda))} · IVA ${esc(R.fmtImporte(g.iva_importe, g.moneda))}</div>
+        <div class="tot">${esc(R.fmtImporte(g.total, g.moneda))}</div>
+      </div>`).join('');
+    const grupos = f.grupos.map((g) => `<details class="req-fac-grupo" data-grupo="${esc(`${g.moneda}|${g.iva}`)}">
+        <summary>${esc(ivaTxt(g))} — ${g.n} partida${g.n === 1 ? '' : 's'}, total ${esc(R.fmtImporte(g.total, g.moneda))}</summary>
+        <div class="table-wrap"><table class="req-tabla">
+          <thead><tr><th>#</th><th>Código</th><th>Lote</th><th>Cantidad</th><th>Precio</th><th>Importe</th><th>IVA</th></tr></thead>
+          <tbody>${g.partidas.map((p) => `<tr data-renglon="${p.renglon}">
+            <td class="num">${p.renglon}</td><td><b>${esc(p.cve_prod)}</b></td><td>${esc(R.loteVisible(p.lote))}</td>
+            <td class="num">${esc(`${Number(p.cantidad).toLocaleString('es-MX')} ${p.um || ''}`)}</td>
+            <td class="num">${esc(R.fmtPrecio(p.precio, g.moneda))}</td>
+            <td class="num">${esc(R.fmtImporte(p.importe, g.moneda))}</td>
+            <td class="num">${esc(R.fmtImporte(p.iva_importe, g.moneda))}</td></tr>`).join('')}
+          </tbody>
+          <tfoot><tr><td colspan="5" style="text-align:right"><b>Subtotal · IVA · Total</b></td>
+            <td class="num">${esc(R.fmtImporte(g.subtotal, g.moneda))}</td>
+            <td class="num">${esc(R.fmtImporte(g.iva_importe, g.moneda))}</td></tr>
+            <tr><td colspan="6" style="text-align:right"><b>Total ${esc(g.moneda)}</b></td>
+            <td class="num"><b>${esc(R.fmtImporte(g.total, g.moneda))}</b></td></tr></tfoot>
+        </table></div>
+      </details>`).join('');
+    const porMotivo = {};
+    for (const p of f.pendientes || []) (porMotivo[p.motivo] = porMotivo[p.motivo] || []).push(p.renglon);
+    const fuera = Object.keys(porMotivo).length
+      ? `<div class="req-fac-fuera">⚠ Fuera de la factura: ${Object.entries(porMotivo)
+        .map(([m, rs]) => `renglones ${rs.join(', ')} (${esc(R.motivoPendiente(m))})`).join('; ')}.</div>` : '';
+    return `<div class="eyebrow" style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#64748b">Para facturar</div>
+      <div class="muted" style="font-size:12px">Partidas agrupadas por moneda e IVA. Una factura lleva una sola moneda; dentro de ella, cada tasa de IVA con su subtotal.</div>
+      <div class="req-fac-resumen">${resumen}</div>${grupos}${fuera}`;
   }
 
   function fila(p, abierta) {
