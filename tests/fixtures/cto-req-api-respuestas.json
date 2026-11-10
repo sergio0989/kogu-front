@@ -1,8 +1,8 @@
 {
  "detalle_931_calculada": {
   "requisicion": {
-   "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
-   "id_mov": "8",
+   "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
+   "id_mov": "6",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "num_requisicion": "931",
    "num_archivo": "931",
@@ -14,7 +14,7 @@
    "meses_antiguedad": 12,
    "var_lote_pct": 0.2,
    "kardex_hasta": "2026-11-04",
-   "calculada_at": "2026-11-10T18:12:08.423Z",
+   "calculada_at": "2026-11-10T18:39:08.797Z",
    "calculada_by": "11111111-1111-1111-1111-111111111111",
    "aprobada_at": null,
    "aprobada_by": null,
@@ -22,17 +22,17 @@
    "archivo_nombre": "REQUISICION 931.xlsx",
    "observaciones": null,
    "avisos": [],
-   "created_at": "2026-11-10T18:12:08.388Z",
-   "updated_at": "2026-11-10T18:12:08.423Z",
+   "created_at": "2026-11-10T18:39:08.750Z",
+   "updated_at": "2026-11-10T18:39:08.798Z",
    "created_by": "11111111-1111-1111-1111-111111111111",
    "updated_by": "11111111-1111-1111-1111-111111111111"
   },
   "partidas": [
    {
-    "partida_id": "653b50d0-c118-44c8-ba3f-645d6aa2898e",
-    "id_mov": "32",
+    "partida_id": "7ff12bd4-3e0c-428a-bbc8-858d40f6b5ae",
+    "id_mov": "21",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 1,
     "cve_prod": "WWP1226",
     "producto_id": null,
@@ -42,7 +42,7 @@
     "um": "KG",
     "regla": "ultima_compra",
     "cve_prod_match": "WWP1226",
-    "movimiento_id": "b993166e-1355-4e8e-beee-32afe29af021",
+    "movimiento_id": "74f4ed03-0471-459a-a75f-ca28e42de56b",
     "mov_snapshot": {
      "lote": "25129510",
      "f_mov": "2025-12-30",
@@ -57,7 +57,7 @@
      "cve_prov": "33",
      "costo_ent": 998.453304,
      "lote_norm": "25129510",
-     "movimiento_id": "b993166e-1355-4e8e-beee-32afe29af021",
+     "movimiento_id": "74f4ed03-0471-459a-a75f-ca28e42de56b",
      "tiene_pedimento": true
     },
     "costo_unit": 55.6155,
@@ -77,15 +77,15 @@
     "iva_origen": null,
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "dd8f9a86-2c45-4ad3-aa3c-700c234ee29c",
-    "id_mov": "33",
+    "partida_id": "b8d108df-a9e2-4ee8-882b-7c12dce4d08d",
+    "id_mov": "22",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 2,
     "cve_prod": "WWP1226",
     "producto_id": null,
@@ -95,7 +95,7 @@
     "um": "KG",
     "regla": "ultima_compra",
     "cve_prod_match": "WWP1226",
-    "movimiento_id": "b993166e-1355-4e8e-beee-32afe29af021",
+    "movimiento_id": "74f4ed03-0471-459a-a75f-ca28e42de56b",
     "mov_snapshot": {
      "lote": "25129510",
      "f_mov": "2025-12-30",
@@ -110,7 +110,7 @@
      "cve_prov": "33",
      "costo_ent": 998.453304,
      "lote_norm": "25129510",
-     "movimiento_id": "b993166e-1355-4e8e-beee-32afe29af021",
+     "movimiento_id": "74f4ed03-0471-459a-a75f-ca28e42de56b",
      "tiene_pedimento": true
     },
     "costo_unit": 55.6155,
@@ -130,15 +130,15 @@
     "iva_origen": null,
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "91f4b4c7-92f9-4fcc-b618-409b5a30282f",
-    "id_mov": "34",
+    "partida_id": "1ef8256e-98c3-4ce2-9d74-16d5cc68d366",
+    "id_mov": "23",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 3,
     "cve_prod": "WWP1109",
     "producto_id": null,
@@ -148,7 +148,7 @@
     "um": "KG",
     "regla": "variante",
     "cve_prod_match": "WWP1109-MQ",
-    "movimiento_id": "00f43c3d-b44a-4e3a-918b-082af7034d36",
+    "movimiento_id": "40352ea5-c62e-48dd-a4fd-830cfd21f19f",
     "mov_snapshot": {
      "lote": "055.01.25",
      "f_mov": "2026-10-27",
@@ -163,7 +163,7 @@
      "cve_prov": "17053",
      "costo_ent": 183.86995,
      "lote_norm": "055.01.25",
-     "movimiento_id": "00f43c3d-b44a-4e3a-918b-082af7034d36",
+     "movimiento_id": "40352ea5-c62e-48dd-a4fd-830cfd21f19f",
      "tiene_pedimento": false
     },
     "costo_unit": 9.85,
@@ -181,15 +181,15 @@
     "iva_origen": "catalogo",
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "2a9ae8af-7b4f-4a7e-8930-e99aa1db1272",
-    "id_mov": "35",
+    "partida_id": "e4e659f3-a286-469d-9ea9-ea1cc2a7b931",
+    "id_mov": "24",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 4,
     "cve_prod": "EMP0004-K",
     "producto_id": null,
@@ -214,15 +214,15 @@
     "iva_origen": "pactado",
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "606a55e5-c926-4197-81eb-1350de5897eb",
-    "id_mov": "36",
+    "partida_id": "fe84d5a7-c39b-4317-9c5b-252bab8ccbe7",
+    "id_mov": "25",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 5,
     "cve_prod": "WWP1231-ST",
     "producto_id": null,
@@ -259,7 +259,7 @@
       "cve_prov": "12704",
       "costo_ent": 191.5,
       "lote_norm": "PT-7826",
-      "movimiento_id": "2069db64-cd5f-42e6-b2e8-7af39c02c6c4",
+      "movimiento_id": "e1862318-69e7-4a0d-9c62-db87ad015504",
       "tiene_pedimento": false
      }
     },
@@ -268,15 +268,15 @@
     "iva_origen": "catalogo",
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "b08c5160-7814-4de7-b619-29862daf6c4f",
-    "id_mov": "37",
+    "partida_id": "719eaca8-83bf-43b0-b62f-5b8011a24fcc",
+    "id_mov": "26",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 6,
     "cve_prod": "WWP0685",
     "producto_id": null,
@@ -286,7 +286,7 @@
     "um": "KG",
     "regla": "variante",
     "cve_prod_match": "WWP0685-MQ",
-    "movimiento_id": "0c9e0351-6c9e-407c-a36f-0bb84e6d7628",
+    "movimiento_id": "66f35c45-eab1-4d04-afbb-c11176d8fc7d",
     "mov_snapshot": {
      "lote": "2406101025",
      "f_mov": "2024-10-29",
@@ -301,7 +301,7 @@
      "cve_prov": "10533",
      "costo_ent": 1207.788942,
      "lote_norm": "2406101025",
-     "movimiento_id": "0c9e0351-6c9e-407c-a36f-0bb84e6d7628",
+     "movimiento_id": "66f35c45-eab1-4d04-afbb-c11176d8fc7d",
      "tiene_pedimento": false
     },
     "costo_unit": 60.59,
@@ -321,15 +321,15 @@
     "iva_origen": "compra",
     "es_manual": true,
     "motivo_manual": "Acordado con Co-Pack",
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.434Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.815Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "0f4facc5-0f0a-4014-aca8-2ee520ea2117",
-    "id_mov": "38",
+    "partida_id": "b3664f6b-6ec4-4ee8-bcd5-7b7b3e12129f",
+    "id_mov": "27",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 7,
     "cve_prod": "WWP0809",
     "producto_id": null,
@@ -339,7 +339,7 @@
     "um": "KG",
     "regla": "variante",
     "cve_prod_match": "WWP0809-MQ",
-    "movimiento_id": "cfe92c12-bc3e-42f8-8776-3bb7b53f63a4",
+    "movimiento_id": "fb1b443a-7e12-4894-91d1-705f8235a68a",
     "mov_snapshot": {
      "lote": "52H.12239",
      "f_mov": "2023-09-13",
@@ -354,7 +354,7 @@
      "cve_prov": "10537",
      "costo_ent": 955.9715,
      "lote_norm": "52H.12239",
-     "movimiento_id": "cfe92c12-bc3e-42f8-8776-3bb7b53f63a4",
+     "movimiento_id": "fb1b443a-7e12-4894-91d1-705f8235a68a",
      "tiene_pedimento": false
     },
     "costo_unit": 55,
@@ -373,15 +373,15 @@
     "iva_origen": "catalogo",
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "2ebd910e-9a1e-4f00-b0e4-5a991e418286",
-    "id_mov": "39",
+    "partida_id": "ca524ebc-a64d-436b-a3c8-86d3af05d8d3",
+    "id_mov": "28",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
     "renglon": 8,
     "cve_prod": "EMP0005-E",
     "producto_id": null,
@@ -418,7 +418,7 @@
       "cve_prov": "13222",
       "costo_ent": 10.98,
       "lote_norm": "14806292",
-      "movimiento_id": "261c2f6a-2bc0-41e6-969d-ecffad4ad398",
+      "movimiento_id": "49500ec8-9017-4c49-b32f-7766afe2413f",
       "tiene_pedimento": false
      }
     },
@@ -427,11 +427,92 @@
     "iva_origen": null,
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    }
-  ]
+  ],
+  "facturacion": {
+   "grupos": [
+    {
+     "moneda": "MXN",
+     "iva": 0.16,
+     "partidas": [
+      {
+       "renglon": 4,
+       "cve_prod": "EMP0004-K",
+       "lote": "DP0526-156",
+       "cantidad": 1343,
+       "um": "pieza",
+       "precio": 6.5,
+       "importe": 8729.5,
+       "iva_importe": 1396.72
+      }
+     ],
+     "n": 1,
+     "subtotal": 8729.5,
+     "iva_importe": 1396.72,
+     "total": 10126.22
+    },
+    {
+     "moneda": "USD",
+     "iva": 0.16,
+     "partidas": [
+      {
+       "renglon": 3,
+       "cve_prod": "WWP1109",
+       "lote": "055.01.25",
+       "cantidad": 20,
+       "um": "KG",
+       "precio": 11.3275,
+       "importe": 226.55,
+       "iva_importe": 36.25
+      },
+      {
+       "renglon": 7,
+       "cve_prod": "WWP0809",
+       "lote": "52H.12239",
+       "cantidad": 5,
+       "um": "KG",
+       "precio": 63.25,
+       "importe": 316.25,
+       "iva_importe": 50.6
+      }
+     ],
+     "n": 2,
+     "subtotal": 542.8,
+     "iva_importe": 86.85,
+     "total": 629.65
+    }
+   ],
+   "pendientes": [
+    {
+     "renglon": 1,
+     "cve_prod": "WWP1226",
+     "motivo": "iva_por_confirmar"
+    },
+    {
+     "renglon": 2,
+     "cve_prod": "WWP1226",
+     "motivo": "iva_por_confirmar"
+    },
+    {
+     "renglon": 5,
+     "cve_prod": "WWP1231-ST",
+     "motivo": "sin_precio"
+    },
+    {
+     "renglon": 6,
+     "cve_prod": "WWP0685",
+     "motivo": "iva_por_confirmar"
+    },
+    {
+     "renglon": 8,
+     "cve_prod": "EMP0005-E",
+     "motivo": "sin_precio"
+    }
+   ]
+  }
  },
  "calcular_931": {
   "resumen": {
@@ -449,8 +530,8 @@
  },
  "detalle_932_recibida": {
   "requisicion": {
-   "requisicion_id": "364a5876-2236-41ac-ba72-cc27f923b16b",
-   "id_mov": "9",
+   "requisicion_id": "6c4d7eeb-a586-4efe-a5f4-37abfcdf7619",
+   "id_mov": "7",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "num_requisicion": "932",
    "num_archivo": "931",
@@ -475,17 +556,17 @@
      "message": "El archivo dice REQUISICION 931 y se declaró 932. Se usa 932."
     }
    ],
-   "created_at": "2026-11-10T18:12:08.438Z",
-   "updated_at": "2026-11-10T18:12:08.438Z",
+   "created_at": "2026-11-10T18:39:08.820Z",
+   "updated_at": "2026-11-10T18:39:08.820Z",
    "created_by": "11111111-1111-1111-1111-111111111111",
    "updated_by": "11111111-1111-1111-1111-111111111111"
   },
   "partidas": [
    {
-    "partida_id": "2044b72e-8b25-421c-a234-b1d85ddd0de8",
-    "id_mov": "40",
+    "partida_id": "0aefd6ee-1228-497c-bfc8-59415465884a",
+    "id_mov": "29",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "364a5876-2236-41ac-ba72-cc27f923b16b",
+    "requisicion_id": "6c4d7eeb-a586-4efe-a5f4-37abfcdf7619",
     "renglon": 1,
     "cve_prod": "WWP1231-ST",
     "producto_id": null,
@@ -510,15 +591,15 @@
     "iva_origen": null,
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.438Z",
-    "updated_at": "2026-11-10T18:12:08.438Z",
+    "created_at": "2026-11-10T18:39:08.820Z",
+    "updated_at": "2026-11-10T18:39:08.820Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "69cd1b66-308c-4250-8a79-2fb58a4b2842",
-    "id_mov": "41",
+    "partida_id": "ba2b9918-e161-4674-a985-931ca16886e4",
+    "id_mov": "30",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "364a5876-2236-41ac-ba72-cc27f923b16b",
+    "requisicion_id": "6c4d7eeb-a586-4efe-a5f4-37abfcdf7619",
     "renglon": 2,
     "cve_prod": "WWP0685",
     "producto_id": null,
@@ -543,15 +624,15 @@
     "iva_origen": null,
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.438Z",
-    "updated_at": "2026-11-10T18:12:08.438Z",
+    "created_at": "2026-11-10T18:39:08.820Z",
+    "updated_at": "2026-11-10T18:39:08.820Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    },
    {
-    "partida_id": "477232d8-a304-41bf-8108-95298b79fb3b",
-    "id_mov": "42",
+    "partida_id": "b2aadd5d-0266-4bc9-800c-42beefb0e882",
+    "id_mov": "31",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
-    "requisicion_id": "364a5876-2236-41ac-ba72-cc27f923b16b",
+    "requisicion_id": "6c4d7eeb-a586-4efe-a5f4-37abfcdf7619",
     "renglon": 3,
     "cve_prod": "WWP0809",
     "producto_id": null,
@@ -576,16 +657,36 @@
     "iva_origen": null,
     "es_manual": false,
     "motivo_manual": null,
-    "created_at": "2026-11-10T18:12:08.438Z",
-    "updated_at": "2026-11-10T18:12:08.438Z",
+    "created_at": "2026-11-10T18:39:08.820Z",
+    "updated_at": "2026-11-10T18:39:08.820Z",
     "updated_by": "11111111-1111-1111-1111-111111111111"
    }
-  ]
+  ],
+  "facturacion": {
+   "grupos": [],
+   "pendientes": [
+    {
+     "renglon": 1,
+     "cve_prod": "WWP1231-ST",
+     "motivo": "sin_precio"
+    },
+    {
+     "renglon": 2,
+     "cve_prod": "WWP0685",
+     "motivo": "sin_precio"
+    },
+    {
+     "renglon": 3,
+     "cve_prod": "WWP0809",
+     "motivo": "sin_precio"
+    }
+   ]
+  }
  },
  "alta_932": {
   "requisicion": {
-   "requisicion_id": "364a5876-2236-41ac-ba72-cc27f923b16b",
-   "id_mov": "9",
+   "requisicion_id": "6c4d7eeb-a586-4efe-a5f4-37abfcdf7619",
+   "id_mov": "7",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "num_requisicion": "932",
    "num_archivo": "931",
@@ -610,8 +711,8 @@
      "message": "El archivo dice REQUISICION 931 y se declaró 932. Se usa 932."
     }
    ],
-   "created_at": "2026-11-10T18:12:08.438Z",
-   "updated_at": "2026-11-10T18:12:08.438Z",
+   "created_at": "2026-11-10T18:39:08.820Z",
+   "updated_at": "2026-11-10T18:39:08.820Z",
    "created_by": "11111111-1111-1111-1111-111111111111",
    "updated_by": "11111111-1111-1111-1111-111111111111"
   },
@@ -626,8 +727,8 @@
  "listar": {
   "rows": [
    {
-    "requisicion_id": "364a5876-2236-41ac-ba72-cc27f923b16b",
-    "id_mov": "9",
+    "requisicion_id": "6c4d7eeb-a586-4efe-a5f4-37abfcdf7619",
+    "id_mov": "7",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
     "num_requisicion": "932",
     "num_archivo": "931",
@@ -652,8 +753,8 @@
       "message": "El archivo dice REQUISICION 931 y se declaró 932. Se usa 932."
      }
     ],
-    "created_at": "2026-11-10T18:12:08.438Z",
-    "updated_at": "2026-11-10T18:12:08.438Z",
+    "created_at": "2026-11-10T18:39:08.820Z",
+    "updated_at": "2026-11-10T18:39:08.820Z",
     "created_by": "11111111-1111-1111-1111-111111111111",
     "updated_by": "11111111-1111-1111-1111-111111111111",
     "n_partidas": 3,
@@ -661,8 +762,8 @@
     "n_con_banderas": 0
    },
    {
-    "requisicion_id": "c600def7-08ab-4456-9d28-90e6867135fe",
-    "id_mov": "8",
+    "requisicion_id": "f69d6250-1f9d-4f7e-b6b4-1ac13101dcdf",
+    "id_mov": "6",
     "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
     "num_requisicion": "931",
     "num_archivo": "931",
@@ -674,7 +775,7 @@
     "meses_antiguedad": 12,
     "var_lote_pct": 0.2,
     "kardex_hasta": "2026-11-04",
-    "calculada_at": "2026-11-10T18:12:08.423Z",
+    "calculada_at": "2026-11-10T18:39:08.797Z",
     "calculada_by": "11111111-1111-1111-1111-111111111111",
     "aprobada_at": null,
     "aprobada_by": null,
@@ -682,8 +783,8 @@
     "archivo_nombre": "REQUISICION 931.xlsx",
     "observaciones": null,
     "avisos": [],
-    "created_at": "2026-11-10T18:12:08.388Z",
-    "updated_at": "2026-11-10T18:12:08.423Z",
+    "created_at": "2026-11-10T18:39:08.750Z",
+    "updated_at": "2026-11-10T18:39:08.798Z",
     "created_by": "11111111-1111-1111-1111-111111111111",
     "updated_by": "11111111-1111-1111-1111-111111111111",
     "n_partidas": 8,
@@ -695,7 +796,7 @@
  },
  "pactados": [
   {
-   "pactado_id": "1afd03eb-bf31-40ce-ac66-cadb04c59ad2",
+   "pactado_id": "928528a2-afc5-4f38-b121-22234047522c",
    "id_mov": "8",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "cve_prod": "EMP0004-K",
@@ -707,13 +808,13 @@
    "vigente_hasta": null,
    "notas": "Precio pactado con cliente X",
    "activo": true,
-   "created_at": "2026-11-10T18:10:58.658Z",
-   "updated_at": "2026-11-10T18:10:58.658Z",
+   "created_at": "2026-11-10T18:39:08.597Z",
+   "updated_at": "2026-11-10T18:39:08.597Z",
    "created_by": "11111111-1111-1111-1111-111111111111",
    "updated_by": "11111111-1111-1111-1111-111111111111"
   },
   {
-   "pactado_id": "453bfdc7-f224-4e40-98ad-8f4b37ac7151",
+   "pactado_id": "bdce5b5e-c17f-4e24-adbf-a14295fc99e0",
    "id_mov": "5",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "cve_prod": "EMP0004-K",
@@ -725,13 +826,13 @@
    "vigente_hasta": null,
    "notas": "Precio pactado con cliente X",
    "activo": false,
-   "created_at": "2026-11-10T18:10:58.646Z",
-   "updated_at": "2026-11-10T18:10:58.655Z",
+   "created_at": "2026-11-10T18:39:08.583Z",
+   "updated_at": "2026-11-10T18:39:08.594Z",
    "created_by": "11111111-1111-1111-1111-111111111111",
    "updated_by": "11111111-1111-1111-1111-111111111111"
   },
   {
-   "pactado_id": "5bd9c6e2-b756-4620-a515-0050f65de775",
+   "pactado_id": "45061709-d278-4814-9303-837e12823269",
    "id_mov": "1",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "cve_prod": "WWP0164",
@@ -743,13 +844,13 @@
    "vigente_hasta": null,
    "notas": null,
    "activo": true,
-   "created_at": "2026-11-10T18:10:58.521Z",
-   "updated_at": "2026-11-10T18:10:58.521Z",
+   "created_at": "2026-11-10T18:39:08.416Z",
+   "updated_at": "2026-11-10T18:39:08.416Z",
    "created_by": null,
    "updated_by": null
   },
   {
-   "pactado_id": "3fffe6a3-6d67-4498-92ee-192cb62850f0",
+   "pactado_id": "19744537-33ea-44ed-81fc-bcfab87e4b9f",
    "id_mov": "2",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "cve_prod": "WWP0164-6-G",
@@ -761,13 +862,13 @@
    "vigente_hasta": "2025-12-31",
    "notas": null,
    "activo": true,
-   "created_at": "2026-11-10T18:10:58.521Z",
-   "updated_at": "2026-11-10T18:10:58.521Z",
+   "created_at": "2026-11-10T18:39:08.416Z",
+   "updated_at": "2026-11-10T18:39:08.416Z",
    "created_by": null,
    "updated_by": null
   },
   {
-   "pactado_id": "f8b966eb-7996-4704-b134-2418b16a7b10",
+   "pactado_id": "ac56dd60-c74d-443b-9e6e-8631248ef479",
    "id_mov": "3",
    "empresa_id": "09f2835c-00bf-406b-a7be-c6d096e21d7d",
    "cve_prod": "WWP0164-MQ",
@@ -779,8 +880,8 @@
    "vigente_hasta": null,
    "notas": null,
    "activo": false,
-   "created_at": "2026-11-10T18:10:58.521Z",
-   "updated_at": "2026-11-10T18:10:58.521Z",
+   "created_at": "2026-11-10T18:39:08.416Z",
+   "updated_at": "2026-11-10T18:39:08.416Z",
    "created_by": null,
    "updated_by": null
   }

@@ -272,3 +272,33 @@ test('IVA: el editor avisa que guardar el IVA lo confirma; cambiar solo el IVA n
   await p.espera();
   assert.match(p.texto(p.fila(1)), /16% · confirmado/);
 });
+
+// Facturacion (10-nov-2026): partidas agrupadas por moneda-IVA. Fixture real
+// (servicio + PostgreSQL): MXN 16% = EMP0004-K pactado 1,343 x 6.50;
+// USD 16% = renglones 3 y 7; fuera: 1, 2, 6 (IVA) y 5, 8 (sin precio).
+test('facturacion: resumen por moneda-IVA, detalle de cada grupo y lo que queda fuera', async () => {
+  const p = await arranca();
+  const sec = p.$('#reqFacturacion');
+  assert.ok(sec, 'seccion Para facturar');
+  const t = p.texto(sec);
+  for (const s of ['Para facturar', 'MXN · IVA 16%', '8,729.50 MXN', '1,396.72 MXN', '10,126.22 MXN',
+    'USD · IVA 16%', '629.65 USD']) {
+    assert.ok(t.includes(s), `debe mostrar "${s}" — ${t}`);
+  }
+  const grupos = sec.querySelectorAll('[data-grupo]');
+  assert.equal(grupos.length, 2);
+  const usd = [...grupos].find((g) => g.dataset.grupo === 'USD|0.16');
+  assert.deepEqual([...usd.querySelectorAll('tr[data-renglon]')].map((r) => Number(r.dataset.renglon)), [3, 7]);
+  assert.match(t, /Fuera de la factura/);
+  assert.match(t, /1, 2, 6.*IVA por confirmar|IVA por confirmar.*1, 2, 6/);
+  assert.match(t, /5, 8.*sin precio|sin precio.*5, 8/);
+});
+
+test('facturacion: si el backend aun no la manda, la seccion no aparece', async () => {
+  const det = clon(DET);
+  delete det.facturacion;
+  const p = await arranca({ det });
+  const sec = p.$('#reqFacturacion');
+  assert.ok(!sec || sec.textContent.trim() === '');
+  assert.equal(p.window.document.querySelectorAll('#reqTabla tr[data-renglon]').length, 8);
+});

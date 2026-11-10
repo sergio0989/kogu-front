@@ -125,3 +125,12 @@ test('IVA: para aprobar, los renglones con precio y sin IVA confirmado son 1, 2 
   const ok = P931.map((x) => ({ ...x, iva_final: x.iva_final ?? 0.16, iva_origen: 'catalogo' }));
   assert.deepEqual(C.ivaPorConfirmar(ok), []);
 });
+
+// Facturacion (10-nov-2026): el backend manda `facturacion` (grupos por
+// moneda-IVA); el front solo da formato.
+test('facturacion: importes con su moneda y motivo de lo que queda fuera', () => {
+  assert.equal(C.fmtImporte(8729.5, 'MXN'), '8,729.50 MXN');
+  assert.equal(C.fmtImporte(0, 'USD'), '0.00 USD');
+  assert.equal(C.motivoPendiente('sin_precio'), 'sin precio');
+  assert.equal(C.motivoPendiente('iva_por_confirmar'), 'IVA por confirmar');
+});
