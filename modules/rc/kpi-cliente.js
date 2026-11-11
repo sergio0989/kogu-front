@@ -1,5 +1,5 @@
 // ============================================================
-// kpi-cliente.js — Radar Comercial · KPI Ventas Cliente (solo lectura).
+// kpi-cliente.js — Radar Comercial · KPI Ventas Producto (solo lectura; ruta kpi-cliente).
 // Concentración de la venta y salud de cada cuenta para los productos que se
 // elijan: venta, cantidad en unidad de venta / presentación / kg, precio,
 // frecuencia, recencia, detalle por mes y por producto, y señales.
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const b = await KoguShell.initShell({
     currentPage: PAGE,
-    title: 'KPI Ventas Cliente',
+    title: 'KPI Ventas Producto',
     description: 'Concentración de la venta y salud de cada cuenta por producto.',
     requiredPermission: PERM,
   });
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   c.innerHTML = `
 <div class="card">
   <div class="row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
-    <div style="flex:1 1 300px"><div class="eyebrow">Radar comercial · Ventas</div><h2 style="margin:0">KPI Ventas Cliente</h2>
+    <div style="flex:1 1 300px"><div class="eyebrow">Radar comercial · Ventas</div><h2 style="margin:0">KPI Ventas Producto</h2>
       <div class="muted" style="font-size:12px">Facturas de venta del ERP de los productos elegidos. Cliente y agente del catálogo KOGU. Venta sin IVA, neta de notas de crédito.</div></div>
     <div><label class="muted" style="font-size:12px;display:block" for="anio">Año</label><input id="anio" type="number" class="input" style="width:100px"/></div>
     <div><label class="muted" style="font-size:12px;display:block" for="mesIni">Mes inicial</label><select id="mesIni" class="select" style="min-width:110px"></select></div>
