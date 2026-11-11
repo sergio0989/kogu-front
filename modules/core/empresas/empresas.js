@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
                 <th>Status</th>
                 <th>Activo</th>
                 <th>Descarga CFDI</th>
+                <th>Alertas CFDI</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -108,6 +109,17 @@ document.addEventListener('DOMContentLoaded', async()=>{
                   <option value="false">No</option>
                 </select>
               </div>
+            </div>
+
+            <div class="grid-2">
+              <div>
+                <div class="label-text">Alertas CFDI</div>
+                <select class="select" id="cfdi_alertas_activas" title="No: no se crean tareas ni se mandan correos de alertas CFDI (p. ej. IVA exento) para esta empresa. Los CFDI se descargan y procesan igual.">
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
+                </select>
+              </div>
+              <div></div>
             </div>
 
             <div>
@@ -263,6 +275,10 @@ document.addEventListener('DOMContentLoaded', async()=>{
     return cfdiCorreos.map(c=>String(c||'').trim().toLowerCase()).filter((c,i,a)=>c&&a.indexOf(c)===i);
   }
   function vistaCfdiCorreos(){
+    if(document.getElementById('cfdi_alertas_activas').value==='false'){
+      document.getElementById('cfdiCorreosVista').innerHTML='<span class="muted">Alertas CFDI apagadas: no se crean tareas ni se mandan correos para esta empresa.</span>';
+      return;
+    }
     const c=cfdiCorreosLimpios();
     document.getElementById('cfdiCorreosVista').innerHTML=c.length
       ?`<strong>Las alertas CFDI llegan a:</strong> ${KoguUi.escapeHtml(c.join(', '))}`
@@ -288,6 +304,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
     document.getElementById('status').value='activa';
     document.getElementById('activo').value='true';
     document.getElementById('cfdi_descarga_auto').value='true';
+    document.getElementById('cfdi_alertas_activas').value='true';
     setCfdiCorreos([]);
     document.getElementById('formTitle').textContent='Formulario de empresa';
     document.getElementById('modeChip').textContent='Alta';
@@ -305,6 +322,8 @@ document.addEventListener('DOMContentLoaded', async()=>{
     document.getElementById('activo').value=String(!!row.activo);
     // Sin el campo (backend previo) se asume encendida, igual que el DEFAULT.
     document.getElementById('cfdi_descarga_auto').value=String(row.cfdi_descarga_auto!==false);
+    // Sin el campo (backend previo) se asumen encendidas, igual que el DEFAULT.
+    document.getElementById('cfdi_alertas_activas').value=String(row.cfdi_alertas_activas!==false);
     setCfdiCorreos(row.cfdi_correos_alertas);
     document.getElementById('formTitle').textContent='Editar empresa';
     document.getElementById('modeChip').textContent='Edición';
@@ -338,6 +357,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
         <td>${KoguUi.statusBadge(r.status||'-')}</td>
         <td>${KoguUi.statusBadge(r.activo?'Sí':'No')}</td>
         <td>${KoguUi.statusBadge(r.cfdi_descarga_auto===false?'No':'Sí')}</td>
+        <td>${KoguUi.statusBadge(r.cfdi_alertas_activas===false?'No':'Sí')}</td>
         <td>
           <div class="actions-cell">
             <button class="btn btn-edit" data-id="${r.empresa_id}">Editar</button>
@@ -346,7 +366,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
           </div>
         </td>
       </tr>
-    `).join(''):`<tr><td colspan="8" class="empty">Sin resultados</td></tr>`;
+    `).join(''):`<tr><td colspan="9" class="empty">Sin resultados</td></tr>`;
 
     document.querySelectorAll('.btn-edit').forEach(x=>x.onclick=()=>{
       const row=rows.find(r=>String(r.empresa_id)===x.dataset.id);
@@ -513,6 +533,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
     ins[ins.length-1].focus();
   });
 
+  document.getElementById('cfdi_alertas_activas').addEventListener('change',vistaCfdiCorreos);
   pintarCfdiCorreos(); // alta: renglón vacío y vista previa desde que abre la pantalla
 
   document.getElementById('saveBtn').onclick=async()=>{
@@ -535,7 +556,8 @@ document.addEventListener('DOMContentLoaded', async()=>{
         status:document.getElementById('status').value,
         activo:document.getElementById('activo').value==='true',
         cfdi_descarga_auto:document.getElementById('cfdi_descarga_auto').value==='true',
-        cfdi_correos_alertas:correosAlertas
+        cfdi_correos_alertas:correosAlertas,
+        cfdi_alertas_activas:document.getElementById('cfdi_alertas_activas').value==='true'
       };
       if(!payload.clave_empresa||!payload.nombre_corto||!payload.razon_social||!payload.rfc){
         throw new Error('Completa clave, nombre corto, razón social y RFC.');
