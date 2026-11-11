@@ -59,6 +59,7 @@
       {href:'/modules/rc/tablero.html',label:'Tablero (Dirección)',perm:'screen.ventas.tablero'},
       {href:'/modules/rc/facturas.html',label:'Bandeja de facturas',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/kpi-cliente.html',label:'KPI Ventas Producto',perm:'screen.ventas.direccion'},
+      {href:'/modules/rc/kpi-ficha-cliente.html',label:'KPI Ventas Cliente',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/bandeja.html',label:'Bandeja de Riesgo',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/nuevas-ventas.html',label:'Ventas nuevas',perm:'screen.ventas.direccion'},
       {href:'/modules/rc/revision.html',label:'Revisión de cartera',perm:'screen.ventas.vendedor'},
