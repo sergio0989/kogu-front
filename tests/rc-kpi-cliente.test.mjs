@@ -54,3 +54,23 @@ test('señales: recencia por días sin comprar (≤30 nada, >30 media, >60 alta)
   assert.equal(nivel(39), 'media');
   assert.equal(nivel(61), 'alta');
 });
+
+// ── Selector de productos (lo vendido en el periodo) ──
+const PRODS = [
+  { cve_prod: 'GPT0030', descripcion: 'Sopa instantanea fideo con saz. tomate', venta_neta: 730608 },
+  { cve_prod: 'GPT0031', descripcion: 'Sopa instantanea letra con saz. tomate', venta_neta: 651960.48 },
+  { cve_prod: 'GPT0032', descripcion: 'Sopa instantanea municion con saz tomate', venta_neta: 565738.56 },
+];
+
+test('filtrarProductos: busca por clave o descripción, sin importar mayúsculas ni acentos', () => {
+  assert.deepEqual(K.filtrarProductos(PRODS, 'gpt0031').map((x) => x.cve_prod), ['GPT0031']);
+  assert.deepEqual(K.filtrarProductos(PRODS, 'MUNICIÓN').map((x) => x.cve_prod), ['GPT0032']);
+  assert.deepEqual(K.filtrarProductos(PRODS, 'sopa tomate').map((x) => x.cve_prod), ['GPT0030', 'GPT0031', 'GPT0032'], 'todas las palabras');
+  assert.equal(K.filtrarProductos(PRODS, '').length, 3);
+});
+
+test('seleccionInicial: conserva lo guardado que sí se vendió en el periodo; si no queda nada, ninguno', () => {
+  assert.deepEqual(K.seleccionInicial(PRODS, ['GPT0031', 'WWP1330']), ['GPT0031']);
+  assert.deepEqual(K.seleccionInicial(PRODS, ['WWP1330']), []);
+  assert.deepEqual(K.seleccionInicial(PRODS, null), []);
+});

@@ -10,6 +10,9 @@
  *     demanda        últimos 3 meses con compra < −15% vs los 3 previos (alta);
  *                    solo con 6 meses o más con compra
  *     recencia       días sin comprar: > 30 media, > 60 alta
+ *   filtrarProductos(lista, texto) → por clave o descripción; todas las palabras,
+ *     sin importar mayúsculas ni acentos
+ *   seleccionInicial(lista, guardada) → lo guardado que sí se vendió en el periodo
  */
 (function (root) {
   const UMBRAL_CONCENTRACION = 0.5;
@@ -62,7 +65,18 @@
     return out;
   }
 
-  const api = { mesesConHuecos, cambiosPrecio, senales, UMBRAL_CONCENTRACION, UMBRAL_DEMANDA, RECENCIA_MEDIA, RECENCIA_ALTA };
+  const norm = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  function filtrarProductos(lista, texto) {
+    const palabras = norm(texto).split(/\s+/).filter(Boolean);
+    if (!palabras.length) return (lista || []).slice();
+    return (lista || []).filter((p) => { const h = norm(p.cve_prod + ' ' + (p.descripcion || '')); return palabras.every((w) => h.includes(w)); });
+  }
+  function seleccionInicial(lista, guardada) {
+    const hay = new Set((lista || []).map((p) => p.cve_prod));
+    return (Array.isArray(guardada) ? guardada : []).filter((k) => hay.has(k));
+  }
+
+  const api = { mesesConHuecos, cambiosPrecio, senales, filtrarProductos, seleccionInicial, UMBRAL_CONCENTRACION, UMBRAL_DEMANDA, RECENCIA_MEDIA, RECENCIA_ALTA };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.KoguKpiCliente = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -4,9 +4,10 @@
 // elijan: venta, cantidad en unidad de venta / presentación / kg, precio,
 // frecuencia, recencia, detalle por mes y por producto, y señales.
 // Endpoint: GET /protected/rc/kpi-cliente (screen.ventas.direccion)
+// Endpoints: GET /protected/rc/kpi-cliente/productos (selector: lo vendido en el periodo)
+//            GET /protected/rc/kpi-cliente (KPIs de los productos elegidos)
 // Reglas puras en kpi-cliente-calc.js (tests/rc-kpi-cliente.test.mjs).
-// La contribución MP va oculta por defecto; se conecta con los KPIs de
-// producción (Costo) cuando estén en main.
+// Radar comercial es solo ventas: sin costos.
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -38,8 +39,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const plural = (u) => { const x = minus(u); return !x ? '' : /[aeiou]$/.test(x) ? x + 's' : x === 'kg' ? x : x + 'es'; };
 
   const hoy = new Date();
-  let seleccion = new Set(), D = null, P = null, activo = null, medida = 'cantidad', verMp = false;
-  try { (JSON.parse(localStorage.getItem(LS) || '[]') || []).forEach(k => seleccion.add(k)); } catch (_) { /* sin almacenamiento */ }
+  let seleccion = new Set(), productos = [], filtro = '', D = null, P = null, activo = null, medida = 'cantidad';
+  const leeGuardada = () => { try { return JSON.parse(localStorage.getItem(LS) || '[]'); } catch (_) { return []; } };
   const guardaSel = () => { try { localStorage.setItem(LS, JSON.stringify([...seleccion])); } catch (_) { /* sin almacenamiento */ } };
 
   if (!document.getElementById('estiloKpiCte')) {
@@ -73,6 +74,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       .tabla-kc tbody tr.cte.sel td{background:#ecfeff}
       .tabla-kc tbody tr.cte:hover td{background:#f8fafc}
       .kc-precio{display:grid;grid-template-columns:48px 1fr 80px 78px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
+      .kc-sel{border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden}
+      .kc-sel .barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;background:var(--panel2);border-bottom:1px solid var(--line)}
+      .kc-sel .lista{max-height:280px;overflow:auto}
+      .kc-sel label.it{display:grid;grid-template-columns:22px 92px minmax(0,1fr) 110px 64px 70px;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer;font-variant-numeric:tabular-nums}
+      .kc-sel label.it:hover{background:#f8fafc}
+      .kc-sel label.it.on{background:#ecfeff}
+      .kc-sel label.it .num{text-align:right}
+      .kc-sel label.it .desc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      @media (max-width:640px){.kc-sel label.it{grid-template-columns:22px 80px minmax(0,1fr) 90px}.kc-sel label.it .opc{display:none}}
       .kc-senal{padding:12px 14px;border-radius:10px;display:flex;flex-direction:column;gap:6px;font-size:13px}
       .kc-senal.alta{background:#fff7ed;border:1px solid #fed7aa}
       .kc-senal.media{background:var(--panel2);border:1px solid var(--line)}`;
@@ -87,14 +97,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><label class="muted" style="font-size:12px;display:block" for="anio">Año</label><input id="anio" type="number" class="input" style="width:100px"/></div>
     <div><label class="muted" style="font-size:12px;display:block" for="mesIni">Mes inicial</label><select id="mesIni" class="select" style="min-width:110px"></select></div>
     <div><label class="muted" style="font-size:12px;display:block" for="mesFin">Mes final</label><select id="mesFin" class="select" style="min-width:110px"></select></div>
-    <button class="btn ghost" id="btnMp" aria-pressed="false">Mostrar contribución MP</button>
     <button class="btn primary" id="btnAnalizar">Analizar</button>
   </div>
   <div style="margin-top:14px">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700">Productos</div>
-    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
-      <div id="productos" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-      <input id="ptExtra" class="input" placeholder="Clave (Enter)…" aria-label="Agregar clave de producto" style="width:150px;text-transform:uppercase;padding:4px 8px;font-size:12px" title="Una o varias claves separadas por coma"/>
+    <div class="row" style="justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+      <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700">Productos vendidos en el periodo</div>
+      <span id="selCuenta" class="muted" style="font-size:12px"></span>
+    </div>
+    <div class="kc-sel">
+      <div class="barra">
+        <input id="buscaProd" class="input" type="search" placeholder="Buscar por clave o descripción…" aria-label="Buscar producto" style="flex:1 1 220px;padding:6px 10px;font-size:13px"/>
+        <button class="btn ghost" id="selTodos" type="button" style="padding:6px 12px;font-size:12px">Todos los visibles</button>
+        <button class="btn ghost" id="selNinguno" type="button" style="padding:6px 12px;font-size:12px">Ninguno</button>
+      </div>
+      <div class="lista" id="productos" role="group" aria-label="Productos"></div>
     </div>
   </div>
 </div>
@@ -105,12 +121,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('anio').value = hoy.getFullYear(); $('mesIni').value = 1; $('mesFin').value = hoy.getMonth() + 1;
   const periodo = () => ({ anio: parseInt($('anio').value, 10), mes_ini: parseInt($('mesIni').value, 10), mes_fin: parseInt($('mesFin').value, 10) });
 
-  function pintaProductos() {
-    $('productos').innerHTML = seleccion.size ? [...seleccion].map(k =>
-      `<button class="btn primary" data-pt="${esc(k)}" aria-label="Quitar ${esc(k)}" style="padding:4px 10px;font-size:12px">${esc(k)} ✕</button>`).join('')
-      : '<span class="muted" style="font-size:12px">Escribe una o varias claves (p. ej. GPT0030, GPT0031, GPT0032).</span>';
-    $('productos').querySelectorAll('[data-pt]').forEach(btn => btn.addEventListener('click', () => { seleccion.delete(btn.dataset.pt); guardaSel(); pintaProductos(); }));
+  async function cargarProductos() {
+    const p = periodo();
+    if (p.mes_ini > p.mes_fin) return KoguApi.toast('El mes inicial no puede ser mayor que el final.', 'error');
+    $('productos').innerHTML = '<div class="muted" style="padding:12px;font-size:12.5px">Cargando productos…</div>';
+    try {
+      const r = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/kpi-cliente/productos?${new URLSearchParams(p)}`));
+      productos = (r && r.productos) || [];
+      const previa = seleccion.size ? [...seleccion] : leeGuardada();
+      seleccion = new Set(K.seleccionInicial(productos, previa));
+      pintaProductos();
+      if (seleccion.size) analizar();
+      else limpiar(productos.length ? 'Marca uno o varios productos y pulsa Analizar.' : 'No hay ventas en el periodo.');
+    } catch (e) { productos = []; pintaProductos(); limpiar(e.message || 'No se pudieron cargar los productos.'); KoguApi.toast(e.message, 'error'); }
   }
+
+  function pintaProductos() {
+    const vis = K.filtrarProductos(productos, filtro);
+    $('productos').innerHTML = vis.length ? vis.map(x => {
+      const on = seleccion.has(x.cve_prod);
+      return `<label class="it ${on ? 'on' : ''}"><input type="checkbox" data-pt="${esc(x.cve_prod)}" ${on ? 'checked' : ''}/>
+        <b>${esc(x.cve_prod)}</b><span class="desc" title="${esc(x.descripcion || '')}">${esc(x.descripcion || '—')}</span>
+        <span class="num">${money(x.venta_neta, 0)}</span><span class="num opc">${pct(x.participacion)}</span>
+        <span class="num opc muted">${x.clientes} ${x.clientes === 1 ? 'cliente' : 'clientes'}</span></label>`;
+    }).join('') : `<div class="muted" style="padding:12px;font-size:12.5px">${productos.length ? 'Ningún producto coincide con la búsqueda.' : 'Sin productos vendidos en el periodo.'}</div>`;
+    $('productos').querySelectorAll('[data-pt]').forEach(cb => cb.addEventListener('change', () => {
+      if (cb.checked) seleccion.add(cb.dataset.pt); else seleccion.delete(cb.dataset.pt);
+      guardaSel(); pintaProductos();
+    }));
+    const tot = productos.filter(x => seleccion.has(x.cve_prod)).reduce((s, x) => s + (x.venta_neta || 0), 0);
+    $('selCuenta').textContent = `${seleccion.size} de ${productos.length} seleccionados${seleccion.size ? ' · ' + money(tot, 0) : ''}`;
+  }
+
   function limpiar(msg) { $('cuerpo').innerHTML = `<div class="card muted" style="padding:16px">${esc(msg)}</div>`; }
 
   async function analizar() {
@@ -164,11 +206,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td class="num" style="font-weight:700">${money(x.venta_neta, 0)}</td>
         <td><div style="display:flex;align-items:center;gap:8px"><div style="width:80px;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden"><div style="height:8px;width:${((x.participacion || 0) * 100).toFixed(1)}%;background:var(--primary)"></div></div>${pct(x.participacion)}</div></td>
         <td class="num">${n0(x.cantidad)}</td><td class="num">${money(x.precio_prom)}</td>
-        ${verMp ? '<td class="num muted">—</td>' : ''}
         <td class="num">${x.meses_compra}</td><td class="num">${badge}</td></tr>`;
     }).join('');
     return `<div class="card"><div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><h3 style="margin:0">Clientes del periodo</h3><span class="muted" style="font-size:12px">Por venta neta · clic para ver la ficha</span></div>
-      <div class="table-wrap" style="margin-top:10px"><table class="tabla-kc"><thead><tr><th>Cliente</th><th>Agente</th><th class="num">Venta neta</th><th>Participación</th><th class="num">Cantidad</th><th class="num">Precio prom.</th>${verMp ? '<th class="num">Contrib. MP</th>' : ''}<th class="num">Meses</th><th class="num">Última compra</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
+      <div class="table-wrap" style="margin-top:10px"><table class="tabla-kc"><thead><tr><th>Cliente</th><th>Agente</th><th class="num">Venta neta</th><th>Participación</th><th class="num">Cantidad</th><th class="num">Precio prom.</th><th class="num">Meses</th><th class="num">Última compra</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
   }
 
   function ficha(x) {
@@ -183,7 +224,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${tile('Venta neta', money(x.venta_neta, 0), `${x.facturas} facturas · ${x.notas} notas de crédito${x.nc ? ' (' + money(x.nc, 0) + ')' : ''}`)}
         ${tile('Volumen', `${n0(x.cantidad)} ${esc(plural(u))}`, [pres, x.kg != null ? `${n0(x.kg)} kg` : null].filter(Boolean).join(' · ') || 'sin equivalencias en el catálogo')}
         ${tile('Precio promedio', `${money(x.precio_prom)} / ${esc(u)}`, `${precioPres != null ? money(precioPres) + ' por ' + esc(minus(x.unidad_presentacion)) + ' · ' : ''}rango ${money(x.precio_min)} – ${money(x.precio_max)}`)}
-        ${verMp ? tile('Contribución MP', '—', 'se conecta con los KPIs de producción (Costo)') : ''}
         ${tile('Frecuencia', `${x.meses_compra} de ${P.mes_fin - P.mes_ini + 1} meses`, `${n0(x.cantidad_por_factura)} ${esc(plural(u))} por factura · ${money(x.ticket_prom, 0)} promedio`)}
         ${tile('Última compra', dias == null ? '—' : `hace ${n0(dias)} días`, esc(fecha(x.ultima)), '', 'oscuro')}
       </div></div>`;
@@ -212,9 +252,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function cardProductos(x) {
     const filas = x.por_producto.map(p => `<tr><td style="font-weight:700">${esc(p.cve_prod)}</td><td class="num">${n0(p.cantidad)}</td>
       <td><div style="display:flex;align-items:center;gap:8px"><div style="width:90px;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden"><div style="height:8px;width:${((p.mix || 0) * 100).toFixed(1)}%;background:var(--primary)"></div></div>${pct(p.mix)}</div></td>
-      <td class="num">${money(p.precio)}</td><td class="num">${money(p.venta_neta, 0)}</td>${verMp ? '<td class="num muted">—</td>' : ''}</tr>`).join('');
+      <td class="num">${money(p.precio)}</td><td class="num">${money(p.venta_neta, 0)}</td></tr>`).join('');
     return `<div class="card"><h3 style="margin:0">Qué productos lleva</h3>
-      <div class="table-wrap" style="margin-top:10px"><table class="tabla-kc"><thead><tr><th>Clave</th><th class="num">Cantidad</th><th>Mix</th><th class="num">Precio</th><th class="num">Venta neta</th>${verMp ? '<th class="num">Contrib. MP</th>' : ''}</tr></thead><tbody>${filas}</tbody></table></div></div>`;
+      <div class="table-wrap" style="margin-top:10px"><table class="tabla-kc"><thead><tr><th>Clave</th><th class="num">Cantidad</th><th>Mix</th><th class="num">Precio</th><th class="num">Venta neta</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
   }
 
   function cardPrecio(x) {
@@ -246,18 +286,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   $('btnAnalizar').addEventListener('click', analizar);
-  $('btnMp').addEventListener('click', () => {
-    verMp = !verMp;
-    $('btnMp').setAttribute('aria-pressed', String(verMp));
-    $('btnMp').textContent = verMp ? 'Ocultar contribución MP' : 'Mostrar contribución MP';
-    if (D) pinta();
-  });
-  $('ptExtra').addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    $('ptExtra').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).forEach(k => seleccion.add(k));
-    $('ptExtra').value = ''; guardaSel(); pintaProductos();
-  });
-  if (KoguShell.subscribeEmpresaActivaChange) KoguShell.subscribeEmpresaActivaChange(() => { D = null; activo = null; limpiar('Elige productos y analiza.'); });
-  pintaProductos();
-  if (seleccion.size) analizar(); else limpiar('Escribe las claves de producto y pulsa Analizar.');
+  ['anio', 'mesIni', 'mesFin'].forEach(id => $(id).addEventListener('change', cargarProductos));
+  $('buscaProd').addEventListener('input', () => { filtro = $('buscaProd').value; pintaProductos(); });
+  $('selTodos').addEventListener('click', () => { K.filtrarProductos(productos, filtro).forEach(x => seleccion.add(x.cve_prod)); guardaSel(); pintaProductos(); });
+  $('selNinguno').addEventListener('click', () => { seleccion.clear(); guardaSel(); pintaProductos(); });
+  if (KoguShell.subscribeEmpresaActivaChange) KoguShell.subscribeEmpresaActivaChange(() => { D = null; activo = null; seleccion = new Set(); cargarProductos(); });
+  cargarProductos();
 });
