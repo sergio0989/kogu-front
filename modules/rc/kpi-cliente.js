@@ -77,12 +77,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       .kc-sel{border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden}
       .kc-sel .barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;background:var(--panel2);border-bottom:1px solid var(--line)}
       .kc-sel .lista{max-height:280px;overflow:auto}
-      .kc-sel label.it{display:grid;grid-template-columns:22px 92px minmax(0,1fr) 110px 64px 70px;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer;font-variant-numeric:tabular-nums}
+      .kc-sel label.it{display:grid;grid-template-columns:22px 160px minmax(0,1fr) 120px 64px 70px;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer;font-variant-numeric:tabular-nums}
       .kc-sel label.it:hover{background:#f8fafc}
       .kc-sel label.it.on{background:#ecfeff}
       .kc-sel label.it .num{text-align:right}
-      .kc-sel label.it .desc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      @media (max-width:640px){.kc-sel label.it{grid-template-columns:22px 80px minmax(0,1fr) 90px}.kc-sel label.it .opc{display:none}}
+      .kc-sel label.it .desc,.kc-sel label.it .cve{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+      @media (max-width:640px){.kc-sel label.it{grid-template-columns:22px 120px minmax(0,1fr) 90px}.kc-sel label.it .opc{display:none}}
       .kc-senal{padding:12px 14px;border-radius:10px;display:flex;flex-direction:column;gap:6px;font-size:13px}
       .kc-senal.alta{background:#fff7ed;border:1px solid #fed7aa}
       .kc-senal.media{background:var(--panel2);border:1px solid var(--line)}`;
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('productos').innerHTML = vis.length ? vis.map(x => {
       const on = seleccion.has(x.cve_prod);
       return `<label class="it ${on ? 'on' : ''}"><input type="checkbox" data-pt="${esc(x.cve_prod)}" ${on ? 'checked' : ''}/>
-        <b>${esc(x.cve_prod)}</b><span class="desc" title="${esc(x.descripcion || '')}">${esc(x.descripcion || '—')}</span>
+        <b class="cve" title="${esc(x.cve_prod)}">${esc(x.cve_prod)}</b><span class="desc" title="${esc(x.descripcion || '')}">${esc(x.descripcion || '—')}</span>
         <span class="num">${money(x.venta_neta, 0)}</span><span class="num opc">${pct(x.participacion)}</span>
         <span class="num opc muted">${x.clientes} ${x.clientes === 1 ? 'cliente' : 'clientes'}</span></label>`;
     }).join('') : `<div class="muted" style="padding:12px;font-size:12.5px">${productos.length ? 'Ningún producto coincide con la búsqueda.' : 'Sin productos vendidos en el periodo.'}</div>`;
