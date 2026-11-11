@@ -13,6 +13,7 @@
  *   filtrarProductos(lista, texto) → por clave o descripción; todas las palabras,
  *     sin importar mayúsculas ni acentos
  *   seleccionInicial(lista, guardada) → lo guardado que sí se vendió en el periodo
+ *   resumenSeleccion(lista, seleccion) → { n, venta, claves (2 primeras por venta), mas }
  */
 (function (root) {
   const UMBRAL_CONCENTRACION = 0.5;
@@ -76,7 +77,14 @@
     return (Array.isArray(guardada) ? guardada : []).filter((k) => hay.has(k));
   }
 
-  const api = { mesesConHuecos, cambiosPrecio, senales, filtrarProductos, seleccionInicial, UMBRAL_CONCENTRACION, UMBRAL_DEMANDA, RECENCIA_MEDIA, RECENCIA_ALTA };
+  function resumenSeleccion(lista, seleccion) {
+    const sel = seleccion instanceof Set ? seleccion : new Set(seleccion || []);
+    const items = (lista || []).filter((p) => sel.has(p.cve_prod)).sort((a, b) => (b.venta_neta || 0) - (a.venta_neta || 0));
+    const claves = items.slice(0, 2).map((p) => p.cve_prod);
+    return { n: items.length, venta: items.reduce((t, p) => t + (Number(p.venta_neta) || 0), 0), claves, mas: Math.max(0, items.length - claves.length) };
+  }
+
+  const api = { mesesConHuecos, cambiosPrecio, senales, filtrarProductos, seleccionInicial, resumenSeleccion, UMBRAL_CONCENTRACION, UMBRAL_DEMANDA, RECENCIA_MEDIA, RECENCIA_ALTA };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.KoguKpiCliente = api;
 })(typeof window !== 'undefined' ? window : globalThis);

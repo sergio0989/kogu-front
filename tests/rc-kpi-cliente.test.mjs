@@ -74,3 +74,18 @@ test('seleccionInicial: conserva lo guardado que sí se vendió en el periodo; s
   assert.deepEqual(K.seleccionInicial(PRODS, ['WWP1330']), []);
   assert.deepEqual(K.seleccionInicial(PRODS, null), []);
 });
+
+// ── Selector en modal: el filtro de la pantalla muestra solo un resumen ──
+// Caso real (dev, 2026-11-10): Copack ene–oct tiene 66 productos vendidos; la
+// lista dentro de la pantalla ocupaba media vista. Ahora se elige en un modal y
+// arriba queda el resumen de lo elegido.
+test('resumenSeleccion: cuántos, venta y las primeras claves por venta', () => {
+  const r = K.resumenSeleccion(PRODS, new Set(['GPT0032', 'GPT0030', 'GPT0031']));
+  assert.equal(r.n, 3);
+  assert.ok(Math.abs(r.venta - (730608 + 651960.48 + 565738.56)) < 0.01);
+  assert.deepEqual(r.claves, ['GPT0030', 'GPT0031']);
+  assert.equal(r.mas, 1, 'una más que no se lista');
+  const vacio = K.resumenSeleccion(PRODS, new Set());
+  assert.equal(vacio.n, 0); assert.deepEqual(vacio.claves, []); assert.equal(vacio.mas, 0);
+  assert.equal(K.resumenSeleccion(PRODS, new Set(['WWP1330'])).n, 0, 'lo que no se vendió en el periodo no cuenta');
+});

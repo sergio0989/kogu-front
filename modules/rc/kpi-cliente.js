@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const plural = (u) => { const x = minus(u); return !x ? '' : /[aeiou]$/.test(x) ? x + 's' : x === 'kg' ? x : x + 'es'; };
 
   const hoy = new Date();
-  let seleccion = new Set(), productos = [], filtro = '', D = null, P = null, activo = null, medida = 'cantidad';
+  let seleccion = new Set(), borrador = new Set(), productos = [], filtro = '', D = null, P = null, activo = null, medida = 'cantidad';
   const leeGuardada = () => { try { return JSON.parse(localStorage.getItem(LS) || '[]'); } catch (_) { return []; } };
   const guardaSel = () => { try { localStorage.setItem(LS, JSON.stringify([...seleccion])); } catch (_) { /* sin almacenamiento */ } };
 
@@ -74,15 +74,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       .tabla-kc tbody tr.cte.sel td{background:#ecfeff}
       .tabla-kc tbody tr.cte:hover td{background:#f8fafc}
       .kc-precio{display:grid;grid-template-columns:48px 1fr 80px 78px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
-      .kc-sel{border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden}
-      .kc-sel .barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;background:var(--panel2);border-bottom:1px solid var(--line)}
-      .kc-sel .lista{max-height:280px;overflow:auto}
-      .kc-sel label.it{display:grid;grid-template-columns:22px 160px minmax(0,1fr) 120px 64px 70px;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer;font-variant-numeric:tabular-nums}
-      .kc-sel label.it:hover{background:#f8fafc}
-      .kc-sel label.it.on{background:#ecfeff}
-      .kc-sel label.it .num{text-align:right}
-      .kc-sel label.it .desc,.kc-sel label.it .cve{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-      @media (max-width:640px){.kc-sel label.it{grid-template-columns:22px 120px minmax(0,1fr) 90px}.kc-sel label.it .opc{display:none}}
+      .kc-elige{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+      .kc-elige .res{font-size:13px;color:var(--text);flex:1 1 260px;min-width:0}
+      dialog.kc-dlg{width:min(1100px,92vw);height:85vh;max-height:85vh;padding:0;border:0;border-radius:14px;box-shadow:0 24px 64px rgba(15,23,42,.35)}
+      dialog.kc-dlg::backdrop{background:rgba(15,23,42,.45)}
+      dialog.kc-dlg[open]{display:flex;flex-direction:column}
+      .kc-dlg header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+      .kc-dlg .barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 20px;background:var(--panel2);border-bottom:1px solid var(--line)}
+      .kc-dlg .lista{flex:1 1 auto;overflow:auto;min-height:0}
+      .kc-dlg .it,.kc-dlg .cab{display:grid;grid-template-columns:22px 170px minmax(0,1fr) 130px 70px 80px;gap:10px;align-items:center;padding:9px 20px;border-bottom:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
+      .kc-dlg .cab{position:sticky;top:0;background:#fff;z-index:1;font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;color:var(--muted)}
+      .kc-dlg label.it{cursor:pointer}
+      .kc-dlg label.it:hover{background:#f8fafc}
+      .kc-dlg label.it.on{background:#ecfeff}
+      .kc-dlg .num{text-align:right}
+      .kc-dlg .desc,.kc-dlg .cve{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+      .kc-dlg footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--line)}
+      @media (max-width:640px){dialog.kc-dlg{width:100vw;max-width:100vw;height:100vh;max-height:100vh;border-radius:0}
+        .kc-dlg .it,.kc-dlg .cab{grid-template-columns:22px 120px minmax(0,1fr) 96px;padding:9px 12px}.kc-dlg .opc{display:none}}
       .kc-senal{padding:12px 14px;border-radius:10px;display:flex;flex-direction:column;gap:6px;font-size:13px}
       .kc-senal.alta{background:#fff7ed;border:1px solid #fed7aa}
       .kc-senal.media{background:var(--panel2);border:1px solid var(--line)}`;
@@ -99,21 +108,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><label class="muted" style="font-size:12px;display:block" for="mesFin">Mes final</label><select id="mesFin" class="select" style="min-width:110px"></select></div>
     <button class="btn primary" id="btnAnalizar">Analizar</button>
   </div>
-  <div style="margin-top:14px">
-    <div class="row" style="justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
-      <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:700">Productos vendidos en el periodo</div>
-      <span id="selCuenta" class="muted" style="font-size:12px"></span>
-    </div>
-    <div class="kc-sel">
-      <div class="barra">
-        <input id="buscaProd" class="input" type="search" placeholder="Buscar por clave o descripción…" aria-label="Buscar producto" style="flex:1 1 220px;padding:6px 10px;font-size:13px"/>
-        <button class="btn ghost" id="selTodos" type="button" style="padding:6px 12px;font-size:12px">Todos los visibles</button>
-        <button class="btn ghost" id="selNinguno" type="button" style="padding:6px 12px;font-size:12px">Ninguno</button>
-      </div>
-      <div class="lista" id="productos" role="group" aria-label="Productos"></div>
-    </div>
+  <div class="kc-elige">
+    <button class="btn" id="btnElegir" type="button" aria-haspopup="dialog">Elegir productos</button>
+    <span class="res" id="selResumen" aria-live="polite"></span>
   </div>
 </div>
+<dialog class="kc-dlg" id="dlgProd" aria-labelledby="dlgProdTit">
+  <header><div><h3 id="dlgProdTit" style="margin:0">Productos vendidos en el periodo</h3><div class="muted" id="dlgPeriodo" style="font-size:12px"></div></div>
+    <button class="btn ghost" type="button" id="dlgCerrar" aria-label="Cerrar sin aplicar">✕</button></header>
+  <div class="barra">
+    <input id="buscaProd" class="input" type="search" placeholder="Buscar por clave o descripción…" aria-label="Buscar producto" style="flex:1 1 260px;padding:8px 12px;font-size:14px"/>
+    <button class="btn ghost" id="selTodos" type="button">Todos los visibles</button>
+    <button class="btn ghost" id="selNinguno" type="button">Ninguno</button>
+  </div>
+  <div class="lista" id="productos" role="group" aria-label="Productos"></div>
+  <footer><span id="selCuenta" class="muted" style="font-size:13px"></span>
+    <div style="display:flex;gap:8px"><button class="btn ghost" type="button" id="dlgCancelar">Cancelar</button><button class="btn primary" type="button" id="dlgAplicar">Aplicar y analizar</button></div></footer>
+</dialog>
 <div id="cuerpo" style="margin-top:14px;display:flex;flex-direction:column;gap:14px"></div>`;
 
   const opts = MES.slice(1).map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
@@ -121,42 +132,71 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('anio').value = hoy.getFullYear(); $('mesIni').value = 1; $('mesFin').value = hoy.getMonth() + 1;
   const periodo = () => ({ anio: parseInt($('anio').value, 10), mes_ini: parseInt($('mesIni').value, 10), mes_fin: parseInt($('mesFin').value, 10) });
 
+  const partTxt = (v) => (v == null ? '—' : v > 0 && v < 0.001 ? '<0.1%' : pct(v));
+
   async function cargarProductos() {
     const p = periodo();
     if (p.mes_ini > p.mes_fin) return KoguApi.toast('El mes inicial no puede ser mayor que el final.', 'error');
-    $('productos').innerHTML = '<div class="muted" style="padding:12px;font-size:12.5px">Cargando productos…</div>';
+    $('selResumen').textContent = 'Cargando productos…';
     try {
       const r = KoguApi.unwrapData(await KoguApi.apiFetch(`${BASE}/kpi-cliente/productos?${new URLSearchParams(p)}`));
       productos = (r && r.productos) || [];
       const previa = seleccion.size ? [...seleccion] : leeGuardada();
       seleccion = new Set(K.seleccionInicial(productos, previa));
-      pintaProductos();
+      pintaResumen();
       if (seleccion.size) analizar();
-      else limpiar(productos.length ? 'Marca uno o varios productos y pulsa Analizar.' : 'No hay ventas en el periodo.');
-    } catch (e) { productos = []; pintaProductos(); limpiar(e.message || 'No se pudieron cargar los productos.'); KoguApi.toast(e.message, 'error'); }
+      else limpiar(productos.length ? `Hay ${productos.length} productos vendidos en el periodo. Pulsa «Elegir productos» para marcar los que quieres analizar.` : 'No hay ventas en el periodo.');
+    } catch (e) { productos = []; pintaResumen(); limpiar(e.message || 'No se pudieron cargar los productos.'); KoguApi.toast(e.message, 'error'); }
+  }
+
+  function pintaResumen() {
+    const r = K.resumenSeleccion(productos, seleccion);
+    $('selResumen').innerHTML = !productos.length ? '<span class="muted">Sin productos vendidos en el periodo.</span>'
+      : !r.n ? `<span class="muted">Ningún producto elegido · ${productos.length} vendidos en el periodo</span>`
+      : `<b>${r.n} ${r.n === 1 ? 'producto' : 'productos'}</b> · ${money(r.venta, 0)} · ${r.claves.map(esc).join(', ')}${r.mas ? ` <span class="muted">+${r.mas}</span>` : ''}`;
+    $('btnElegir').disabled = !productos.length;
+  }
+
+  function abrirSelector() {
+    borrador = new Set(seleccion); filtro = ''; $('buscaProd').value = '';
+    $('dlgPeriodo').textContent = `${MESL[P0().mes_ini]} a ${MESL[P0().mes_fin]} de ${P0().anio} · ${productos.length} productos`;
+    pintaProductos();
+    $('dlgProd').showModal();
+    $('buscaProd').focus();
+  }
+  const P0 = () => periodo();
+  function cerrarSelector() { if ($('dlgProd').open) $('dlgProd').close(); $('btnElegir').focus(); }
+  function aplicarSelector() {
+    seleccion = new Set(borrador); guardaSel(); pintaResumen(); cerrarSelector();
+    if (seleccion.size) analizar(); else limpiar('Ningún producto elegido. Pulsa «Elegir productos».');
   }
 
   function pintaProductos() {
     const vis = K.filtrarProductos(productos, filtro);
-    $('productos').innerHTML = vis.length ? vis.map(x => {
-      const on = seleccion.has(x.cve_prod);
+    const cab = '<div class="cab" aria-hidden="true"><span></span><span>Clave</span><span>Descripción</span><span class="num">Venta neta</span><span class="num opc">Part.</span><span class="num opc">Clientes</span></div>';
+    $('productos').innerHTML = cab + (vis.length ? vis.map(x => {
+      const on = borrador.has(x.cve_prod);
       return `<label class="it ${on ? 'on' : ''}"><input type="checkbox" data-pt="${esc(x.cve_prod)}" ${on ? 'checked' : ''}/>
         <b class="cve" title="${esc(x.cve_prod)}">${esc(x.cve_prod)}</b><span class="desc" title="${esc(x.descripcion || '')}">${esc(x.descripcion || '—')}</span>
-        <span class="num">${money(x.venta_neta, 0)}</span><span class="num opc">${pct(x.participacion)}</span>
-        <span class="num opc muted">${x.clientes} ${x.clientes === 1 ? 'cliente' : 'clientes'}</span></label>`;
-    }).join('') : `<div class="muted" style="padding:12px;font-size:12.5px">${productos.length ? 'Ningún producto coincide con la búsqueda.' : 'Sin productos vendidos en el periodo.'}</div>`;
+        <span class="num">${money(x.venta_neta, 0)}</span><span class="num opc">${partTxt(x.participacion)}</span>
+        <span class="num opc muted">${x.clientes}</span></label>`;
+    }).join('') : `<div class="muted" style="padding:16px 20px;font-size:13px">${productos.length ? 'Ningún producto coincide con la búsqueda.' : 'Sin productos vendidos en el periodo.'}</div>`);
     $('productos').querySelectorAll('[data-pt]').forEach(cb => cb.addEventListener('change', () => {
-      if (cb.checked) seleccion.add(cb.dataset.pt); else seleccion.delete(cb.dataset.pt);
-      guardaSel(); pintaProductos();
+      if (cb.checked) borrador.add(cb.dataset.pt); else borrador.delete(cb.dataset.pt);
+      cb.closest('label').classList.toggle('on', cb.checked); cuentaBorrador();
     }));
-    const tot = productos.filter(x => seleccion.has(x.cve_prod)).reduce((s, x) => s + (x.venta_neta || 0), 0);
-    $('selCuenta').textContent = `${seleccion.size} de ${productos.length} seleccionados${seleccion.size ? ' · ' + money(tot, 0) : ''}`;
+    cuentaBorrador();
+  }
+  function cuentaBorrador() {
+    const r = K.resumenSeleccion(productos, borrador);
+    $('selCuenta').textContent = `${r.n} de ${productos.length} marcados${r.n ? ' · ' + money(r.venta, 0) : ''}`;
+    $('dlgAplicar').disabled = false;
   }
 
   function limpiar(msg) { $('cuerpo').innerHTML = `<div class="card muted" style="padding:16px">${esc(msg)}</div>`; }
 
   async function analizar() {
-    if (!seleccion.size) return limpiar('Elige al menos un producto.');
+    if (!seleccion.size) return limpiar('Ningún producto elegido. Pulsa «Elegir productos».');
     P = periodo();
     if (P.mes_ini > P.mes_fin) return KoguApi.toast('El mes inicial no puede ser mayor que el final.', 'error');
     $('btnAnalizar').disabled = true; D = null; limpiar('Cargando…');
@@ -287,9 +327,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btnAnalizar').addEventListener('click', analizar);
   ['anio', 'mesIni', 'mesFin'].forEach(id => $(id).addEventListener('change', cargarProductos));
+  $('btnElegir').addEventListener('click', abrirSelector);
   $('buscaProd').addEventListener('input', () => { filtro = $('buscaProd').value; pintaProductos(); });
-  $('selTodos').addEventListener('click', () => { K.filtrarProductos(productos, filtro).forEach(x => seleccion.add(x.cve_prod)); guardaSel(); pintaProductos(); });
-  $('selNinguno').addEventListener('click', () => { seleccion.clear(); guardaSel(); pintaProductos(); });
+  $('selTodos').addEventListener('click', () => { K.filtrarProductos(productos, filtro).forEach(x => borrador.add(x.cve_prod)); pintaProductos(); });
+  $('selNinguno').addEventListener('click', () => { borrador.clear(); pintaProductos(); });
+  $('dlgAplicar').addEventListener('click', aplicarSelector);
+  $('dlgCancelar').addEventListener('click', cerrarSelector);
+  $('dlgCerrar').addEventListener('click', cerrarSelector);
+  $('dlgProd').addEventListener('cancel', () => { $('btnElegir').focus(); });
+  $('dlgProd').addEventListener('click', (e) => { if (e.target === $('dlgProd')) cerrarSelector(); });
   if (KoguShell.subscribeEmpresaActivaChange) KoguShell.subscribeEmpresaActivaChange(() => { D = null; activo = null; seleccion = new Set(); cargarProductos(); });
   cargarProductos();
 });
