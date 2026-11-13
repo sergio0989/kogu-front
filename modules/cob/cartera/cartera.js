@@ -141,6 +141,9 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
   let recorteExport = '';
   let cortes = [];
   let ficha = '';   // rango elegido en las fichas (aplica a las dos monedas)
+  // Controles fiscales (CFDI y REP) plegados por defecto (13-nov-2026): cobranza
+  // arranca sin ellos para no causar dudas. Se abre por sesión de pantalla.
+  let fiscalAbierto = false;
   let seleccion = new Set();   // F1b: facturas marcadas para registrar seguimiento (orden de selección)
   let acciones = null;         // catálogo de acciones (se pide al abrir el formulario)
   let segDocs = [];            // facturas del formulario abierto
@@ -272,7 +275,10 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     const lineaFuera = fz && fz.docs ? `<div class="cob-muted" id="cobFuera" style="font-size:12px;margin-top:4px">${pl(fz.docs, 'factura', 'facturas')} de ${pl(fz.clientes, 'cliente', 'clientes')} fuera de la sesión: ${
       [fz.por_moneda.USD.docs ? 'US' + C.dinero(fz.por_moneda.USD.saldo) : '', fz.por_moneda.MXN.docs ? C.dinero(fz.por_moneda.MXN.saldo) : ''].filter(Boolean).join(' · ')
     }. Para verlas, cambia Sesión a Todos.</div>` : '';
-    const avisos = C.avisos(base, corte).map((a) => `<div class="cob-aviso ${a.tipo === 'desactualizado' ? 'mal' : ''}">${esc(a.texto)}</div>`).join('') + avisoDescarga;
+    const avisos = C.avisos(base, corte).map((a) => `<div class="cob-aviso ${a.tipo === 'desactualizado' ? 'mal' : ''}">${esc(a.texto)}</div>`).join('');
+    const hayFiscal = !!(fichasCfdi || fichasRep);
+    const seccionFiscal = hayFiscal ? `<div class="cob-fiscal-bar"><button type="button" class="cob-link cob-fiscal-tog" id="cobFiscalToggle" aria-expanded="${fiscalAbierto}" aria-controls="cobFiscal">${fiscalAbierto ? '▾ Ocultar' : '▸ Mostrar'} controles fiscales (CFDI y REP)</button></div>
+    <div id="cobFiscal" class="cob-fiscal" style="${fiscalAbierto ? '' : 'display:none'}">${fichasCfdi}${fichasRep}${avisoDescarga}</div>` : '';
 
     const totM = C.totalesMoneda(rows);
     const cols = [['folio', 'Folio'], ['cliente', 'Cliente'], ['agente', 'Agente'], ['fecha_doc', 'Factura'], ['fecha_vencimiento', 'Vence'],
@@ -306,8 +312,7 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     <div class="eyebrow" id="cobRecorte">${esc(recorte)}</div>
     ${fichas}
     ${fichasSeg}
-    ${fichasCfdi}
-    ${fichasRep}
+    ${seccionFiscal}
     <div id="cobAvisos">${avisos}<div class="cob-muted" id="cobControl" style="font-size:12px;margin-top:6px">${tot.docs} docs · ${tot.clientes} clientes · equivalente en pesos ${C.dinero(tot.saldo_mxn)} (tipo de cambio de cada factura, igual que el pie del reporte de SAI).</div>${lineaFuera}</div>
   </div>
   <div class="card">
@@ -695,6 +700,14 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     render();
   });
   $('cobCuerpo').addEventListener('click', (e) => {
+    if (e.target.closest('#cobFiscalToggle')) {
+      fiscalAbierto = !fiscalAbierto;
+      $('cobFiscal').style.display = fiscalAbierto ? '' : 'none';
+      const t = $('cobFiscalToggle');
+      t.textContent = `${fiscalAbierto ? '▾ Ocultar' : '▸ Mostrar'} controles fiscales (CFDI y REP)`;
+      t.setAttribute('aria-expanded', String(fiscalAbierto));
+      return;
+    }
     const rc = e.target.closest('[data-rep-cat]');
     if (rc) { abrirRep(rc.dataset.repCat); return; }
     const k = e.target.closest('[data-ficha]');
@@ -826,6 +839,9 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
 .cob-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 .cob-env{width:min(640px,calc(100% - 32px))}
 .cob-rep{width:min(1040px,calc(100% - 32px))}
+.cob-fiscal-bar{margin:10px 0 2px}
+.cob-fiscal-tog{font-size:13px;margin-left:0}
+.cob-fiscal{display:grid;gap:12px;margin-top:8px;padding-top:10px;border-top:1px dashed var(--line)}
 .cob-rep .cob-tbl th{cursor:default}
 .cob-b.cob-b-rojo{background:#fee2e2;color:#991b1b}
 .cob-env-dest{display:grid;gap:12px;margin-top:14px}

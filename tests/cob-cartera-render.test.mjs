@@ -454,7 +454,8 @@ test('CFDI: la ficha filtra la tabla y cada factura lleva su etiqueta', async ()
 
 test('CFDI: aviso con las fechas que hay que pedir en Solicitudes SAT', async () => {
   const p = await arranca();
-  assert.match(p.texto(p.$('#cobAvisos')), /Falta descargar del SAT los CFDI emitidos de 8 días: 04\/03\/2025, 09\/04\/2025.*26\/08\/2026/);
+  // 13-nov-2026: el aviso va con los controles fiscales (sección plegada), no en los avisos de la cartera.
+  assert.match(p.texto(p.$('#cobFiscal')), /Falta descargar del SAT los CFDI emitidos de 8 días: 04\/03\/2025, 09\/04\/2025.*26\/08\/2026/);
 });
 
 test('CFDI: con el filtro de sesión por omisión cuenta solo lo que se revisa (9 por descargar)', async () => {
