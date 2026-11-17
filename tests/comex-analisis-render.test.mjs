@@ -106,3 +106,43 @@ test('Ver detalle muestra Composición y DDP; el DDP conserva su vista', async (
   assert.ok(p.head().includes('Gastos real/kg'));
   assert.equal(p.$('#legGmp').style.display, 'none');
 });
+
+// ── Ajustes tras revisar en dev.kogu.ink (2026-11-17) ────────────────────
+// Captura real de octubre: la desviación "↓ -37.1%" se pinta en rojo igual que
+// el chip; las filas sin teórico dicen "s/d" aunque el motivo se conoce; la
+// columna Periodos repite "2026-10" en todas las filas con un solo mes.
+
+const td = (p, i, col) => p.window.document.querySelectorAll('#tAn tbody tr:not(.op-det)')[i].children[col];
+const colDe = (p, nombre) => [...p.window.document.querySelectorAll('#tAn thead th')].findIndex((th) => th.textContent.includes(nombre));
+const elegir = async (p, v) => { const s = p.$('#periodo'); s.value = v; s.dispatchEvent(new p.window.Event('change')); for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0)); };
+
+test('desv: número en tono neutro; el color del estado lo lleva solo el chip', async () => {
+  const p = await abrir();
+  const cel = td(p, 0, colDe(p, 'Desv vs teó'));
+  assert.match(cel.textContent, /↓ -37\.1%/);
+  assert.notEqual(cel.getAttribute('style').match(/color:([^;]+)/)[1].trim(), '#991b1b', 'la desviación no repite el rojo del estado');
+  assert.match(td(p, 0, colDe(p, 'Estado')).textContent, /revisar/);
+});
+
+test('sin teórico: el chip dice "sin teórico", no "s/d"', async () => {
+  const f = (await abrir()).filas();
+  assert.match(f[4], /NIKKEN/);
+  assert.ok(!/s\/d/.test(f[4]), f[4]);
+  assert.match(f[4], /sin teórico comparable.*sin teórico/);
+});
+
+test('Periodos: visible en Acumulado; oculta con un solo mes', async () => {
+  const p = await abrir();
+  assert.ok(p.head().includes('Periodos'), 'Acumulado muestra Periodos');
+  await elegir(p, '2026-10');
+  assert.ok(!p.head().includes('Periodos'), 'un mes: sin columna Periodos');
+  assert.equal(p.window.document.querySelectorAll('#tAn thead th').length, p.window.document.querySelectorAll('#tAn tbody tr:not(.op-det)')[0].children.length);
+});
+
+test('DDP vs teórico advierte que la mercancía diluye la desviación de gastos', async () => {
+  const p = await abrir();
+  p.$('#vMas').click(); p.$('#vCtrl').click();
+  assert.match(p.$('#cInfo').textContent, /diluye/);
+  p.$('#vGas').click();
+  assert.ok(!/diluye/.test(p.$('#cInfo').textContent));
+});

@@ -85,6 +85,7 @@
     fuera: ['#fef9c3', '#fde68a', '#854d0e', 'fuera'],
     revisar: ['#fef2f2', '#fecaca', '#991b1b', 'revisar'],
     parcial: ['#f8fafc', '#e2e8f0', '#64748b', 'MP parcial'],
+    sin_teorico: ['#f8fafc', '#e2e8f0', '#64748b', 'sin teórico'],
   };
   api.color = (est) => { const c = COLORES[est] || ['#f8fafc', '#e2e8f0', '#64748b', 's/d']; return { bg: c[0], bd: c[1], co: c[2], t: c[3] }; };
   api.chip = (est, title = '') => {

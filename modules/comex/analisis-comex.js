@@ -339,6 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     const meta = CORTES[corte];
     const expand = true;
+    const perCol = periodo === 'ACUM'; // con un solo mes, Periodos repetiría el mismo valor
     if ($('anQ')) $('anQ').placeholder = `🔍 Buscar ${meta.lab.toLowerCase()}…`;
     const base = (data && data[corte]) || [];
     const q = filtro.trim().toLowerCase();
@@ -354,7 +355,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const leyendaVista = esGas
       ? ' · Control de gastos: flete internacional + gastos nacionales, real/kg vs teórico/kg, sobre los kg con teórico. Ordenado por estado (revisar primero) y kg.'
       : esCtrl
-      ? ' · Control vs teórico: DDP real/kg vs teórico/kg. La mercancía (MP) se compara solo en líneas del producto de su costeo (misma raíz de clave); si cubre menos del 50 % de los kg, el DDP queda "MP parcial" y la señal se lee en la columna MP vs teó. Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
+      ? ' · DDP vs teórico (detalle): la mercancía casi siempre empata y pesa más que los gastos, así que diluye su desviación — un "dentro" aquí NO significa gastos en control (eso es Control de gastos). DDP real/kg vs teórico/kg. La mercancía (MP) se compara solo en líneas del producto de su costeo (misma raíz de clave); si cubre menos del 50 % de los kg, el DDP queda "MP parcial" y la señal se lee en la columna MP vs teó. Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
       : ' · costo total = mercancía + gastos + arancel (DDP puesto en almacén)';
     $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s)${leyendaVista}${hint}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
@@ -368,9 +369,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
       ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
-      ${th('periodo', 'Periodos', 'text-align:left')}${th('ops', 'Ops')}${th('kg', 'Kg')}${esGas ? '' : th('costo_usd', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</span>')}
+      ${perCol ? th('periodo', 'Periodos', 'text-align:left') : ''}${th('ops', 'Ops')}${th('kg', 'Kg')}${esGas ? '' : th('costo_usd', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</span>')}
       ${metricHead}</tr></thead>`;
-    const ncol = (esGas ? 4 : 5) + nMetric + (meta.nombre ? 1 : 0) + (meta.prov ? 1 : 0) + (expand ? 1 : 0);
+    const ncol = (esGas ? 4 : 5) - (perCol ? 0 : 1) + nMetric + (meta.nombre ? 1 : 0) + (meta.prov ? 1 : 0) + (expand ? 1 : 0);
     if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin datos. Reconcilia el periodo primero.'}</td></tr></tbody>`; $('tAn').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk))); return; }
     $('tAn').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const kgv = Number(r.kg) || 0;
@@ -382,13 +383,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           ? `<td style="padding:6px;color:#64748b">${kg(g.sinTeoKg)} kg<div class="muted" style="font-size:10px">${pct(g.sinTeoPct)}</div></td>`
           : `<td style="padding:6px;color:#94a3b8">—</td>`;
         if (g.motivo === 'sin_teorico') {
-          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${CC.chip(null)}</td>${st}`;
+          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${CC.chip('sin_teorico')}</td>${st}`;
         } else {
-          const co = CC.color(g.estado).co;
           const fl = g.signo === 'sobre' ? '↑' : g.signo === 'bajo' ? '↓' : '';
           metricCells = `<td style="padding:6px">$${usd4(g.real)}</td>
         <td style="padding:6px;color:#64748b">$${usd4(g.teo)}</td>
-        <td style="padding:6px;font-weight:700;color:${co}">${fl} ${CC.pct(g.desv)}</td>
+        <td style="padding:6px;font-weight:700;color:#334155" title="El color del estado lo lleva el chip; ↑/↓ = real sobre/bajo el teórico">${fl} ${CC.pct(g.desv)}</td>
         <td style="padding:6px;text-align:center">${CC.chip(g.estado)}</td>${st}`;
         }
       } else if (esCtrl) {
@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:left;padding:6px;font-weight:700">${esc(r.grupo)}</td>
         ${meta.nombre ? `<td style="text-align:left;padding:6px">${esc(r.nombre || '')}</td>` : ''}
         ${meta.prov ? `<td style="text-align:left;padding:6px">${esc(r.proveedor || '—')}</td>` : ''}
-        <td style="text-align:left;padding:6px;color:#475569;white-space:nowrap">${esc(perLbl(r))}</td>
+        ${perCol ? `<td style="text-align:left;padding:6px;color:#475569;white-space:nowrap">${esc(perLbl(r))}</td>` : ''}
         <td style="padding:6px">${n0(r.ops)}</td>
         <td style="padding:6px">${kg(r.kg)}</td>
         ${esGas ? '' : `<td style="padding:6px;font-weight:700">$${n0(r.costo_usd)}</td>`}
