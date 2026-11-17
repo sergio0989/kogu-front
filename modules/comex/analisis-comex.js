@@ -78,7 +78,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center">
       <span style="font-weight:700;color:#334155">Cómo leer:</span>
       <span><span style="font-weight:700;background:#faf5ff;color:#7e22ce;padding:1px 6px;border-radius:5px">Gastos/MP</span> = gastos (flete+otros) ÷ mercancía</span>
-      <span><span style="font-weight:700;background:#f8fafc;color:#334155;padding:1px 6px;border-radius:5px">UtiPor</span> = otros ÷ (mercancía + flete int'l)</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:5px">
       <span>Semáforo:
@@ -342,8 +341,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const metricHead = esCtrl
       ? `${th('real_ddp', 'DDP real/kg')}${th('teo_ddp', 'DDP teó/kg')}${th('desv', 'Desv vs teó')}<th style="padding:6px">Estado</th>${th('mp_desv', 'MP vs teó', M)}`
-      : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</span>')}${th('gmp', 'Gastos/MP', M)}${th('uti', 'UtiPor')}`;
-    const nMetric = 5;
+      : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</span>')}${th('gmp', 'Gastos/MP', M)}`;
+    const nMetric = esCtrl ? 5 : 4;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
       ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
@@ -383,8 +382,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         metricCells = `<td style="padding:6px;${M}">$${usd4(mpKg)}</td>
         <td style="padding:6px">$${usd4(gKg)}</td>
         <td style="padding:6px">$${usd4(ddpKg)}</td>
-        <td style="padding:6px">${gmpPill(r.gmp == null ? null : Number(r.gmp))}</td>
-        <td style="padding:6px">${utiPill(r.uti == null ? null : Number(r.uti))}</td>`;
+        <td style="padding:6px">${gmpPill(r.gmp == null ? null : Number(r.gmp))}</td>`;
       }
       return `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
         ${expand ? `<td style="text-align:center;padding:6px"><button class="btn ghost" data-op="${idx}" title="Ver operaciones" style="padding:0 6px;font-size:12px;line-height:1.4">▸</button></td>` : ''}
@@ -450,13 +448,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.gastos_usd) / k : null)}</td>
       <td style="padding:4px 6px">$${usd4(k > 0 ? Number(o.costo_usd) / k : null)}</td>
       <td style="padding:4px 6px">${gmpPill(o.gmp == null ? null : Number(o.gmp))}</td>
-      <td style="padding:4px 6px">${utiPill(o.uti == null ? null : Number(o.uti))}</td>
       <td style="text-align:center;padding:4px 6px">${estChip(CC.estadoGastos({ resultado: o.resultado, real: o.gastos_real_cmp, teo: o.teo_flete == null && o.teo_otros == null ? null : (Number(o.teo_flete) || 0) + (Number(o.teo_otros) || 0) }))}</td></tr>`;
   };
   const opHead = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
     <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
     <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</th>
-    <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th><th style="text-align:center;padding:4px 6px" title="Gastos real vs teórico: dentro ≤10 % · fuera ≤30 % · revisar >30 % (arriba o abajo)">Estado</th></tr></thead>`;
+    <th style="${M};padding:4px 6px">Gastos/MP</th><th style="text-align:center;padding:4px 6px" title="Gastos real vs teórico: dentro ≤10 % · fuera ≤30 % · revisar >30 % (arriba o abajo)">Estado</th></tr></thead>`;
 
   // Detalle por operación en la vista CONTROL: cada pedimento contra su teórico,
   // con la misma regla que la fila agregada (comex-control.js). Gastos =
@@ -513,13 +510,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="padding:5px 6px;${M}">$${usd4(mpKg)}</td>
         <td style="padding:5px 6px">$${usd4(gKg)}</td>
         <td style="padding:5px 6px">$${usd4(ddpKg)}</td>
-        <td style="padding:5px 6px">${gmpPill(gmp)}</td>
-        <td style="padding:5px 6px">${utiPill(uti)}</td></tr>`;
+        <td style="padding:5px 6px">${gmpPill(gmp)}</td></tr>`;
     }).join('');
     const head = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
       <th style="text-align:left;padding:4px 6px">Modo</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
       <th style="${M};padding:4px 6px">Mercancía/kg</th><th>Gastos/kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</th>
-      <th style="${M};padding:4px 6px">Gastos/MP</th><th>UtiPor</th></tr></thead>`;
+      <th style="${M};padding:4px 6px">Gastos/MP</th></tr></thead>`;
     return `<div style="margin-bottom:10px">
       <div style="font-weight:700;color:#334155;font-size:11.5px;margin-bottom:3px">Desglose por modo de transporte</div>
       <table class="table" style="width:100%;font-size:12px;font-variant-numeric:tabular-nums">${head}<tbody>${filas}</tbody></table></div>`;
