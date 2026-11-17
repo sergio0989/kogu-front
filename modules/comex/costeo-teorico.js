@@ -143,7 +143,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 <div class="card">
   <div class="row">
     <div><div class="eyebrow">Comercio Exterior · Importación</div><h2>Costeo ${esc(it.folio || '')}</h2>
-      <div class="muted" style="font-size:12px">${esc(it.cve_prod || '')} · ${esc(it.desc_prod || '')}</div></div>
+      <div class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px">
+        <span id="prodLbl">${esc(it.cve_prod || '')} · ${esc(it.desc_prod || '')}</span>
+        ${it.n_reconciliaciones
+          ? '<span title="Producto fijo: el costeo ya tiene operaciones reconciliadas. Duplica el folio para otro producto." style="color:#94a3b8">🔒</span>'
+          : '<button class="btn ghost" id="cProdBtn" type="button" title="Cambiar producto del costeo" style="padding:0 7px;font-size:11px;line-height:1.6">✏️ producto</button>'}
+      </div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <span class="chip" style="background:#ede9fe;color:#5b21b6;font-weight:800;padding:3px 10px;border-radius:999px">v${it.version_actual} · vigente</span>
       <button class="btn ghost" id="volverBtn">← Volver</button>
@@ -210,6 +215,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('volverBtn').addEventListener('click', renderList);
     $('dupBtn').addEventListener('click', duplicar);
+    if ($('cProdBtn')) $('cProdBtn').addEventListener('click', () => pickerProducto((p) => {
+      if (!p) return;
+      patchCab({ producto_id: p.producto_id, cve_prod: p.cve_prod, desc_prod: p.nombre_corto })
+        .then((r) => { if (r) openDetail(D.costeo.costeo_id); });
+    }));
     $('saveBtn').addEventListener('click', guardarDatos);
     $('utilPct').addEventListener('input', () => {
       const v = $('utilPct').value.trim().replace(',', '.');
@@ -644,10 +654,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     catch (e) { KoguApi.toast(e.message, 'error'); }
   }
   async function duplicar() {
-    if (!confirm('¿Duplicar este costeo a un folio nuevo?')) return;
-    try { const r = data(await api('/costeos/' + D.costeo.costeo_id + '/duplicar', { method: 'POST', body: '{}' }));
-      KoguApi.toast('Costeo duplicado', 'success'); openDetail(r.costeo_id); }
-    catch (e) { KoguApi.toast(e.message, 'error'); }
+    if (!confirm('¿Duplicar este costeo a un folio nuevo?\n\nEnseguida eliges el producto del nuevo folio; cierra el buscador para mantener el mismo.')) return;
+    pickerProducto(
+      (p) => doDuplicar(p ? { producto_id: p.producto_id, cve_prod: p.cve_prod, desc_prod: p.nombre_corto } : null),
+      () => doDuplicar(null)
+    );
+  }
+  async function doDuplicar(producto) {
+    try {
+      const r = data(await api('/costeos/' + D.costeo.costeo_id + '/duplicar', { method: 'POST', body: JSON.stringify(producto ? { producto } : {}) }));
+      KoguApi.toast('Costeo duplicado', 'success'); openDetail(r.costeo_id);
+    } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
   const snapCache = {};
   async function getSnap(versionId) {
@@ -792,14 +809,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Modales de búsqueda ──
-  function modal(titulo, sub, onQuery) {
+  function modal(titulo, sub, onQuery, onClose) {
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;z-index:9999;padding-top:8vh';
     ov.innerHTML = `<div class="card" style="width:560px;max-width:92vw;max-height:74vh;display:flex;flex-direction:column;margin:0">
       <div class="row"><div><h3 style="margin:0">${esc(titulo)}</h3><div class="muted" style="font-size:11px">${esc(sub)}</div></div><button class="btn ghost" id="mX">✕</button></div>
       <input class="input" id="mQ" placeholder="Buscar…" style="margin-top:10px"/><div id="mL" style="margin-top:10px;overflow:auto;flex:1"></div></div>`;
     document.body.appendChild(ov);
-    const close = () => ov.remove();
+    const close = () => { ov.remove(); if (onClose) onClose(); };
     ov.addEventListener('click', e => { if (e.target === ov) close(); });
     ov.querySelector('#mX').addEventListener('click', close);
     const q = ov.querySelector('#mQ'), list = ov.querySelector('#mL');
@@ -807,14 +824,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     q.addEventListener('input', () => deb('modal', run, 300));
     q.focus(); run();
   }
-  function pickerProducto(onPick) {
+  // onClose (opcional) se invoca si el modal se cierra SIN elegir producto —
+  // lo usa Duplicar para interpretar "cerrar = mantener el mismo producto".
+  function pickerProducto(onPick, onClose) {
+    let picked = false;
     modal('Selecciona producto', 'Catálogo de productos', async (term, list, close) => {
       try {
         const rows = data(await api('/productos' + qs({ q: term }))) || [];
         list.innerHTML = rows.length ? rows.map((p, i) => `<button class="btn ghost" data-i="${i}" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px"><strong>${esc(p.cve_prod)}</strong> <span class="muted" style="font-size:11px">${esc(p.nombre_corto || '')}</span></button>`).join('') : '<div class="muted" style="padding:12px;text-align:center">Sin resultados.</div>';
-        list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { close(); onPick(rows[+bn.dataset.i]); }));
+        list.querySelectorAll('button[data-i]').forEach(bn => bn.addEventListener('click', () => { picked = true; close(); onPick(rows[+bn.dataset.i]); }));
       } catch (e) { list.innerHTML = `<div style="padding:12px;color:#991b1b">${esc(e.message)}</div>`; }
-    });
+    }, () => { if (!picked && onClose) onClose(); });
   }
   function pickerProveedor(onPick) {
     modal('Selecciona proveedor', 'Catálogo de proveedores', async (term, list, close) => {
