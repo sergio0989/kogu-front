@@ -535,10 +535,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dv = (real, teo) => (real != null && teo != null && teo > 0) ? (real - teo) / teo : null;
     // Regla única (comex-control.js): dentro ≤10 % · fuera ≤30 % · revisar >30 %; el color sigue al estado, no al signo.
     const CC = window.KoguComexControl;
+    // El DDP hereda el estado de CC.control: si la MP comparable cubre < 50 % de
+    // los kg (UMBRAL_COB_MP), su estado es 'parcial' (gris) — una muestra mínima de
+    // mercancía no decide el estado de toda la operación.
+    const ctl = CC.control({ kg: kgR, kgMp, mpReal: Number(rs.mp_usd), mpTeo: teoMp * kgMp, gastosReal: Number(rs.flete_usd) + Number(rs.otros_usd), gastosTeo: (teoFle + teoGas) * kgR });
+    const ddpParcial = ctl.ddp.estado === 'parcial';
     const chip = (x) => x == null ? '—' : CC.chip(CC.estado(x));
     const pf = (x) => CC.pct(x);
     const dcolor = (x) => CC.color(CC.estado(x)).co;
-    const brow = (lab, teo, real, bold) => { const d2 = dv(real, teo); return `<tr style="${bold ? 'background:#ecfeff;font-weight:800' : 'border-bottom:1px solid #f1f5f9'};text-align:right"><td style="text-align:left;padding:${bold ? 7 : 6}px 6px">${lab}</td><td style="padding:${bold ? 7 : 6}px 6px">$${teo.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px">${real == null ? '<span class="muted" title="Ninguna línea real es del producto de este costeo">sin línea propia</span>' : '$' + real.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px;font-weight:700;color:${dcolor(d2)}">${pf(d2)}</td><td style="padding:${bold ? 7 : 6}px 6px;text-align:right">${chip(d2)}</td></tr>`; };
+    const brow = (lab, teo, real, bold, estOverride) => {
+      const d2 = dv(real, teo);
+      const est = estOverride !== undefined ? estOverride : (d2 == null ? null : CC.estado(d2));
+      const cellEst = est == null ? '—' : CC.chip(est, est === 'parcial' ? 'MP comparable < 50 % de los kg — el DDP no recibe estado' : '');
+      const colD = est == null ? '#334155' : CC.color(est).co;
+      return `<tr style="${bold ? 'background:#ecfeff;font-weight:800' : 'border-bottom:1px solid #f1f5f9'};text-align:right"><td style="text-align:left;padding:${bold ? 7 : 6}px 6px">${lab}</td><td style="padding:${bold ? 7 : 6}px 6px">$${teo.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px">${real == null ? '<span class="muted" title="Ninguna línea real es del producto de este costeo">sin línea propia</span>' : '$' + real.toFixed(4)}</td><td style="padding:${bold ? 7 : 6}px 6px;font-weight:700;color:${colD}">${pf(d2)}</td><td style="padding:${bold ? 7 : 6}px 6px;text-align:right">${cellEst}</td></tr>`;
+    };
     const resumen = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:12px">
       <span style="background:#f1f5f9;padding:2px 8px;border-radius:6px">${n0(rs.ops)} op · ${n0(rs.kg)} kg</span>
       <span style="background:#faf5ff;color:#7e22ce;padding:2px 8px;border-radius:6px" title="Mercancía comparable: solo líneas del producto de este costeo (misma raíz de clave)">MP sobre ${n0(kgMp)} kg${Number(rs.kg) > 0 ? ` (${Math.round(kgMp / Number(rs.kg) * 100)}%)` : ''}</span>
@@ -546,7 +557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cmp = `<div style="display:flex;justify-content:space-between;align-items:center;margin:2px 0 6px"><span style="font-weight:700;color:#334155;font-size:12.5px">Comparación por bloque (USD/kg) · teórico vigente vs real</span><button class="btn ghost" id="calcBtn" style="font-size:11px;padding:2px 10px">ⓘ detalle del cálculo</button></div>
       <table class="table" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"><thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right;color:#64748b;font-size:11px">
         <th style="text-align:left;padding:6px">Bloque</th><th>Teórico</th><th>Real</th><th>Desv</th><th style="text-align:right;padding:6px">Estado</th></tr></thead><tbody>
-        ${brow('Materia prima', teoMp, realMp)}${brow('Flete internacional', teoFle, realFle)}${brow('Gastos nacionales', teoGas, realGas)}${brow('DDP total', teoDdp, realDdp, true)}</tbody></table>`;
+        ${brow('Materia prima', teoMp, realMp)}${brow('Flete internacional', teoFle, realFle)}${brow('Gastos nacionales', teoGas, realGas)}${brow('DDP total', teoDdp, realDdp, true, ctl.ddp.estado)}</tbody></table>${ddpParcial ? '<div class="muted" style="font-size:11px;margin-top:4px">El DDP queda <b>MP parcial</b>: la mercancía comparable (misma raíz de clave) cubre menos del 50 % de los kg, así que no se le asigna estado. La señal de la mercancía se lee en la fila <b>Materia prima</b>; flete y gastos sí son comparables sobre toda la operación.</div>' : ''}`;
     const rchip = (o) => o.desv_pct == null ? CC.chip(null) : CC.chip(CC.estado(Number(o.desv_pct)));
     const lista = `<div style="font-weight:700;color:#334155;font-size:12.5px;margin:12px 0 2px">Operaciones (${n0(ops.length)})</div>
       <div class="muted" style="font-size:11px;margin-bottom:6px">Gastos/kg = flete internacional + nacionales (sin mercancía) — es la base de la reconciliación.</div>
