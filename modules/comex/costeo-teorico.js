@@ -145,9 +145,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     <div><div class="eyebrow">Comercio Exterior · Importación</div><h2>Costeo ${esc(it.folio || '')}</h2>
       <div class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px">
         <span id="prodLbl">${esc(it.cve_prod || '')} · ${esc(it.desc_prod || '')}</span>
-        ${it.n_reconciliaciones
-          ? '<span title="Producto fijo: el costeo ya tiene operaciones reconciliadas. Duplica el folio para otro producto." style="color:#94a3b8">🔒</span>'
-          : '<button class="btn ghost" id="cProdBtn" type="button" title="Cambiar producto del costeo" style="padding:0 7px;font-size:11px;line-height:1.6">✏️ producto</button>'}
+        ${(() => {
+          const nv = it.n_versiones != null ? it.n_versiones : ((D.versiones || []).length);
+          const motivo = it.n_reconciliaciones ? 'el costeo ya tiene operaciones reconciliadas'
+            : nv ? 'el costeo ya tiene versiones guardadas' : null;
+          return motivo
+            ? `<span title="Producto fijo: ${motivo}. Duplica el folio para otro producto." style="color:#94a3b8">🔒</span>`
+            : '<button class="btn ghost" id="cProdBtn" type="button" title="Cambiar producto del costeo" style="padding:0 7px;font-size:11px;line-height:1.6">✏️ producto</button>';
+        })()}
       </div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <span class="chip" style="background:#ede9fe;color:#5b21b6;font-weight:800;padding:3px 10px;border-radius:999px">v${it.version_actual} · vigente</span>
