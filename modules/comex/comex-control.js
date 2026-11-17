@@ -118,6 +118,22 @@
     .sort((a, b) => ((RANGO[a.g.estado] ?? 3) - (RANGO[b.g.estado] ?? 3)) || (b.g.kg - a.g.kg))
     .map((x) => x.r);
 
+  // Lectura: el estado de gastos en palabras (qué hacer con él). Contexto
+  // opcional: si OTRA operación con el mismo teórico/kg (±0.5 %) está dentro,
+  // un ↓ grande apunta a gasto sin capturar en SAI, no a teórico sobreestimado
+  // (caso Cramer 47035736007449 vs 47035736007805, oct-2026).
+  const MISMO_TEO = 0.005;
+  api.lectura = (g, { hermanos = [] } = {}) => {
+    if (!g || !g.estado) return 'Sin costeo teórico: falta crear el costeo';
+    if (g.estado === 'dentro') return 'Diferencia normal; dentro de la tolerancia';
+    const arriba = g.signo === 'sobre';
+    if (g.estado === 'fuera') return arriba ? 'Real arriba del teórico; revisar la diferencia' : 'Real abajo del teórico; revisar la diferencia';
+    if (arriba) return 'Muy arriba: gasto extraordinario o teórico desactualizado';
+    const cuadra = (hermanos || []).some((h) => h && h !== g && h.estado === 'dentro' && h.teo > 0 && Math.abs(h.teo / g.teo - 1) <= MISMO_TEO);
+    return cuadra ? 'Otra operación con el mismo teórico sí cuadra: probable gasto sin capturar en SAI'
+      : 'Muy abajo: gastos sin capturar en SAI o teórico sobreestimado';
+  };
+
   // Opciones del selector de periodo de Análisis. Solo se elige un periodo con
   // operaciones analizables (n_analizable > 0); los demás se muestran
   // deshabilitados con su motivo. Acumulado solo si alguno es analizable.

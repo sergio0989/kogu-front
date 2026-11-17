@@ -129,3 +129,29 @@ test('orden: revisar → fuera → dentro → sin teórico, sin importar el sign
   ];
   assert.deepEqual(C.ordenarControl(rows).map((r) => r.grupo), ['revisar-sobre', 'fuera-sobre', 'dentro', 'sin']);
 });
+
+// ── Lectura: el estado en palabras (pedido tras revisar Cramer en dev, 2026-11-17)
+// Cramer: mismas bandas, mismo signo (−) y estados distintos → hace falta decir
+// QUÉ significa cada uno. Contexto: si otra operación con el MISMO teórico sí
+// cuadra, el ↓ grande apunta a gasto sin capturar (no a teórico sobreestimado).
+
+test('lectura por estado y signo', () => {
+  const L = (desv) => C.lectura(C.filaGastos(fila('x', 100, 100, 100 * (1 + desv), 50, 50)));
+  assert.equal(L(-0.044), 'Diferencia normal; dentro de la tolerancia');
+  assert.equal(L(0.2), 'Real arriba del teórico; revisar la diferencia');
+  assert.equal(L(-0.2), 'Real abajo del teórico; revisar la diferencia');
+  assert.equal(L(0.5), 'Muy arriba: gasto extraordinario o teórico desactualizado');
+  assert.equal(L(-0.5), 'Muy abajo: gastos sin capturar en SAI o teórico sobreestimado');
+  assert.equal(C.lectura(C.filaGastos(NIKKEN)), 'Sin costeo teórico: falta crear el costeo');
+});
+
+test('Cramer: la 7805 cuadra con el mismo teórico → la 7449 es probable gasto sin capturar', () => {
+  const ops = OPS_CRAMER.map(C.filaGastos);
+  assert.equal(C.lectura(ops[0], { hermanos: ops }), 'Otra operación con el mismo teórico sí cuadra: probable gasto sin capturar en SAI');
+  assert.equal(C.lectura(ops[1], { hermanos: ops }), 'Diferencia normal; dentro de la tolerancia');
+});
+
+test('IDF: la op dentro tiene OTRO teórico (0.37 vs 0.71/kg) → la −61 % queda con la lectura general', () => {
+  const ops = OPS_IDF.map(C.filaGastos);
+  assert.equal(C.lectura(ops[1], { hermanos: ops }), 'Muy abajo: gastos sin capturar en SAI o teórico sobreestimado');
+});

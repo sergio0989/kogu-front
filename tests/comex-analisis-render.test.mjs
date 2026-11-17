@@ -32,6 +32,9 @@ const ANALISIS = {
   ],
   productos: [], escalas: [],
 };
+const op = (pedimento, kg, gastos_real_cmp, teo_flete, teo_otros, resultado) => ({ no_costeo: pedimento, pedimento, periodo: '2026-10', escala_kg: 200,
+  kg, kg_cmp: kg, gastos_real_cmp, teo_flete, teo_otros, kg_mp_cmp: 0, mp_real_mp_cmp: 0, teo_mp: 0, costo_usd: 0, mp_usd: 0, gastos_usd: gastos_real_cmp, resultado });
+const OPS_CRAMER = [op('47035736007449', 285, 826.6776, 1995, 1345.8333, 'BajoTabulador'), op('47035736007805', 200, 2241.1994, 1400, 944.4444, 'DentroBanda')];
 const PERIODOS = [
   { periodo: '2026-10', n_pedimentos: 25, n_reconciliado: 9, n_analizable: 9 },
   { periodo: '2026-09', n_pedimentos: 29, n_reconciliado: 0, n_analizable: 0 },
@@ -46,7 +49,7 @@ async function abrir() {
     subscribeEmpresaActivaChange: () => {},
   };
   window.KoguApi = {
-    apiFetch: async (url) => { urls.push(url); if (url.includes('/reconciliacion/periodos')) return { data: PERIODOS }; if (url.includes('/analisis?')) return { data: ANALISIS }; return { data: [] }; },
+    apiFetch: async (url) => { urls.push(url); if (url.includes('/reconciliacion/periodos')) return { data: PERIODOS }; if (url.includes('/analisis?')) return { data: ANALISIS }; if (url.includes('/analisis/operaciones?') && url.includes('CRAMER')) return { data: OPS_CRAMER }; return { data: [] }; },
     unwrapData: (r) => r.data, toast: () => {},
   };
   window.eval(CTRL);
@@ -145,4 +148,27 @@ test('DDP vs teórico advierte que la mercancía diluye la desviación de gastos
   assert.match(p.$('#cInfo').textContent, /diluye/);
   p.$('#vGas').click();
   assert.ok(!/diluye/.test(p.$('#cInfo').textContent));
+});
+
+test('Lectura en la fila agregada (vista de gastos)', async () => {
+  const p = await abrir();
+  assert.ok(p.head().includes('Lectura'));
+  const f = p.filas();
+  assert.match(f[0], /Muy abajo: gastos sin capturar en SAI o teórico sobreestimado/);
+  assert.match(f[4], /Sin costeo teórico: falta crear el costeo/);
+});
+
+test('drill-down Cramer: Lectura por operación y desv en tono neutro', async () => {
+  const p = await abrir();
+  const i = p.filas().findIndex((t) => /CRAMER/.test(t));
+  p.window.document.querySelectorAll('#tAn button[data-op]')[i].click();
+  for (let k = 0; k < 10; k++) await new Promise((r) => setTimeout(r, 0));
+  const det = p.window.document.querySelectorAll('#tAn tr.op-det')[i];
+  assert.match(det.querySelector('thead').textContent, /Lectura/);
+  const trs = [...det.querySelector('table > tbody').children]; // filas de la tabla interna del detalle
+  assert.match(trs[0].textContent, /47035736007449.*Otra operación con el mismo teórico sí cuadra: probable gasto sin capturar en SAI/s);
+  assert.match(trs[1].textContent, /47035736007805.*Diferencia normal; dentro de la tolerancia/s);
+  const pctSpan = [...trs[0].querySelectorAll('span')].find((s) => /-75\.3%/.test(s.textContent));
+  assert.ok(pctSpan, 'muestra −75.3 %');
+  assert.notEqual((pctSpan.getAttribute('style').match(/color:([^;]+)/) || [])[1], '#991b1b', 'la desv del detalle no repite el rojo');
 });

@@ -361,11 +361,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
     const metricHead = esGas
-      ? `${th('g_real', 'Gastos real/kg')}${th('g_teo', 'Gastos teó/kg')}${th('g_desv', 'Desv vs teó')}${th('estado', 'Estado', 'text-align:center')}${th('sin_teo', '<span title="Kg del grupo sin costeo teórico comparable">Sin teórico</span>')}`
+      ? `${th('g_real', 'Gastos real/kg')}${th('g_teo', 'Gastos teó/kg')}${th('g_desv', 'Desv vs teó')}${th('estado', 'Estado', 'text-align:center')}${th('sin_teo', '<span title="Kg del grupo sin costeo teórico comparable">Sin teórico</span>')}<th style="text-align:left;padding:6px">Lectura</th>`
       : esCtrl
       ? `${th('real_ddp', 'DDP real/kg')}${th('teo_ddp', 'DDP teó/kg')}${th('desv', 'Desv vs teó')}<th style="padding:6px">Estado</th>${th('mp_desv', 'MP vs teó', M)}`
       : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</span>')}${th('gmp', 'Gastos/MP', M)}`;
-    const nMetric = esGas ? 5 : esCtrl ? 5 : 4;
+    const nMetric = esGas ? 6 : esCtrl ? 5 : 4;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
       ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
@@ -383,13 +383,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           ? `<td style="padding:6px;color:#64748b">${kg(g.sinTeoKg)} kg<div class="muted" style="font-size:10px">${pct(g.sinTeoPct)}</div></td>`
           : `<td style="padding:6px;color:#94a3b8">—</td>`;
         if (g.motivo === 'sin_teorico') {
-          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${CC.chip('sin_teorico')}</td>${st}`;
+          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${CC.chip('sin_teorico')}</td>${st}<td style="padding:6px;text-align:left;font-size:11px;color:#475569;max-width:240px;white-space:normal">${esc(CC.lectura(g))}</td>`;
         } else {
           const fl = g.signo === 'sobre' ? '↑' : g.signo === 'bajo' ? '↓' : '';
           metricCells = `<td style="padding:6px">$${usd4(g.real)}</td>
         <td style="padding:6px;color:#64748b">$${usd4(g.teo)}</td>
         <td style="padding:6px;font-weight:700;color:#334155" title="El color del estado lo lleva el chip; ↑/↓ = real sobre/bajo el teórico">${fl} ${CC.pct(g.desv)}</td>
-        <td style="padding:6px;text-align:center">${CC.chip(g.estado)}</td>${st}`;
+        <td style="padding:6px;text-align:center">${CC.chip(g.estado)}</td>${st}<td style="padding:6px;text-align:left;font-size:11px;color:#475569;max-width:240px;white-space:normal">${esc(CC.lectura(g))}</td>`;
         }
       } else if (esCtrl) {
         const kgc = Number(r.kg_cmp) || 0;
@@ -502,8 +502,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // flete int'l + nacionales; MP solo en líneas del producto de su costeo.
   const ctlOp = (o) => CC.control({ kg: o.kg_cmp, kgMp: o.kg_mp_cmp, mpReal: o.mp_real_mp_cmp, mpTeo: o.teo_mp,
     gastosReal: o.gastos_real_cmp, gastosTeo: Number(o.teo_flete) + Number(o.teo_otros) });
-  const celEst = (d, est, extra = '') => `<td style="padding:4px 6px;white-space:nowrap"><span style="font-weight:700;color:${CC.color(est).co}">${CC.pct(d)}</span> ${CC.chip(est)}${extra}</td>`;
-  const opFilaCtl = (o) => {
+  // El número va en tono neutro; el color del estado lo lleva el chip.
+  const celEst = (d, est, extra = '') => `<td style="padding:4px 6px;white-space:nowrap"><span style="font-weight:700;color:#334155">${CC.pct(d)}</span> ${CC.chip(est)}${extra}</td>`;
+  const celLec = (txt) => `<td style="padding:4px 6px;text-align:left;font-size:11px;color:#475569;max-width:240px;white-space:normal">${esc(txt)}</td>`;
+  // arr = operaciones del mismo grupo del drill-down (contexto para la Lectura).
+  const opFilaCtl = (o, _i, arr) => {
     const kgc = Number(o.kg_cmp) || 0;
     const ini = `<tr style="border-bottom:1px solid #f1f5f9;text-align:right">
       <td style="text-align:left;padding:4px 6px;font-weight:700">${esc(o.pedimento || o.no_costeo)}</td>
@@ -511,19 +514,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       <td style="padding:4px 6px">${o.escala_kg != null ? kg(o.escala_kg) + ' kg' : '—'}</td>
       <td style="padding:4px 6px">${kg(o.kg)}</td>
       <td style="padding:4px 6px;font-weight:700">$${n0(o.costo_usd)}</td>`;
-    if (!(kgc > 0)) return ini + `<td colspan="5" style="padding:4px 6px;color:#94a3b8;text-align:center">— sin teórico comparable (${esc(o.resultado || 's/d')}) —</td></tr>`;
+    const g = CC.filaGastos(o);
+    if (!(kgc > 0)) return ini + `<td colspan="5" style="padding:4px 6px;color:#94a3b8;text-align:center">— sin teórico comparable (${esc(o.resultado || 's/d')}) —</td>${celLec(CC.lectura(g))}</tr>`;
     const gR = Number(o.gastos_real_cmp) / kgc, gT = (Number(o.teo_flete) + Number(o.teo_otros)) / kgc;
     const gD = gT > 0 ? gR / gT - 1 : null;
+    const lec = CC.lectura(g, { hermanos: (arr || []).map(CC.filaGastos) });
     const c = ctlOp(o), cob = Math.round(c.cobMp * 100);
     const mpCel = c.mp
       ? celEst(c.mp.desv, c.mp.estado, `<div class="muted" style="font-size:10px" title="MP real $${usd4(c.mp.real)}/kg vs EXW $${usd4(c.mp.teo)}/kg">$${usd4(c.mp.real)} vs $${usd4(c.mp.teo)}${cob < 100 ? ` · sobre ${cob}% kg` : ''}</div>`)
       : `<td style="padding:4px 6px;color:#94a3b8" title="Ninguna línea de esta operación es del producto de su costeo">sin línea propia</td>`;
     const ddpCel = c.ddp.real == null ? `<td style="padding:4px 6px;color:#94a3b8">—</td>` : celEst(c.ddp.desv, c.ddp.estado);
-    return ini + `<td style="padding:4px 6px">$${usd4(gR)}</td><td style="padding:4px 6px;color:#64748b">$${usd4(gT)}</td>${celEst(gD, CC.estado(gD))}${mpCel}${ddpCel}</tr>`;
+    return ini + `<td style="padding:4px 6px">$${usd4(gR)}</td><td style="padding:4px 6px;color:#64748b">$${usd4(gT)}</td>${celEst(gD, CC.estado(gD))}${mpCel}${ddpCel}${celLec(lec)}</tr>`;
   };
   const opHeadCtl = `<thead><tr style="border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">
     <th style="text-align:left;padding:4px 6px">Pedimento</th><th style="text-align:left;padding:4px 6px">Periodo</th><th>Escala</th><th>Kg</th><th title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</th>
-    <th>Gastos real/kg</th><th>Gastos teó/kg</th><th>Gastos vs teó</th><th style="${M};padding:4px 6px">MP vs teó</th><th>DDP vs teó</th></tr></thead>`;
+    <th>Gastos real/kg</th><th>Gastos teó/kg</th><th>Gastos vs teó</th><th style="${M};padding:4px 6px">MP vs teó</th><th>DDP vs teó</th><th style="text-align:left;padding:4px 6px">Lectura</th></tr></thead>`;
 
   // Desglose por modo de transporte (aéreo / marítimo) del proveedor. Solo se
   // muestra si hay más de un modo — separa promedios que mezclan aéreo y marítimo.
