@@ -26,8 +26,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pct = (v) => (v == null ? '—' : (Number(v) * 100).toFixed(1) + '%');
 
   let data = null, corte = 'proveedores', periodo = null;
-  let filtro = '', sortKey = 'costo_usd', sortDir = 'desc';
-  let vista = 'composicion'; // composicion (dónde pesa el costo) | control (vs teórico)
+  // Vista por defecto = 'gastos' (control simple: gastos real vs teórico, etapa 1).
+  // 'composicion' y 'control' (DDP) quedan como detalle.
+  let vista = 'gastos', verDetalle = false;
+  const sortIni = () => (vista === 'gastos' ? 'estado' : 'costo_usd');
+  let filtro = '', sortKey = sortIni(), sortDir = 'desc';
   // Estado por desviación: dentro (≤10%) · fuera (≤30%) · revisar (>30%).
   const ESTA = (d) => { if (d == null) return { bg: '#f8fafc', bd: '#e2e8f0', co: '#64748b', t: 's/d' }; const a = Math.abs(d); if (a <= 0.10) return { bg: '#f0fdf4', bd: '#bbf7d0', co: '#166534', t: 'dentro' }; if (a <= 0.30) return { bg: '#fef9c3', bd: '#fde68a', co: '#854d0e', t: 'fuera' }; return { bg: '#fef2f2', bd: '#fecaca', co: '#991b1b', t: 'revisar' }; };
   const pfA = (d) => { if (d == null) return '—'; const p = d * 100; if (Math.abs(p) < 0.05) return '0.0%'; return (p > 0 ? '+' : '') + p.toFixed(1) + '%'; };
@@ -63,9 +66,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       <button class="btn" data-c="partidas">Partidas (detalle)</button>
       <button class="btn" data-c="consolidacion">Consolidación</button>
     </div>
-    <div id="vistaTog" style="display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">
-      <button class="btn ghost" id="vComp" style="border:0;border-radius:0;padding:4px 12px">Composición</button>
-      <button class="btn ghost" id="vCtrl" style="border:0;border-radius:0;padding:4px 12px;border-left:1px solid var(--line)">Control vs teórico</button>
+    <div id="vistaTog" style="display:inline-flex;align-items:center;gap:6px">
+      <div style="display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+        <button class="btn ghost" id="vGas" style="border:0;border-radius:0;padding:4px 12px" title="Gastos (flete internacional + nacionales) real vs costeo teórico">Control de gastos</button>
+        <span id="vDet" style="display:none">
+          <button class="btn ghost" id="vComp" style="border:0;border-radius:0;padding:4px 12px;border-left:1px solid var(--line)">Composición</button>
+          <button class="btn ghost" id="vCtrl" style="border:0;border-radius:0;padding:4px 12px;border-left:1px solid var(--line)" title="Costo total (DDP = mercancía + gastos) vs teórico">DDP vs teórico</button>
+        </span>
+      </div>
+      <button class="btn ghost" id="vMas" style="padding:4px 8px;font-size:12px">Ver detalle ▸</button>
     </div>
     <input id="anQ" class="input" placeholder="🔍 Buscar…" style="max-width:300px"/>
     <span id="ventanaWrap" style="display:none;align-items:center;gap:6px">
@@ -75,6 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     </span>
   </div>
   <div id="legend" style="margin-top:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:11px;color:#475569;line-height:1.7">
+    <div id="legGmp" style="display:none">
     <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center">
       <span style="font-weight:700;color:#334155">Cómo leer:</span>
       <span><span style="font-weight:700;background:#faf5ff;color:#7e22ce;padding:1px 6px;border-radius:5px">Gastos/MP</span> = gastos (flete+otros) ÷ mercancía</span>
@@ -87,6 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span style="color:#64748b">— rojo = el gasto pesa más vs la mercancía; típico en <b>aéreo / lotes chicos</b>, no siempre es un problema.</span>
       </span>
     </div>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:5px">
       <span>Estado (gastos real vs costeo teórico, por desviación sin importar el signo):
         ${CC.chip('dentro')} ≤ 10 %
@@ -94,6 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         · ${CC.chip('revisar')} &gt; 30 % — <b>arriba o abajo</b>: un teórico muy por encima del real también se revisa (está mal calibrado)
       </span>
     </div>
+    <div style="margin-top:5px;color:#64748b">↑ real sobre el teórico · ↓ real bajo el teórico. Un ↓ grande no es ahorro: suele ser teórico sobreestimado o gastos no capturados en SAI.</div>
   </div>
   <div class="muted" id="cInfo" style="font-size:12px;margin-top:8px"></div>
   <div style="overflow-x:auto;margin-top:8px"><table class="table" id="tAn" style="width:100%;font-size:12.5px;font-variant-numeric:tabular-nums"></table></div>
@@ -299,8 +311,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('vistaTog')) $('vistaTog').style.display = aggCorte ? 'inline-flex' : 'none';
     if (aggCorte && $('vComp')) {
       const on = (id, act) => { const el = $(id); if (!el) return; el.style.background = act ? '#0891b2' : ''; el.style.color = act ? '#fff' : ''; el.style.fontWeight = act ? '700' : ''; };
-      on('vComp', vista === 'composicion'); on('vCtrl', vista === 'control');
+      on('vGas', vista === 'gastos'); on('vComp', vista === 'composicion'); on('vCtrl', vista === 'control');
+      const det = vista !== 'gastos' || verDetalle;
+      $('vDet').style.display = det ? 'inline' : 'none';
+      $('vMas').textContent = det ? 'Ocultar detalle ◂' : 'Ver detalle ▸';
     }
+    if ($('legGmp')) $('legGmp').style.display = (aggCorte && vista === 'composicion') ? '' : 'none';
     if (corte === 'partidas' || corte === 'consolidacion') {
       document.querySelectorAll('button[data-c]').forEach(bn => {
         const on = bn.dataset.c === corte;
@@ -328,33 +344,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     const q = filtro.trim().toLowerCase();
     let rows = q ? base.filter(r => String(r.grupo || '').toLowerCase().includes(q) || String(r.nombre || '').toLowerCase().includes(q) || String(r.proveedor || '').toLowerCase().includes(q)) : base.slice();
     const dir = sortDir === 'asc' ? 1 : -1;
-    rows.sort((a, b) => { const va = sortVal(a, sortKey), vb = sortVal(b, sortKey); return va < vb ? -dir : va > vb ? dir : 0; });
+    if (sortKey === 'estado') rows = CC.ordenarControl(rows);
+    else rows.sort((a, b) => { const va = sortVal(a, sortKey), vb = sortVal(b, sortKey); return va < vb ? -dir : va > vb ? dir : 0; });
     const hint = corte === 'productos' ? ' · expande un producto → operaciones por escala'
       : corte === 'escalas' ? ' · expande una escala → operaciones por proveedor'
         : ' · expande un proveedor → sus operaciones';
     const esCtrl = vista === 'control';
-    const leyendaVista = esCtrl
+    const esGas = vista === 'gastos';
+    const leyendaVista = esGas
+      ? ' · Control de gastos: flete internacional + gastos nacionales, real/kg vs teórico/kg, sobre los kg con teórico. Ordenado por estado (revisar primero) y kg.'
+      : esCtrl
       ? ' · Control vs teórico: DDP real/kg vs teórico/kg. La mercancía (MP) se compara solo en líneas del producto de su costeo (misma raíz de clave); si cubre menos del 50 % de los kg, el DDP queda "MP parcial" y la señal se lee en la columna MP vs teó. Desv >±30% = revisar (posible teórico desactualizado o costo no capturado).'
       : ' · costo total = mercancía + gastos + arancel (DDP puesto en almacén)';
     $('cInfo').textContent = `${n0(rows.length)} de ${n0(base.length)} ${meta.lab.toLowerCase()}(s)${leyendaVista}${hint}`;
     const sarr = (k) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const th = (k, lab, extra = '') => `<th data-sk="${k}" style="cursor:pointer;user-select:none;padding:6px;${extra}">${lab}${sarr(k)}</th>`;
-    const metricHead = esCtrl
+    const metricHead = esGas
+      ? `${th('g_real', 'Gastos real/kg')}${th('g_teo', 'Gastos teó/kg')}${th('g_desv', 'Desv vs teó')}${th('estado', 'Estado', 'text-align:center')}${th('sin_teo', '<span title="Kg del grupo sin costeo teórico comparable">Sin teórico</span>')}`
+      : esCtrl
       ? `${th('real_ddp', 'DDP real/kg')}${th('teo_ddp', 'DDP teó/kg')}${th('desv', 'Desv vs teó')}<th style="padding:6px">Estado</th>${th('mp_desv', 'MP vs teó', M)}`
       : `${th('mp_kg', 'Mercancía/kg', M)}${th('gastos_kg', 'Gastos/kg')}${th('ddp_kg', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total/kg</span>')}${th('gmp', 'Gastos/MP', M)}`;
-    const nMetric = esCtrl ? 5 : 4;
+    const nMetric = esGas ? 5 : esCtrl ? 5 : 4;
     const head = `<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:right">
       ${expand ? '<th style="width:24px"></th>' : ''}
       ${th('grupo', esc(meta.lab), 'text-align:left')}${meta.nombre ? th('nombre', 'Nombre', 'text-align:left') : ''}${meta.prov ? th('proveedor', 'Proveedor', 'text-align:left') : ''}
-      ${th('periodo', 'Periodos', 'text-align:left')}${th('ops', 'Ops')}${th('kg', 'Kg')}${th('costo_usd', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</span>')}
+      ${th('periodo', 'Periodos', 'text-align:left')}${th('ops', 'Ops')}${th('kg', 'Kg')}${esGas ? '' : th('costo_usd', '<span title="Costo total puesto en almacén (DDP) = mercancía + gastos + arancel. Viene del costo total de SAI al TC del pedimento.">Costo total USD</span>')}
       ${metricHead}</tr></thead>`;
-    const ncol = 5 + nMetric + (meta.nombre ? 1 : 0) + (meta.prov ? 1 : 0) + (expand ? 1 : 0);
+    const ncol = (esGas ? 4 : 5) + nMetric + (meta.nombre ? 1 : 0) + (meta.prov ? 1 : 0) + (expand ? 1 : 0);
     if (!rows.length) { $('tAn').innerHTML = head + `<tbody><tr><td colspan="${ncol}" style="text-align:center;padding:16px;color:var(--muted)">${base.length ? 'Sin coincidencias.' : 'Sin datos. Reconcilia el periodo primero.'}</td></tr></tbody>`; $('tAn').querySelectorAll('th[data-sk]').forEach(h => h.addEventListener('click', () => clickSort(h.dataset.sk))); return; }
     $('tAn').innerHTML = head + '<tbody>' + rows.map((r, idx) => {
       const kgv = Number(r.kg) || 0;
       const det = expand ? `<tr class="op-det" data-det="${idx}" style="display:none"><td colspan="${ncol}" style="padding:0 6px 10px 30px;background:#fafcff"></td></tr>` : '';
       let metricCells;
-      if (esCtrl) {
+      if (esGas) {
+        const g = CC.filaGastos(r);
+        const st = g.sinTeoKg > 0
+          ? `<td style="padding:6px;color:#64748b">${kg(g.sinTeoKg)} kg<div class="muted" style="font-size:10px">${pct(g.sinTeoPct)}</div></td>`
+          : `<td style="padding:6px;color:#94a3b8">—</td>`;
+        if (g.motivo === 'sin_teorico') {
+          metricCells = `<td style="padding:6px;color:#94a3b8" colspan="3">— sin teórico comparable —</td><td style="padding:6px;text-align:center">${CC.chip(null)}</td>${st}`;
+        } else {
+          const co = CC.color(g.estado).co;
+          const fl = g.signo === 'sobre' ? '↑' : g.signo === 'bajo' ? '↓' : '';
+          metricCells = `<td style="padding:6px">$${usd4(g.real)}</td>
+        <td style="padding:6px;color:#64748b">$${usd4(g.teo)}</td>
+        <td style="padding:6px;font-weight:700;color:${co}">${fl} ${CC.pct(g.desv)}</td>
+        <td style="padding:6px;text-align:center">${CC.chip(g.estado)}</td>${st}`;
+        }
+      } else if (esCtrl) {
         const kgc = Number(r.kg_cmp) || 0;
         const c = ctl(r), d = c.ddp;
         const cob = Math.round(c.cobMp * 100);
@@ -392,7 +429,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:left;padding:6px;color:#475569;white-space:nowrap">${esc(perLbl(r))}</td>
         <td style="padding:6px">${n0(r.ops)}</td>
         <td style="padding:6px">${kg(r.kg)}</td>
-        <td style="padding:6px;font-weight:700">$${n0(r.costo_usd)}</td>
+        ${esGas ? '' : `<td style="padding:6px;font-weight:700">$${n0(r.costo_usd)}</td>`}
         ${metricCells}</tr>${det}`;
     }).join('') + '</tbody>';
     if (expand) $('tAn').querySelectorAll('button[data-op]').forEach(bn => bn.addEventListener('click', () => toggleOps(bn, rows[+bn.dataset.op])));
@@ -418,10 +455,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'teo_ddp': { const v = teoDdpKg(r); return v == null ? -1 : v; }
       case 'desv': { const v = ctl(r).ddp.desv; return v == null ? -1e9 : v; }
       case 'mp_desv': { const m = ctl(r).mp; return m && m.desv != null ? m.desv : -1e9; }
+      case 'g_real': { const v = CC.filaGastos(r).real; return v == null ? -1 : v; }
+      case 'g_teo': { const v = CC.filaGastos(r).teo; return v == null ? -1 : v; }
+      case 'g_desv': { const v = CC.filaGastos(r).desv; return v == null ? -1e9 : v; }
+      case 'sin_teo': return CC.filaGastos(r).sinTeoPct;
       default: return 0;
     }
   }
   function clickSort(k) {
+    if (k === 'estado') { sortKey = 'estado'; sortDir = 'desc'; render(); return; }
     if (sortKey === k) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     else { sortKey = k; sortDir = (k === 'grupo' || k === 'nombre') ? 'asc' : 'desc'; }
     render();
@@ -528,7 +570,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (det.style.display !== 'none') { det.style.display = 'none'; bn.textContent = '▸'; return; }
     det.style.display = ''; bn.textContent = '▾';
     const cell = det.firstElementChild;
-    const esCtrlOp = vista === 'control';
+    const esCtrlOp = vista !== 'composicion';
     const key = vista + '|' + corte + '|' + periodo + '|' + row.grupo;
     const OH = esCtrlOp ? opHeadCtl : opHead, OF = esCtrlOp ? opFilaCtl : opFila;
     if (opsCache[key]) { cell.innerHTML = opsCache[key]; return; }
@@ -573,9 +615,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rows = KoguApi.unwrapData(await KoguApi.apiFetch(BASE + '/reconciliacion/periodos')) || [];
       const sel = $('periodo');
       if (!rows.length) { sel.innerHTML = '<option value="">— sin periodos reconciliados —</option>'; $('expBtn').disabled = true; return; }
-      const acum = `<option value="ACUM">📊 Acumulado (todos los periodos)</option>`;
-      sel.innerHTML = acum + rows.map(r => `<option value="${esc(r.periodo)}">${esc(r.periodo)} · ${n0(r.n_pedimentos)} pedimentos</option>`).join('');
-      sel.value = 'ACUM';
+      // Solo periodos con operaciones analizables; el resto, deshabilitado con su motivo (comex-control.js).
+      const ops = CC.opcionesPeriodo(rows);
+      sel.innerHTML = ops.map(o => `<option value="${esc(o.value)}"${o.disabled ? ' disabled' : ''}>${esc(o.label)}</option>`).join('');
+      const ini = ops.find(o => !o.disabled);
+      if (!ini) { sel.insertAdjacentHTML('afterbegin', '<option value="" selected>— sin periodos reconciliados —</option>'); $('expBtn').disabled = true; return; }
+      $('expBtn').disabled = false;
+      sel.value = ini.value;
       periodo = sel.value; cargar();
     } catch (e) { KoguApi.toast(e.message, 'error'); }
   }
@@ -615,8 +661,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     else { cargar(); }
   });
   $('ventanaDias').addEventListener('change', () => { consol = null; if (corte === 'consolidacion') cargarConsolidacion(); });
-  document.querySelectorAll('button[data-c]').forEach(bn => bn.addEventListener('click', () => { corte = bn.dataset.c; filtro = ''; if ($('anQ')) $('anQ').value = ''; sortKey = 'costo_usd'; sortDir = 'desc'; render(); }));
-  const setVista = (v) => { vista = v; if (sortKey === 'gastos_kg' || sortKey === 'mp_kg' || sortKey === 'gmp' || sortKey === 'uti' || sortKey === 'desv' || sortKey === 'mp_desv' || sortKey === 'real_ddp' || sortKey === 'teo_ddp') { sortKey = 'costo_usd'; sortDir = 'desc'; } render(); };
+  document.querySelectorAll('button[data-c]').forEach(bn => bn.addEventListener('click', () => { corte = bn.dataset.c; filtro = ''; if ($('anQ')) $('anQ').value = ''; sortKey = sortIni(); sortDir = 'desc'; render(); }));
+  // Al cambiar de vista vuelve al orden por omisión de esa vista (las claves de
+  // orden son propias de cada vista).
+  const setVista = (v) => { vista = v; sortKey = sortIni(); sortDir = 'desc'; render(); };
+  if ($('vGas')) $('vGas').addEventListener('click', () => { verDetalle = false; setVista('gastos'); });
+  if ($('vMas')) $('vMas').addEventListener('click', () => { if (vista !== 'gastos' || verDetalle) { verDetalle = false; setVista('gastos'); } else { verDetalle = true; render(); } });
   if ($('vComp')) $('vComp').addEventListener('click', () => setVista('composicion'));
   if ($('vCtrl')) $('vCtrl').addEventListener('click', () => setVista('control'));
   let anQTimer = null;

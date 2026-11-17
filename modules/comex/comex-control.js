@@ -93,6 +93,49 @@
   };
   api.pct = (d) => { if (d == null) return '—'; const p = d * 100; if (Math.abs(p) < 0.05) return '0.0%'; return (p > 0 ? '+' : '') + p.toFixed(1) + '%'; };
 
+  // Vista simple de Análisis: GASTOS (flete int'l + nacionales) real vs teórico,
+  // sobre los kg con teórico — mismo criterio que Reconciliación y Resumen.
+  // Agregado = Σ gastos ÷ Σ kg (ponderado por kg). El estado no sigue al signo;
+  // el signo se conserva ('sobre' / 'bajo'). Sin teórico = kg sin teórico y su %.
+  api.filaGastos = (r = {}) => {
+    const kg = num(r.kg), kgCmp = num(r.kg_cmp);
+    const sinTeoKg = Math.max(kg - kgCmp, 0);
+    const sinTeoPct = kg > 0 ? sinTeoKg / kg : 0;
+    const teoTot = num(r.teo_flete) + num(r.teo_otros);
+    if (!(kgCmp > 0) || !(teoTot > 0)) {
+      return { kg, kgCmp, real: null, teo: null, desv: null, estado: null, signo: null, motivo: 'sin_teorico', sinTeoKg, sinTeoPct };
+    }
+    const real = num(r.gastos_real_cmp) / kgCmp, teo = teoTot / kgCmp;
+    const desv = real / teo - 1;
+    return { kg, kgCmp, real, teo, desv, estado: api.estado(desv), signo: desv > 0 ? 'sobre' : desv < 0 ? 'bajo' : null, motivo: null, sinTeoKg, sinTeoPct };
+  };
+
+  // Orden de la vista simple: revisar → fuera → dentro → sin teórico; dentro de
+  // cada estado, por kg (lo que más pesa primero). No modifica el arreglo.
+  const RANGO = { revisar: 0, fuera: 1, dentro: 2 };
+  api.ordenarControl = (rows) => (rows || []).map((r) => ({ r, g: api.filaGastos(r) }))
+    .sort((a, b) => ((RANGO[a.g.estado] ?? 3) - (RANGO[b.g.estado] ?? 3)) || (b.g.kg - a.g.kg))
+    .map((x) => x.r);
+
+  // Opciones del selector de periodo de Análisis. Solo se elige un periodo con
+  // operaciones analizables (n_analizable > 0); los demás se muestran
+  // deshabilitados con su motivo. Acumulado solo si alguno es analizable.
+  // Si el back aún no manda n_analizable, todo queda habilitado (como antes).
+  api.opcionesPeriodo = (rows) => {
+    const n = (v) => (Number(v) || 0).toLocaleString('es-MX');
+    const lista = rows || [];
+    const conDato = lista.some((r) => r && r.n_analizable != null);
+    const ops = lista.map((r) => {
+      const ped = `${n(r.n_pedimentos)} pedimentos`;
+      if (!conDato) return { value: r.periodo, label: `${r.periodo} · ${ped}`, disabled: false };
+      if (Number(r.n_analizable) > 0) return { value: r.periodo, label: `${r.periodo} · ${n(r.n_analizable)} ops reconciliadas · ${ped}`, disabled: false };
+      const motivo = Number(r.n_reconciliado) > 0 ? 'sin datos analizables' : 'sin reconciliar';
+      return { value: r.periodo, label: `${r.periodo} · ${motivo} · ${ped}`, disabled: true };
+    });
+    const hayAnalizable = ops.some((o) => !o.disabled);
+    return hayAnalizable ? [{ value: 'ACUM', label: '📊 Acumulado (todos los periodos)', disabled: false }, ...ops] : ops;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KoguComexControl = api;
 })(typeof window !== 'undefined' ? window : globalThis);
