@@ -33,7 +33,7 @@ const HIST = {
   ],
   documentos: [OP, CSF],
 };
-const CFG = { empresa_id: 'bda26b0e-55b8-49f7-ac1d-90799bfa5125', docfis_auto: false, docfis_cada_dias: 15, docfis_correos: [] };
+const CFG = { empresa_id: 'bda26b0e-55b8-49f7-ac1d-90799bfa5125', docfis_auto: false, docfis_correos: [] };
 
 async function arranca({ permisos = ['screen.core.docfis', 'core.docfis.config', 'core.docfis.ejecutar'], hist = HIST, cfg = CFG, fallaEjecutar = null } = {}) {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>',
@@ -134,32 +134,37 @@ test('el PDF se abre con el token (authFetchRaw), no con un enlace directo', asy
 });
 
 // ── Configuración: interruptor, días, correos ──────────────────
-test('config: interruptor apagado, cada 15 días y sin correos → explica a quién llegan los avisos', async () => {
+test('config: interruptor apagado y sin correos → explica a quién llegan los avisos; no hay "cada cuántos días"', async () => {
   const p = await arranca();
   assert.equal(p.$('#docfisAuto').value, 'false');
-  assert.equal(p.$('#docfisDias').value, '15');
+  assert.equal(p.$('#docfisDias'), null, 'el calendario es global (Sergio, 20-nov)');
   assert.match(p.texto(p.$('#docfisCorreosVista')), /permiso|usuarios/i);
   assert.match(p.texto(p.$('#docfisConfig')), /apagad/i);
 });
 
-test('config: encender, cada 7 días, dos correos → PUT normalizado', async () => {
+test('config encendida: explica el calendario (día 1 a las 5:00 y reintento los días siguientes)', async () => {
   const p = await arranca();
   p.escribir(p.$('#docfisAuto'), 'true');
-  p.escribir(p.$('#docfisDias'), '7');
+  const v = p.texto(p.$('#docfisCorreosVista'));
+  assert.match(v, /día 1/i);
+  assert.match(v, /5:00/);
+  assert.match(v, /siguientes/i);
+});
+
+test('config: encender y dos correos → PUT normalizado (sin días)', async () => {
+  const p = await arranca();
+  p.escribir(p.$('#docfisAuto'), 'true');
   p.escribir(p.$('#docfisCorreos input'), ' Fiscal@Warner.mx ');
   p.$('#docfisCorreosAgregar').click();
   p.escribir(p.$$('#docfisCorreos input')[1], 'conta@warner.mx');
   p.$('#docfisGuardar').click(); await p.espera();
   assert.deepEqual(p.de('PUT', `${API}/config`).map((x) => x.body),
-    [{ docfis_auto: true, docfis_cada_dias: 7, docfis_correos: ['fiscal@warner.mx', 'conta@warner.mx'] }]);
+    [{ docfis_auto: true, docfis_correos: ['fiscal@warner.mx', 'conta@warner.mx'] }]);
   assert.ok(p.toasts.some(([t, m]) => t === 'success' && /guard/i.test(m)));
 });
 
-test('config inválida (días fuera de 1–30 o correo mal escrito): avisa y no manda nada', async () => {
+test('config inválida (correo mal escrito): avisa y no manda nada', async () => {
   const p = await arranca();
-  p.escribir(p.$('#docfisDias'), '31');
-  p.$('#docfisGuardar').click(); await p.espera();
-  p.escribir(p.$('#docfisDias'), '15');
   p.escribir(p.$('#docfisCorreos input'), 'fiscal@warner');
   p.$('#docfisGuardar').click(); await p.espera();
   assert.equal(p.de('PUT', `${API}/config`).length, 0);

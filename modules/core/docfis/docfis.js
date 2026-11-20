@@ -4,13 +4,14 @@
 // Situación Fiscal (CSF) y Opinión de Cumplimiento 32-D, descargadas con la
 // FIEL de la empresa.
 //   GET  /protected/core/docfis            { ultimos, corridas, documentos }
-//   GET  /protected/core/docfis/config     { docfis_auto, docfis_cada_dias, docfis_correos }
+//   GET  /protected/core/docfis/config     { docfis_auto, docfis_correos }
 //   PUT  /protected/core/docfis/config     (core.docfis.config)
 //   POST /protected/core/docfis/ejecutar   (core.docfis.ejecutar)
 //   GET  /protected/core/docfis/documentos/:id/pdf
 // Reglas (Sergio): todo proceso automático lleva interruptor por empresa y
 // lista de correos; "Descargar ahora" corre aunque el interruptor esté
-// apagado. La configuración vive aquí (no en la ficha de Empresas) porque
+// apagado. Calendario global (20-nov-2026): día 1 de cada mes a las 5:00 y
+// reintento los días siguientes si el SAT falla. La configuración vive aquí (no en la ficha de Empresas) porque
 // aplica a la empresa ACTIVA, la misma del badge.
 // Prueba: tests/core-docfis-render.test.mjs
 // ============================================================
@@ -65,8 +66,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         <select class="select" id="docfisAuto" ${puedeConfig ? '' : 'disabled'}>
           <option value="false">Apagada</option><option value="true">Encendida</option>
         </select></label>
-      <label><span class="label-text">Cada cuántos días</span>
-        <input class="input" id="docfisDias" type="number" min="1" max="30" step="1" style="max-width:120px" ${puedeConfig ? '' : 'disabled'}/></label>
       <div><span class="label-text">Correos que reciben los documentos <span class="dfis-muted">(hasta ${MAX})</span></span>
         <div id="docfisCorreos" class="dfis-lista"></div>
         ${puedeConfig ? '<button type="button" class="btn" id="docfisCorreosAgregar" style="margin-top:8px">Agregar correo</button>' : ''}</div>
@@ -139,9 +138,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function vista() {
     const c = limpios();
     const auto = $('docfisAuto').value === 'true';
-    const dias = $('docfisDias').value;
     const estado = auto
-      ? `<b>Encendida:</b> se descarga cada ${esc(dias || '?')} días, a partir de las 10:00.`
+      ? '<b>Encendida:</b> se descarga el día 1 de cada mes a las 5:00. Si el SAT falla, se vuelve a intentar los días siguientes a la misma hora.'
       : '<b>Apagada:</b> no se descarga sola; “Descargar ahora” sí funciona.';
     const para = c.length
       ? `<b>Los documentos llegan a:</b> ${esc(c.join(', '))}`
@@ -157,7 +155,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function ponerConfig(d) {
     $('docfisAuto').value = d && d.docfis_auto ? 'true' : 'false';
-    $('docfisDias').value = String((d && d.docfis_cada_dias) || 15);
     correos = d && (d.docfis_correos || []).length ? [...d.docfis_correos] : [''];
     $('docfisMsg').textContent = '';
     pintarCorreos();
@@ -168,8 +165,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   async function guardar() {
     const msg = (t) => { $('docfisMsg').textContent = t; };
-    const dias = Number($('docfisDias').value);
-    if (!Number.isInteger(dias) || dias < 1 || dias > 30) return msg('Los días deben ser un número entero de 1 a 30.');
     const c = limpios();
     const malo = c.find((x) => !CORREO_RE.test(x));
     if (malo) return msg(`El correo "${malo}" no es válido.`);
@@ -177,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     msg('');
     const btn = $('docfisGuardar'); btn.disabled = true;
     try {
-      const body = { docfis_auto: $('docfisAuto').value === 'true', docfis_cada_dias: dias, docfis_correos: c };
+      const body = { docfis_auto: $('docfisAuto').value === 'true', docfis_correos: c };
       ponerConfig(datos(await KoguApi.apiFetch(`${API}/config`, { method: 'PUT', body: JSON.stringify(body) })) || body);
       KoguApi.toast('Se guardó la configuración de documentos fiscales.', 'success');
     } catch (e) { msg((e && e.message) || 'No se pudo guardar.'); avisar(e, 'No se pudo guardar.'); }
@@ -211,7 +206,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     correos[Number(i)] = e.target.value; vista();
   });
   $('docfisAuto').addEventListener('change', vista);
-  $('docfisDias').addEventListener('input', vista);
   if ($('docfisCorreosAgregar')) $('docfisCorreosAgregar').addEventListener('click', () => {
     if (correos.length >= MAX) return;
     correos.push(''); pintarCorreos();
