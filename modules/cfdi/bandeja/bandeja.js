@@ -25,6 +25,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       /* IVA exento (06-nov-2026). styles.css no trae .chip.warn: se define aquí. */
       .chip.chip-exento { background:#fef3c7; color:#92400e; }
+      /* Consulta al SAT de un UUID que no está en la bandeja (E3, 20-nov-2026). */
+      .consulta-sat { text-align:left; padding:16px; border:1px dashed rgba(15,23,42,.18); border-radius:12px; background:rgba(248,250,252,.7); }
+      .consulta-sat h4 { margin:0 0 4px; font-size:15px; }
+      .consulta-sat .grid-consulta { display:grid; grid-template-columns: 1.1fr 1fr 1fr auto; gap:10px; align-items:end; margin-top:12px; }
+      @media (max-width: 1100px) { .consulta-sat .grid-consulta { grid-template-columns: 1fr 1fr; } }
+      .consulta-sat .resultado { margin-top:14px; padding:12px; border-radius:10px; background:#fff; border:1px solid rgba(15,23,42,.10); }
+      .consulta-sat .resultado p { margin:6px 0 0; }
       .monto-stack .muted-note { color: var(--muted); font-size: 11px; }
       .grid-filtros-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
       @media (max-width: 1100px) { .grid-filtros-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -797,9 +804,155 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </td>
       </tr>
-    `).join('') : `<tr><td colspan="12" class="empty">Sin CFDI para los criterios seleccionados</td></tr>`;
+    `).join('') : filaVaciaBandeja();
 
     bindRowActions();
+    if (!state.items.length && uuidBuscadoCompleto()) renderConsultaUuidSat(uuidBuscadoCompleto());
+  }
+
+  // ─── Consulta al SAT de un UUID que no está en la bandeja (E3, 20-nov-2026) ───
+  // Caso: "está timbrado pero no aparece". Un recibido cancelado nunca llega por
+  // descarga masiva, así que se le pregunta al servicio público del SAT con los
+  // datos del PDF (RFC emisor, RFC receptor y total). No usa FIEL ni cupo.
+  const UUID_COMPLETO_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+
+  function uuidBuscadoCompleto() {
+    const v = String(document.getElementById('uuid')?.value || '').trim().toUpperCase();
+    return UUID_COMPLETO_RE.test(v) ? v : '';
+  }
+
+  function filaVaciaBandeja() {
+    if (uuidBuscadoCompleto()) {
+      return `<tr><td colspan="12"><div class="consulta-sat" id="consultaSatBox"><span class="muted">Revisando…</span></div></td></tr>`;
+    }
+    return `<tr><td colspan="12" class="empty">Sin CFDI para los criterios seleccionados</td></tr>`;
+  }
+
+  function rfcEmpresaActiva() {
+    const e = (KoguApi.getEmpresaActiva && KoguApi.getEmpresaActiva()) || {};
+    return String(e.rfc || '').trim().toUpperCase();
+  }
+
+  function textoResultadoConsulta(d) {
+    const esc = KoguUi.escapeHtml;
+    const cuando = d.consultado_at ? KoguUi.fmtDate(d.consultado_at) : '';
+    const recibido = d.origen === 'RECIBIDO';
+    const estatus = String(d.estatus || '').toUpperCase();
+    let explicacion;
+    if (estatus === 'CANCELADO') {
+      explicacion = recibido
+        ? 'En el SAT está <strong>cancelado</strong>. Por eso no aparece en la bandeja: el SAT no entrega el XML de un recibido cancelado.'
+        : 'En el SAT está <strong>cancelado</strong>.';
+    } else if (estatus === 'VIGENTE') {
+      explicacion = 'El SAT lo tiene <strong>vigente</strong> y KOGU no tiene su XML: es un faltante de la descarga. Avísale al administrador de CFDI.';
+    } else if (estatus === 'NO ENCONTRADO') {
+      explicacion = 'El SAT <strong>no lo encontró</strong> con esos datos. Revisa los RFC y el total tal como vienen en el PDF.';
+    } else {
+      explicacion = 'Respuesta del SAT: ' + esc(d.estatus || '-');
+    }
+    const detalle = [d.estatus_cancelacion, d.es_cancelable].filter(Boolean).map(esc).join(' · ');
+    return `
+      <div class="resultado">
+        <div>${KoguUi.statusBadge(d.estatus)} <span class="mono">${esc(d.uuid || '')}</span></div>
+        <p>${explicacion}</p>
+        ${detalle ? `<p class="muted">${detalle}</p>` : ''}
+        <p class="muted">Consultado ${esc(cuando)}${estatus === 'CANCELADO' ? ' · el SAT no informa la fecha de cancelación en esta consulta.' : ''}</p>
+      </div>`;
+  }
+
+  async function renderConsultaUuidSat(uuid) {
+    const box = document.getElementById('consultaSatBox');
+    if (!box) return;
+    const esc = KoguUi.escapeHtml;
+    const rfcEmpresa = rfcEmpresaActiva();
+
+    let ultima = null;
+    try {
+      const res = await KoguApi.apiFetch('/cfdi/protected/cfdi/facturas/consulta-uuid-sat/' + encodeURIComponent(uuid));
+      ultima = KoguApi.unwrapData(res) || null;
+      if (ultima && !ultima.uuid) ultima = null;
+    } catch (_) { ultima = null; }
+
+    // Si el usuario cambió la búsqueda mientras tanto, no pintar sobre otra.
+    if (uuidBuscadoCompleto() !== uuid || !document.getElementById('consultaSatBox')) return;
+
+    const direccionDefault = state.scope === 'emitidos' ? 'emitido' : 'recibido';
+    box.innerHTML = `
+      <h4>Este UUID no está en KOGU</h4>
+      <div class="muted">Si te dicen que está timbrado, consúltalo en el SAT con los datos del PDF. No gasta descargas.</div>
+      ${ultima ? textoResultadoConsulta(ultima) : ''}
+      <div class="grid-consulta">
+        <label>
+          <div class="label-text">El comprobante lo…</div>
+          <select class="select" id="csDireccion">
+            <option value="recibido" ${direccionDefault === 'recibido' ? 'selected' : ''}>recibimos (otro nos lo emitió)</option>
+            <option value="emitido" ${direccionDefault === 'emitido' ? 'selected' : ''}>emitimos nosotros</option>
+          </select>
+        </label>
+        <label>
+          <div class="label-text" id="csRfcLabel">RFC del emisor</div>
+          <input class="input" id="csRfcContraparte" placeholder="RFC" maxlength="13" value="${esc(ultima ? (ultima.origen === 'EMITIDO' ? ultima.receptor_rfc : ultima.emisor_rfc) : '')}">
+        </label>
+        <label>
+          <div class="label-text">Total del PDF</div>
+          <input class="input" id="csTotal" placeholder="0.00" inputmode="decimal" value="${esc(ultima && ultima.total != null ? String(Number(ultima.total)) : '')}">
+        </label>
+        <button class="btn primary" id="csConsultarBtn">${ultima ? 'Volver a consultar' : 'Consultar en el SAT'}</button>
+      </div>
+      <div class="muted" style="margin-top:6px">RFC de la empresa activa: <span class="mono">${esc(rfcEmpresa || 'sin RFC')}</span></div>
+      <div id="csResultado"></div>
+    `;
+
+    const dir = document.getElementById('csDireccion');
+    const syncLabel = () => {
+      document.getElementById('csRfcLabel').textContent = dir.value === 'emitido' ? 'RFC del receptor' : 'RFC del emisor';
+    };
+    dir.addEventListener('change', syncLabel);
+    syncLabel();
+
+    document.getElementById('csConsultarBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('csConsultarBtn');
+      const out = document.getElementById('csResultado');
+      const contraparte = document.getElementById('csRfcContraparte').value.trim().toUpperCase();
+      const total = document.getElementById('csTotal').value.trim();
+      const emitido = dir.value === 'emitido';
+      const body = {
+        uuid,
+        emisor_rfc: emitido ? rfcEmpresa : contraparte,
+        receptor_rfc: emitido ? contraparte : rfcEmpresa,
+        total,
+      };
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Consultando…';
+      try {
+        const res = await KoguApi.apiFetch('/cfdi/protected/cfdi/facturas/consulta-uuid-sat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const d = KoguApi.unwrapData(res) || {};
+        if (d.resultado === 'ya_existe') {
+          out.innerHTML = `
+            <div class="resultado">
+              <p>Este UUID <strong>sí está en KOGU</strong>; no aparece con los filtros actuales (fecha, tipo o emitidos/recibidos).</p>
+              <p><a class="btn" href="/modules/cfdi/detalle/detalle.html?uuid=${encodeURIComponent(uuid)}">Abrir detalle</a></p>
+            </div>`;
+        } else {
+          out.innerHTML = textoResultadoConsulta(d);
+          const previo = box.querySelector(':scope > .resultado');
+          if (previo) previo.remove();
+          btn.textContent = 'Volver a consultar';
+          KoguApi.toast('Consulta al SAT realizada', 'success');
+          return;
+        }
+      } catch (err) {
+        out.innerHTML = `<div class="resultado"><p>${esc(err.message || 'No fue posible consultar al SAT.')}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        if (btn.textContent === 'Consultando…') btn.textContent = original;
+      }
+    });
   }
 
   function updateTabCounts(conteos) {
