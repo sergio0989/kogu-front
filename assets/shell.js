@@ -13,6 +13,7 @@
       {href:'/modules/core/permisos/permisos.html',label:'Permisos',perm:'screen.catalogos.permisos'},
       {href:'/modules/core/certificados/certificados.html',label:'Certificados',perm:'screen.core.certificados'},
       {href:'/modules/core/salud-fiscal/salud-fiscal.html',label:'Salud fiscal',perm:'screen.core.salud_fiscal'},
+      {href:'/modules/core/docfis/docfis.html',label:'Documentos fiscales SAT',perm:'screen.core.docfis'},
       {href:'/modules/core/monitor-sat/monitor-sat.html',label:'Monitoreo SAT',perm:'screen.core.monitor_sat'},
       {href:'/modules/core/tipo-cambio/tipo-cambio.html',label:'Tipo de cambio',perm:'core.tipo_cambio.manage'},
       {href:'/modules/rpt/programaciones.html',label:'Reportes programados',perm:'rpt.read'},
