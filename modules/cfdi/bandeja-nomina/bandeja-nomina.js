@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               Recibos de nómina emitidos, por mes, año completo o rango según la <strong>fecha de pago</strong>. El detalle es un renglón por recibo; la hoja "Datos" del Excel está lista para construir tu tabla dinámica (puedes agregar tu centro de costos).
             </p>
           </div>
-          <div class="page-actions">
+          <div class="page-actions" style="margin-left:auto;">
             <button class="btn" id="exportBtn">Exportar Excel</button>
             <button class="btn" id="consultarBtn">Consultar</button>
           </div>
@@ -65,23 +65,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         </div>
 
-        <div id="rangoBox" class="row" style="display:none;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
-          <div>
-            <label class="label-text">Desde</label>
-            <input class="input" type="date" id="desde" />
-          </div>
-          <div>
-            <label class="label-text">Hasta</label>
-            <input class="input" type="date" id="hasta" />
-          </div>
-          <div>
-            <label class="label-text">Atajos (toman el periodo de la fecha Desde)</label>
-            <div class="row" style="gap:6px;flex-wrap:wrap;">
-              <button class="btn" type="button" id="atajoPrev" title="Periodo anterior" disabled>‹</button>
-              <button class="btn" type="button" data-atajo="B">Bimestre</button>
-              <button class="btn" type="button" data-atajo="T">Trimestre</button>
-              <button class="btn" type="button" data-atajo="S">Semestre</button>
-              <button class="btn" type="button" id="atajoNext" title="Periodo siguiente" disabled>›</button>
+        <div id="rangoBox" style="display:none;margin-top:14px;">
+          <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:flex-start;">
+            <div style="width:180px;">
+              <label class="label-text">Desde</label>
+              <input class="input" type="date" id="desde" />
+            </div>
+            <div style="width:180px;">
+              <label class="label-text">Hasta</label>
+              <input class="input" type="date" id="hasta" />
+            </div>
+            <div>
+              <label class="label-text" title="Toman el periodo donde cae la fecha Desde">Atajos</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:42px;">
+                <button class="tab" type="button" id="atajoPrev" title="Periodo anterior" aria-label="Periodo anterior" disabled>‹</button>
+                <button class="tab" type="button" data-atajo="B">Bimestre</button>
+                <button class="tab" type="button" data-atajo="T">Trimestre</button>
+                <button class="tab" type="button" data-atajo="S">Semestre</button>
+                <button class="tab" type="button" id="atajoNext" title="Periodo siguiente" aria-label="Periodo siguiente" disabled>›</button>
+              </div>
             </div>
           </div>
         </div>
@@ -157,10 +159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function marcarAtajo() {
     document.querySelectorAll('[data-atajo]').forEach((b) => {
-      b.classList.toggle('primary', b.dataset.atajo === state.atajo);
+      b.classList.toggle('active', b.dataset.atajo === state.atajo);
     });
-    document.getElementById('atajoPrev').disabled = !state.atajo;
-    document.getElementById('atajoNext').disabled = !state.atajo;
+    for (const id of ['atajoPrev', 'atajoNext']) {
+      const b = document.getElementById(id);
+      b.disabled = !state.atajo;
+      b.style.opacity = state.atajo ? '' : '0.4';
+      b.style.cursor = state.atajo ? '' : 'not-allowed';
+    }
   }
   function aplicarRango(p) {
     document.getElementById('desde').value = p.desde;
