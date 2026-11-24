@@ -72,13 +72,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <th>Estatus SAT</th>
                 <th>Consulta SAT</th>
                 <th>Total XML</th>
+                <th>Impuestos</th>
                 <th>Total KOGU</th>
                 <th>Diferencias</th>
                 <th>Detalle</th>
               </tr>
             </thead>
             <tbody id="resultRows">
-              <tr><td colspan="13" class="empty">Sin resultados.</td></tr>
+              <tr><td colspan="14" class="empty">Sin resultados.</td></tr>
             </tbody>
           </table>
         </div>
@@ -208,6 +209,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 
+  // Celda compacta de impuestos del XML (IEPS y retenciones solo si hay).
+  function impuestosCell(x) {
+    if (!x) return '-';
+    const n = (v) => Number(v || 0);
+    const lineas = [`<div>IVA: ${money(x.iva_trasladado)}</div>`];
+    if (n(x.ieps_trasladado) > 0) lineas.push(`<div>IEPS: ${money(x.ieps_trasladado)}</div>`);
+    const ret = n(x.impuestos_ret_iva) + n(x.impuestos_ret_isr);
+    if (ret > 0) lineas.push(`<div>Ret.: ${money(ret)}</div>`);
+    lineas.push(`<div class="muted">Exento: ${x.tiene_iva_exento ? 'Sí' : 'No'}</div>`);
+    return `<div class="status-stack">${lineas.join('')}</div>`;
+  }
+
+  // Recuadro XML vs KOGU en orden de factura. Del lado KOGU, los importes de
+  // impuestos solo se muestran si el CFDI tiene desglose en la base; los
+  // históricos (antes de nov-2026) y los que no están en KOGU muestran "—".
+  function impuestosBox(item) {
+    const x = item.xml || {};
+    const k = item.kogu || null;
+    const conDesglose = !!k?.desglose_impuestos_at;
+    const vx = (v) => (item.xml ? money(v) : '—');
+    const vk = (v, requiereDesglose = true) => {
+      if (!k) return '—';
+      if (requiereDesglose && !conDesglose) return '—';
+      return v == null ? '—' : money(v);
+    };
+    const sn = (b) => (b ? 'Sí' : 'No');
+    const filas = [
+      ['Subtotal', vx(x.subtotal), vk(k?.subtotal, false)],
+      ['Descuento', vx(x.descuento), vk(k?.descuento)],
+      ['Base IVA 16%', vx(x.base_iva_16), vk(k?.base_iva_16)],
+      ['Base IVA 8%', vx(x.base_iva_8), vk(k?.base_iva_8)],
+      ['Base IVA 0%', vx(x.base_iva_0), vk(k?.base_iva_0)],
+      ['Base IVA exento', vx(x.base_iva_exento), vk(k?.base_iva_exento)],
+      ['IVA exento', item.xml ? sn(x.tiene_iva_exento) : '—', k && conDesglose ? sn(k.tiene_iva_exento) : '—'],
+      ['IVA trasladado', vx(x.iva_trasladado), vk(k?.iva_trasladado)],
+      ['IEPS trasladado', vx(x.ieps_trasladado), vk(k?.ieps_trasladado)],
+      ['Ret. IVA', vx(x.impuestos_ret_iva), vk(k?.impuestos_ret_iva, false)],
+      ['Ret. ISR', vx(x.impuestos_ret_isr), vk(k?.impuestos_ret_isr, false)],
+      ['Total', vx(x.total), vk(k?.total, false)]
+    ];
+    const nota = k && !conDesglose
+      ? '<div class="muted" style="margin-top:6px;font-size:12px">Este CFDI se procesó antes del desglose de impuestos; KOGU solo tiene totales.</div>'
+      : '';
+    return `
+      <div class="factura-box">
+        <div class="eyebrow">Impuestos</div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table data-impuestos>
+            <thead><tr><th>Concepto</th><th style="text-align:right">XML</th><th style="text-align:right">KOGU</th></tr></thead>
+            <tbody>
+              ${filas.map(([c, a, b]) => `<tr><td>${c}</td><td style="text-align:right">${a}</td><td style="text-align:right">${b}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${nota}
+      </div>`;
+  }
+
   function setExportButtons(enabled) {
     document.getElementById('exportPdfBtn').disabled = !enabled;
     document.getElementById('exportExcelBtn').disabled = !enabled;
@@ -225,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderRows() {
     const tbody = document.getElementById('resultRows');
     if (!state.resultados.length) {
-      tbody.innerHTML = '<tr><td colspan="13" class="empty">Sin resultados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="14" class="empty">Sin resultados.</td></tr>';
       return;
     }
 
@@ -241,6 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${satStatusText(item)}</td>
         <td>${satConsultText(item)}</td>
         <td>${item.xml ? money(item.xml.total) : '-'}</td>
+        <td>${impuestosCell(item.xml)}</td>
         <td>${item.kogu ? money(item.kogu.total) : '-'}</td>
         <td>${KoguUi.int((item.diferencias || []).length)}</td>
         <td><button class="btn" data-detail-index="${idx}">Ver detalle</button></td>
@@ -301,6 +361,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div><strong>Total KOGU:</strong> ${item.kogu ? money(item.kogu.total) : '-'}</div>
         </div>
       </div>
+
+      ${impuestosBox(item)}
 
       <div class="grid-2">
         <div class="factura-box">
