@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const boot = await KoguShell.initShell({
     currentPage: '/modules/cfdi/bandeja-nomina/bandeja-nomina.html',
     title: 'Bandeja CFDI Nómina',
-    description: 'Análisis de recibos de nómina emitidos por mes o año completo (fecha de pago). Detalle por recibo y datos para tabla dinámica (percepciones, deducciones, otros pagos y neto).',
+    description: 'Análisis de recibos de nómina emitidos por mes, año completo o rango (fecha de pago). Detalle por recibo y datos para tabla dinámica (percepciones, deducciones, otros pagos y neto).',
     // Any-of: la comparten los perfiles cfdinomina y cfdi_solo_nomina.
     requiredPermission: ['cfdi.tipo.nomina.read', 'cfdi.alcance.solo_nomina']
   });
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="eyebrow">Nómina · Emitida</div>
             <h2>Bandeja CFDI Nómina</h2>
             <p class="muted" style="margin-top:6px;">
-              Recibos de nómina emitidos, por mes o año completo según la <strong>fecha de pago</strong>. El detalle es un renglón por recibo; la hoja "Datos" del Excel está lista para construir tu tabla dinámica (puedes agregar tu centro de costos).
+              Recibos de nómina emitidos, por mes, año completo o rango según la <strong>fecha de pago</strong>. El detalle es un renglón por recibo; la hoja "Datos" del Excel está lista para construir tu tabla dinámica (puedes agregar tu centro de costos).
             </p>
           </div>
           <div class="page-actions">
@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <select class="input" id="tipoPeriodo" style="max-width:150px;">
                 <option value="mes">Mes</option>
                 <option value="anio">Año completo</option>
+                <option value="rango">Rango</option>
               </select>
               <input class="input" type="month" id="mes" value="${defMes}" />
               <input class="input" type="number" id="anio" value="${defAnio}" min="2000" max="2100" step="1" style="display:none;" />
@@ -61,6 +62,27 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div>
             <label class="label-text">UUID</label>
             <input class="input" id="uuid" placeholder="Buscar por UUID" />
+          </div>
+        </div>
+
+        <div id="rangoBox" class="row" style="display:none;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
+          <div>
+            <label class="label-text">Desde</label>
+            <input class="input" type="date" id="desde" />
+          </div>
+          <div>
+            <label class="label-text">Hasta</label>
+            <input class="input" type="date" id="hasta" />
+          </div>
+          <div>
+            <label class="label-text">Atajos (toman el periodo de la fecha Desde)</label>
+            <div class="row" style="gap:6px;flex-wrap:wrap;">
+              <button class="btn" type="button" id="atajoPrev" title="Periodo anterior" disabled>‹</button>
+              <button class="btn" type="button" data-atajo="B">Bimestre</button>
+              <button class="btn" type="button" data-atajo="T">Trimestre</button>
+              <button class="btn" type="button" data-atajo="S">Semestre</button>
+              <button class="btn" type="button" id="atajoNext" title="Periodo siguiente" disabled>›</button>
+            </div>
           </div>
         </div>
 
@@ -109,7 +131,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   `;
 
-  const state = { limit: 50, offset: 0, total: 0 };
+  const state = { limit: 50, offset: 0, total: 0, atajo: null };
+
+  // ── Atajos de rango (calendario) ─────────────────────────
+  // Meses por unidad: Bimestre 2, Trimestre 3, Semestre 6. Los periodos son
+  // del calendario (bimestre 1 = ene-feb, como el IMSS) y nunca cruzan de año.
+  const ATAJO_MESES = { B: 2, T: 3, S: 6 };
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const ultimoDia = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m 1-12
+  function periodoDe(y, mInicio, n) {
+    const mFin = mInicio + n - 1;
+    return {
+      desde: `${y}-${pad2(mInicio)}-01`,
+      hasta: `${y}-${pad2(mFin)}-${pad2(ultimoDia(y, mFin))}`
+    };
+  }
+  function periodoQueContiene(iso, unidad) {
+    const n = ATAJO_MESES[unidad];
+    const [y, m] = String(iso).split('-').map(Number);
+    return periodoDe(y, Math.floor((m - 1) / n) * n + 1, n);
+  }
+  function hoyIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  function marcarAtajo() {
+    document.querySelectorAll('[data-atajo]').forEach((b) => {
+      b.classList.toggle('primary', b.dataset.atajo === state.atajo);
+    });
+    document.getElementById('atajoPrev').disabled = !state.atajo;
+    document.getElementById('atajoNext').disabled = !state.atajo;
+  }
+  function aplicarRango(p) {
+    document.getElementById('desde').value = p.desde;
+    document.getElementById('hasta').value = p.hasta;
+    marcarAtajo();
+    state.offset = 0;
+    consultar();
+  }
+  function aplicarAtajo(unidad) {
+    const base = document.getElementById('desde').value || hoyIso();
+    state.atajo = unidad;
+    aplicarRango(periodoQueContiene(base, unidad));
+  }
+  function moverAtajo(paso) {
+    if (!state.atajo) return;
+    const n = ATAJO_MESES[state.atajo];
+    const [y, m] = document.getElementById('desde').value.split('-').map(Number);
+    const idx = (y * 12 + (m - 1)) + paso * n; // meses absolutos
+    aplicarRango(periodoDe(Math.floor(idx / 12), (idx % 12) + 1, n));
+  }
 
   function esc(v) { return KoguUi.escapeHtml(String(v ?? '')); }
   function money(v) { return KoguUi.money(Number(v || 0)); }
@@ -134,7 +205,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rfc = document.getElementById('rfc').value.trim();
     const uuid = document.getElementById('uuid').value.trim();
 
-    if (tipoPeriodo === 'anio') {
+    if (tipoPeriodo === 'rango') {
+      const desde = document.getElementById('desde').value;
+      const hasta = document.getElementById('hasta').value;
+      if (desde) qs.set('desde', desde);
+      if (hasta) qs.set('hasta', hasta);
+    } else if (tipoPeriodo === 'anio') {
       if (anio) qs.set('anio', anio);
     } else if (mes) {
       qs.set('mes', mes);
@@ -287,12 +363,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('mes').onchange = () => { state.offset = 0; consultar(); };
   document.getElementById('anio').onchange = () => { state.offset = 0; consultar(); };
   document.getElementById('tipoPeriodo').onchange = () => {
-    const esAnio = document.getElementById('tipoPeriodo').value === 'anio';
-    document.getElementById('mes').style.display = esAnio ? 'none' : '';
-    document.getElementById('anio').style.display = esAnio ? '' : 'none';
+    const tipo = document.getElementById('tipoPeriodo').value;
+    document.getElementById('mes').style.display = tipo === 'mes' ? '' : 'none';
+    document.getElementById('anio').style.display = tipo === 'anio' ? '' : 'none';
+    document.getElementById('rangoBox').style.display = tipo === 'rango' ? '' : 'none';
     state.offset = 0;
+    // Al entrar a Rango sin fechas se propone el bimestre en curso.
+    if (tipo === 'rango' && !(document.getElementById('desde').value && document.getElementById('hasta').value)) {
+      aplicarAtajo('B');
+      return;
+    }
     consultar();
   };
+  // Rango libre: editar una fecha a mano suelta el atajo; solo se consulta
+  // cuando estan las dos fechas (el backend responde 422 si llega una sola).
+  const onFechaRango = () => {
+    state.atajo = null;
+    marcarAtajo();
+    if (document.getElementById('desde').value && document.getElementById('hasta').value) {
+      state.offset = 0;
+      consultar();
+    }
+  };
+  document.getElementById('desde').onchange = onFechaRango;
+  document.getElementById('hasta').onchange = onFechaRango;
+  document.querySelectorAll('[data-atajo]').forEach((b) => {
+    b.onclick = () => aplicarAtajo(b.dataset.atajo);
+  });
+  document.getElementById('atajoPrev').onclick = () => moverAtajo(-1);
+  document.getElementById('atajoNext').onclick = () => moverAtajo(1);
   document.getElementById('prevBtn').onclick = () => { state.offset = Math.max(0, state.offset - state.limit); consultar(); };
   document.getElementById('nextBtn').onclick = () => { state.offset += state.limit; consultar(); };
 
