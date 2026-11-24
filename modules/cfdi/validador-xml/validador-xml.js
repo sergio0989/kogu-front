@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="mini-stat"><div class="mini-stat-k">Total</div><div class="mini-stat-v">0</div></div>
         <div class="mini-stat"><div class="mini-stat-k">Coincidencias</div><div class="mini-stat-v">0</div></div>
         <div class="mini-stat"><div class="mini-stat-k">Con diferencias</div><div class="mini-stat-v">0</div></div>
-        <div class="mini-stat"><div class="mini-stat-k">No encontrados / inválidos</div><div class="mini-stat-v">0</div></div>
+        <div class="mini-stat"><div class="mini-stat-k">No encontrados / ajenos / inválidos</div><div class="mini-stat-v">0</div></div>
       </div>
 
       <div class="card">
@@ -127,8 +127,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Resultados de la Fase 2 con texto legible y color propio. Los demás
+  // conservan su texto (con espacios) y la regla de color original.
+  const RESULTADOS = {
+    NO_EN_KOGU_SAT_VIGENTE: { txt: 'No en KOGU · vigente en SAT', cls: 'warn' },
+    NO_EN_KOGU_SAT_CANCELADO: { txt: 'No en KOGU · cancelado en SAT', cls: 'danger' },
+    NO_EN_KOGU_SAT_NO_ENCONTRADO: { txt: 'No existe en el SAT', cls: 'danger' },
+    NO_CORRESPONDE_EMPRESA: { txt: 'No es de la empresa', cls: 'danger' },
+    FUERA_DE_ALCANCE: { txt: 'Fuera de alcance', cls: '' }
+  };
+
   function resultadoBadge(v) {
     const txt = String(v || '-');
+    const conocido = RESULTADOS[txt];
+    if (conocido) {
+      return `<span class="chip${conocido.cls ? ' ' + conocido.cls : ''}">${esc(conocido.txt)}</span>`;
+    }
     let cls = 'chip';
     if (/COINCIDE/.test(txt)) cls += ' success';
     else if (/DIFERENCIAS/.test(txt)) cls += ' warn';
@@ -154,14 +168,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     return '-';
   }
 
+  // Un XML que no está en KOGU puede traer estatus SAT consultado en directo.
   function satStatusText(item) {
-    if (!item?.existe_en_kogu) return '-';
-    const sat = item.sat || item.kogu || {};
-    return esc(sat.estatus_sat || item.kogu?.estatus_sat || '-');
+    if (!item?.existe_en_kogu && !item?.sat) return '-';
+    return esc(item.sat?.estatus_sat || item.kogu?.estatus_sat || '-');
   }
 
   function satConsultText(item) {
-    if (!item?.existe_en_kogu) return '-';
+    if (!item?.existe_en_kogu && !item?.sat) return '-';
     return esc(shortDateTime(item.sat?.created_at || item.kogu?.fecha_ultima_consulta_sat));
   }
 
@@ -204,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="mini-stat"><div class="mini-stat-k">Total</div><div class="mini-stat-v">${KoguUi.int(resumen.total_archivos || 0)}</div></div>
       <div class="mini-stat"><div class="mini-stat-k">Coincidencias</div><div class="mini-stat-v">${KoguUi.int(resumen.coincidencias || 0)}</div></div>
       <div class="mini-stat"><div class="mini-stat-k">Con diferencias</div><div class="mini-stat-v">${KoguUi.int(resumen.con_diferencias || 0)}</div></div>
-      <div class="mini-stat"><div class="mini-stat-k">No encontrados / inválidos</div><div class="mini-stat-v">${KoguUi.int((resumen.no_encontrados || 0) + (resumen.invalidos || 0))}</div></div>
+      <div class="mini-stat"><div class="mini-stat-k">No encontrados / ajenos / inválidos</div><div class="mini-stat-v">${KoguUi.int((resumen.no_encontrados || 0) + (resumen.no_corresponden || 0) + (resumen.invalidos || 0))}</div></div>
     `;
   }
 
