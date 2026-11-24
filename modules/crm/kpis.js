@@ -201,8 +201,162 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nombre = `<b>${esc(f.cliente)}</b>`;
     if (!f.actividad_id) return nombre;
     return `<a href="/modules/crm/actividades.html?act=${encodeURIComponent(f.actividad_id)}"
-      title="Abrir la actividad y su bitácora"
+      data-act-id="${esc(f.actividad_id)}"
+      title="Ver la retroalimentación de esta actividad"
       style="color:inherit;text-decoration:none;border-bottom:1px solid var(--line)">${nombre}</a>`;
+  }
+
+  // ── Detalle de la actividad, dentro de la pantalla y de SOLO LECTURA ──
+  //
+  // Por qué aquí y no navegando: estos KPIs se leen explicando, y salir de la
+  // pantalla corta la frase. Peor: el recorte —agente, mes analizado— vive en
+  // los filtros y no en la URL, así que volver con el botón del navegador lo
+  // tira. Medido en uso real el 24-nov.
+  //
+  // Por qué SOLO LECTURA, y es la decisión importante: las @menciones no se
+  // parsean en el backend, el front manda los `user_id` que produce su
+  // autocompletado. Una caja de comentarios aquí o reimplementaba ese
+  // buscador, o degradaba las menciones en silencio —se ve igual, no suma
+  // seguidor, no avisa a nadie—. Dos pantallas que se ven iguales y se portan
+  // distinto es peor que una pantalla menos. Para actuar está la liga a
+  // Actividades, que abre aparte y deja estos KPIs intactos.
+  //
+  // La liga conserva su `href`: el clic normal abre el modal, pero ctrl+clic
+  // y "abrir en pestaña nueva" siguen funcionando como en cualquier liga.
+  function cerrarDetalleModal() {
+    document.getElementById('kpiDetalleModal')?.remove();
+    document.removeEventListener('keydown', escDetalle);
+  }
+  function escDetalle(e) { if (e.key === 'Escape') cerrarDetalleModal(); }
+
+  const DET_EST = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
+
+  // Resalta las @menciones del texto ya escapado, igual que la bitácora de
+  // Actividades: el nombre mencionado se lee distinto del resto.
+  const conMenciones = (t) => String(t || '').replace(/(@[\wÁÉÍÓÚÑáéíóúñ.]+)/g,
+    `<span style="color:var(--brand,#2563eb);font-weight:600">$1</span>`);
+
+  function detalleHtml(d) {
+    const dato = (etq, val) => `
+      <div style="min-width:0">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(etq)}</div>
+        <div style="font-weight:600;margin-top:1px;word-break:break-word">${val}</div>
+      </div>`;
+
+    const fecha = (v) => (v ? esc(KoguUi.fmtDateOnly(v)) : '—');
+    const prods = ((d.snapshot && d.snapshot.productos) || []).slice(0, 40);
+    const snapshot = prods.length ? `
+      <div style="margin-top:14px">
+        <div class="eyebrow" style="margin-bottom:6px">Snapshot al crear · ${prods.length} partida${prods.length === 1 ? '' : 's'}</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="text-align:left;padding:5px 8px 5px 0;font-size:11px;color:var(--muted);text-transform:uppercase">Cve</th>
+              <th style="text-align:left;padding:5px 8px 5px 0;font-size:11px;color:var(--muted);text-transform:uppercase">Producto</th>
+              <th style="text-align:right;padding:5px 0;font-size:11px;color:var(--muted);text-transform:uppercase">P1</th>
+              <th style="text-align:right;padding:5px 0;font-size:11px;color:var(--muted);text-transform:uppercase">P2</th>
+            </tr></thead>
+            <tbody>${prods.map((p) => `
+              <tr>
+                <td style="padding:5px 8px 5px 0;border-top:1px solid var(--line)">${esc(p.cve_prod || '')}</td>
+                <td style="padding:5px 8px 5px 0;border-top:1px solid var(--line)">${esc((p.desc_prod || '').trim())}</td>
+                <td style="padding:5px 0;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums">${nf0.format(Number(p.cant_p1 || 0))} kg</td>
+                <td style="padding:5px 0;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums">${nf0.format(Number(p.cant_p2 || 0))} kg</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '';
+
+    const coments = (d.comentarios || []).length
+      ? (d.comentarios || []).map((x) => `
+        <div style="border-left:2px solid var(--line);padding:0 0 10px 12px;margin-bottom:2px">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+            <span style="font-weight:600;font-size:13px">${esc(x.autor_nombre || 'Usuario')}</span>
+            <span style="font-size:12px;color:var(--muted)">${esc(KoguUi.fmtDate(x.created_at))}</span>
+          </div>
+          ${x.comentario ? `<div style="white-space:pre-wrap;font-size:13px;margin-top:2px">${conMenciones(esc(x.comentario))}</div>` : ''}
+          ${x.tiene_adjunto ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">📎 ${esc(x.adjunto_nombre || 'archivo')}</div>` : ''}
+        </div>`).join('')
+      : '<div class="empty">Sin comentarios.</div>';
+
+    const chips = (arr, campo) => (arr || []).length
+      ? (arr || []).map((x) => `<span style="display:inline-block;padding:2px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;margin:0 5px 5px 0">${esc(x[campo] || '')}</span>`).join('')
+      : '<span style="font-size:12px;color:var(--muted)">—</span>';
+
+    return `
+    <div id="kpiDetalleModal" data-cerrar-fondo
+      style="position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:18px 16px">
+      <div style="background:var(--panel,#fff);border-radius:14px;max-width:820px;width:100%;margin:auto;padding:20px 22px;box-shadow:0 18px 50px rgba(0,0,0,.25)">
+
+        <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
+          <div style="min-width:0">
+            <div class="eyebrow">CRM · Retroalimentación</div>
+            <h2 style="margin:3px 0 4px;word-break:break-word">${esc(d.cliente_nombre || d.cliente_ref || 'Actividad')}</h2>
+            <div style="font-size:13px;color:var(--muted)">
+              ${esc(DET_EST[d.estado] || d.estado || '')}
+              ${d.severidad ? ` · <span style="color:${SEV_COLOR[d.severidad] || EST.neutro}">${esc(SEV_TXT[d.severidad] || d.severidad)}</span>` : ''}
+              ${d.titulo ? ` · ${esc(d.titulo)}` : ''}
+            </div>
+          </div>
+          <button class="btn" data-cerrar-detalle style="flex:none">Cerrar</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:16px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+          ${dato('En riesgo', `${nf0.format(Number(d.kg_riesgo || 0))} kg · ${money(d.monto_riesgo || 0)}`)}
+          ${dato('Mes analizado', d.periodo_analizado ? esc(fmtMes(d.periodo_analizado)) : '—')}
+          ${dato('Apertura', fecha(d.created_at))}
+          ${dato('Vence', fecha(d.fecha_limite))}
+          ${dato('Cierre', fecha(d.fecha_cierre))}
+          ${dato('Resultado', d.resultado ? esc(RES_TXT[d.resultado] || d.resultado) : '—')}
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:14px">
+          ${dato('Agente responsable', esc(d.agente_nombre || '—'))}
+          ${dato('Creada por', esc(d.creada_por_nombre || '—'))}
+          ${dato('Tomada por', esc(d.tomada_por_nombre || '—'))}
+        </div>
+
+        ${d.descripcion ? `
+        <div style="margin-top:16px">
+          <div class="eyebrow" style="margin-bottom:5px">Nota / plan de acción</div>
+          <div style="white-space:pre-wrap;font-size:14px">${esc(d.descripcion)}</div>
+        </div>` : ''}
+
+        ${snapshot}
+
+        <div style="margin-top:18px">
+          <div class="eyebrow" style="margin-bottom:8px">Bitácora</div>
+          ${coments}
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:16px">
+          <div><div class="eyebrow" style="margin-bottom:6px">Seguidores</div>${chips(d.seguidores, 'nombre')}</div>
+          <div><div class="eyebrow" style="margin-bottom:6px">Etiquetas</div>${chips(d.etiquetas, 'nombre')}</div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:20px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--muted)">Esta vista solo lee. Para comentar, tomar o cerrar, abre la actividad.</div>
+          <a class="btn primary" target="_blank" rel="noopener"
+             href="/modules/crm/actividades.html?act=${encodeURIComponent(d.actividad_id)}">Abrir en Actividades ↗</a>
+        </div>
+
+      </div>
+    </div>`;
+  }
+
+  async function abrirDetalleActividad(id) {
+    let d;
+    try {
+      const res = await KoguApi.apiFetch(`${BASE}/actividades/${encodeURIComponent(id)}`);
+      d = res?.data || res;
+    } catch (err) { KoguApi.toast(err.message, 'error'); return; }
+    cerrarDetalleModal();
+    document.body.insertAdjacentHTML('beforeend', detalleHtml(d));
+    const modal = document.getElementById('kpiDetalleModal');
+    modal.querySelector('[data-cerrar-detalle]').onclick = cerrarDetalleModal;
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrarDetalleModal(); });
+    document.addEventListener('keydown', escDetalle);
   }
 
   function tablaDetalle(d) {
@@ -237,6 +391,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tbody>
       </table>
     </div>`;
+  }
+
+  // El clic normal abre el modal; ctrl/cmd+clic y el botón de en medio se
+  // dejan pasar para que la liga siga siendo una liga.
+  function ligarDetalle() {
+    document.querySelectorAll('#kpiTabla a[data-act-id]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+        e.preventDefault();
+        abrirDetalleActividad(a.dataset.actId);
+      });
+    });
   }
 
   function pintar(d) {
@@ -353,6 +519,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>` : ''}
         `}
       </div>`;
+
+    // Las ligas de la tabla se enganchan DESPUÉS de pintar: la tabla se vuelve
+    // a dibujar con cada consulta y los manejadores se irían con ella.
+    ligarDetalle();
   }
 
   async function consultar() {

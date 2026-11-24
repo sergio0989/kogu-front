@@ -90,6 +90,41 @@ const SOLO_ESTABLE = {
                no_aplica: 0, completada: 0 },
 };
 
+// §16.5 — captura real del 24-nov-2026: la actividad que se abrio desde los
+// KPIs, cerrada, critica, con su nota, su bitacora, una seguidora mencionada
+// y el snapshot de dos partidas. El contenido es el observado; el cliente y
+// el id se alinean con la fila d2 de este fixture para que la prueba hable de
+// una sola actividad y no de dos.
+const DETALLE = {
+  actividad_id: 'd2',
+  cliente_ref: '102', cliente_nombre: 'TROPHE INGREDIENTES',
+  titulo: 'Recuperar TROPHE INGREDIENTES',
+  descripcion: 'Se tuvieron dos productos nuevos para 2026 (Caldo de hueso y ajo 98-U). '
+    + 'No se considera un cliente con severidad critica',
+  estado: 'cerrada', severidad: 'critica', origen: 'mi-panel',
+  agente_id: 'ag-1', agente_nombre: 'ALEJANDRA GONZALEZ GERENTE DE CTA.',
+  creada_por_nombre: 'Itzel Paz', tomada_por_nombre: null,
+  resultado: 'estable',
+  kg_riesgo: 1437, monto_riesgo: 1213068.20,
+  periodo_analizado: '2026-10-01',
+  created_at: '2026-11-17T16:00:00Z', fecha_limite: '2026-12-02',
+  fecha_cierre: '2026-11-17T18:00:00Z',
+  snapshot: { base_comparacion: 'yoy',
+    periodos: { p1d: '2025-09-01', p1h: '2025-10-01', p2d: '2026-09-01', p2h: '2026-09-30' },
+    caida: { cant_p1: 6536, cant_p2: 2000 },
+    productos: [
+      { cve_prod: 'WWP1211', desc_prod: 'Caldo de hueso de pollo en polvo 3507',
+        cant_p1: 3016, cant_p2: 0, importe_p1: 980000, importe_p2: 0 },
+      { cve_prod: 'ADE1094', desc_prod: 'Aderome YE Cheese',
+        cant_p1: 3520, cant_p2: 2000, importe_p1: 1100000, importe_p2: 640000 },
+    ] },
+  comentarios: [{ comentario_id: 'c1', autor_nombre: 'Itzel Paz',
+                  comentario: '@Mariana Hernandez revisa el caldo de hueso',
+                  created_at: '2026-11-17T16:05:00Z', tiene_adjunto: false }],
+  recordatorios: [], etiquetas: [],
+  seguidores: [{ user_id: 'u-mar', nombre: 'Mariana Hernández' }],
+};
+
 // Recorte con agente y mes puestos, como lo devuelve el servicio.
 const CON_RECORTE = {
   ...CON_DATOS,
@@ -159,6 +194,13 @@ async function arranca(cuerpo = CON_DATOS) {
       pedidos.push(url);
       if (url.includes('/agentes')) {
         return { ok: true, data: { rows: [{ agente_id: 'ag-1', agente_nombre: 'ALEJANDRA GONZALEZ' }] } };
+      }
+      const m = url.match(/\/actividades\/([^/?]+)$/);
+      if (m) {
+        if (m[1] !== DETALLE.actividad_id) {
+          const e = new Error('La actividad no existe.'); e.status = 404; throw e;
+        }
+        return { ok: true, data: DETALLE };
       }
       return { ok: true, data: actual };
     },
@@ -510,6 +552,116 @@ await check('cuando el aumento manda, el titular lo dice', async () => {
 await check('sin cierres sigue diciendo que no hay cierres', async () => {
   const { texto } = await arranca(SIN_CIERRES);
   assert.match(texto(), /sin cierres/i, 'inventa un desenlace donde no hay ninguno');
+});
+
+console.log('\n── El detalle se lee sin salir de la pantalla ─────────────────');
+
+// Decidido el 24-nov, despues de probarlo navegando: salir de los KPIs corta
+// la explicacion y tira el recorte, porque los filtros viven en la pantalla y
+// no en la URL. El detalle se abre como modal, de SOLO LECTURA: aqui se lee
+// la retroalimentacion, se actua en Actividades.
+const abreDetalle = async (window, nombre = 'TROPHE INGREDIENTES') => {
+  const liga = [...window.document.querySelectorAll('#kpiTabla tbody tr a[href]')]
+    .find((a) => new RegExp(nombre).test(a.textContent));
+  assert.ok(liga, `no encontro la liga de ${nombre}`);
+  liga.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await new Promise((r) => setTimeout(r, 120));
+  return window.document.getElementById('kpiDetalleModal');
+};
+
+await check('al hacer clic abre el modal y NO navega', async () => {
+  const { window } = await arranca();
+  const antes = window.location.href;
+  const modal = await abreDetalle(window);
+  assert.ok(modal, 'no abrio el modal de detalle');
+  assert.equal(window.location.href, antes, 'se salio de la pantalla de KPIs');
+});
+
+await check('pide el detalle de ESA actividad', async () => {
+  const { window, pedidos } = await arranca();
+  await abreDetalle(window);
+  assert.ok(pedidos.some((u) => u.endsWith('/actividades/d2')),
+    `no pidio el detalle: ${pedidos.join(' , ')}`);
+});
+
+await check('trae la retroalimentacion: nota, bitacora y seguidores', async () => {
+  const { window } = await arranca();
+  const t = (await abreDetalle(window)).textContent;
+  assert.match(t, /Caldo de hueso/, 'falta la nota / plan de accion');
+  assert.match(t, /Itzel Paz/, 'falta quien comento');
+  assert.match(t, /revisa el caldo de hueso/, 'falta el texto del comentario');
+  assert.match(t, /Mariana/, 'falta la seguidora');
+});
+
+await check('trae lo que explica la cifra: periodo, riesgo y desenlace', async () => {
+  const { window } = await arranca();
+  const t = (await abreDetalle(window)).textContent.replace(/\s+/g, ' ');
+  assert.match(t, /oct 2026/i, 'falta el mes analizado');
+  assert.match(t, /1,437/, 'falta el riesgo en kg');
+  assert.match(t, /1,213,068/, 'falta el riesgo en pesos');
+  assert.match(t, /Estable/i, 'falta el resultado al cerrar');
+});
+
+await check('trae el snapshot que justifico la actividad', async () => {
+  const { window } = await arranca();
+  const t = (await abreDetalle(window)).textContent;
+  assert.match(t, /WWP1211/, 'falta la partida del snapshot');
+  assert.match(t, /Aderome YE Cheese/, 'falta el segundo producto');
+});
+
+await check('para actuar, manda a Actividades en pestana nueva', async () => {
+  const { window } = await arranca();
+  const modal = await abreDetalle(window);
+  const salida = [...modal.querySelectorAll('a[href]')]
+    .find((a) => /actividades\.html/.test(a.getAttribute('href')));
+  assert.ok(salida, 'no hay salida hacia la pantalla donde si se puede actuar');
+  assert.match(salida.getAttribute('href'), /\?act=d2$/);
+  assert.equal(salida.getAttribute('target'), '_blank',
+    'si abre aqui mismo, vuelve a tirar el recorte');
+});
+
+await check('es de SOLO LECTURA: no trae controles que escriban', async () => {
+  const { window } = await arranca();
+  const modal = await abreDetalle(window);
+  assert.equal(modal.querySelectorAll('textarea, input, select').length, 0,
+    'aparecio un control de captura en un modal declarado de solo lectura');
+  // Se auditan los CONTROLES, no las palabras: el pie explica donde se actua
+  // y menciona "comentar" a proposito. Lo que no puede haber es un boton que
+  // escriba. Solo deben existir el de cerrar y la liga de salida.
+  const botones = [...modal.querySelectorAll('button')];
+  assert.equal(botones.length, 1, `hay ${botones.length} botones: ${botones.map((b) => b.textContent.trim()).join(' | ')}`);
+  assert.ok(botones[0].hasAttribute('data-cerrar-detalle'), 'el unico boton debe ser el de cerrar');
+  const ligas = [...modal.querySelectorAll('a[href]')];
+  assert.equal(ligas.length, 1, 'solo debe haber la salida hacia Actividades');
+});
+
+await check('se cierra con el boton y con Escape', async () => {
+  const { window } = await arranca();
+  const modal = await abreDetalle(window);
+  modal.querySelector('[data-cerrar-detalle]').click();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(!window.document.getElementById('kpiDetalleModal'), 'el boton no cerro');
+  await abreDetalle(window);
+  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(!window.document.getElementById('kpiDetalleModal'), 'Escape no cerro');
+});
+
+await check('la liga conserva su href para abrir en pestana aparte', async () => {
+  const { window } = await arranca();
+  const liga = window.document.querySelector('#kpiTabla tbody tr a[href]');
+  assert.match(liga.getAttribute('href'), /actividades\.html\?act=/,
+    'sin href, ctrl+clic deja de funcionar');
+});
+
+await check('si el detalle no se puede abrir, avisa y no deja un modal vacio', async () => {
+  const { window } = await arranca();
+  const liga = [...window.document.querySelectorAll('#kpiTabla tbody tr a[href]')]
+    .find((a) => /CLIENTE VENCIDO/.test(a.textContent));
+  liga.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await new Promise((r) => setTimeout(r, 150));
+  assert.ok(!window.document.getElementById('kpiDetalleModal'), 'dejo un modal sin contenido');
+  assert.ok(window.document.getElementById('kpiTabla'), 'se rompio la tabla');
 });
 
 console.log('\n── El recorte viaja con los numeros ────────────────────────────');
