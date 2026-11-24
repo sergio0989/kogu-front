@@ -412,7 +412,17 @@ await check('exportar pide el libro al backend con el mismo recorte', async () =
   const exp = nuevos.find((u) => u.includes('/consulta-ventas/export'));
   assert.ok(exp, `debe pedir el libro: ${JSON.stringify(nuevos)}`);
   assert.match(exp, /clientes=/, 'con los clientes del recorte');
-  assert.match(exp, /desde=2025-10-01/, 'y el periodo');
+  // El periodo se lee de la PANTALLA, no de una fecha escrita a mano.
+  //
+  // Antes decia /desde=2025-10-01/, que era la ventana inicial -los ultimos
+  // doce meses cerrados- el dia que se escribio la prueba. En cuanto cambio
+  // el mes, el caso empezo a fallar solo sin que nadie tocara el modulo.
+  // Lo que de verdad importa es que el libro se pida con el mismo recorte
+  // que el usuario esta viendo, y eso no caduca.
+  const desdePantalla = P.$('fDesde').value;
+  assert.ok(desdePantalla, 'la pantalla no tiene periodo inicial');
+  assert.ok(exp.includes('desde=' + encodeURIComponent(desdePantalla)),
+    `el export pidio otro periodo que el de la pantalla (${desdePantalla}): ${exp}`);
 });
 
 await check('sin filtro no intenta exportar', async () => {
