@@ -3227,3 +3227,9 @@ thead th{
 .sidebar .sidebar-herramienta{font-size:14px;font-weight:700;margin-top:6px;color:#fff;line-height:1.3}
 .sidebar .sidebar-herramientas-link{display:inline-block;font-size:12px;margin-top:4px;color:#67e8f9;text-decoration:none;font-weight:600}
 .sidebar .sidebar-herramientas-link:hover{text-decoration:underline}
+
+/* Semaforo de chips (validador XML, bandeja y detalle CFDI). Antes solo
+   existia .chip (azul) y success/warn/danger se veian iguales. */
+.chip.success{background:var(--success-bg);color:var(--success);}
+.chip.warn{background:var(--warn-bg);color:var(--warn);}
+.chip.danger{background:var(--danger-bg);color:var(--danger);}
