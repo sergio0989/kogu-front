@@ -211,8 +211,14 @@ async function arranca(cuerpo = CON_DATOS) {
     escapeHtml: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
     money: (v) => '$' + Number(v || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 }),
-    fmtDate: (v) => String(v),
-    fmtDateOnly: (v) => String(v),
+    // Como el ui.js real, no mas amables: fmtDateOnly lee la cadena con regex
+    // -por eso no corre el dia en UTC-6- y fmtDate si pasa por toLocaleString.
+    // Un stub que devuelve la cadena cruda esconde justo lo que se quiere ver.
+    fmtDate: (v) => (v ? new Date(v).toLocaleString('es-MX') : '-'),
+    fmtDateOnly: (v) => {
+      const m = String(v ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : (v ? new Date(v).toLocaleDateString('es-MX') : '-');
+    },
     withLoading: async (el, fn) => fn(),
   };
   window.eval(js);
@@ -633,6 +639,15 @@ await check('es de SOLO LECTURA: no trae controles que escriban', async () => {
   assert.ok(botones[0].hasAttribute('data-cerrar-detalle'), 'el unico boton debe ser el de cerrar');
   const ligas = [...modal.querySelectorAll('a[href]')];
   assert.equal(ligas.length, 1, 'solo debe haber la salida hacia Actividades');
+});
+
+await check('la bitacora dice la hora, no los segundos', async () => {
+  const { window } = await arranca();
+  const t = (await abreDetalle(window)).textContent;
+  // Sin fijar zona: se afirma la FORMA, no una hora concreta.
+  assert.match(t, /\d{1,2}:\d{2}/, 'no dice la hora del comentario');
+  assert.ok(!/\d{1,2}:\d{2}:\d{2}/.test(t),
+    'los segundos son ruido para leer en una junta');
 });
 
 await check('se cierra con el boton y con Escape', async () => {

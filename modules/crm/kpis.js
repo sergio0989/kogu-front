@@ -236,9 +236,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const conMenciones = (t) => String(t || '').replace(/(@[\wÁÉÍÓÚÑáéíóúñ.]+)/g,
     `<span style="color:var(--brand,#2563eb);font-weight:600">$1</span>`);
 
+  // Fecha y hora de un comentario, sin segundos: `KoguUi.fmtDate` usa
+  // toLocaleString y arrastra `8:31:15 a.m.`, que es ruido cuando esto se lee
+  // en voz alta en una junta. Es un timestamp real, así que va en hora local
+  // -aquí sí corresponde- y no por el camino de las fechas sin hora.
+  const fechaHora = (v) => {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d)) return String(v);
+    return d.toLocaleString('es-MX', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
+  };
+
   function detalleHtml(d) {
-    const dato = (etq, val) => `
-      <div style="min-width:0">
+    const dato = (etq, val, ancho = 1) => `
+      <div style="min-width:0${ancho > 1 ? `;grid-column:span ${ancho}` : ''}">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(etq)}</div>
         <div style="font-weight:600;margin-top:1px;word-break:break-word">${val}</div>
       </div>`;
@@ -273,7 +287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="border-left:2px solid var(--line);padding:0 0 10px 12px;margin-bottom:2px">
           <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
             <span style="font-weight:600;font-size:13px">${esc(x.autor_nombre || 'Usuario')}</span>
-            <span style="font-size:12px;color:var(--muted)">${esc(KoguUi.fmtDate(x.created_at))}</span>
+            <span style="font-size:12px;color:var(--muted)">${esc(fechaHora(x.created_at))}</span>
           </div>
           ${x.comentario ? `<div style="white-space:pre-wrap;font-size:13px;margin-top:2px">${conMenciones(esc(x.comentario))}</div>` : ''}
           ${x.tiene_adjunto ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">📎 ${esc(x.adjunto_nombre || 'archivo')}</div>` : ''}
@@ -303,7 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:16px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
-          ${dato('En riesgo', `${nf0.format(Number(d.kg_riesgo || 0))} kg · ${money(d.monto_riesgo || 0)}`)}
+          ${dato('En riesgo', `${nf0.format(Number(d.kg_riesgo || 0))} kg · ${money(d.monto_riesgo || 0)}`, 2)}
           ${dato('Mes analizado', d.periodo_analizado ? esc(fmtMes(d.periodo_analizado)) : '—')}
           ${dato('Apertura', fecha(d.created_at))}
           ${dato('Vence', fecha(d.fecha_limite))}
