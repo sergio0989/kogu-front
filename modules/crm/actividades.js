@@ -832,4 +832,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadEtiquetas();
   await loadKpis();
   await load();
+
+  // Llegada por liga desde otra pantalla: actividades.html?act=<id>.
+  //
+  // Los KPIs de seguimiento mandan aquí para leer la retroalimentación de
+  // todos. Se abre DESPUÉS de pintar la lista, para que al cerrar el detalle
+  // quede la pantalla de siempre y no un fondo en blanco. Si el id no existe
+  // o no es de su alcance, `openDetalle` avisa y la lista sigue usable.
+  const actPorLiga = new URLSearchParams(location.search).get('act');
+  if (actPorLiga) await openDetalle(actPorLiga);
 });

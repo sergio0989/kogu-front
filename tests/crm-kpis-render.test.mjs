@@ -441,6 +441,48 @@ await check('los totales por motivo quedan debajo, separados', async () => {
     'se perdieron los totales por motivo');
 });
 
+console.log('\n── De la cifra a la conversacion ──────────────────────────────');
+
+// Peticion del 24-nov-2026: desde los KPIs hay que poder abrir la actividad
+// para leer la retroalimentacion de todos. El detalle ya existe completo en
+// actividades.html; aqui solo se liga. Decidido el mismo dia: el nombre del
+// cliente es la liga -no una columna nueva, que la tabla ya se desplaza de
+// lado- y abre en la MISMA ventana.
+await check('el cliente de cada fila liga a su actividad', async () => {
+  const { window } = await arranca();
+  const fila = [...window.document.querySelectorAll('#kpiTabla tbody tr')]
+    .find((tr) => /TROPHE/.test(tr.textContent));
+  assert.ok(fila, 'no encontro la fila de TROPHE');
+  const liga = fila.querySelector('a[href]');
+  assert.ok(liga, 'el cliente no es una liga');
+  assert.match(liga.getAttribute('href'), /actividades\.html\?act=d2$/,
+    `la liga apunta a ${liga.getAttribute('href')}`);
+});
+
+await check('cada fila liga a SU actividad, no todas a la misma', async () => {
+  const { window } = await arranca();
+  const hrefs = [...window.document.querySelectorAll('#kpiTabla tbody tr a[href]')]
+    .map((a) => a.getAttribute('href'));
+  assert.deepEqual(hrefs, [
+    '/modules/crm/actividades.html?act=d1',
+    '/modules/crm/actividades.html?act=d2',
+    '/modules/crm/actividades.html?act=d3',
+  ], 'las ligas no corresponden una a una con las filas');
+});
+
+await check('abre en la misma ventana, sin dejar pestanas sueltas', async () => {
+  const { window } = await arranca();
+  const liga = window.document.querySelector('#kpiTabla tbody tr a[href]');
+  assert.ok(!liga.getAttribute('target'), 'abre en pestana nueva');
+});
+
+await check('el nombre del cliente sigue siendo legible, no un enlace crudo', async () => {
+  const { window } = await arranca();
+  const liga = [...window.document.querySelectorAll('#kpiTabla tbody tr a[href]')]
+    .find((a) => /TROPHE/.test(a.textContent));
+  assert.ok(liga, 'el nombre del cliente dejo de estar dentro de la liga');
+});
+
 console.log('\n── El desenlace nombra lo que paso ────────────────────────────');
 
 await check('el titular nombra el desenlace que ocurrio, no un cero', async () => {

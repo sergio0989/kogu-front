@@ -186,6 +186,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   // renglón tiene un motivo y una unidad, así que la tabla es honesta por
   // construcción, pero sumar su columna de kg volvería a mezclar doce
   // meses con un bimestre. El agregado vive abajo, por motivo.
+  // El nombre del cliente lleva a su actividad: de la cifra a la
+  // conversación. El detalle completo —bitácora, comentarios con
+  // @menciones, seguidores, acciones— ya vive en actividades.html; aquí solo
+  // se liga, en vez de hacer una segunda copia que terminaría divergiendo.
+  //
+  // Va en el nombre y no en una columna nueva porque la tabla ya tiene diez
+  // columnas y se desplaza de lado; y abre en la MISMA ventana, que fue la
+  // decisión del 24-nov: una pestaña por fila confunde más de lo que ayuda.
+  //
+  // Sin `actividad_id` no se pinta liga: más vale texto plano que una liga
+  // muerta.
+  function nombreConLiga(f) {
+    const nombre = `<b>${esc(f.cliente)}</b>`;
+    if (!f.actividad_id) return nombre;
+    return `<a href="/modules/crm/actividades.html?act=${encodeURIComponent(f.actividad_id)}"
+      title="Abrir la actividad y su bitácora"
+      style="color:inherit;text-decoration:none;border-bottom:1px solid var(--line)">${nombre}</a>`;
+  }
+
   function tablaDetalle(d) {
     const filas = d.detalle || [];
     if (!filas.length) {
@@ -203,7 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr></thead>
         <tbody>
           ${filas.map((f) => `<tr${f.vencida ? ' style="background:var(--danger-bg,#fee2e2)"' : ''}>
-            ${td(`<b>${esc(f.cliente)}</b>${f.vencida ? ` <span style="color:${EST.mal};font-size:11px;font-weight:700">VENCIDA</span>` : ''}`)}
+            ${td(`${nombreConLiga(f)}${f.vencida ? ` <span style="color:${EST.mal};font-size:11px;font-weight:700">VENCIDA</span>` : ''}`)}
             ${td(esc(f.agente || '—'))}
             ${td(f.periodo_analizado ? esc(fmtMes(f.periodo_analizado)) : '—')}
             ${td(esc(((f.motivos && f.motivos.length ? f.motivos : [f.motivo])
