@@ -76,6 +76,9 @@
       {href:'/modules/rc/ventas-export.html',label:'Ventas de Exportación',perm:'rc.ventas_export.read'},
       {href:'/modules/rc/consulta-ventas.html',label:'Consulta de ventas',perm:'rc.consulta_ventas.read'},
     ]},
+    {section:'Mi cartera',items:[
+      {href:'/modules/cob/mis-vencidas/mis-vencidas.html',label:'Mis clientes · Vencidas',perm:'cob.portal_agentes.read'},
+    ]},
     {section:'CRM',items:[
       {href:'/modules/crm/actividades.html',label:'Actividades de seguimiento',perm:'crm.actividades.read'},
       {href:'/modules/crm/kpis.html',label:'KPIs de seguimiento',perm:'crm.actividades.read'},

@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const puedeCargar = permisos.includes('cob.corte.cargar');
   const puedeSeguir = permisos.includes('cob.seguimiento.write');   // F1b: cfdi_cobranza y administradores
   const puedeEnviar = permisos.includes('cob.edo_cta.send');         // estado de cuenta, paso 2 (3-nov-2026)
+  const puedeAutorizar = permisos.includes('cob.portal_agentes.autorizar');   // portal de agentes (24-nov-2026)
+  const puedeSeleccionar = puedeSeguir || puedeAutorizar;            // casillas: seguimiento y/o check del agente
 
   const esc = (s) => KoguUi.escapeHtml(s);
   const $ = (id) => document.getElementById(id);
@@ -284,9 +286,9 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     const cols = [['folio', 'Folio'], ['cliente', 'Cliente'], ['agente', 'Agente'], ['fecha_doc', 'Factura'], ['fecha_vencimiento', 'Vence'],
       ['dias_vencido', 'Días', 'num'], ['usd', 'USD', 'num'], ['mxn', 'MXN', 'num'], ['bucket', 'Antigüedad'], ['', 'Último seguimiento']];
     rowsActuales = rows;
-    const sel0 = puedeSeguir ? 1 : 0;   // columna de casillas
+    const sel0 = puedeSeleccionar ? 1 : 0;   // columna de casillas
     const nCols = cols.length + sel0;
-    const th = (puedeSeguir ? `<th class="sel"><input type="checkbox" data-sel-todos aria-label="Seleccionar todas"/></th>` : '') +
+    const th = (puedeSeleccionar ? `<th class="sel"><input type="checkbox" data-sel-todos aria-label="Seleccionar todas"/></th>` : '') +
       cols.map(([k, l, c]) => (k ? `<th data-orden="${k}" class="${c || ''}">${l}${orden.k === k ? (orden.dir > 0 ? ' ▲' : ' ▼') : ''}</th>` : `<th>${l}</th>`)).join('');
     const agrupar = $('cobAgrupar') ? $('cobAgrupar').checked : false;
     let tbody;
@@ -294,7 +296,7 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
       gruposActuales = C.agrupar(rows);
       const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
       ordenExport = gruposActuales.flatMap((g) => g.docs);
-      tbody = gruposActuales.map((g, i) => `<tr class="g" data-grupo="${i}">${puedeSeguir ? `<td class="sel"><input type="checkbox" data-sel-grupo="${i}" ${g.docs.every((d) => seleccion.has(d.documento_id)) ? 'checked' : ''} aria-label="Seleccionar facturas del cliente"/></td>` : ''}<td colspan="6">▸ ${esc(g.cliente)} · ${plural(g.docs.length, 'doc', 'docs')}${g.vencidas ? ` · <span class="cob-rojo">${plural(g.vencidas, 'vencida', 'vencidas')}</span>` : ''}</td>
+      tbody = gruposActuales.map((g, i) => `<tr class="g" data-grupo="${i}">${puedeSeleccionar ? `<td class="sel"><input type="checkbox" data-sel-grupo="${i}" ${g.docs.every((d) => seleccion.has(d.documento_id)) ? 'checked' : ''} aria-label="Seleccionar facturas del cliente"/></td>` : ''}<td colspan="6">▸ ${esc(g.cliente)} · ${plural(g.docs.length, 'doc', 'docs')}${g.vencidas ? ` · <span class="cob-rojo">${plural(g.vencidas, 'vencida', 'vencidas')}</span>` : ''}</td>
           <td class="num">${g.por_moneda.USD ? C.numero(g.por_moneda.USD) : ''}</td><td class="num">${g.por_moneda.MXN ? C.numero(g.por_moneda.MXN) : ''}</td><td></td><td></td></tr>` + g.docs.map((d) => fila(d, i)).join('')).join('');
     } else {
       ordenExport = rows;
@@ -324,6 +326,7 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
       <button type="button" class="btn" id="cobEdoCta" ${f.cliente ? '' : 'disabled'} title="${f.cliente ? 'Estado de cuenta en PDF del cliente filtrado, con el corte que se ve' : 'Elige un cliente en el filtro Cliente'}">Estado de cuenta (PDF)</button>
       ${puedeEnviar ? '<button type="button" class="btn" id="cobEnviarEdoCta" disabled>Enviar estado de cuenta</button>' : ''}
       <button type="button" class="btn" id="cobExportar" ${rows.length ? '' : 'disabled'} title="Las facturas de la tabla, en este orden, con su último seguimiento">Exportar a Excel</button>
+      ${puedeAutorizar ? '<button type="button" class="btn" id="cobPortalMostrar" disabled>Mostrar al agente (0)</button><button type="button" class="btn" id="cobPortalQuitar" disabled>Quitar al agente (0)</button>' : ''}
       ${puedeSeguir ? '<button type="button" class="btn primary" id="cobRegistrar" disabled>Registrar seguimiento (0)</button>' : ''}
     </div>
     <div class="cob-scroll"><table class="cob-tbl" id="cobTabla"><thead><tr>${th}</tr></thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
@@ -463,10 +466,54 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
 
   function actualizarSeleccion() {
     actualizarEdoCta();
+    actualizarPortal();
     const b = $('cobRegistrar');
     if (!b) return;
     b.textContent = `Registrar seguimiento (${seleccion.size})`;
     b.disabled = seleccion.size === 0;
+  }
+
+  // ── Portal de agentes (24-nov-2026): CxC marca qué vencidas ve el agente ──
+  // El agente solo ve FAC vencidas: "Mostrar" manda solo esas; "Quitar", las que tienen check.
+  function paraPortal() {
+    const docs = (datos && datos.documentos ? datos.documentos : []).filter((d) => seleccion.has(d.documento_id));
+    return {
+      mostrar: docs.filter((d) => d.tipo_doc === 'FAC' && d.vencido && !d.portal_autorizada),
+      quitar: docs.filter((d) => d.portal_autorizada),
+      elegidas: docs.length,
+    };
+  }
+  function actualizarPortal() {
+    const m = $('cobPortalMostrar'); const q = $('cobPortalQuitar');
+    if (!m || !q) return;
+    const p = paraPortal();
+    m.textContent = `Mostrar al agente (${p.mostrar.length})`;
+    m.disabled = p.mostrar.length === 0;
+    m.title = p.elegidas && !p.mostrar.length ? 'El agente solo ve facturas vencidas: entre las elegidas no hay vencidas sin check'
+      : 'El agente de cada cliente verá estas facturas vencidas en Mis clientes · Vencidas, hasta que se paguen';
+    q.textContent = `Quitar al agente (${p.quitar.length})`;
+    q.disabled = p.quitar.length === 0;
+    q.title = 'El agente deja de ver estas facturas';
+  }
+  async function cambiarPortal(autorizada) {
+    const p = paraPortal();
+    const docs = autorizada ? p.mostrar : p.quitar;
+    if (!docs.length) return;
+    const m = $('cobPortalMostrar'); const q = $('cobPortalQuitar');
+    m.disabled = true; q.disabled = true;
+    try {
+      const ids = docs.map((d) => d.documento_id);
+      const r = (await KoguApi.apiFetch('/protected/cob/portal-agentes/autorizaciones', { method: 'PUT', body: JSON.stringify({ documento_ids: ids, autorizada }) })).data || {};
+      docs.forEach((d) => { d.portal_autorizada = autorizada; });
+      const n = r.actualizadas != null ? r.actualizadas : ids.length;
+      const fact = (k) => `${k} ${k === 1 ? 'factura' : 'facturas'}`;
+      KoguApi.toast(autorizada ? `${fact(n)} visibles para el agente.` : `${fact(n)}: el agente ya no las ve.`, 'success');
+      seleccion = new Set();
+      render();
+    } catch (e) {
+      if (![401, 403, 409, 422].includes(e && e.status)) KoguApi.toast((e && e.message) || 'No se pudo guardar.', 'error');
+      actualizarPortal();
+    }
   }
 
   function celdaSeg(d) {
@@ -544,9 +591,10 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     const tipo = d.tipo_doc !== 'FAC' ? ` <span class="cob-b bn">${d.tipo_doc}</span>` : '';
     const marcas = (d.cobro_factoraje ? ' <span class="cob-b binfo">Factoraje</span>' : '') + (d.sin_catalogo ? ' <span class="cob-b bwarn">Sin catálogo</span>' : '')
       + (d.cfdi_estado ? ` <span class="cob-b ${d.cfdi_estado === 'falta_descarga' ? 'bn' : 'bwarn'}" title="${esc(d.cfdi_estado === 'falta_descarga' ? 'Ese día no hay CFDI emitidos descargados en KOGU' : `CFDI ${d.cfdi_estatus_sat || 'no encontrado en KOGU'}${d.cfdi_uuid ? ' · ' + d.cfdi_uuid : ''}`)}">${C.ETIQUETA_CFDI[d.cfdi_estado]}</span>` : '')
+      + (d.portal_autorizada ? ' <span class="cob-b bok" data-portal title="Cuentas por cobrar la autorizó: el agente la ve en Mis clientes · Vencidas">Agente la ve</span>' : '')
       + (d.en_sesion === false ? ` <span class="cob-b bn" title="${esc(MOTIVOS[d.motivo_fuera_sesion] || 'Marcado en el catálogo de clientes')}">Fuera de sesión</span>` : '');
     const dias = d.dias_vencido != null && d.dias_vencido > 0 ? `<b class="cob-rojo">${d.dias_vencido}</b>` : '<span class="cob-muted">—</span>';
-    const sel = puedeSeguir ? `<td class="sel"><input type="checkbox" data-sel="${esc(d.documento_id)}" ${seleccion.has(d.documento_id) ? 'checked' : ''} aria-label="Seleccionar ${esc(C.folioDe(d))}"/></td>` : '';
+    const sel = puedeSeleccionar ? `<td class="sel"><input type="checkbox" data-sel="${esc(d.documento_id)}" ${seleccion.has(d.documento_id) ? 'checked' : ''} aria-label="Seleccionar ${esc(C.folioDe(d))}"/></td>` : '';
     return `<tr class="r"${oculto} data-id="${esc(d.documento_id)}" ${grupo != null ? `data-de-grupo="${grupo}"` : ''} data-sin-catalogo="${d.sin_catalogo ? 1 : 0}">
       ${sel}<td data-col="folio"><b>${esc(C.folioDe(d))}</b>${tipo}</td><td>${esc(d.cliente)}${marcas}</td><td>${esc(d.agente || '—')}</td>
       <td>${C.fmtFecha(d.fecha_doc)}</td><td>${C.fmtFecha(d.fecha_vencimiento)}</td><td class="num">${dias}</td>
@@ -717,6 +765,8 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
     if (th) { const key = th.dataset.orden; orden = orden.k === key ? { k: key, dir: -orden.dir } : { k: key, dir: ['dias_vencido', 'usd', 'mxn', 'bucket'].includes(key) ? -1 : 1 }; render(); return; }
     if (e.target.closest('input[data-sel], input[data-sel-grupo], input[data-sel-todos]')) return;   // casillas: las maneja "change"
     if (e.target.id === 'cobRegistrar') { abrirSeguimiento([...seleccion]); return; }
+    if (e.target.id === 'cobPortalMostrar') { cambiarPortal(true); return; }
+    if (e.target.id === 'cobPortalQuitar') { cambiarPortal(false); return; }
     const g = e.target.closest('tr.g');
     if (g) { document.querySelectorAll(`tr[data-de-grupo="${g.dataset.grupo}"]`).forEach((tr) => { tr.style.display = tr.style.display === 'none' ? '' : 'none'; }); return; }
     const tr = e.target.closest('tr.r');

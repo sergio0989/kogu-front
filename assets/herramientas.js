@@ -12,7 +12,7 @@
       secciones: ['Costo · Dirección', 'Costo · Costo de ventas', 'Costo · Producción e inventario', 'Costo · Exportación',
         'Costo · Requisiciones', 'Costo · Captura y cierre', 'Comercio Exterior', 'Comisiones'] },
     { id: 'comercial', nombre: 'Comercial',      icono: '🎯', descripcion: 'Radar comercial y seguimiento de clientes.',
-      secciones: ['Radar Comercial', 'CRM'] },
+      secciones: ['Radar Comercial', 'CRM', 'Mi cartera'] },
     { id: 'idp',       nombre: 'I+D',            icono: '🧪', descripcion: 'Proyectos de desarrollo, muestras y lista de precios.',
       secciones: ['I+D'] },
     { id: 'calidad',   nombre: 'Calidad',        icono: '🔬', descripcion: 'Laboratorio y control documental.',

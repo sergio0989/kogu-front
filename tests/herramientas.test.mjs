@@ -35,7 +35,13 @@ test('una herramienta sin secciones con permiso no aparece (I+D sin permisos idp
 });
 
 test('secciones de una herramienta', () => {
-  assert.deepEqual(H.secciones('comercial'), ['Radar Comercial', 'CRM']);
+  assert.deepEqual(H.secciones('comercial'), ['Radar Comercial', 'CRM', 'Mi cartera']);
+});
+
+// Portal de agentes (24-nov-2026): el agente con solo "Mis clientes · Vencidas" entra directo a Comercial.
+test('agente con solo cob.portal_agentes.read entra directo a Comercial', () => {
+  const nav = [...NAV, { section: 'Mi cartera', items: [{ href: '/modules/cob/mis-vencidas/mis-vencidas.html', perm: 'cob.portal_agentes.read' }] }];
+  assert.equal(H.entradaDirecta(nav, ['cob.portal_agentes.read']), 'comercial');
 });
 
 test('enlace directo a una página de otra herramienta: se identifica su herramienta', () => {
