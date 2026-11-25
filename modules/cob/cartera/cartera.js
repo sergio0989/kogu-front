@@ -167,25 +167,32 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
       seleccion = new Set();
       // Columnas USD / MXN de la tabla (para ordenar por cada una).
       if (datos && datos.documentos) datos.documentos.forEach((d) => { d.usd = d.moneda === 'USD' ? d.saldo : null; d.mxn = d.moneda === 'MXN' ? d.saldo : null; });
-      // Control fiscal CFDI del mismo corte: opcional, no bloquea la cartera.
-      control = null;
-      if (datos && datos.corte) {
-        try {
-          control = await api(`/protected/cob/controles/cfdi?corte_id=${encodeURIComponent(datos.corte.corte_id)}`);
-          C.unirControlCfdi(datos.documentos, control);
-        } catch (e) { control = null; }
-        // PPD cobrada sin REP: opcional, como el control CFDI.
-        try {
-          controlRep = await api(`/protected/cob/controles/rep?corte_id=${encodeURIComponent(datos.corte.corte_id)}`);
-        } catch (e) { controlRep = null; }
-      } else { controlRep = null; }
+      // Controles fiscales (CFDI y REP): opcionales y plegados por defecto. La cartera se
+      // pinta sin esperarlos (25-nov-2026: el REP tardaba ~22 s y bloqueaba la pantalla);
+      // se piden en paralelo y, cuando llegan, se vuelve a pintar.
+      control = null; controlRep = null;
       llenarFiltros();
       render();
+      if (datos && datos.corte) cargarControles(datos.corte.corte_id);
     } catch (e) {
       datos = null;
       $('cobCuerpo').innerHTML = '<div class="card cob-muted">No se pudo cargar la cartera.</div>';
       avisarError(e);
     }
+  }
+
+  let cargaControles = 0;   // solo vale la respuesta de la última carga (corte o empresa pudieron cambiar)
+  async function cargarControles(corteId) {
+    const turno = ++cargaControles;
+    const q = `?corte_id=${encodeURIComponent(corteId)}`;
+    const [cfdi, rep] = await Promise.all([
+      api(`/protected/cob/controles/cfdi${q}`).catch(() => null),
+      api(`/protected/cob/controles/rep${q}`).catch(() => null),
+    ]);
+    if (turno !== cargaControles || !datos || !datos.corte || datos.corte.corte_id !== corteId) return;
+    control = cfdi; controlRep = rep;
+    if (control) C.unirControlCfdi(datos.documentos, control);
+    if (control || controlRep) render();
   }
 
   function llenarFiltros() {
