@@ -135,6 +135,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </section>`;
     return `
+      <section class="clx-sec">
+        <h4>Notas de cobranza</h4>
+        ${campo('Cómo factura y paga el cliente (revisión, proceso, portal, días de pago…)', '<textarea class="input" id="cb_cob_notas" rows="5" maxlength="4000" style="white-space:pre-wrap" placeholder="Ej. Se envía PDF y XML con la copia firmada, los viernes. Pagan los lunes."></textarea>')}
+      </section>
       <div class="clx-grid">
         <section class="clx-sec">
           <h4>Crédito</h4>

@@ -7,7 +7,8 @@
 
   const CAMPOS_SELECT = ['condicion_pago', 'moneda_limite', 'tipo_fecha', 'envio_edo_cta', 'cob_idioma_edo_cta', 'responsable_cobranza_id'];
   const CAMPOS_TEXTO = ['url_portal_facturas', 'usuario_portal_fact', 'url_portal_pagos', 'usuario_portal_pago',
-    'plataforma_factoraje', 'hora_revision_ini', 'hora_revision_fin', 'hora_cobro_ini', 'hora_cobro_fin'];
+    'plataforma_factoraje', 'hora_revision_ini', 'hora_revision_fin', 'hora_cobro_ini', 'hora_cobro_fin',
+    'cob_notas'];   // cómo factura y paga el cliente (25-nov-2026); txt/nul conservan los renglones
   const CAMPOS_NUM = ['dias_credito', 'limite_credito'];
   const CAMPOS_BOOL = [...DIAS.map((d) => 'rev_' + d), ...DIAS.map((d) => 'cob_' + d),
     'usa_portal_facturas', 'usa_portal_pagos', 'cobro_factoraje'];

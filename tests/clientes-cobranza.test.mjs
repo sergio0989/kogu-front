@@ -165,3 +165,15 @@ test('idioma del estado de cuenta: español por omisión; cambiar a inglés mand
   assert.deepEqual(C.cuerpoCobranza(VACIO, form({ cob_idioma_edo_cta: 'en' })), { cob_idioma_edo_cta: 'en' });
   assert.deepEqual(C.IDIOMAS_EDO_CTA, { es: 'Español', en: 'English' });
 });
+
+// Notas de cobranza (cat_clientes.cob_notas, 25-nov-2026): texto de varias líneas de cómo
+// factura y paga el cliente, cargado del archivo de Facturación; se corrige en la pestaña Cobranza.
+test('notas de cobranza: se precargan, viajan si cambian (con saltos de línea) y vaciar manda null', () => {
+  const NOTA = 'REV: CORREO\nPROCESO: SE ENVIA LA FACTURA PDF Y XML, LOS VIERNES';
+  const conNota = { ...VACIO, cob_notas: NOTA };
+  assert.equal(C.formDesdeCliente(conNota).cob_notas, NOTA);
+  assert.equal(C.cuerpoCobranza(conNota, { ...C.formDesdeCliente(conNota) }), null);
+  assert.deepEqual(C.cuerpoCobranza(conNota, { ...C.formDesdeCliente(conNota), cob_notas: NOTA + '\nPAGAN LOS LUNES' }),
+    { cob_notas: NOTA + '\nPAGAN LOS LUNES' });
+  assert.deepEqual(C.cuerpoCobranza(conNota, { ...C.formDesdeCliente(conNota), cob_notas: '  ' }), { cob_notas: null });
+});

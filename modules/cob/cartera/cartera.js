@@ -648,7 +648,10 @@ ${puedeEnviar ? `<div class="cob-ov cob-ov2" id="cobEnvOv" style="display:none">
       <span>Fecha factura</span><b>${C.fmtFecha(d.fecha_doc)}</b><span>Vencimiento</span><b>${C.fmtFecha(d.fecha_vencimiento)}</b>
       <span>Contacto pagos</span><b>${esc(d.contacto_pagos_sai || '— sin capturar en SAI')}</b>
       ${d.tipo_doc === 'FAC' && d.total !== d.saldo ? `<span>Abonado</span><b>${esc(d.moneda)} ${C.numero(d.total - d.saldo)} (pago parcial)</b>` : ''}
-    </div></div>
+    </div>
+    ${d.cliente_notas ? `<div data-notas style="margin-top:14px"><h3>Cómo factura y paga</h3>
+      <div class="cob-muted" style="white-space:pre-line;font-size:13px;line-height:1.45;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#f8fafc">${esc(d.cliente_notas)}</div></div>` : ''}
+    </div>
     <div><h3>Historia y seguimiento</h3><div class="cob-tl" id="cobHistoria">
       ${linea}
       <div class="fut">Siguiente corte · si sale de la cartera, se cobró</div></div>
