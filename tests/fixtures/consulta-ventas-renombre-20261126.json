@@ -1,0 +1,725 @@
+{
+ "clave": {
+  "periodos": {
+   "preset": "anio_anterior",
+   "actual": {
+    "desde": "2026-01-01",
+    "hasta": "2026-10-31",
+    "dias": 304
+   },
+   "comparacion": {
+    "desde": "2025-01-01",
+    "hasta": "2025-10-31",
+    "dias": 304
+   },
+   "longitudes_iguales": true
+  },
+  "agrupar": "clave",
+  "filas": [
+   {
+    "renombrada_a": "ADE0547",
+    "renombrada_de": [],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "WWP0547",
+    "clave_canonica": "ADE0547",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "comparacion": {
+     "cantidad": 80,
+     "mxn": 8000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -80,
+     "mxn": -8000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -100,
+     "mxn": -100,
+     "usd": null
+    },
+    "estado": "dejo_de_comprar"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [
+     "WWP0707"
+    ],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "ADE0707",
+    "clave_canonica": "ADE0707",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 600,
+     "mxn": 60000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "delta": {
+     "cantidad": 600,
+     "mxn": 60000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": null,
+     "mxn": null,
+     "usd": null
+    },
+    "estado": "renombrada"
+   },
+   {
+    "renombrada_a": "ADE0707",
+    "renombrada_de": [],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "WWP0707",
+    "clave_canonica": "ADE0707",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "comparacion": {
+     "cantidad": 500,
+     "mxn": 50000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -500,
+     "mxn": -50000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -100,
+     "mxn": -100,
+     "usd": null
+    },
+    "estado": "renombrada"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [
+     "WWP0782-RS"
+    ],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "ADE0782-RS",
+    "clave_canonica": "ADE0782-RS",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 120,
+     "mxn": 10800,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 40,
+     "mxn": 3600,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": 80,
+     "mxn": 7200,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": 200,
+     "mxn": 200,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": "ADE0782-RS",
+    "renombrada_de": [],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "WWP0782-RS",
+    "clave_canonica": "ADE0782-RS",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "comparacion": {
+     "cantidad": 100,
+     "mxn": 9000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -100,
+     "mxn": -9000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -100,
+     "mxn": -100,
+     "usd": null
+    },
+    "estado": "renombrada"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [
+     "WWP1090"
+    ],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "ADE1090",
+    "clave_canonica": "ADE1090",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 90,
+     "mxn": 9000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 30,
+     "mxn": 3000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": 60,
+     "mxn": 6000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": 200,
+     "mxn": 200,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": "ADE1090",
+    "renombrada_de": [],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "WWP1090",
+    "clave_canonica": "ADE1090",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 20,
+     "mxn": 2000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 70,
+     "mxn": 7000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -50,
+     "mxn": -5000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -71.43,
+     "mxn": -71.43,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [],
+    "claves_anteriores": [],
+    "cve_cte": 108,
+    "cliente": "MSI EXPRESS",
+    "cve_prod": "EMP0076",
+    "clave_canonica": "EMP0076",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "comparacion": {
+     "cantidad": 25,
+     "mxn": 5000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -25,
+     "mxn": -5000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -100,
+     "mxn": -100,
+     "usd": null
+    },
+    "estado": "dejo_de_comprar"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [
+     "WWP0547"
+    ],
+    "claves_anteriores": [],
+    "cve_cte": 308,
+    "cliente": "UNILEVER NORTH",
+    "cve_prod": "ADE0547",
+    "clave_canonica": "ADE0547",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 50,
+     "mxn": 5000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "delta": {
+     "cantidad": 50,
+     "mxn": 5000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": null,
+     "mxn": null,
+     "usd": null
+    },
+    "estado": "nueva"
+   }
+  ],
+  "totales_unidad": [
+   {
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 880,
+     "mxn": 86800,
+     "usd": 0
+    },
+    "comparacion": {
+     "cantidad": 845,
+     "mxn": 85600,
+     "usd": 0
+    },
+    "delta": {
+     "cantidad": 35,
+     "mxn": 1200,
+     "usd": 0
+    }
+   }
+  ],
+  "totales": {
+   "actual": {
+    "mxn": 86800,
+    "usd": 0
+   },
+   "comparacion": {
+    "mxn": 85600,
+    "usd": 0
+   },
+   "delta": {
+    "mxn": 1200,
+    "usd": 0
+   }
+  },
+  "devoluciones": {
+   "actual": {
+    "renglones": 0,
+    "cantidad": "0",
+    "mxn": "0",
+    "usd": "0"
+   },
+   "comparacion": {
+    "renglones": 0,
+    "cantidad": "0",
+    "mxn": "0",
+    "usd": "0"
+   }
+  },
+  "procedencia": {
+   "preset": "anio_anterior",
+   "actual_desde": "2026-01-01",
+   "actual_hasta": "2026-10-31",
+   "actual_dias": 304,
+   "comparacion_desde": "2025-01-01",
+   "comparacion_hasta": "2025-10-31",
+   "comparacion_dias": 304,
+   "longitudes_iguales": true,
+   "datos_hasta": "2026-10-31",
+   "datos_fuente": "periodo_declarado",
+   "actual_rebasa_datos": false,
+   "actual_dias_con_datos": 304,
+   "actual_dias_sin_datos": 0,
+   "fecha_campo": "falta_fac",
+   "cantidad_campo": "cant_surt",
+   "importe_campo": "subt_prod",
+   "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
+   "agrupar": "clave",
+   "clientes": [
+    "MSI EXPRESS",
+    "UNILEVER NORTH"
+   ],
+   "claves": [
+    "ADE0547",
+    "ADE0707",
+    "ADE0782-RS",
+    "ADE1090",
+    "EMP0076",
+    "WWP0547",
+    "WWP0707",
+    "WWP0782-RS",
+    "WWP1090"
+   ],
+   "claves_canonicas": [
+    "ADE0547",
+    "ADE0707",
+    "ADE0782-RS",
+    "ADE1090",
+    "EMP0076"
+   ],
+   "unidades": [
+    "KG"
+   ],
+   "neto_de_devoluciones": true,
+   "generado_en": "2026-11-26T17:30:00.000Z"
+  }
+ },
+ "canonica": {
+  "periodos": {
+   "preset": "anio_anterior",
+   "actual": {
+    "desde": "2026-01-01",
+    "hasta": "2026-10-31",
+    "dias": 304
+   },
+   "comparacion": {
+    "desde": "2025-01-01",
+    "hasta": "2025-10-31",
+    "dias": 304
+   },
+   "longitudes_iguales": true
+  },
+  "agrupar": "canonica",
+  "filas": [
+   {
+    "renombrada_a": null,
+    "renombrada_de": [],
+    "claves_anteriores": [
+     "WWP0547"
+    ],
+    "cve_cte": null,
+    "cliente": null,
+    "cve_prod": null,
+    "clave_canonica": "ADE0547",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 50,
+     "mxn": 5000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 80,
+     "mxn": 8000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -30,
+     "mxn": -3000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -37.5,
+     "mxn": -37.5,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [],
+    "claves_anteriores": [
+     "WWP0707"
+    ],
+    "cve_cte": null,
+    "cliente": null,
+    "cve_prod": null,
+    "clave_canonica": "ADE0707",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 600,
+     "mxn": 60000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 500,
+     "mxn": 50000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": 100,
+     "mxn": 10000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": 20,
+     "mxn": 20,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [],
+    "claves_anteriores": [
+     "WWP0782-RS"
+    ],
+    "cve_cte": null,
+    "cliente": null,
+    "cve_prod": null,
+    "clave_canonica": "ADE0782-RS",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 120,
+     "mxn": 10800,
+     "usd": 0,
+     "renglones": 1
+    },
+    "comparacion": {
+     "cantidad": 140,
+     "mxn": 12600,
+     "usd": 0,
+     "renglones": 2
+    },
+    "delta": {
+     "cantidad": -20,
+     "mxn": -1800,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -14.29,
+     "mxn": -14.29,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [],
+    "claves_anteriores": [
+     "WWP1090"
+    ],
+    "cve_cte": null,
+    "cliente": null,
+    "cve_prod": null,
+    "clave_canonica": "ADE1090",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 110,
+     "mxn": 11000,
+     "usd": 0,
+     "renglones": 2
+    },
+    "comparacion": {
+     "cantidad": 100,
+     "mxn": 10000,
+     "usd": 0,
+     "renglones": 2
+    },
+    "delta": {
+     "cantidad": 10,
+     "mxn": 1000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": 10,
+     "mxn": 10,
+     "usd": null
+    },
+    "estado": "comparable"
+   },
+   {
+    "renombrada_a": null,
+    "renombrada_de": [],
+    "claves_anteriores": [],
+    "cve_cte": null,
+    "cliente": null,
+    "cve_prod": null,
+    "clave_canonica": "EMP0076",
+    "mercado": "NAL",
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 0,
+     "mxn": 0,
+     "usd": 0,
+     "renglones": 0
+    },
+    "comparacion": {
+     "cantidad": 25,
+     "mxn": 5000,
+     "usd": 0,
+     "renglones": 1
+    },
+    "delta": {
+     "cantidad": -25,
+     "mxn": -5000,
+     "usd": 0
+    },
+    "delta_pct": {
+     "cantidad": -100,
+     "mxn": -100,
+     "usd": null
+    },
+    "estado": "dejo_de_comprar"
+   }
+  ],
+  "totales_unidad": [
+   {
+    "unidad": "KG",
+    "es_kilogramo": true,
+    "actual": {
+     "cantidad": 880,
+     "mxn": 86800,
+     "usd": 0
+    },
+    "comparacion": {
+     "cantidad": 845,
+     "mxn": 85600,
+     "usd": 0
+    },
+    "delta": {
+     "cantidad": 35,
+     "mxn": 1200,
+     "usd": 0
+    }
+   }
+  ],
+  "totales": {
+   "actual": {
+    "mxn": 86800,
+    "usd": 0
+   },
+   "comparacion": {
+    "mxn": 85600,
+    "usd": 0
+   },
+   "delta": {
+    "mxn": 1200,
+    "usd": 0
+   }
+  },
+  "devoluciones": {
+   "actual": {
+    "renglones": 0,
+    "cantidad": "0",
+    "mxn": "0",
+    "usd": "0"
+   },
+   "comparacion": {
+    "renglones": 0,
+    "cantidad": "0",
+    "mxn": "0",
+    "usd": "0"
+   }
+  },
+  "procedencia": {
+   "preset": "anio_anterior",
+   "actual_desde": "2026-01-01",
+   "actual_hasta": "2026-10-31",
+   "actual_dias": 304,
+   "comparacion_desde": "2025-01-01",
+   "comparacion_hasta": "2025-10-31",
+   "comparacion_dias": 304,
+   "longitudes_iguales": true,
+   "datos_hasta": "2026-10-31",
+   "datos_fuente": "periodo_declarado",
+   "actual_rebasa_datos": false,
+   "actual_dias_con_datos": 304,
+   "actual_dias_sin_datos": 0,
+   "fecha_campo": "falta_fac",
+   "cantidad_campo": "cant_surt",
+   "importe_campo": "subt_prod",
+   "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
+   "agrupar": "canonica",
+   "clientes": [],
+   "claves": [],
+   "claves_canonicas": [
+    "ADE0547",
+    "ADE0707",
+    "ADE0782-RS",
+    "ADE1090",
+    "EMP0076"
+   ],
+   "unidades": [
+    "KG"
+   ],
+   "neto_de_devoluciones": true,
+   "generado_en": "2026-11-26T17:30:00.000Z"
+  }
+ }
+}

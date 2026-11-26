@@ -532,6 +532,21 @@
     comparable: '',
   };
 
+  // Misma regla que la hoja Comparativo del Excel. Una clave renombrada
+  // (WWP0707 → ADE0707) no "dejó de comprar": se factura con otra. Si el
+  // cliente no compró la gemela, la pérdida es real y se dice junto con
+  // la clave a la que pasó. Por canónica, la fila nombra las anteriores.
+  function etiquetaDe(f) {
+    if (f.estado === 'renombrada') {
+      return f.renombrada_a ? 'renombrada → ' + f.renombrada_a
+        : 'renombrada ← ' + (f.renombrada_de || []).join(', ');
+    }
+    var partes = [ETIQUETA[f.estado] || ''];
+    if ((f.claves_anteriores || []).length) partes.push('antes ' + f.claves_anteriores.join(', '));
+    if (f.renombrada_a) partes.push('renombrada a ' + f.renombrada_a);
+    return partes.filter(Boolean).join(' · ');
+  }
+
   function medida() { return S.metrica === 'cantidad' ? 'cantidad' : S.metrica; }
 
   function valorDe(bloque) { return Number(bloque[medida()] || 0); }
@@ -540,7 +555,7 @@
   // etiqueta del estado, nunca un Infinity disfrazado de dato.
   function pctTxt(f) {
     var v = f.delta_pct ? f.delta_pct[medida()] : null;
-    if (v === null || v === undefined) return '<span class="etq">' + esc(ETIQUETA[f.estado] || '—') + '</span>';
+    if (v === null || v === undefined) return '<span class="etq">' + esc(etiquetaDe(f) || '—') + '</span>';
     var signo = v > 0 ? '+' : '';
     var txt = (Math.round(v * 10) % 10 === 0) ? String(Math.round(v)) : v.toFixed(1);
     return '<b class="' + (v < 0 ? 'baja' : (v > 0 ? 'sube' : '')) + '">' + signo + txt + '%</b>';
@@ -639,8 +654,8 @@
       var ident = porCanonica
         ? '<td>' + esc(f.clave_canonica) + '</td><td>' + esc(f.mercado) + '</td>'
         : '<td>' + esc(f.cliente || '') + '</td><td>' + esc(f.cve_prod) + '</td>';
-      var etq = f.estado !== 'comparable'
-        ? ' <span class="etq">' + esc(ETIQUETA[f.estado]) + '</span>' : '';
+      var txtEtq = etiquetaDe(f);
+      var etq = txtEtq ? ' <span class="etq">' + esc(txtEtq) + '</span>' : '';
       return '<tr>' + ident + '<td>' + esc(f.unidad) + etq + '</td>'
         + '<td class="n">' + num(valorDe(f.actual)) + '</td>'
         + '<td class="n">' + num(valorDe(f.comparacion)) + '</td>'
