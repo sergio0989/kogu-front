@@ -203,7 +203,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function vigBadge(a) {
     if (a.estado === 'cerrada' || a.estado === 'cancelada') return '';
     if (a.vencida) return chipColor('var(--danger,#dc2626)', 'Vencida', true);
-    if (a.fecha_limite) return `<span style="font-size:11px;color:var(--muted)">vence ${fechaCorta(a.fecha_limite)}</span>`;
+    // fecha_limite es DATE: fmtDay (fmtDateOnly), igual que el detalle.
+    // Con fechaCorta -> fmtDate la tarjeta decia "vence 25/11" y el
+    // detalle "26/11" (captura de prod del 26-nov).
+    if (a.fecha_limite) return `<span style="font-size:11px;color:var(--muted)">vence ${fmtDay(a.fecha_limite)}</span>`;
     return '';
   }
 
@@ -246,10 +249,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await KoguApi.apiFetch(`${BASE}/actividades/${encodeURIComponent(id)}`);
       d = res?.data || res;
-    } catch (err) { KoguApi.toast(err.message, 'error'); return; }
+    } catch (err) { KoguApi.toast(err.message, 'error'); quitarActDeUrl(); return; }
     renderDetalle(d);
   }
-  function closeDetalle() { document.getElementById('crmActModal')?.remove(); }
+  // La liga ?act=<id> sirve para LLEGAR, no para quedarse: si sigue en la
+  // URL, un refresh reabre lo que el usuario cerro (o repite el aviso de
+  // un id que no existe). replaceState, no pushState: Atras no debe
+  // regresar a la actividad cerrada.
+  function quitarActDeUrl() {
+    const u = new URL(location.href);
+    if (!u.searchParams.has('act')) return;
+    u.searchParams.delete('act');
+    history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+  }
+  function closeDetalle() { document.getElementById('crmActModal')?.remove(); quitarActDeUrl(); }
 
   // Filas del snapshot según la métrica: 'importe' ($) o 'kg' (cantidad).
   function snapshotRows(prods, metric) {

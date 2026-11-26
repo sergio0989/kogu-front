@@ -138,6 +138,49 @@ await check('un id que no existe avisa y deja la pantalla usable', async () => {
   assert.ok(window.document.getElementById('estFil'), 'se rompio la pantalla de lista');
 });
 
+console.log('\n── Al cerrar, la liga ya no manda ─────────────────────────────');
+
+// Pendiente #8 del informe del 25-nov: `closeDetalle` quita el modal pero
+// deja `?act=` en la URL, y un refresh vuelve a abrir la actividad que el
+// usuario acaba de cerrar. Lo mismo con un id que no existe: el aviso
+// reaparece en cada recarga. Se reproduce con el actividades.js real.
+const sinAct = (w) => !new w.URLSearchParams(w.location.search).has('act');
+
+await check('cerrar con la X quita ?act= de la URL', async () => {
+  const { window } = await arranca('?act=act-124');
+  assert.ok(window.document.getElementById('crmActModal'), 'no abrio el detalle: el caso no prueba nada');
+  window.document.getElementById('crmActClose').click();
+  assert.ok(!window.document.getElementById('crmActModal'), 'no cerro el modal');
+  assert.ok(sinAct(window), `la URL sigue mandando: ${window.location.href}`);
+  assert.match(window.location.pathname, /\/modules\/crm\/actividades\.html$/, 'cambio de pagina');
+});
+
+await check('cerrar con clic fuera del modal tambien la quita', async () => {
+  const { window } = await arranca('?act=act-124');
+  const modal = window.document.getElementById('crmActModal');
+  assert.ok(modal, 'no abrio el detalle: el caso no prueba nada');
+  modal.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(!window.document.getElementById('crmActModal'), 'no cerro el modal');
+  assert.ok(sinAct(window), `la URL sigue mandando: ${window.location.href}`);
+});
+
+await check('un id que no existe no se queda en la URL para avisar otra vez', async () => {
+  const { window, avisos } = await arranca('?act=no-existe');
+  assert.ok(avisos.length, 'no aviso: el caso no prueba nada');
+  assert.ok(sinAct(window), `la URL sigue mandando: ${window.location.href}`);
+});
+
+await check('cerrar no agrega una entrada al historial (Atras no reabre)', async () => {
+  // Se mide con Atras de verdad: en jsdom history.length no crece con
+  // pushState, asi que contarlo no probaba nada (lo delato una mutacion).
+  const { window } = await arranca('?act=act-124');
+  window.document.getElementById('crmActClose').click();
+  assert.ok(sinAct(window), 'no limpio la URL: el caso no prueba nada');
+  window.history.back();
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(sinAct(window), `Atras regreso a la actividad cerrada: ${window.location.href}`);
+});
+
 console.log(`\n${'='.repeat(62)}`);
 console.log(`  ${verde.length} en verde, ${rojo.length} en rojo`);
 for (const [n, m] of rojo) console.log(`  ROJO   ${n}\n           ${m}`);
