@@ -591,6 +591,17 @@
       aviso += ' <b class="baja">Cuidado: las longitudes son distintas</b>'
         + ' — las variaciones incluyen la diferencia de días, no sólo la de ventas.';
     }
+    // Mismo tipo de trampa: ene–dic 2026 contra 2025 completo, con datos
+    // hasta octubre, pone 304 días reales contra 365. La fecha viene del
+    // periodo declarado por la carga; si no lo hay, de la última venta, y
+    // se dice cuál de las dos es.
+    var fuenteDatos = pr.datos_fuente === 'periodo_declarado'
+      ? 'periodo declarado en la carga' : 'última venta registrada, sin periodo declarado';
+    if (pr.actual_rebasa_datos === true) {
+      aviso += ' <b class="baja">Cuidado: los datos cargados cubren hasta el ' + esc(pr.datos_hasta) + '</b>'
+        + ' (' + fuenteDatos + ') — faltan ' + pr.actual_dias_sin_datos + ' de ' + a.dias + ' días:'
+        + ' se comparan ' + pr.actual_dias_con_datos + ' días con datos contra ' + c.dias + '.';
+    }
     document.getElementById('avisoLongitud').innerHTML = aviso;
 
     var dv = d.devoluciones || {};
@@ -603,7 +614,9 @@
     document.getElementById('procedenciaComp').innerHTML =
       'Fecha: <b>' + esc(pr.fecha_campo) + '</b> · cantidad: <b>' + esc(pr.cantidad_campo) + '</b>'
       + ' · importe: <b>' + esc(pr.importe_campo) + '</b> · USD: ' + esc(pr.usd_regla)
-      + ' · agrupado por <b>' + esc(pr.agrupar) + '</b> · comparación <b>' + esc(pr.preset) + '</b>.'
+      + ' · agrupado por <b>' + esc(pr.agrupar) + '</b> · comparación <b>' + esc(pr.preset) + '</b>'
+      + (pr.datos_hasta ? ' · datos hasta <b>' + esc(pr.datos_hasta) + '</b> (' + fuenteDatos + ')' : '')
+      + '.'
       + '<br>Clientes: <b>' + nombrarOcontar(pr.clientes, 'cliente', 'clientes', 'todos') + '</b>'
       + ' · Claves: <b>' + nombrarOcontar(pr.claves || pr.claves_canonicas, 'clave', 'claves', 'todas') + '</b>.';
   }
