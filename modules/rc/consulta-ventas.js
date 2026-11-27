@@ -280,9 +280,9 @@
       + '<li><b>Periodo:</b> ' + esc(p.desde) + ' a ' + esc(p.hasta)
       + ' (' + (d.meses || []).length + ' meses, por <code>' + esc(p.fecha_campo) + '</code>)</li>'
       + '<li><b>Clientes:</b> '
-      + nombrarOcontar(p.clientes, 'cliente', 'clientes', 'todos') + '</li>'
+      + nombrarOcontar(clientesDeProcedencia(p), 'cliente', 'clientes', 'todos') + '</li>'
       + '<li><b>Claves:</b> '
-      + nombrarOcontar(p.claves || p.claves_canonicas, 'clave', 'claves', 'todas') + '</li>'
+      + nombrarOcontar(clavesDeProcedencia(p), 'clave', 'claves', 'todas') + '</li>'
       + '<li><b>Cantidad:</b> <code>' + esc(p.cantidad_campo) + '</code>'
       + ' · <b>Importe:</b> <code>' + esc(p.importe_campo) + '</code>'
       + ' · <b>USD:</b> ' + esc(p.usd_regla) + '</li>'

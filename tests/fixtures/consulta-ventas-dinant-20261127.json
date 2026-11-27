@@ -1,415 +1,582 @@
 {
- "todas_clave": {
-  "periodos": {
-   "preset": "anio_anterior",
-   "actual": {
-    "desde": "2026-01-01",
-    "hasta": "2026-10-31",
-    "dias": 304
-   },
-   "comparacion": {
-    "desde": "2025-01-01",
-    "hasta": "2025-10-31",
-    "dias": 304
-   },
-   "longitudes_iguales": true
-  },
-  "agrupar": "clave",
-  "filas": [
-   {
-    "renombrada_a": null,
-    "renombrada_de": [
-     "WWP0081-S"
+  "todas_clave": {
+    "periodos": {
+      "preset": "anio_anterior",
+      "actual": {
+        "desde": "2026-01-01",
+        "hasta": "2026-10-31",
+        "dias": 304
+      },
+      "comparacion": {
+        "desde": "2025-01-01",
+        "hasta": "2025-10-31",
+        "dias": 304
+      },
+      "longitudes_iguales": true
+    },
+    "agrupar": "clave",
+    "filas": [
+      {
+        "renombrada_a": null,
+        "renombrada_de": [
+          "WWP0081-S"
+        ],
+        "claves_anteriores": [],
+        "cve_cte": 25,
+        "cliente": "Corporacion Dinant, S.A De C.V",
+        "cve_prod": "ADE0081-S",
+        "clave_canonica": "ADE0081-S",
+        "mercado": "NAL",
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 8850,
+          "mxn": 531000,
+          "usd": 0,
+          "renglones": 1
+        },
+        "comparacion": {
+          "cantidad": 2000,
+          "mxn": 120000,
+          "usd": 0,
+          "renglones": 1
+        },
+        "delta": {
+          "cantidad": 6850,
+          "mxn": 411000,
+          "usd": 0
+        },
+        "delta_pct": {
+          "cantidad": 342.5,
+          "mxn": 342.5,
+          "usd": null
+        },
+        "estado": "comparable",
+        "incluye_renombre": [
+          "WWP0081-S"
+        ]
+      },
+      {
+        "renombrada_a": "ADE0081-S",
+        "renombrada_de": [],
+        "claves_anteriores": [],
+        "cve_cte": 25,
+        "cliente": "Corporacion Dinant, S.A De C.V",
+        "cve_prod": "WWP0081-S",
+        "clave_canonica": "ADE0081-S",
+        "mercado": "NAL",
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 0,
+          "mxn": 0,
+          "usd": 0,
+          "renglones": 0
+        },
+        "comparacion": {
+          "cantidad": 6950,
+          "mxn": 417000,
+          "usd": 0,
+          "renglones": 1
+        },
+        "delta": {
+          "cantidad": -6950,
+          "mxn": -417000,
+          "usd": 0
+        },
+        "delta_pct": {
+          "cantidad": -100,
+          "mxn": -100,
+          "usd": null
+        },
+        "estado": "renombrada",
+        "incluye_renombre": []
+      },
+      {
+        "renombrada_a": null,
+        "renombrada_de": [
+          "WWP1034"
+        ],
+        "claves_anteriores": [],
+        "cve_cte": 25,
+        "cliente": "Corporacion Dinant, S.A De C.V",
+        "cve_prod": "ADE1034",
+        "clave_canonica": "ADE1034",
+        "mercado": "NAL",
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 16180,
+          "mxn": 970800,
+          "usd": 0,
+          "renglones": 1
+        },
+        "comparacion": {
+          "cantidad": 3800,
+          "mxn": 228000,
+          "usd": 0,
+          "renglones": 1
+        },
+        "delta": {
+          "cantidad": 12380,
+          "mxn": 742800,
+          "usd": 0
+        },
+        "delta_pct": {
+          "cantidad": 325.79,
+          "mxn": 325.79,
+          "usd": null
+        },
+        "estado": "comparable",
+        "incluye_renombre": [
+          "WWP1034"
+        ]
+      },
+      {
+        "renombrada_a": "ADE1034",
+        "renombrada_de": [],
+        "claves_anteriores": [],
+        "cve_cte": 25,
+        "cliente": "Corporacion Dinant, S.A De C.V",
+        "cve_prod": "WWP1034",
+        "clave_canonica": "ADE1034",
+        "mercado": "NAL",
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 0,
+          "mxn": 0,
+          "usd": 0,
+          "renglones": 0
+        },
+        "comparacion": {
+          "cantidad": 11540,
+          "mxn": 692400,
+          "usd": 0,
+          "renglones": 1
+        },
+        "delta": {
+          "cantidad": -11540,
+          "mxn": -692400,
+          "usd": 0
+        },
+        "delta_pct": {
+          "cantidad": -100,
+          "mxn": -100,
+          "usd": null
+        },
+        "estado": "renombrada",
+        "incluye_renombre": []
+      }
     ],
-    "claves_anteriores": [],
-    "cve_cte": 25,
-    "cliente": "Corporacion Dinant, S.A De C.V",
-    "cve_prod": "ADE0081-S",
-    "clave_canonica": "ADE0081-S",
-    "mercado": "NAL",
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 8850,
-     "mxn": 531000,
-     "usd": 0,
-     "renglones": 1
-    },
-    "comparacion": {
-     "cantidad": 2000,
-     "mxn": 120000,
-     "usd": 0,
-     "renglones": 1
-    },
-    "delta": {
-     "cantidad": 6850,
-     "mxn": 411000,
-     "usd": 0
-    },
-    "delta_pct": {
-     "cantidad": 342.5,
-     "mxn": 342.5,
-     "usd": null
-    },
-    "estado": "comparable",
-    "incluye_renombre": [
-     "WWP0081-S"
-    ]
-   },
-   {
-    "renombrada_a": "ADE0081-S",
-    "renombrada_de": [],
-    "claves_anteriores": [],
-    "cve_cte": 25,
-    "cliente": "Corporacion Dinant, S.A De C.V",
-    "cve_prod": "WWP0081-S",
-    "clave_canonica": "ADE0081-S",
-    "mercado": "NAL",
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 0,
-     "mxn": 0,
-     "usd": 0,
-     "renglones": 0
-    },
-    "comparacion": {
-     "cantidad": 6950,
-     "mxn": 417000,
-     "usd": 0,
-     "renglones": 1
-    },
-    "delta": {
-     "cantidad": -6950,
-     "mxn": -417000,
-     "usd": 0
-    },
-    "delta_pct": {
-     "cantidad": -100,
-     "mxn": -100,
-     "usd": null
-    },
-    "estado": "renombrada",
-    "incluye_renombre": []
-   },
-   {
-    "renombrada_a": null,
-    "renombrada_de": [
-     "WWP1034"
+    "totales_unidad": [
+      {
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 25030,
+          "mxn": 1501800,
+          "usd": 0
+        },
+        "comparacion": {
+          "cantidad": 24290,
+          "mxn": 1457400,
+          "usd": 0
+        },
+        "delta": {
+          "cantidad": 740,
+          "mxn": 44400,
+          "usd": 0
+        }
+      }
     ],
-    "claves_anteriores": [],
-    "cve_cte": 25,
-    "cliente": "Corporacion Dinant, S.A De C.V",
-    "cve_prod": "ADE1034",
-    "clave_canonica": "ADE1034",
-    "mercado": "NAL",
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 16180,
-     "mxn": 970800,
-     "usd": 0,
-     "renglones": 1
+    "totales": {
+      "actual": {
+        "mxn": 1501800,
+        "usd": 0
+      },
+      "comparacion": {
+        "mxn": 1457400,
+        "usd": 0
+      },
+      "delta": {
+        "mxn": 44400,
+        "usd": 0
+      }
     },
-    "comparacion": {
-     "cantidad": 3800,
-     "mxn": 228000,
-     "usd": 0,
-     "renglones": 1
+    "devoluciones": {
+      "actual": {
+        "renglones": 0,
+        "cantidad": "0",
+        "mxn": "0",
+        "usd": "0"
+      },
+      "comparacion": {
+        "renglones": 0,
+        "cantidad": "0",
+        "mxn": "0",
+        "usd": "0"
+      }
     },
-    "delta": {
-     "cantidad": 12380,
-     "mxn": 742800,
-     "usd": 0
-    },
-    "delta_pct": {
-     "cantidad": 325.79,
-     "mxn": 325.79,
-     "usd": null
-    },
-    "estado": "comparable",
-    "incluye_renombre": [
-     "WWP1034"
-    ]
-   },
-   {
-    "renombrada_a": "ADE1034",
-    "renombrada_de": [],
-    "claves_anteriores": [],
-    "cve_cte": 25,
-    "cliente": "Corporacion Dinant, S.A De C.V",
-    "cve_prod": "WWP1034",
-    "clave_canonica": "ADE1034",
-    "mercado": "NAL",
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 0,
-     "mxn": 0,
-     "usd": 0,
-     "renglones": 0
-    },
-    "comparacion": {
-     "cantidad": 11540,
-     "mxn": 692400,
-     "usd": 0,
-     "renglones": 1
-    },
-    "delta": {
-     "cantidad": -11540,
-     "mxn": -692400,
-     "usd": 0
-    },
-    "delta_pct": {
-     "cantidad": -100,
-     "mxn": -100,
-     "usd": null
-    },
-    "estado": "renombrada",
-    "incluye_renombre": []
-   }
-  ],
-  "totales_unidad": [
-   {
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 25030,
-     "mxn": 1501800,
-     "usd": 0
-    },
-    "comparacion": {
-     "cantidad": 24290,
-     "mxn": 1457400,
-     "usd": 0
-    },
-    "delta": {
-     "cantidad": 740,
-     "mxn": 44400,
-     "usd": 0
+    "procedencia": {
+      "preset": "anio_anterior",
+      "actual_desde": "2026-01-01",
+      "actual_hasta": "2026-10-31",
+      "actual_dias": 304,
+      "comparacion_desde": "2025-01-01",
+      "comparacion_hasta": "2025-10-31",
+      "comparacion_dias": 304,
+      "longitudes_iguales": true,
+      "datos_hasta": "2026-10-31",
+      "datos_fuente": "periodo_declarado",
+      "actual_rebasa_datos": false,
+      "actual_dias_con_datos": 304,
+      "actual_dias_sin_datos": 0,
+      "fecha_campo": "falta_fac",
+      "cantidad_campo": "cant_surt",
+      "importe_campo": "subt_prod",
+      "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
+      "agrupar": "clave",
+      "clientes": [
+        "Corporacion Dinant, S.A De C.V"
+      ],
+      "claves": [
+        "ADE0081-S",
+        "ADE1034",
+        "WWP0081-S",
+        "WWP1034"
+      ],
+      "claves_filtro": [],
+      "clientes_filtro": [
+        "Corporacion Dinant, S.A De C.V"
+      ],
+      "renombres_incluidos": [],
+      "claves_canonicas": [
+        "ADE0081-S",
+        "ADE1034"
+      ],
+      "unidades": [
+        "KG"
+      ],
+      "neto_de_devoluciones": true,
+      "generado_en": "2026-11-27T18:00:00.000Z"
     }
-   }
-  ],
-  "totales": {
-   "actual": {
-    "mxn": 1501800,
-    "usd": 0
-   },
-   "comparacion": {
-    "mxn": 1457400,
-    "usd": 0
-   },
-   "delta": {
-    "mxn": 44400,
-    "usd": 0
-   }
   },
-  "devoluciones": {
-   "actual": {
-    "renglones": 0,
-    "cantidad": "0",
-    "mxn": "0",
-    "usd": "0"
-   },
-   "comparacion": {
-    "renglones": 0,
-    "cantidad": "0",
-    "mxn": "0",
-    "usd": "0"
-   }
+  "filtro_canonica": {
+    "periodos": {
+      "preset": "anio_anterior",
+      "actual": {
+        "desde": "2026-01-01",
+        "hasta": "2026-10-31",
+        "dias": 304
+      },
+      "comparacion": {
+        "desde": "2025-01-01",
+        "hasta": "2025-10-31",
+        "dias": 304
+      },
+      "longitudes_iguales": true
+    },
+    "agrupar": "canonica",
+    "filas": [
+      {
+        "renombrada_a": null,
+        "renombrada_de": [],
+        "claves_anteriores": [
+          "WWP1034"
+        ],
+        "cve_cte": null,
+        "cliente": null,
+        "cve_prod": null,
+        "clave_canonica": "ADE1034",
+        "mercado": "NAL",
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 16180,
+          "mxn": 970800,
+          "usd": 0,
+          "renglones": 1
+        },
+        "comparacion": {
+          "cantidad": 15340,
+          "mxn": 920400,
+          "usd": 0,
+          "renglones": 2
+        },
+        "delta": {
+          "cantidad": 840,
+          "mxn": 50400,
+          "usd": 0
+        },
+        "delta_pct": {
+          "cantidad": 5.48,
+          "mxn": 5.48,
+          "usd": null
+        },
+        "estado": "comparable",
+        "incluye_renombre": []
+      }
+    ],
+    "totales_unidad": [
+      {
+        "unidad": "KG",
+        "es_kilogramo": true,
+        "actual": {
+          "cantidad": 16180,
+          "mxn": 970800,
+          "usd": 0
+        },
+        "comparacion": {
+          "cantidad": 15340,
+          "mxn": 920400,
+          "usd": 0
+        },
+        "delta": {
+          "cantidad": 840,
+          "mxn": 50400,
+          "usd": 0
+        }
+      }
+    ],
+    "totales": {
+      "actual": {
+        "mxn": 970800,
+        "usd": 0
+      },
+      "comparacion": {
+        "mxn": 920400,
+        "usd": 0
+      },
+      "delta": {
+        "mxn": 50400,
+        "usd": 0
+      }
+    },
+    "devoluciones": {
+      "actual": {
+        "renglones": 0,
+        "cantidad": "0",
+        "mxn": "0",
+        "usd": "0"
+      },
+      "comparacion": {
+        "renglones": 0,
+        "cantidad": "0",
+        "mxn": "0",
+        "usd": "0"
+      }
+    },
+    "procedencia": {
+      "preset": "anio_anterior",
+      "actual_desde": "2026-01-01",
+      "actual_hasta": "2026-10-31",
+      "actual_dias": 304,
+      "comparacion_desde": "2025-01-01",
+      "comparacion_hasta": "2025-10-31",
+      "comparacion_dias": 304,
+      "longitudes_iguales": true,
+      "datos_hasta": "2026-10-31",
+      "datos_fuente": "periodo_declarado",
+      "actual_rebasa_datos": false,
+      "actual_dias_con_datos": 304,
+      "actual_dias_sin_datos": 0,
+      "fecha_campo": "falta_fac",
+      "cantidad_campo": "cant_surt",
+      "importe_campo": "subt_prod",
+      "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
+      "agrupar": "canonica",
+      "clientes": [],
+      "claves": [],
+      "claves_filtro": [
+        "ADE1034"
+      ],
+      "clientes_filtro": [
+        "Corporacion Dinant, S.A De C.V"
+      ],
+      "renombres_incluidos": [
+        {
+          "clave": "ADE1034",
+          "incluye": [
+            "WWP1034"
+          ]
+        }
+      ],
+      "claves_canonicas": [
+        "ADE1034"
+      ],
+      "unidades": [
+        "KG"
+      ],
+      "neto_de_devoluciones": true,
+      "generado_en": "2026-11-27T18:00:00.000Z"
+    }
   },
-  "procedencia": {
-   "preset": "anio_anterior",
-   "actual_desde": "2026-01-01",
-   "actual_hasta": "2026-10-31",
-   "actual_dias": 304,
-   "comparacion_desde": "2025-01-01",
-   "comparacion_hasta": "2025-10-31",
-   "comparacion_dias": 304,
-   "longitudes_iguales": true,
-   "datos_hasta": "2026-10-31",
-   "datos_fuente": "periodo_declarado",
-   "actual_rebasa_datos": false,
-   "actual_dias_con_datos": 304,
-   "actual_dias_sin_datos": 0,
-   "fecha_campo": "falta_fac",
-   "cantidad_campo": "cant_surt",
-   "importe_campo": "subt_prod",
-   "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
-   "agrupar": "clave",
-   "clientes": [
-    "Corporacion Dinant, S.A De C.V"
-   ],
-   "claves": [
-    "ADE0081-S",
-    "ADE1034",
-    "WWP0081-S",
-    "WWP1034"
-   ],
-   "claves_filtro": [],
-   "clientes_filtro": [
-    "Corporacion Dinant, S.A De C.V"
-   ],
-   "renombres_incluidos": [],
-   "claves_canonicas": [
-    "ADE0081-S",
-    "ADE1034"
-   ],
-   "unidades": [
-    "KG"
-   ],
-   "neto_de_devoluciones": true,
-   "generado_en": "2026-11-27T18:00:00.000Z"
+  "mensual_filtro_canonica": {
+    "periodo": {
+      "desde": "2025-01-01",
+      "hasta": "2026-10-31",
+      "meses": 22
+    },
+    "agrupar": "canonica",
+    "meses": [
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10"
+    ],
+    "filas": [
+      {
+        "cve_cte": null,
+        "cliente": null,
+        "cve_prod": null,
+        "clave_canonica": "ADE1034",
+        "mercado": "NAL",
+        "unidad": "KG",
+        "cantidad": 31520,
+        "mxn": 1891200,
+        "usd": 0,
+        "renglones": 3,
+        "serie": [
+          0,
+          0,
+          0,
+          11540,
+          0,
+          0,
+          0,
+          3800,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          16180,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "serie_mxn": [
+          0,
+          0,
+          0,
+          692400,
+          0,
+          0,
+          0,
+          228000,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          970800,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "serie_usd": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "es_kilogramo": true
+      }
+    ],
+    "totales": {
+      "cantidad": 31520,
+      "mxn": 1891200,
+      "usd": 0
+    },
+    "unidades": [
+      "KG"
+    ],
+    "es_kilogramo": true,
+    "devoluciones": {
+      "renglones": 0,
+      "cantidad": 0,
+      "mxn": 0,
+      "usd": 0
+    },
+    "procedencia": {
+      "desde": "2025-01-01",
+      "hasta": "2026-10-31",
+      "fecha_campo": "falta_fac",
+      "cantidad_campo": "cant_surt",
+      "importe_campo": "subt_prod",
+      "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
+      "agrupar": "canonica",
+      "clientes": [],
+      "claves": [],
+      "claves_canonicas": [
+        "ADE1034"
+      ],
+      "claves_filtro": [
+        "ADE1034"
+      ],
+      "clientes_filtro": [
+        "Corporacion Dinant, S.A De C.V"
+      ],
+      "renombres_incluidos": [
+        {
+          "clave": "ADE1034",
+          "incluye": [
+            "WWP1034"
+          ]
+        }
+      ],
+      "unidades": [
+        "KG"
+      ],
+      "neto_de_devoluciones": true,
+      "generado_en": "2026-11-27T18:31:44.043Z"
+    }
   }
- },
- "filtro_canonica": {
-  "periodos": {
-   "preset": "anio_anterior",
-   "actual": {
-    "desde": "2026-01-01",
-    "hasta": "2026-10-31",
-    "dias": 304
-   },
-   "comparacion": {
-    "desde": "2025-01-01",
-    "hasta": "2025-10-31",
-    "dias": 304
-   },
-   "longitudes_iguales": true
-  },
-  "agrupar": "canonica",
-  "filas": [
-   {
-    "renombrada_a": null,
-    "renombrada_de": [],
-    "claves_anteriores": [
-     "WWP1034"
-    ],
-    "cve_cte": null,
-    "cliente": null,
-    "cve_prod": null,
-    "clave_canonica": "ADE1034",
-    "mercado": "NAL",
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 16180,
-     "mxn": 970800,
-     "usd": 0,
-     "renglones": 1
-    },
-    "comparacion": {
-     "cantidad": 15340,
-     "mxn": 920400,
-     "usd": 0,
-     "renglones": 2
-    },
-    "delta": {
-     "cantidad": 840,
-     "mxn": 50400,
-     "usd": 0
-    },
-    "delta_pct": {
-     "cantidad": 5.48,
-     "mxn": 5.48,
-     "usd": null
-    },
-    "estado": "comparable",
-    "incluye_renombre": []
-   }
-  ],
-  "totales_unidad": [
-   {
-    "unidad": "KG",
-    "es_kilogramo": true,
-    "actual": {
-     "cantidad": 16180,
-     "mxn": 970800,
-     "usd": 0
-    },
-    "comparacion": {
-     "cantidad": 15340,
-     "mxn": 920400,
-     "usd": 0
-    },
-    "delta": {
-     "cantidad": 840,
-     "mxn": 50400,
-     "usd": 0
-    }
-   }
-  ],
-  "totales": {
-   "actual": {
-    "mxn": 970800,
-    "usd": 0
-   },
-   "comparacion": {
-    "mxn": 920400,
-    "usd": 0
-   },
-   "delta": {
-    "mxn": 50400,
-    "usd": 0
-   }
-  },
-  "devoluciones": {
-   "actual": {
-    "renglones": 0,
-    "cantidad": "0",
-    "mxn": "0",
-    "usd": "0"
-   },
-   "comparacion": {
-    "renglones": 0,
-    "cantidad": "0",
-    "mxn": "0",
-    "usd": "0"
-   }
-  },
-  "procedencia": {
-   "preset": "anio_anterior",
-   "actual_desde": "2026-01-01",
-   "actual_hasta": "2026-10-31",
-   "actual_dias": 304,
-   "comparacion_desde": "2025-01-01",
-   "comparacion_hasta": "2025-10-31",
-   "comparacion_dias": 304,
-   "longitudes_iguales": true,
-   "datos_hasta": "2026-10-31",
-   "datos_fuente": "periodo_declarado",
-   "actual_rebasa_datos": false,
-   "actual_dias_con_datos": 304,
-   "actual_dias_sin_datos": 0,
-   "fecha_campo": "falta_fac",
-   "cantidad_campo": "cant_surt",
-   "importe_campo": "subt_prod",
-   "usd_regla": "subt_prod / tip_cam solo en cve_mon = 2",
-   "agrupar": "canonica",
-   "clientes": [],
-   "claves": [],
-   "claves_filtro": [
-    "ADE1034"
-   ],
-   "clientes_filtro": [
-    "Corporacion Dinant, S.A De C.V"
-   ],
-   "renombres_incluidos": [
-    {
-     "clave": "ADE1034",
-     "incluye": [
-      "WWP1034"
-     ]
-    }
-   ],
-   "claves_canonicas": [
-    "ADE1034"
-   ],
-   "unidades": [
-    "KG"
-   ],
-   "neto_de_devoluciones": true,
-   "generado_en": "2026-11-27T18:00:00.000Z"
-  }
- }
 }

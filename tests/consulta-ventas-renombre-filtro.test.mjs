@@ -42,6 +42,7 @@ async function montar() {
     { url: 'https://kogu.test/modules/rc/consulta-ventas.html', runScripts: 'outside-only' });
   const { window } = dom;
   let cuerpoComp = REAL.todas_clave;
+  let cuerpoMensual = { periodo: {}, agrupar: 'clave', meses: [], filas: [], totales: {}, unidades: [], devoluciones: {}, procedencia: {} };
   const errores = [];
   window.KoguShell = {
     initShell: async () => {
@@ -57,7 +58,7 @@ async function montar() {
       if (url.includes('/consulta-ventas/comparativo')) return { ok: true, data: cuerpoComp };
       if (url.includes('/consulta-ventas/clientes')) return { ok: true, data: CLIENTES };
       if (url.includes('/consulta-ventas/claves')) return { ventana: 'periodo', claves: [] };
-      if (url.includes('/consulta-ventas')) return { ok: true, data: { periodo: {}, agrupar: 'clave', meses: [], filas: [], totales: {}, unidades: [], devoluciones: {}, procedencia: {} } };
+      if (url.includes('/consulta-ventas')) return { ok: true, data: cuerpoMensual };
       return { ok: true, data: {} };
     },
     authFetchRaw: async () => ({ ok: true, blob: async () => ({}), headers: { get: () => '' } }),
@@ -87,6 +88,14 @@ async function montar() {
       return tr ? tr.textContent.replace(/\s+/g, ' ').trim() : null;
     },
     procedencia: () => $('procedenciaComp').textContent.replace(/\s+/g, ' '),
+    consultarMensual: async (c) => {
+      cuerpoMensual = c;
+      $('tabMensual').click();
+      await new Promise((r) => setTimeout(r, 150));
+      $('btnConsultar').click();
+      await new Promise((r) => setTimeout(r, 300));
+    },
+    procedenciaMensual: () => $('procedencia').textContent.replace(/\s+/g, ' '),
   };
 }
 
@@ -119,6 +128,25 @@ await check('canonica con filtro ADE1034: "Claves: ADE1034 (incluye WWP1034)", n
 
 await check('canonica con filtro de Dinant: "Clientes: Corporacion Dinant…", no "todos"', async () => {
   const t = P.procedencia();
+  assert.ok(!/Clientes: todos/.test(t), `dice que no hubo filtro de cliente: "${t}"`);
+  assert.match(t, /Clientes: Corporacion Dinant/, t);
+});
+
+console.log('── Pestaña mensual: la misma procedencia ───────────────────────');
+
+// §16.5 — misma consulta (Dinant + ADE1034, canónica), pestaña mensual:
+// la salida real del servicio trae clientes [] y claves [] y la lista
+// decía "Clientes: todos · Claves: todas".
+await check('mensual canonica: "Claves: ADE1034 (incluye WWP1034)", no "todas"', async () => {
+  await P.consultarMensual(REAL.mensual_filtro_canonica);
+  assert.deepEqual(P.errores, []);
+  const t = P.procedenciaMensual();
+  assert.ok(!/Claves: todas/.test(t), `dice que no hubo filtro: "${t}"`);
+  assert.match(t, /Claves: ADE1034 \(incluye WWP1034\)/, t);
+});
+
+await check('mensual canonica: "Clientes: Corporacion Dinant…", no "todos"', async () => {
+  const t = P.procedenciaMensual();
   assert.ok(!/Clientes: todos/.test(t), `dice que no hubo filtro de cliente: "${t}"`);
   assert.match(t, /Clientes: Corporacion Dinant/, t);
 });
