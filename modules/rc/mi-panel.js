@@ -812,7 +812,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           (pr.claves_anteriores || []).length
             ? ` <span style="color:var(--muted);font-size:12px">· antes ${KoguUi.escapeHtml(pr.claves_anteriores.join(', '))}</span>` : ''}</td>
         <td style="text-align:right">${fmtVal(a)}</td><td style="text-align:right">${fmtVal(bb)}</td>
-        <td style="text-align:right;color:${color};font-weight:600">${dlt == null ? '—' : fmtPctCap(dlt)}</td></tr>`;
+        <td style="text-align:right;color:${dlt == null && bb > 0 ? 'var(--success,#16a34a)' : color};font-weight:600">${
+          // Un porcentaje contra cero no existe, pero previo 0 con venta
+          // actual sí dice algo: el cliente empezó a comprarlo (ADE0890 y
+          // ADE1117 en GOOD FOODS, captura del 27-nov). Mismo criterio que
+          // "nueva" en Consulta de ventas.
+          dlt == null ? (bb > 0 ? 'nuevo' : '—') : fmtPctCap(dlt)}</td></tr>`;
     }).join('');
     const meses = d.meses || [];
     const maxM = Math.max(1, ...meses.map(measSubt));

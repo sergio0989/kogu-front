@@ -92,7 +92,14 @@ async function abreFicha() {
       .find((t) => t.cells[0] && t.cells[0].textContent.trim() === clave);
     return tr ? tr.textContent.replace(/\s+/g, ' ').trim() : null;
   };
-  return { errores, modal, renglon, btn };
+  // Última celda (Var) del renglón de una clave.
+  const varDe = (clave) => {
+    if (!modal) return null;
+    const tr = [...modal.querySelectorAll('tbody tr')]
+      .find((t) => t.cells[0] && t.cells[0].textContent.trim() === clave);
+    return tr ? tr.cells[tr.cells.length - 1].textContent.trim() : null;
+  };
+  return { errores, modal, renglon, btn, varDe };
 }
 
 const F = await abreFicha();
@@ -129,6 +136,27 @@ await check('perdida real: ADE0704 dice "antes WWP0704" y sigue "abandonado"', a
 await check('sin renombre no dice "antes": WWP0155-G y ADE1090', async () => {
   assert.ok(!/antes/.test(F.renglon('WWP0155-G')), F.renglon('WWP0155-G'));
   assert.ok(!/antes/.test(F.renglon('ADE1090')), F.renglon('ADE1090'));
+});
+
+console.log('\n── Var de un producto nuevo para el cliente ────────────────────');
+
+// §16.5 — CASO REAL, misma ficha (captura del 27-nov 11:28): ADE0890 y
+// ADE1117 tienen 0 kg en los 12 previos y venta en los 12 actuales, y Var
+// dice "—". Un porcentaje contra cero no existe, pero el dato sí dice algo:
+// el cliente empezó a comprarlo. ADE1117 tiene par (WWP1117), pero GOOD
+// FOODS nunca compró WWP1117: para este cliente sí es nuevo.
+await check('ADE0890: Var dice "nuevo", no "—"', async () => {
+  assert.equal(F.varDe('ADE0890'), 'nuevo');
+});
+
+await check('ADE1117: Var dice "nuevo" y no se le pega un "antes"', async () => {
+  assert.equal(F.varDe('ADE1117'), 'nuevo');
+  assert.ok(!/antes/.test(F.renglon('ADE1117')), F.renglon('ADE1117'));
+});
+
+await check('con previo, Var sigue siendo porcentaje (ADE0782-RS, ADE0704)', async () => {
+  assert.match(F.varDe('ADE0782-RS'), /^-\d+(\.\d)?%$/, F.varDe('ADE0782-RS'));
+  assert.match(F.varDe('ADE0704'), /100%/, F.varDe('ADE0704'));
 });
 
 console.log(`\nverde ${verde.length} · rojo ${rojo.length}`);
