@@ -805,7 +805,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const color = bb < a ? 'var(--danger,#dc2626)' : 'var(--muted)';
       const ab = a > 0 && bb === 0;
       return `<tr><td><span class="chip-compact">${KoguUi.escapeHtml(pr.cve_prod)}</span></td>
-        <td>${KoguUi.escapeHtml(pr.desc_prod || '')}${ab ? ' <span style="color:var(--danger,#dc2626);font-weight:600">abandonado</span>' : ''}</td>
+        <td>${KoguUi.escapeHtml(pr.desc_prod || '')}${ab ? ' <span style="color:var(--danger,#dc2626);font-weight:600">abandonado</span>' : ''}${
+          // Renombre (WWP0782-RS → ADE0782-RS): el backend ya unió las dos
+          // claves; sin esto el previo de $6.36 M no se explica con una
+          // clave que empezó a venderse en jul-2025.
+          (pr.claves_anteriores || []).length
+            ? ` <span style="color:var(--muted);font-size:12px">· antes ${KoguUi.escapeHtml(pr.claves_anteriores.join(', '))}</span>` : ''}</td>
         <td style="text-align:right">${fmtVal(a)}</td><td style="text-align:right">${fmtVal(bb)}</td>
         <td style="text-align:right;color:${color};font-weight:600">${dlt == null ? '—' : fmtPctCap(dlt)}</td></tr>`;
     }).join('');

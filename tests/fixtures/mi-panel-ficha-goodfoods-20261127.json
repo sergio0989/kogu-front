@@ -1,0 +1,173 @@
+{
+ "cliente_ref": "227",
+ "cliente_nombre": "GOOD FOODS SMA",
+ "agente_id": null,
+ "agente_nombre": null,
+ "periodos": {
+  "p1d": "2024-11-01",
+  "p1h": "2025-11-01",
+  "p2d": "2025-11-01",
+  "p2h": "2026-10-31"
+ },
+ "indicadores": {
+  "p1_total": 11531945.11,
+  "p2_total": 2233253.85,
+  "delta": -0.8063419632423138,
+  "facturas_p1": 0,
+  "facturas_p2": 0,
+  "ticket_prom_p1": null,
+  "ticket_prom_p2": null,
+  "ultima_compra": "2026-05-28",
+  "dias_sin_compra": 155
+ },
+ "mezcla": [],
+ "productos": [
+  {
+   "cve_prod": "ADE0782-RS",
+   "desc_prod": "Sazonador Español RS",
+   "claves_anteriores": [
+    "WWP0782-RS"
+   ],
+   "p1": 6363605.84,
+   "p2": 1508156.85,
+   "delta": -0.7630027867973671,
+   "cant_p1": 200,
+   "cant_p2": 100,
+   "abandonado": false
+  },
+  {
+   "cve_prod": "ADE0781-RS",
+   "desc_prod": "Sazonador salvaje RS",
+   "claves_anteriores": [
+    "WWP0781-RS"
+   ],
+   "p1": 2810530.72,
+   "p2": 242216.63,
+   "delta": -0.9138181880467047,
+   "cant_p1": 200,
+   "cant_p2": 100,
+   "abandonado": false
+  },
+  {
+   "cve_prod": "ADE0770-RS",
+   "desc_prod": "Sazonador pollo rostizado RS",
+   "claves_anteriores": [
+    "WWP0770-RS"
+   ],
+   "p1": 2051943.38,
+   "p2": 311800.86,
+   "delta": -0.8480460703550212,
+   "cant_p1": 200,
+   "cant_p2": 100,
+   "abandonado": false
+  },
+  {
+   "cve_prod": "ADE1090",
+   "desc_prod": "Aderome YE Umami 12",
+   "claves_anteriores": [],
+   "p1": 115274.36,
+   "p2": 0,
+   "delta": -1,
+   "cant_p1": 100,
+   "cant_p2": 0,
+   "abandonado": true
+  },
+  {
+   "cve_prod": "ADE0704",
+   "desc_prod": "SAZONADOR HIERBAS",
+   "claves_anteriores": [
+    "WWP0704"
+   ],
+   "p1": 101866.5,
+   "p2": 0,
+   "delta": -1,
+   "cant_p1": 100,
+   "cant_p2": 0,
+   "abandonado": true
+  },
+  {
+   "cve_prod": "WWP0155-G",
+   "desc_prod": "TOMATE EN POLVO HOT BREAK",
+   "claves_anteriores": [],
+   "p1": 36588.68,
+   "p2": 0,
+   "delta": -1,
+   "cant_p1": 100,
+   "cant_p2": 0,
+   "abandonado": true
+  },
+  {
+   "cve_prod": "ADE1034",
+   "desc_prod": "Aderome YE 145 B.5",
+   "claves_anteriores": [
+    "WWP1034"
+   ],
+   "p1": 52135.63,
+   "p2": 32648.97,
+   "delta": -0.3737685724714557,
+   "cant_p1": 100,
+   "cant_p2": 100,
+   "abandonado": false
+  },
+  {
+   "cve_prod": "ADE0890",
+   "desc_prod": "Aderome Flavor elote",
+   "claves_anteriores": [],
+   "p1": 0,
+   "p2": 60846.83,
+   "delta": null,
+   "cant_p1": 0,
+   "cant_p2": 100,
+   "abandonado": false
+  },
+  {
+   "cve_prod": "ADE1117",
+   "desc_prod": "Aderome Umami",
+   "claves_anteriores": [],
+   "p1": 0,
+   "p2": 77583.72,
+   "delta": null,
+   "cant_p1": 0,
+   "cant_p2": 100,
+   "abandonado": false
+  }
+ ],
+ "productos_abandonados": [
+  {
+   "cve_prod": "ADE1090",
+   "desc_prod": "Aderome YE Umami 12",
+   "claves_anteriores": [],
+   "p1": 115274.36,
+   "p2": 0,
+   "delta": -1,
+   "cant_p1": 100,
+   "cant_p2": 0,
+   "abandonado": true
+  },
+  {
+   "cve_prod": "ADE0704",
+   "desc_prod": "SAZONADOR HIERBAS",
+   "claves_anteriores": [
+    "WWP0704"
+   ],
+   "p1": 101866.5,
+   "p2": 0,
+   "delta": -1,
+   "cant_p1": 100,
+   "cant_p2": 0,
+   "abandonado": true
+  },
+  {
+   "cve_prod": "WWP0155-G",
+   "desc_prod": "TOMATE EN POLVO HOT BREAK",
+   "claves_anteriores": [],
+   "p1": 36588.68,
+   "p2": 0,
+   "delta": -1,
+   "cant_p1": 100,
+   "cant_p2": 0,
+   "abandonado": true
+  }
+ ],
+ "meses": []
+}
