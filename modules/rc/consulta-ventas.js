@@ -68,6 +68,22 @@
   };
 
   // Nombra mientras sean pocos; en cuanto son muchos, cuenta.
+  // Procedencia del comparativo: el FILTRO que se pidió, no las filas que
+  // salieron. Por canónica las filas no traen cliente ni clave, y la línea
+  // decía "Clientes: todos · Claves: todas" con el filtro de Dinant puesto.
+  // Una clave vigente declara las anteriores que incluye por renombre.
+  var clientesDeProcedencia = function (pr) {
+    return (pr.clientes_filtro && pr.clientes_filtro.length) ? pr.clientes_filtro : pr.clientes;
+  };
+  var clavesDeProcedencia = function (pr) {
+    if (!(pr.claves_filtro && pr.claves_filtro.length)) return pr.claves || pr.claves_canonicas;
+    var incluye = {};
+    (pr.renombres_incluidos || []).forEach(function (x) { incluye[x.clave] = x.incluye; });
+    return pr.claves_filtro.map(function (k) {
+      return incluye[k] ? k + ' (incluye ' + incluye[k].join(', ') + ')' : k;
+    });
+  };
+
   var nombrarOcontar = function (lista, singular, plural, vacio) {
     var n = (lista || []).length;
     if (!n) return vacio;
@@ -544,6 +560,9 @@
     var partes = [ETIQUETA[f.estado] || ''];
     if ((f.claves_anteriores || []).length) partes.push('antes ' + f.claves_anteriores.join(', '));
     if (f.renombrada_a) partes.push('renombrada a ' + f.renombrada_a);
+    // Fila vigente "comparable" que ya trae el volumen movido desde la
+    // anterior: Dinant ADE1034 salía +325.8 % sin decirlo (27-nov).
+    if ((f.incluye_renombre || []).length) partes.push('incluye renombre ← ' + f.incluye_renombre.join(', '));
     return partes.filter(Boolean).join(' · ');
   }
 
@@ -632,8 +651,8 @@
       + ' · agrupado por <b>' + esc(pr.agrupar) + '</b> · comparación <b>' + esc(pr.preset) + '</b>'
       + (pr.datos_hasta ? ' · datos hasta <b>' + esc(pr.datos_hasta) + '</b> (' + fuenteDatos + ')' : '')
       + '.'
-      + '<br>Clientes: <b>' + nombrarOcontar(pr.clientes, 'cliente', 'clientes', 'todos') + '</b>'
-      + ' · Claves: <b>' + nombrarOcontar(pr.claves || pr.claves_canonicas, 'clave', 'claves', 'todas') + '</b>.';
+      + '<br>Clientes: <b>' + nombrarOcontar(clientesDeProcedencia(pr), 'cliente', 'clientes', 'todos') + '</b>'
+      + ' · Claves: <b>' + nombrarOcontar(clavesDeProcedencia(pr), 'clave', 'claves', 'todas') + '</b>.';
   }
 
   function pintarComparativo(d) {
