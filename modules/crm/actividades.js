@@ -109,6 +109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Quien puede asignar (top-down) sin ser admin: ej. Director de Ventas.
   // Sin cartera propia, debe elegir el agente responsable al crear.
   const puedeAsignar = KoguShell.hasPerm(b, 'crm.actividades.assign');
+  // Re abrir pide el mismo permiso que cerrar (el servidor lo vuelve a validar).
+  const puedeCerrar = KoguShell.hasPerm(b, 'crm.actividades.close');
   const puedeElegirAgente = puedeAdmin || puedeAsignar;
   const hoyMas = n => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
@@ -451,7 +453,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button class="btn primary" id="crmCerrar" style="width:100%;margin-top:8px">Cerrar actividad</button>
                   </div>
                 </div>
-              </div>` : ''}
+              </div>` : (puedeCerrar ? `
+              <div class="crm-block">
+                <div class="crm-sech">Acciones</div>
+                <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:8px">Esta actividad está ${d.estado === 'cancelada' ? 'cancelada' : 'cerrada'}. Si hay que volver a trabajarla, se reabre en proceso y la bitácora guarda qué tenía.</div>
+                <button class="btn" id="crmReabrir">↺ Re abrir</button>
+                <div id="crmReabrirForm" style="display:none;margin-top:10px">
+                  <div class="label-text">Motivo (obligatorio)</div>
+                  <textarea class="input" id="crmReabrirMotivo" rows="2" style="margin-top:4px" placeholder="¿Por qué se vuelve a abrir?"></textarea>
+                  <div class="label-text" style="margin-top:8px">Nueva vigencia</div>
+                  <input class="input" id="crmReabrirFecha" type="date" style="margin-top:4px;max-width:200px"/>
+                  <div style="display:flex;gap:8px;margin-top:10px">
+                    <button class="btn primary" id="crmReabrirOk">Re abrir en proceso</button>
+                    <button class="btn" id="crmReabrirCancel">Cancelar</button>
+                  </div>
+                </div>
+              </div>` : '')}
 
               <div class="crm-block">
                 <div class="crm-sech">Etiquetas</div>
@@ -686,6 +703,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         KoguUi.withLoading(e.target, () => patch({ estado: 'cerrada', resultado: r }, 'Actividad cerrada'), 'Cerrando…').catch(err => KoguApi.toast(err.message, 'error'));
       };
       document.getElementById('crmCancelar').onclick = (e) => KoguUi.withLoading(e.target, () => patch({ estado: 'cancelada' }, 'Actividad cancelada'), 'Cancelando…').catch(err => KoguApi.toast(err.message, 'error'));
+    }
+
+    // Re abrir: pide motivo y vigencia nueva (por omisión hoy + 15, por
+    // componentes locales: toISOString daría mañana después de las 18:00).
+    const btnReabrir = document.getElementById('crmReabrir');
+    if (btnReabrir) {
+      const hoyMas15 = () => {
+        const f = new Date(); f.setDate(f.getDate() + 15);
+        return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`;
+      };
+      btnReabrir.onclick = () => {
+        document.getElementById('crmReabrirForm').style.display = '';
+        btnReabrir.style.display = 'none';
+        document.getElementById('crmReabrirFecha').value = hoyMas15();
+        document.getElementById('crmReabrirMotivo').focus();
+      };
+      document.getElementById('crmReabrirCancel').onclick = () => {
+        document.getElementById('crmReabrirForm').style.display = 'none';
+        btnReabrir.style.display = '';
+      };
+      document.getElementById('crmReabrirOk').onclick = (e) => {
+        const motivo = document.getElementById('crmReabrirMotivo').value.trim();
+        if (!motivo) { KoguApi.toast('Escribe el motivo para reabrir', 'error'); return Promise.resolve(); }
+        const fecha_limite = document.getElementById('crmReabrirFecha').value || null;
+        return KoguUi.withLoading(e.target, async () => {
+          await KoguApi.apiFetch(`${BASE}/actividades/${d.actividad_id}/reabrir`, { method: 'POST', body: JSON.stringify({ motivo, fecha_limite }) });
+          KoguApi.toast('Actividad reabierta en proceso', 'success');
+          await refresh();
+        }, 'Reabriendo…').catch(err => KoguApi.toast(err.message, 'error'));
+      };
     }
   }
 
