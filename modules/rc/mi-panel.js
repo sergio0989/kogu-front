@@ -97,9 +97,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   const MOTIVO_TXT = {
     riesgo: 'los que suman el monto en riesgo',
-    caida: 'en caída',
+    // Vocabulario del 27-nov (opción A): el tiempo va en la palabra. A ventas
+    // le costaba leer "encogiendo"; la baja de golpe del bimestre y la que
+    // viene de todo el año se distinguen sin leer el subtítulo.
+    caida: 'caída reciente',
     dormancia: 'sin compra',
-    deriva: 'encogiendo',
+    deriva: 'baja sostenida',
   };
   // Tarjeta KPI compacta (más eficiente en espacio que KoguUi.cardStat).
   //
@@ -334,7 +337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const v = esDinero() ? d.delta_mxn : d.delta_kg;
     const perdido = esDinero() ? d.caida_mxn : d.caida_kg;
     return `<div style="font-size:12px;color:var(--danger,#dc2626);margin-top:3px">`
-         + `📉 Encogiendo: <b>${fmtPctCap(v)}</b> en 12 meses · ${fmtVal(perdido)} menos que los 12 previos`
+         + `📉 Baja sostenida: <b>${fmtPctCap(v)}</b> en 12 meses · ${fmtVal(perdido)} menos que los 12 previos`
          + ` · compró ${d.meses_con_compra} de 12 meses</div>`;
   }
 
@@ -418,8 +421,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const notas = [
       motivoFil ? `Filtro activo: <b>${MOTIVO_TXT[motivoFil] || ''}</b> — ${visibles.length} de ${clientes.length}. Clic otra vez en la tarjeta para quitarlo.` : '',
       solapan ? 'Un cliente puede aparecer en más de un motivo, por eso los conteos no suman el total.' : '',
-      // La severidad se reparte DENTRO de la cartera, no contra la empresa.
+      // Desde el 27-nov (1c87ae3) la severidad se reparte contra TODA LA
+      // EMPRESA: Mi panel y la Bandeja usan una sola escala. La nota de abajo
+      // decía lo contrario —"dentro de tu cartera"— y quedó falsa.
       //
+      // Historia: antes se repartía DENTRO de la cartera.
       // `Math.max(1, ceil(n * 0.2))` garantiza al menos una crítica por lista,
       // y hay tres listas independientes: caída, dormancia y deriva. Un agente
       // con una tarjeta de cada motivo abre las tres en rojo aunque sean
@@ -427,16 +433,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 3 de 3 críticas y 837 kg en juego, contra ALEJANDRA con 4 críticas
       // sobre 46,364 kg. Sin decirlo, la primera cree que tiene una emergencia
       // y la segunda subestima la suya.
-      nCrit ? `El rojo compara <b>dentro de tu cartera</b>, no contra la empresa: son tus ${nCrit === 1 ? 'peor caso' : `${nCrit} peores casos`}, no necesariamente los mayores de la empresa.` : '',
+      nCrit ? `El rojo compara contra <b>toda la empresa</b>: ${nCrit === 1 ? 'tu crítica está' : `tus ${nCrit} críticas están`} entre los mayores casos de la empresa.` : '',
     ].filter(Boolean);
 
     document.getElementById('carteraResumen').innerHTML = `
       <div class="grid-5" style="gap:10px;display:grid;grid-template-columns:repeat(5,1fr)">
         ${miniCard(esDinero() ? 'Monto en riesgo' : 'Volumen en riesgo (kg)', fmtVal(totalRiesgo), 'lo que dejaron de comprar', 'var(--danger,#dc2626)', 'riesgo')}
         ${miniCard('Clientes a atender', String(clientes.length), `${nCrit} críticos · atiende estos primero`, '', '')}
-        ${miniCard('En caída', String(nCaida), 'compran menos que su base', '', 'caida')}
+        ${miniCard('Caída reciente', String(nCaida), 'compran menos que su base', '', 'caida')}
         ${miniCard('Sin compra', String(nDorm), 'clientes dormidos', '', 'dormancia')}
-        ${miniCard('Encogiendo', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '', 'deriva')}
+        ${miniCard('Baja sostenida', String(enDeriva.length), `${fmtVal(perdidoDeriva)} menos en 12 meses`, enDeriva.length ? 'var(--danger,#dc2626)' : '', 'deriva')}
       </div>
       ${notas.length ? `<div class="hint" style="margin-top:8px;color:var(--muted);font-size:12px">${notas.join('<br>')}</div>` : ''}`;
 

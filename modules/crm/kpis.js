@@ -173,9 +173,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // aquí, o son dos pantallas del mismo módulo hablando distinto de la misma
   // señal.
   const MOTIVO_TXT = {
-    caida: 'En caída',
+    // Vocabulario del 27-nov (opción A), el mismo de Mi panel y la Bandeja.
+    caida: 'Caída reciente',
     sin_compra: 'Sin compra',
-    deriva: 'Encogiendo',
+    deriva: 'Baja sostenida',
     sin_motivo: 'Sin motivo',
   };
   const SEV_COLOR = { critica: EST.mal, alerta: EST.warn, info: EST.neutro };
@@ -515,14 +516,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="eyebrow" style="margin:18px 0 8px">Volumen atendido</div>
         <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:10px">
           Son los <b>kg de las actividades creadas</b>, no la cartera en riesgo. Van por separado a
-          propósito: <b>encogiendo</b> mide doce meses, <b>en caída</b> un bimestre y <b>sin compra</b>
+          propósito: <b>baja sostenida</b> mide doce meses, <b>caída reciente</b> un bimestre y <b>sin compra</b>
           su ventana. Sumarlas daría una cifra sin significado. Cada actividad cuenta en la cubeta del
           motivo que <b>produjo su cifra</b>; si traía otro motivo además, la cubeta lo dice.
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
-          ${cubeta('En caída', 'bimestre contra su base', v.caida || {}, IDENT.caida)}
+          ${cubeta('Caída reciente', 'bimestre contra su base', v.caida || {}, IDENT.caida)}
           ${cubeta('Sin compra', 'lo que venía comprando en la ventana', v.sin_compra || {}, IDENT.sinCompra)}
-          ${cubeta('Encogiendo', 'últimos 12 meses vs los 12 previos', v.deriva || {}, IDENT.deriva)}
+          ${cubeta('Baja sostenida', 'últimos 12 meses vs los 12 previos', v.deriva || {}, IDENT.deriva)}
           ${sinMotivo ? cubeta('Sin motivo', 'no quedó registrado por qué entraron', v.sin_motivo, IDENT.sinMotivo) : ''}
         </div>
         ${enCeroTotal ? `<div class="hint" style="color:var(--muted);font-size:12px;margin-top:10px">

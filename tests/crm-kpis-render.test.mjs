@@ -237,9 +237,12 @@ console.log('\n── La honestidad de los numeros ─────────�
 await check('el volumen se pinta en TRES cubetas de motivo, mas sin motivo', async () => {
   const { texto } = await arranca();
   const t = texto();
-  assert.ok(/En ca[ií]da/i.test(t), 'falta la cubeta En caida');
+  // Vocabulario del 27-nov (opción A): Caída reciente · Sin compra · Baja sostenida.
+  assert.ok(/Ca[ií]da reciente/i.test(t), 'falta la cubeta Caida reciente');
   assert.ok(/Sin compra/i.test(t), 'falta la cubeta Sin compra');
-  assert.ok(/Encogiendo/i.test(t), 'falta la cubeta Encogiendo');
+  assert.ok(/Baja sostenida/i.test(t), 'falta la cubeta Baja sostenida');
+  assert.ok(!/encogiendo/i.test(t), 'sigue diciendo Encogiendo');
+  assert.ok(!/\bEn ca[ií]da\b/i.test(t), 'sigue diciendo En caida');
   assert.ok(/sin motivo/i.test(t), 'falta la cubeta sin motivo');
 });
 
@@ -260,8 +263,8 @@ await check('la tabla muestra los DOS motivos de una tarjeta, no solo uno', asyn
   const fila = [...window.document.querySelectorAll('#kpiTabla tbody tr')]
     .find((tr) => /TROPHE/.test(tr.textContent));
   assert.ok(fila, 'no encontro la fila de TROPHE');
-  assert.match(fila.textContent, /En ca[ií]da/i, 'falta el motivo que nombra la cifra');
-  assert.match(fila.textContent, /Encogiendo/i, 'la tabla oculta que la tarjeta tambien deriva');
+  assert.match(fila.textContent, /Ca[ií]da reciente/i, 'falta el motivo que nombra la cifra');
+  assert.match(fila.textContent, /Baja sostenida/i, 'la tabla oculta que la tarjeta tambien deriva');
 });
 
 await check('NUNCA aparece el total que mezcla las bases de tiempo', async () => {
@@ -485,7 +488,7 @@ await check('la tabla NO lleva fila de totales', async () => {
 await check('los totales por motivo quedan debajo, separados', async () => {
   const { texto } = await arranca();
   const t = texto();
-  assert.ok(/En ca[ií]da/i.test(t) && /Sin compra/i.test(t) && /Encogiendo/i.test(t),
+  assert.ok(/Ca[ií]da reciente/i.test(t) && /Sin compra/i.test(t) && /Baja sostenida/i.test(t),
     'se perdieron los totales por motivo');
 });
 
