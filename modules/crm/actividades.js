@@ -19,13 +19,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><div class="eyebrow">CRM · Seguimiento</div><h2 style="margin:2px 0 0">Actividades</h2></div>
         <button class="btn primary" id="crmNuevaActBtn" style="display:none">+ Nueva actividad</button>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+      <button class="btn" id="gestEtqBtn" title="Gestionar etiquetas" style="display:none">Etiquetas</button>
+    </div>
+    <!-- Filtros con etiqueta, los mismos de KPIs más los de la lista (27-nov,
+         opción B): un número de KPIs se puede ver aquí con el mismo recorte. -->
+    <div id="actFiltros" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:14px">
+      <div><div class="label-text">Desde</div><input class="input" id="filDesde" type="date" style="max-width:170px"/></div>
+      <div><div class="label-text">Hasta</div><input class="input" id="filHasta" type="date" style="max-width:170px"/></div>
+      <div><div class="label-text">Origen</div>
+        <select class="select" id="filOrigen" style="max-width:190px">
+          <option value="">Todos los orígenes</option>
+          <option value="mi-panel">Radar · Mi panel</option>
+          <option value="manual">Manual</option>
+          <option value="comex-recon">Comex</option>
+        </select>
+      </div>
+      <div><div class="label-text">Agente</div>
+        <select class="select" id="filAgente" style="max-width:220px"><option value="">Todos los agentes</option></select>
+      </div>
+      <div><div class="label-text">Mes analizado</div><input class="input" id="filPeriodo" type="month" style="max-width:170px"/></div>
+      <div><div class="label-text">Severidad</div>
+        <select class="select" id="filSev" style="max-width:160px">
+          <option value="">Toda severidad</option>
+          <option value="critica">Crítica</option>
+          <option value="alerta">Alerta</option>
+          <option value="info">Info</option>
+        </select>
+      </div>
+      <div><div class="label-text">Vigencia</div>
         <select class="select" id="vigFil" style="max-width:170px">
           <option value="">Todas las vigencias</option>
           <option value="abiertas">Solo abiertas</option>
           <option value="vencidas">Vencidas</option>
           <option value="por_vencer">Por vencer (7 días)</option>
         </select>
+      </div>
+      <div><div class="label-text">Estado</div>
         <select class="select" id="estFil" style="max-width:160px">
           <option value="">Todo estado</option>
           <option value="abierta">Abierta</option>
@@ -33,9 +62,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           <option value="cerrada">Cerrada</option>
           <option value="cancelada">Cancelada</option>
         </select>
-        <input class="input" id="cliFil" placeholder="Cliente (cve)" style="max-width:140px"/>
-        <select class="select" id="etqFil" style="max-width:150px"><option value="">Toda etiqueta</option></select>
-        <button class="btn" id="gestEtqBtn" title="Gestionar etiquetas" style="display:none">Etiquetas</button>
+      </div>
+      <div><div class="label-text">Cliente</div>
+        <button class="btn" id="filCliente" type="button" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Todos los clientes</button>
+      </div>
+      <div><div class="label-text">Etiqueta</div>
+        <select class="select" id="etqFil" style="max-width:170px"><option value="">Toda etiqueta</option></select>
       </div>
     </div>
     <div id="kpis" style="margin-top:14px"></div>
@@ -187,11 +219,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_) { document.getElementById('kpis').innerHTML = ''; }
   }
 
+  // Cliente elegido en el modal: { ref, nombre } o null (todos).
+  let cliSel = null;
+  function pintaCliente() {
+    const bt = document.getElementById('filCliente');
+    if (bt) bt.textContent = cliSel ? `${cliSel.nombre} · ${cliSel.ref}` : 'Todos los clientes';
+  }
+  function closeCliModal() { document.getElementById('actCliModal')?.remove(); }
+  // Modal con búsqueda: sólo los clientes que tienen actividades en tu
+  // alcance, con su conteo (27-nov). Antes había que saberse la clave.
+  async function openCliModal() {
+    closeCliModal();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="actCliModal" style="position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:40px 16px">
+        <div style="background:var(--panel,#fff);border-radius:16px;max-width:560px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+          <div class="row" style="align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Cliente</h3>
+            <button class="btn" id="actCliCerrar">✕</button>
+          </div>
+          <input class="input" id="actCliBuscar" placeholder="Buscar por nombre o clave…" style="width:100%"/>
+          <div class="hint" style="color:var(--muted);font-size:12px;margin:6px 0 10px">Sólo aparecen los clientes que tienen actividades en tu alcance.</div>
+          <div id="actCliLista" style="max-height:55vh;overflow:auto"><div class="empty">Cargando…</div></div>
+        </div>
+      </div>`);
+    document.getElementById('actCliCerrar').onclick = closeCliModal;
+    document.getElementById('actCliModal').onclick = (e) => { if (e.target.id === 'actCliModal') closeCliModal(); };
+    const elegir = (c) => { cliSel = c; pintaCliente(); closeCliModal(); load(); };
+    const pinta = async (q) => {
+      let rows = [];
+      try {
+        const res = await KoguApi.apiFetch(`${BASE}/actividades/clientes${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+        rows = res?.data || res || [];
+      } catch (err) { document.getElementById('actCliLista').innerHTML = `<div class="empty">${esc(err.message)}</div>`; return; }
+      const fila = (ref, nombre, extra, activo) => `
+        <button type="button" class="btn" data-cli="${esc(ref)}" style="display:flex;justify-content:space-between;gap:10px;width:100%;margin-bottom:6px;text-align:left;${activo ? 'border-color:var(--brand,#2563eb)' : ''}">
+          <span>${esc(nombre)}${ref ? ` <span style="color:var(--muted)">· ${esc(ref)}</span>` : ''}</span>
+          <span style="color:var(--muted);font-size:12px;white-space:nowrap">${extra}</span>
+        </button>`;
+      const lista = document.getElementById('actCliLista');
+      if (!lista) return;
+      lista.innerHTML = fila('', 'Todos los clientes', '', !cliSel)
+        + (rows.length ? rows.map((r) => fila(r.cliente_ref, r.cliente_nombre || r.cliente_ref,
+            `${r.actividades} ${Number(r.actividades) === 1 ? 'actividad' : 'actividades'}${r.abiertas ? ` · ${r.abiertas} abierta${Number(r.abiertas) === 1 ? '' : 's'}` : ''}`,
+            cliSel && cliSel.ref === r.cliente_ref)).join('')
+          : '<div class="empty">Sin clientes con ese texto.</div>');
+      lista.querySelectorAll('[data-cli]').forEach((b) => b.onclick = () => {
+        const ref = b.dataset.cli;
+        if (!ref) return elegir(null);
+        const r = rows.find((x) => x.cliente_ref === ref);
+        elegir({ ref, nombre: (r && r.cliente_nombre) || ref });
+      });
+    };
+    let t;
+    document.getElementById('actCliBuscar').oninput = (e) => { clearTimeout(t); t = setTimeout(() => pinta(e.target.value.trim()), 300); };
+    await pinta('');
+    document.getElementById('actCliBuscar').focus();
+  }
+
   function qs() {
     const p = new URLSearchParams();
     if (sel('estFil')) p.set('estado', sel('estFil'));
     if (sel('vigFil')) p.set('vigencia', sel('vigFil'));
-    if (sel('cliFil').trim()) p.set('cliente_ref', sel('cliFil').trim());
+    if (cliSel) p.set('cliente_ref', cliSel.ref);
+    if (sel('filDesde')) p.set('desde', sel('filDesde'));
+    if (sel('filHasta')) p.set('hasta', sel('filHasta'));
+    if (sel('filOrigen')) p.set('origen', sel('filOrigen'));
+    if (sel('filAgente')) p.set('agente_id', sel('filAgente'));
+    if (sel('filPeriodo')) p.set('periodo', sel('filPeriodo'));
+    if (sel('filSev')) p.set('severidad', sel('filSev'));
     if (sel('etqFil')) p.set('etiqueta_id', sel('etqFil'));
     const s = p.toString();
     return s ? `?${s}` : '';
@@ -895,10 +990,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('estFil').onchange = load;
   document.getElementById('vigFil').onchange = load;
   document.getElementById('etqFil').onchange = load;
-  document.getElementById('cliFil').oninput = (() => { let t; return () => { clearTimeout(t); t = setTimeout(load, 350); }; })();
+  ['filDesde', 'filHasta', 'filOrigen', 'filAgente', 'filPeriodo', 'filSev']
+    .forEach((id) => { document.getElementById(id).onchange = load; });
+  document.getElementById('filCliente').onclick = openCliModal;
+  // Agentes para el filtro: misma lectura de la respuesta que KPIs.
+  KoguApi.apiFetch(`${BASE}/agentes`).then((res) => {
+    const filas = (res && res.data && res.data.rows) || (res && res.data) || [];
+    const s = document.getElementById('filAgente');
+    if (s && Array.isArray(filas)) {
+      s.innerHTML = '<option value="">Todos los agentes</option>'
+        + filas.map((a) => `<option value="${esc(a.agente_id)}">${esc(a.agente_nombre || a.nombre || a.agente_id)}</option>`).join('');
+    }
+  }).catch(() => {});
   if (puedeCrearAct) { const n = document.getElementById('crmNuevaActBtn'); n.style.display = ''; n.onclick = openNuevaActividad; }
   if (puedeGestEtq) { const g = document.getElementById('gestEtqBtn'); g.style.display = ''; g.onclick = openGestor; }
-  KoguShell.subscribeEmpresaActivaChange(async () => { await loadEtiquetas(); await loadKpis(); await load(); });
+  // Al cambiar de empresa el cliente elegido ya no aplica: no dejar residuos.
+  KoguShell.subscribeEmpresaActivaChange(async () => { cliSel = null; pintaCliente(); await loadEtiquetas(); await loadKpis(); await load(); });
   await loadEtiquetas();
   await loadKpis();
   await load();
