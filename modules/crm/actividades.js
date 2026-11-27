@@ -69,6 +69,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const SEV = { critica: 'var(--danger,#dc2626)', alerta: 'var(--warning,#d97706)', info: 'var(--muted,#64748b)' };
   const SEV_TXT = { critica: 'Crítica', alerta: 'Alerta', info: 'Info' };
   const EST = { abierta: 'var(--brand,#2563eb)', en_proceso: 'var(--warning,#d97706)', cerrada: 'var(--ok,#16a34a)', cancelada: 'var(--muted,#64748b)' };
+  // Valor para un <input type="date">: sólo acepta AAAA-MM-DD. La columna
+  // date llega en JSON como "2026-12-12T00:00:00.000Z" y el campo quedaba en
+  // blanco (captura del 27-nov, CHILES Y CONDIMENTOS). Se leen los diez
+  // primeros caracteres, igual que fmtDateOnly: sin toISOString ni zona.
+  const diaInput = (v) => { const m = String(v ?? '').match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : ''; };
   const EST_TXT = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
   // Vocabulario de cierre consolidado el 20-oct. Describe QUÉ PASÓ CON EL
   // CLIENTE, que es la pregunta de la revisión comercial. Los retirados
@@ -430,7 +435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button class="btn" id="crmCancelar">Cancelar</button>
                   </div>
                   <div><div class="label-text">Nueva vigencia</div>
-                    <div style="display:flex;gap:8px;margin-top:4px"><input class="input" id="crmFechaLim" type="date" value="${d.fecha_limite || ''}"/><button class="btn" id="crmGuardarVig" style="white-space:nowrap">Actualizar</button></div>
+                    <div style="display:flex;gap:8px;margin-top:4px"><input class="input" id="crmFechaLim" type="date" value="${esc(diaInput(d.fecha_limite))}"/><button class="btn" id="crmGuardarVig" style="white-space:nowrap">Actualizar</button></div>
                   </div>
                   <div><div class="label-text">Resultado al cerrar</div>
                     <select class="select" id="crmResultado" style="margin-top:4px">
@@ -696,7 +701,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
       const tomar = document.getElementById('crmTomar');
       if (tomar) tomar.onclick = (e) => KoguUi.withLoading(e.target, () => patch({ estado: 'en_proceso' }, 'Actividad en proceso'), 'Guardando…').catch(err => KoguApi.toast(err.message, 'error'));
-      document.getElementById('crmGuardarVig').onclick = (e) => KoguUi.withLoading(e.target, () => patch({ fecha_limite: document.getElementById('crmFechaLim').value || null }, 'Vigencia actualizada'), 'Guardando…').catch(err => KoguApi.toast(err.message, 'error'));
+      // Vacío no es "sin vigencia": mandar null la borraba (captura del 27-nov).
+      document.getElementById('crmGuardarVig').onclick = (e) => {
+        const f = document.getElementById('crmFechaLim').value;
+        if (!f) { KoguApi.toast('Elige una fecha para la nueva vigencia', 'error'); return Promise.resolve(); }
+        return KoguUi.withLoading(e.target, () => patch({ fecha_limite: f }, 'Vigencia actualizada'), 'Guardando…').catch(err => KoguApi.toast(err.message, 'error'));
+      };
       document.getElementById('crmCerrar').onclick = (e) => {
         const r = document.getElementById('crmResultado').value;
         if (!r) { KoguApi.toast('Elige un resultado para cerrar', 'error'); return; }

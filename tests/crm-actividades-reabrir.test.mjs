@@ -159,6 +159,41 @@ await check('con motivo manda POST /actividades/act-124/reabrir con motivo y vig
   assert.deepEqual(p.body, { motivo: 'El cliente volvió a bajar en diciembre', fecha_limite: '2026-12-15' });
 });
 
+console.log('\n── Nueva vigencia de una actividad abierta ────────────────────');
+
+// §16.5 — CASO REAL: captura de Sergio, 27-nov, CHILES Y CONDIMENTOS recién
+// reabierta: arriba "Vence 12/12/2026" y el campo "Nueva vigencia" vacío
+// (dd/mm/aaaa). La columna date viaja en JSON como "2026-12-12T00:00:00.000Z"
+// y un <input type="date"> sólo acepta AAAA-MM-DD: lo deja en blanco, y
+// "Actualizar" mandaba null —borraba la vigencia—.
+const ABIERTA_ISO = { ...BASE, estado: 'en_proceso', resultado: null, fecha_cierre: null,
+  fecha_limite: '2026-12-12T00:00:00.000Z' };
+
+await check('el campo "Nueva vigencia" muestra 2026-12-12 cuando llega como fecha con hora', async () => {
+  const { $ } = await arranca({ detalle: ABIERTA_ISO });
+  assert.equal($('crmFechaLim')?.value, '2026-12-12');
+});
+
+await check('si ya llega como AAAA-MM-DD, se queda igual', async () => {
+  const { $ } = await arranca({ detalle: { ...ABIERTA_ISO, fecha_limite: '2026-12-12' } });
+  assert.equal($('crmFechaLim')?.value, '2026-12-12');
+});
+
+await check('"Actualizar" con el campo vacío no borra la vigencia', async () => {
+  const pats = [];
+  const { window, $, avisos } = await arranca({ detalle: ABIERTA_ISO });
+  const orig = window.KoguApi.apiFetch;
+  window.KoguApi.apiFetch = async (url, opts) => {
+    if (opts && opts.method === 'PATCH') pats.push(JSON.parse(opts.body || '{}'));
+    return orig(url, opts);
+  };
+  $('crmFechaLim').value = '';
+  await $('crmGuardarVig').onclick({ target: $('crmGuardarVig') });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(pats.length, 0, `mandó ${JSON.stringify(pats)}`);
+  assert.ok(avisos.some((a) => /fecha/i.test(a)), `no avisó: ${avisos.join(' | ')}`);
+});
+
 console.log(`\nverde ${verde.length} · rojo ${rojo.length}`);
 for (const n of verde) console.log(`  ✔ ${n}`);
 for (const [n, m] of rojo) console.log(`  ✘ ${n}\n      ${m}`);
