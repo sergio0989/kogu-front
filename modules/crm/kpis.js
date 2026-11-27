@@ -100,11 +100,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="hint" style="margin-top:4px;color:var(--muted)">Cómo se está atendiendo lo que detecta el Radar Comercial.</div>
       </div>
     </div>
-    <div id="kpiFiltros" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:14px">
-      <div><div class="label-text">Desde</div><input class="input" id="kpiDesde" type="date" style="max-width:170px"/></div>
-      <div><div class="label-text">Hasta</div><input class="input" id="kpiHasta" type="date" style="max-width:170px"/></div>
+    <div id="kpiFiltros" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;align-items:end;margin-top:14px">
+      <div><div class="label-text">Desde</div><input class="input" id="kpiDesde" type="date" style="width:100%"/></div>
+      <div><div class="label-text">Hasta</div><input class="input" id="kpiHasta" type="date" style="width:100%"/></div>
       <div><div class="label-text">Origen</div>
-        <select class="select" id="kpiOrigen" style="max-width:190px">
+        <select class="select" id="kpiOrigen" style="width:100%">
           <option value="">Todos los orígenes</option>
           <option value="mi-panel">Radar · Mi panel</option>
           <option value="manual">Manual</option>
@@ -112,15 +112,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       <div><div class="label-text">Agente</div>
-        <select class="select" id="kpiAgente" style="max-width:220px">
+        <select class="select" id="kpiAgente" style="width:100%">
           <option value="">Todos los agentes</option>
         </select>
       </div>
       <div><div class="label-text">Mes analizado</div>
-        <input class="input" id="kpiPeriodo" type="month" style="max-width:170px"/>
+        <input class="input" id="kpiPeriodo" type="month" style="width:100%"/>
       </div>
       <div><div class="label-text">Severidad</div>
-        <select class="select" id="kpiSev" style="max-width:160px">
+        <select class="select" id="kpiSev" style="width:100%">
           <option value="">Toda severidad</option>
           <option value="critica">Crítica</option>
           <option value="alerta">Alerta</option>

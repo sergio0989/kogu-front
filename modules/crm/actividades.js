@@ -23,11 +23,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
     <!-- Filtros con etiqueta, los mismos de KPIs más los de la lista (27-nov,
          opción B): un número de KPIs se puede ver aquí con el mismo recorte. -->
-    <div id="actFiltros" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:14px">
-      <div><div class="label-text">Desde</div><input class="input" id="filDesde" type="date" style="max-width:170px"/></div>
-      <div><div class="label-text">Hasta</div><input class="input" id="filHasta" type="date" style="max-width:170px"/></div>
+    <div id="actFiltros" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;align-items:end;margin-top:14px">
+      <div><div class="label-text">Desde</div><input class="input" id="filDesde" type="date" style="width:100%"/></div>
+      <div><div class="label-text">Hasta</div><input class="input" id="filHasta" type="date" style="width:100%"/></div>
       <div><div class="label-text">Origen</div>
-        <select class="select" id="filOrigen" style="max-width:190px">
+        <select class="select" id="filOrigen" style="width:100%">
           <option value="">Todos los orígenes</option>
           <option value="mi-panel">Radar · Mi panel</option>
           <option value="manual">Manual</option>
@@ -35,11 +35,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       <div><div class="label-text">Agente</div>
-        <select class="select" id="filAgente" style="max-width:220px"><option value="">Todos los agentes</option></select>
+        <select class="select" id="filAgente" style="width:100%"><option value="">Todos los agentes</option></select>
       </div>
-      <div><div class="label-text">Mes analizado</div><input class="input" id="filPeriodo" type="month" style="max-width:170px"/></div>
+      <div><div class="label-text">Mes analizado</div><input class="input" id="filPeriodo" type="month" style="width:100%"/></div>
       <div><div class="label-text">Severidad</div>
-        <select class="select" id="filSev" style="max-width:160px">
+        <select class="select" id="filSev" style="width:100%">
           <option value="">Toda severidad</option>
           <option value="critica">Crítica</option>
           <option value="alerta">Alerta</option>
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       <div><div class="label-text">Vigencia</div>
-        <select class="select" id="vigFil" style="max-width:170px">
+        <select class="select" id="vigFil" style="width:100%">
           <option value="">Todas las vigencias</option>
           <option value="abiertas">Solo abiertas</option>
           <option value="vencidas">Vencidas</option>
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       <div><div class="label-text">Estado</div>
-        <select class="select" id="estFil" style="max-width:160px">
+        <select class="select" id="estFil" style="width:100%">
           <option value="">Todo estado</option>
           <option value="abierta">Abierta</option>
           <option value="en_proceso">En proceso</option>
@@ -64,10 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         </select>
       </div>
       <div><div class="label-text">Cliente</div>
-        <button class="btn" id="filCliente" type="button" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Todos los clientes</button>
+        <button class="select" id="filCliente" type="button" style="width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Elegir cliente">Todos los clientes</button>
       </div>
       <div><div class="label-text">Etiqueta</div>
-        <select class="select" id="etqFil" style="max-width:170px"><option value="">Toda etiqueta</option></select>
+        <select class="select" id="etqFil" style="width:100%"><option value="">Toda etiqueta</option></select>
       </div>
     </div>
     <div id="kpis" style="margin-top:14px"></div>

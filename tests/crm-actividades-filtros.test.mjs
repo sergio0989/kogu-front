@@ -112,6 +112,29 @@ await check('Origen y Severidad ofrecen las mismas opciones que KPIs', async () 
   assert.deepEqual(ops('filSev'), ['', 'critica', 'alerta', 'info']);
 });
 
+// §16.5 — captura de Sergio, 27-nov 17:24: "los campos de los filtros
+// tienen diferentes tamaños". Cada control traía su max-width (170, 190,
+// 220, 160…) en una fila flex, y Cliente era un botón (otra altura). jsdom
+// no mide; se verifica la estructura que produce el mismo tamaño.
+await check('la barra de filtros es una cuadrícula de columnas iguales', async () => {
+  const { $ } = await arranca();
+  assert.equal($('actFiltros').style.display, 'grid');
+  assert.match($('actFiltros').style.gridTemplateColumns, /repeat\(auto-fill, ?minmax\(\d+px, ?1fr\)\)/);
+});
+
+await check('todos los campos ocupan su columna completa, sin ancho máximo propio', async () => {
+  const { window } = await arranca();
+  const mal = [...window.document.querySelectorAll('#actFiltros input, #actFiltros select, #actFiltros button')]
+    .filter((el) => el.style.width !== '100%' || el.style.maxWidth)
+    .map((el) => `${el.id} (width ${el.style.width || '—'}, max ${el.style.maxWidth || '—'})`);
+  assert.deepEqual(mal, []);
+});
+
+await check('Cliente se ve como un selector: misma clase que los desplegables', async () => {
+  const { $ } = await arranca();
+  assert.ok($('filCliente').classList.contains('select'), `clases: ${$('filCliente').className}`);
+});
+
 console.log('\n── Cada filtro viaja a la lista ───────────────────────────────');
 
 await check('origen → ?origen=manual', async () => {

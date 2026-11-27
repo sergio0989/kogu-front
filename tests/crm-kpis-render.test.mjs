@@ -228,6 +228,27 @@ async function arranca(cuerpo = CON_DATOS) {
   return { window, pedidos, texto, setCuerpo: (c) => { actual = c; } };
 }
 
+console.log('\n── Filtros del mismo tamaño (captura del 27-nov) ───────────────');
+
+// §16.5 — captura de Sergio, 27-nov 17:24: "los campos de los filtros
+// tienen diferentes tamaños" (Actividades, y KPIs con el mismo patrón:
+// max-width 170/190/220/160 en una fila flex). jsdom no mide; se verifica
+// la estructura que produce el mismo tamaño, igual que en Actividades.
+await check('la barra de filtros de KPIs es una cuadrícula de columnas iguales', async () => {
+  const { window } = await arranca();
+  const f = window.document.getElementById('kpiFiltros');
+  assert.equal(f.style.display, 'grid');
+  assert.match(f.style.gridTemplateColumns, /repeat\(auto-fill, ?minmax\(\d+px, ?1fr\)\)/);
+});
+
+await check('todos los campos de KPIs ocupan su columna completa, sin ancho máximo propio', async () => {
+  const { window } = await arranca();
+  const mal = [...window.document.querySelectorAll('#kpiFiltros input, #kpiFiltros select')]
+    .filter((el) => el.style.width !== '100%' || el.style.maxWidth)
+    .map((el) => `${el.id} (width ${el.style.width || '—'}, max ${el.style.maxWidth || '—'})`);
+  assert.deepEqual(mal, []);
+});
+
 console.log('\n── La honestidad de los numeros ────────────────────────────────');
 
 // CAMBIO ACORDADO el 21-oct: tres cubetas de motivo, no dos, y con el
